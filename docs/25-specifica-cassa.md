@@ -1713,6 +1713,123 @@ economiche, la precisione Decimal e le autorizzazioni restano invariate. Nessuna
 nuova whitelist, restrizione o implementazione di regime è introdotta: prima
 dell'uso reale con quei codici serve una decisione esplicita sui casi sopra.
 
+### Proposta IVA circoscritta — decisione ancora necessaria (06/09)
+
+**Questa sezione è una proposta, non una nuova politica applicata.** Catalogo,
+codici IVA, Nature, modalità, Decimal(16,6), autorizzazioni e primitive economiche
+restano quelli condivisi. La matrice precedente continua a descrivere ciò che
+l'API accetta oggi. Non viene introdotta una classificazione Cassa parallela.
+
+Il confronto con i documenti esistenti distingue tre livelli:
+
+- **Calcolo:** `vat-line-calculation.util.ts` e il gemello frontend
+  `document-vat.util.ts` producono netto, IVA, lordo, dovuto fornitore, quota RC e
+  indetraibile. Espongono l'IVA nel lordo per `standard` e `split_payment`;
+  `supplierPayableMinor` dipende invece da `vatAffectsSupplierTotal`.
+- **Importo da pagare/incassare:** `goods-receipt-vat.util.ts` conserva i diversi
+  importi e somma in testata soltanto l'IVA che concorre al dovuto fornitore.
+  La Cassa compone e registra le quote sul **lordo**, non sul dovuto fornitore.
+  Il nome del flag riguarda il fornitore: non lo si può reinterpretare come
+  istruzione per l'incasso al cliente senza una decisione di dominio.
+- **Registrazione:** la fattura fornitore raggruppa gli arrivi per **codice IVA**
+  (`purchase-invoice-vat-summary.util.ts`), distinguendo codici con la stessa
+  aliquota. Nei documenti generici `documentLineEconomicTotals` e
+  `DocumentsService.computeTotals` lavorano invece su aliquota/importi: la sola
+  presenza di uno snapshot non prova un trattamento di tutti i regimi.
+  La normale Vendita al banco usa il calcolo retail condiviso per vendita e reso
+  autonomo; questo non la rende il flusso di registrazione della Cassa, e qui non
+  viene modificata.
+
+**Controesempio riproducibile:** tre unità a `1000.1234` minor danno netto 3000.
+Con split payment 22% e flag fornitore falso la primitiva dà IVA 660, lordo 3660,
+dovuto fornitore 3000. L'Arrivo merce registra testata 3000 + 0 = 3000 e conserva
+l'IVA di riga 660; la Cassa oggi registra 3000 + 660 = 3660 e incassa 3660.
+Con RC 22% la stessa primitiva dà netto/lordo/dovuto 3000 e IVA/RC 660: la Cassa
+rifiuta per aritmetica, mentre l'Arrivo merce conserva l'imposta separata.
+Abbassare soltanto l'incasso Cassa a 3000 non risolverebbe quote, testata,
+registrazione e ripartizione dei resi. Margine a zero produce 3000 anche nei
+documenti di acquisto, ma nessuna delle primitive esaminate calcola il margine.
+
+Prove di confronto: sette casi aggiunti a `goods-receipt-vat.util.spec.ts`, più
+quelle già presenti nelle primitive IVA, nei totali documentali e nelle quote
+fattura fornitore: **51 test passati**. Verificano anche il canonico
+`unitCostNet='10.001234'`, senza arrotondarlo a due decimali. Le 39 prove HTTP
+della matrice Cassa restano caratterizzazione del comportamento attuale;
+non sono un collaudo fiscale integrato degli altri documenti.
+
+| Gruppo proposto                                                | Casi e logiche già presenti                                                                                                                                     | Decisione circoscritta proposta                                                                                                                                                                            |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Già supportati nel calcolo/incasso Cassa provato               | `standard` con aliquote ordinarie/frazionarie e zero; `zero_rate` con aliquota zero. Snapshot, sconti, precisione e resi sugli importi originali già collaudati | Conservare questi casi. Il presupposto della Natura IVA resta una responsabilità di configurazione, non una certificazione dell'app                                                                        |
+| Recuperabili **solo per la parte di calcolo**                  | RC e split: la primitiva distingue già imposta e dovuto; gli acquisti conservano dati separati e raggruppano per codice                                         | Non creare un secondo motore. Non dichiararli subito supportati in Cassa: occorrerebbe definire incasso, registrazione e reso coerenti prima di una futura implementazione                                 |
+| Da impedire temporaneamente nella sola Cassa, **se approvato** | `reverse_charge`, `split_payment`, `margin_scheme`, `informational`, anche ad aliquota zero o con IVA arrotondata a zero; `zero_rate` con aliquota positiva     | Usare esclusivamente le modalità/aliquote già nel catalogo per rifiutare nuovi checkout, indipendentemente dall'uguaglianza aritmetica. Nessuna restrizione applicata in questa tranche                    |
+| Ambito e stato del codice                                      | Il catalogo distingue `sales/purchase/both` e attivo/storico; oggi il retail accetta un riferimento esplicito non eliminato, anche solo acquisto e inattivo     | Proposta: non usare codici con ambito solo acquisti per **nuove** vendite Cassa. Non introdurre un divieto indiscriminato sugli inattivi: riusare le regole condivise di selezione e conservazione storica |
+
+Il caso `standard` con flag fornitore falso **non è automaticamente split payment**:
+la modalità resta ordinaria e il flag governa il dovuto negli acquisti. Non propongo
+un blocco basato sul solo flag né una riduzione automatica dell'incasso al cliente.
+L'eventuale politica approvata riguarderebbe nuovi checkout: consultazione,
+recupero di intenti conclusi e snapshot storici non vanno rivalidati contro il
+catalogo corrente. I documenti particolari già registrati richiedono una verifica
+specifica prima di considerarne corretto l'incasso e il reso; non si riscrivono.
+
+**Decisione richiesta al proprietario:** approvare o correggere il perimetro dei
+nuovi checkout proposto nella tabella. Fino a quel mandato nessun regime viene
+implementato o bloccato in più; la normale Vendita al banco resta indipendente.
+
+### Recupero di invii locali illeggibili — criterio approvato (06/09)
+
+Il servizio esistente `CashPendingOperationsService` conserva separatamente
+checkout e resi per tenant/utente in `sessionStorage`. Un JSON malformato non
+perde il testo originale e non viene analizzato per indovinare un'identità.
+Da un JSON leggibile si può estrarre l'intento esplicito per la consultazione;
+una versione non supportata non diventa per questo un comando reinviabile.
+
+Due letture del registro esistente `CreationIntentService`:
+`GET /cash-sessions/checkout-intents/:intentId` (`retail.register`) e
+`GET /cash-sessions/return-intents/:intentId` (`retail.cash_return`). Il server
+controlla tenant autenticato, scope dell'intento, tipo/stato del documento,
+appartenenza alla Cassa e contesto tenant/sede della sessione. La sede effettiva
+viene dal documento, con `assertCashReplayContext` e le autorizzazioni attuali.
+Un normale documento Vendita al banco, anche con intento dello stesso scope,
+non è un esito Cassa. Nessun checkout/reso viene creato o reinviato dalla verifica.
+
+`unconfirmed` significa **esito non confermato**, mai «operazione non registrata»:
+il primo invio potrebbe essere ancora in corso. Un documento trovato mostra
+riferimento, data, sede e importo e può essere aperto. Per chiudere la pendenza
+servono dati v1 con intento/sede/sessione coerenti, apertura del dettaglio con i
+permessi esistenti e conferma esplicita dell'operatore. La conferma rilegge il
+server, quindi una revoca intervenuta dopo la prima verifica impedisce il recupero.
+Il permesso reso da solo non aggiunge il permesso di consultazione dei documenti.
+
+Prima della chiusura viene scritta e riletta una copia dei **byte originali** e
+dell'esito sotto la stessa chiave tenant/utente, con suffisso `:recovered:<intento>`.
+La procedura non sovrascrive copie diverse e controlla che il dato pendente non
+sia cambiato. Solo dopo questa verifica rimuove la chiave pendente. Se la copia
+non è scrivibile/leggibile, il recupero non chiude la pendenza. Una ripetizione
+con la stessa copia è tollerata; nessuna nuova identità viene generata dal recupero.
+
+**Confine della protezione:** copia separata, non sovrascrivibile dal percorso
+applicativo e isolata nelle letture UI per tenant/utente. È nel `sessionStorage`
+esistente, non è un archivio cifrato né un backup durevole: chiusura della scheda,
+cancellazione dei dati del browser o accesso manuale alla stessa origine restano
+fuori da questa protezione. I dati non sono inviati a un nuovo archivio sul server.
+Se lo storage diventa inaccessibile, si conserva anche l'ultima lettura in memoria
+finché disponibile; non si promette di recuperare byte mai letti o già perduti.
+
+Il blocco riguarda il tipo di invio pendente, non la consultazione, Vendita al
+banco o le funzioni indipendenti. Dopo il recupero il carrello corrente resta
+conservato ma non viene presentato come sicuramente diverso dall'operazione
+recuperata: va rivisto esplicitamente, comprese quantità in modifica e quote.
+Non si ricostruisce il resto dal carrello illeggibile. Per il reso si mostra il
+documento recuperato senza inviare di nuovo le selezioni correnti.
+
+Se identità/contesto non sono recuperabili, la versione è incompatibile, l'intento
+non è trovato o manca l'accesso, la pendenza resta da verificare. La UI indica
+all'amministratore di confrontare tipo, intento, tenant/sede, eventuale richiesta
+in corso, riferimento/data/importo, quote e movimenti. Non è introdotto uno
+sblocco forzato generico. Le prove e i limiti di consegna sono nel preflight di
+`docs/DA-FARE.md`.
+
 ### Ripartizione dei resi successivi (correzione preflight 05/09)
 
 **Contratto checkout/anteprima verificato:** il lookup condiviso aggiunge lo

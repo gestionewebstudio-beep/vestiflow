@@ -1,8 +1,8 @@
 # Cosa resta da fare — VestiFlow
 
-## Cassa — correzioni del preflight (05/09/2026)
+## Cassa — correzioni del preflight (aggiornato 06/09/2026)
 
-- Ultima tranche: corretto l'editing quantità checkout. Il vuoto resta in modifica,
+- Consegna 05/09: corretto l'editing quantità checkout. Il vuoto resta in modifica,
   la riga si rimuove solo con **Togli**, le quantità invalide bloccano nuovi invii.
   Totali sull'ultima quantità valida con avviso, quote conservate, recupero del
   comando incerto senza perdere il draft. Confrontati validator e componenti
@@ -70,7 +70,104 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
-### Preflight aggiornato — consegna del 05/09/2026
+### Preflight aggiornato — residui del 06/09/2026
+
+**Consegna per revisione, non approvazione al merge o al rilascio.** Ripresa da
+`13a1bbdc` sul ramo `feature/recupero-cassa`. Nessun fetch/push, merge o cambio di
+ramo. Database condiviso e servizio 4200 non toccati. In questa tranche nessun
+file Prisma/schema/migration, motore economico, codice applicativo Vendita al
+banco o permesso esistente viene modificato. I nuovi GET riusano i permessi Cassa;
+non introducono un sistema di attivazione tenant.
+
+Riferimento del codice verificato: `f92418e7`; confronto con `develop` locale
+`d0a1d95b`: 64 commit esclusivi sul feature, nessuno sul lato develop e 210 file
+nel diff. Le migration
+aggiunte nel diff restano 11 e nessuna è cambiata dopo `13a1bbdc`. Il commit di
+documentazione finale segue questo riferimento; non certifica il bersaglio remoto.
+
+| Commit locale | Intervento                                                                                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `bfed74c7`    | RLS: opzione statica senza credenziali/rete; probe reale inconcludente su 500 o risposta 200 non interpretabile ora fallisce             |
+| `3cf25335`    | Rimossi solo i tre file del componente spike senza utilizzatori; test rinominato `cassa-render-window.spec.ts` senza cambiarne i 15 casi |
+| `a21b0199`    | Recupero in sola lettura degli invii illeggibili e relative prove                                                                        |
+| `f92418e7`    | Sette caratterizzazioni delle primitive IVA documentali, senza modificare il calcolo                                                     |
+
+La proposta IVA e questa documentazione sono consegnate in un commit distinto
+dalla correzione e dal commit delle prove di confronto con gli acquisti.
+
+**Problemi chiusi in questa tranche:**
+
+- Invio illeggibile: percorso consultazione → apertura documento → conferma
+  esplicita, con nuova lettura autorizzata del registro intenti. Il server verifica
+  tenant, tipo/scope, documento Cassa concluso, sede e sessione. Nessun POST
+  checkout/reso per cercare l'esito; il normale banco e il reso autonomo non sono
+  recuperati come Cassa. Il carrello in modifica resta da rivedere, senza reinvio.
+- Conservazione: JSON malformato e campi interni incompatibili non vengono
+  scartati. La chiusura scrive e rilegge la copia originale per tenant/utente;
+  errore di archiviazione, contesto diverso o revoca impediscono la chiusura.
+  Una pendenza checkout non blocca il tipo reso e viceversa. Dettagli e confine
+  della protezione locale nella specifica, sezione «Recupero di invii locali
+  illeggibili».
+- RLS locale: `npm run check:rls -- --static` passa su 74 tabelle, anche senza
+  credenziali e senza contattare il condiviso. Dieci test offline provano assenza
+  di rete in modalità statica e corretta distinzione degli esiti della modalità
+  reale. Il workflow conserva il probe reale obbligatorio e aggiunge i test dello
+  stesso script. Non sono state aggiunte guardie per aumentare il conteggio.
+- Pulizia: nessun utilizzatore del vecchio componente spike trovato; rimossi
+  solo quei file. Configurazione ordinaria e isolata, `testMatch` e rapporto
+  prestazioni aggiornati al nuovo nome. Conservate misure e prove su componenti
+  effettivamente in uso; nessuna nuova virtualizzazione o modifica dello scroll.
+
+**Prove di questa consegna:** 455 integrazioni HTTP/PostgreSQL TEST passate (26
+file), comprese le 38 prove di idempotenza/consultazione intenti; quattro percorsi
+browser → API Nest → PostgreSQL TEST, desktop 1440 px e Chromium mobile emulato
+390 px. I due nuovi percorsi corrompono i dati dopo una risposta persa già
+committata, provano JSON rotto/versione ignota, consultazione ripetuta, apertura
+reale del dettaglio, conferma e copia. Resta **un solo POST** originario per
+vendita/reso; snapshot di documenti, quote, magazzino/quadratura e intenti invariati
+durante il recupero. Le API provano anche transazione ancora aperta, revoca della
+sede, altro tenant e riferimenti incompatibili. Dati originali raggiungibili nel
+viewport con lo scroll esistente; nessun overflow orizzontale a 390/1440 px.
+
+Le 15 prove browser conservate dei registri sono passate anche dopo la pulizia;
+sono **API simulate**, distinte dai quattro percorsi reali sopra. Discovery
+ordinaria del file rinominato: 15 casi. Le prove frontend mirate di recupero e
+regressione checkout/reso sono 79, più tre del contratto HTTP frontend. Per l'IVA,
+51 prove sulle primitive documentali (sette nuove) e le 39 caratterizzazioni API
+della matrice, incluse nella suite integrata: nessuna nuova restrizione applicata.
+
+**Controlli complessivi conclusi:** `npm run test:everything` passa con **5.825
+test** (2.073 frontend con coverage, 1.306 componenti, 2.446 API). Passano inoltre
+`npm run lint` completo, `npm run check:types`, `npm --prefix api run typecheck:test`,
+build frontend production e build API. Coverage API rieseguita: funzioni 69,17%
+contro soglia 56%, senza modificare soglie o contratti per uniformità estetica.
+I quattro percorsi browser reali sono passati; i due con dati illeggibili sono
+stati ripetuti dopo aver aggiunto la prova di raggiungibilità dei dati originali
+nel viewport, anch'essa passata. Non è un collaudo su telefono fisico o Safari.
+
+Log locali ignorati da Git: `test-results/cassa-residui-{all-tests,integration,lint,types,api-types,build,api-build,api-coverage}.log`,
+`cassa-unreadable-{api-red,api-green,storage-red,nested-red,final-unit,browser,browser-evidence}.log`,
+`cassa-iva-primitives.log`, `cassa-rls-static{,-red,-green}.log`,
+`cassa-spike-{cleanup,ordinary-list}.log`; screenshot/trace/richieste in
+`cassa-browser-real/`. Le prime prove RED riproducono i GET mancanti (404) e
+l'assenza del recupero; sei ulteriori regressioni riproducono campi annidati
+corrotti che prima passavano la decodifica. Test e comandi sono versionati.
+
+**Residui e decisioni, in ordine:**
+
+| Priorità                                          | Residuo / prossimo passaggio                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 — prima del merge/rilascio                     | CI remota sul bersaglio effettivo e piano coordinato delle 11 migration con client/API. Il dato 147 applicate/158 locali e la deriva descritta sotto sono evidenza del 05/09, non una nuova lettura del condiviso. Nessuna migration applicata qui; le tre prove installazione/upgrade restano evidenze precedenti, non rieseguite perché l'SQL non cambia                            |
+| P1 — decisione IVA prima dell'uso con quei codici | In `25-specifica-cassa.md`, sezione «Proposta IVA circoscritta»: mantenere ordinaria/zero; proporre stop ai nuovi checkout RC, split, margine, informativo anche se l'IVA arrotonda a zero, e `zero_rate` con aliquota positiva; decidere l'ambito solo acquisti. Riutilizzare primitive esistenti per ogni futuro trattamento. **Nessuna delle restrizioni proposte è implementata** |
+| P1 — pendenze non confermate                      | Identità assente, versione incompatibile, intento non trovato, contesto non corrispondente o accesso revocato richiedono verifica amministrativa; nessuno sblocco forzato. Copia protetta dal percorso applicativo nello stesso `sessionStorage`, non archivio cifrato/durevole; chiudere la scheda o cancellare i dati può perdere le evidenze locali                                |
+| P1 — ambiente reale                               | RLS/revoche effettive, privilegi/percorsi alternativi e Data API, backup/ripristino sull'infrastruttura prevista, autenticazione/MFA reali restano obbligatori al rilascio. Il controllo statico cerca `ENABLE RLS` nella storia: non ricostruisce lo stato finale né certifica policy/privilegi                                                                                      |
+| Rinviati invariati                                | Limite mobile a grandi volumi, fiscalizzazione, stampe/esportazioni operative e voucher; nessun lavoro riaperto                                                                                                                                                                                                                                                                       |
+
+Il successivo `develop → main` richiede sempre un preflight separato dell'intero
+rilascio. La sezione seguente conserva le evidenze precedenti; le frasi «questa
+tranche» al suo interno si riferiscono esclusivamente al 05/09.
+
+### Preflight precedente — consegna del 05/09/2026
 
 **Correzioni consegnate per revisione, non approvate per merge; rilascio non
 autorizzato.** Il riferimento della consegna precedente è `3b8a2844`. Perimetro di codice
