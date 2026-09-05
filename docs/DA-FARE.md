@@ -169,8 +169,14 @@ Due prove a 5.000 operazioni: **30.917–35.788 ms prima, 686–704 ms dopo**.
 Stessi dati completi, componenti, template e 1.125 nodi della tabella a regime.
 Le query di contenuto passano da 25.856–30.634 ms a 4–5 ms nel profilo campionato.
 
-**Resta aperto il compatto**: 5.000 card ad altezza variabile richiedono 34.175 ms
-sul browser desktop emulato a 390 × 844. Nessun limite ai dati o taglio del testo.
+**Compatto migliorato, ancora aperto a grandi volumi**: il controllo mobile
+successivo ha spostato le letture dei template fuori dai cicli di riga. A 5.000
+card ad altezza variabile: 31.233–31.633 ms prima, 6.236–6.362 ms dopo, su viewport
+390 × 844. Sei secondi restano troppi; le 5.000 card / 125.048 nodi sono ancora
+tutti presenti. Corretto anche il periodo che usciva dal bordo sui telefoni:
+due campi e calendari completi nei registri Operazioni e Sessioni.
+Dettagli e limiti nel [controllo mobile](test-results/REPORT-CASSA-MOBILE-2026-09-05.md).
+Nessun limite ai dati o taglio del testo.
 La virtualizzazione generale degli altri consumer resta fuori da questa tranche.
 
 Causa, prove, misure a 100/1.000/2.000/5.000 righe, riproduzione senza database e

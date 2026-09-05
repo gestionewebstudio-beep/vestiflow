@@ -8,6 +8,10 @@ Questa tranche corregge il caricamento desktop, non completa l'ottimizzazione mo
 
 Correzione e prove nel commit locale `e2913da9`, ramo `feature/recupero-cassa`.
 
+Aggiornamento successivo: il [controllo mobile](REPORT-CASSA-MOBILE-2026-09-05.md)
+riduce il caricamento di 5.000 card a 6,2–6,4 secondi. Le misure qui sotto
+descrivono la prima tranche e restano conservate come confronto.
+
 ## Causa e prova
 
 `ListPageComponent` istanzia il contenuto di `[data]` anche mentre mostra lo

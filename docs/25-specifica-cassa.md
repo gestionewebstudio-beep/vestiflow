@@ -1902,6 +1902,11 @@ rendering integrale temporaneo durante il loading: 5.000 operazioni passano da
 30.917–35.788 ms a 686–704 ms nelle prove isolate. **La lentezza delle card compatte
 resta aperta**: misure e limiti nel [report](test-results/REPORT-CASSA-PERFORMANCE-2026-09-05.md).
 
+Il successivo [controllo mobile](test-results/REPORT-CASSA-MOBILE-2026-09-05.md) riduce
+il costo delle query dei template: 5.000 card passano da circa 31 secondi a 6,2–6,4
+secondi, mantenendo altezze variabili e dati completi. Il residuo a grandi volumi
+resta aperto. Sistemati anche i due campi del periodo e i calendari sui telefoni.
+
 ---
 
 ## 14. Riuso: cosa si condivide e cosa resta distinto
