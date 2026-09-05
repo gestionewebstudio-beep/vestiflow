@@ -3409,6 +3409,8 @@ model CashSessionMovement {
 /// una riga di storico non si corregge in posto. Se e' sbagliata, il rimedio
 /// e' una riga nuova che lo dice. Nessuna API di modifica o cancellazione.
 model CashSessionDeviceChange {
+  /// RLS e revoche Data API: migration correttiva 20260905210000.
+  /// Prisma non rappresenta questi privilegi; si verificano su PostgreSQL TEST.
   id         String @id @default(uuid()) @db.Uuid
   tenantId   String @map("tenant_id") @db.Uuid
   /// ⚠️ Ridondante rispetto alla sessione, e tenuto lo stesso: stessa scelta

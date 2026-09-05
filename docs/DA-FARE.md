@@ -14,7 +14,11 @@
   unitari Decimal. L'anteprima usa lo stesso calcolo del salvataggio e le quote
   ancora rimborsabili. Prove dedicate: 28 HTTP, incluse concorrenza e anomalie
   storiche; 226 test di integrazione Cassa/collegamenti e 54 economici passati.
-- Da completare: migration correttiva RLS; backup, ripristino e cancellazione
+- Applicata solo su PostgreSQL TEST la nuova migration correttiva
+  `20260905210000_protezione_storico_dispositivi_cassa`: RLS e revoche anche a
+  PUBLIC, senza riscrivere la migration originaria. Passano 16 prove sui
+  privilegi reali, accessi con GRANT accidentali e percorsi HTTP dello storico.
+- Da completare: backup, ripristino e cancellazione
   amministrativa; installazione/aggiornamento e collaudo browser con API reali.
   Nel flusso vendita vanno inoltre verificati il totale IVA dell'anteprima e la
   traduzione dei nomi di totale/resto nella risposta API.

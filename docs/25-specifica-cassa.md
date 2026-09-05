@@ -1227,6 +1227,16 @@ battuta su una cassa esterna. Il reso **di Cassa** è un percorso diverso
 
 ## 13. Sicurezza e permessi
 
+La migration correttiva `20260905210000_protezione_storico_dispositivi_cassa`
+aggiunge RLS e revoca ogni privilegio a PUBLIC, anon e authenticated sullo storico
+dei cambi dispositivo. Non modifica la migration che creava la tabella, i dati o
+i riferimenti; non usa FORCE, quindi il backend proprietario continua a operare.
+`cassa-storico-rls.integration-spec.ts` verifica su PostgreSQL isolato i privilegi
+effettivi, SELECT/UPDATE/DELETE/TRUNCATE negati, RLS anche con GRANT temporanei
+annullati al termine della prova, INSERT rifiutati, join/CTE e consultazione HTTP
+da tenant e sedi differenti. Il deploy sul database condiviso e la verifica della
+sua Data API restano passaggi del rilascio, fuori da questo mandato.
+
 ⚠️ **Oggi esiste un solo permesso retail: `retail.register`**, e governa la **Vendita al
 banco** — non la Cassa. Il nome inganna, ed è un residuo del periodo in cui quelle rotte
 portavano al carrello.
