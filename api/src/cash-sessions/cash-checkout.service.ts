@@ -112,6 +112,11 @@ export class CashCheckoutService {
         // ── 4. IL RICALCOLO, che è di questo lato ───────────────────────────
         const righe = input.lines.map((line, index) => {
           const variant = variants.get(line.variantId)!;
+          if (line.vatCodeId && !vatContext.vatCodesById.has(line.vatCodeId)) {
+            throw new UnprocessableEntityException(
+              'Codice IVA non disponibile per questo negozio.',
+            );
+          }
           const vat = resolveRetailLineVatCode(line.vatCodeId, variant, vatContext);
           // ⚠️ Il calcolo vuole un numero; la COLONNA vuole un Decimal. Due
           //    confini diversi dello stesso valore, e vanno tenuti distinti.
@@ -124,6 +129,11 @@ export class CashCheckoutService {
             discountPercent,
             vat: vat.vat,
           });
+          if (amounts.lineNetMinor + amounts.lineVatMinor !== amounts.lineGrossMinor) {
+            throw new UnprocessableEntityException(
+              'Questa modalità IVA non è ancora supportata dalla Cassa.',
+            );
+          }
           return { line, index, variant, vat, discountPercent, amounts };
         });
 

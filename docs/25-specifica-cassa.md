@@ -1589,6 +1589,20 @@ righe in ordine diverso si aspetterebbero a vicenda. Ordinati, il secondo aspett
 
 ### Ripartizione dei resi successivi (correzione preflight 05/09)
 
+**Contratto checkout/anteprima verificato:** il lookup condiviso aggiunge lo
+snapshot IVA completo conservando i campi esistenti. La Cassa usa le primitive
+IVA documentali per il prezzo finale mostrato e il totale di riga, senza perdere
+la coda decimale del prezzo netto né arrotondare l'aliquota di calcolo. Dopo la
+conferma mostra `totaleMinor` e `restoMinor` restituiti dal server, tradotti nel
+modello frontend. Prove: 13 frontend e 3 HTTP/PostgreSQL TEST.
+
+Un codice IVA esplicito fuori dal tenant o non più disponibile si rifiuta prima
+dei fatti economici. Si rifiuta anche una modalità per cui la primitiva restituisce
+imponibile + IVA diversi dal lordo: non si salva un documento che il successivo
+reso non potrebbe ripartire coerentemente. I regimi particolari con IVA non
+esposta richiedono un contratto Cassa separato; questa correzione non ne inventa
+il trattamento e non cambia il comportamento della Vendita al banco.
+
 `allocateRetailReturn` usa `proportionalMinor`, primitiva del denaro condivisa:
 rapporto esatto fra interi e arrotondamento half-up, senza prodotti floating point
 che superino la precisione degli interi. Per una quantità cumulativa resa `q` su

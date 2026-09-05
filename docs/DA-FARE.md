@@ -28,8 +28,13 @@
   Lo Storage Supabase condiviso non è stato contattato; dettagli e limiti in
   `BACKUP-DISASTER-RECOVERY.md`, sezione sul backup logico del tenant.
 - Da completare: installazione/aggiornamento e collaudo browser con API reali.
-  Nel flusso vendita vanno inoltre verificati il totale IVA dell'anteprima e la
-  traduzione dei nomi di totale/resto nella risposta API.
+- Corretto il contratto checkout: anteprima IVA dalle primitive condivise con
+  snapshot completo (incluse aliquote frazionarie), arrotondamento a fine riga,
+  traduzione di `totaleMinor`/`restoMinor` dal server. Passano 13 prove frontend
+  e 3 HTTP reali. La Cassa rifiuta codici IVA espliciti non disponibili nel tenant
+  e modalità che produrrebbero imponibile + IVA diversi dal lordo pagato, senza
+  effetti economici. Il supporto dei regimi particolari resta da definire;
+  non è stato cambiato il calcolo della normale Vendita al banco.
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 

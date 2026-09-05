@@ -13,6 +13,8 @@ import type { CashSessionState } from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { StoreSalesService } from '@domain/store-sales/services/store-sales.service';
+import type { StoreSaleLookupItem } from '@domain/store-sales/models/store-sale.model';
+import type { VatSnapshot } from '@core/models/vat-code.model';
 
 import { CashRegisterComponent } from './cash-register.component';
 
@@ -63,7 +65,7 @@ const CONTANTI = {
   tenderKind: 'cash',
 } as PaymentOption;
 
-const ARTICOLO = {
+const ARTICOLO: StoreSaleLookupItem = {
   variantId: 'v1',
   sku: 'SKU-1',
   barcode: '800',
@@ -82,6 +84,7 @@ const ARTICOLO = {
 async function montaCassa(opzioni?: {
   stato?: CashSessionState;
   checkout?: ReturnType<typeof vi.fn>;
+  item?: StoreSaleLookupItem;
 }) {
   const api = {
     current: vi.fn(() => of(opzioni?.stato ?? APERTA)),
@@ -92,7 +95,7 @@ async function montaCassa(opzioni?: {
         of({ documentId: 'd1', reference: 'CS/2026/1', totalMinor: 10_000, changeMinor: 500 }),
       ),
   };
-  const catalogo = { lookupItems: vi.fn(() => of([ARTICOLO])) };
+  const catalogo = { lookupItems: vi.fn(() => of([opzioni?.item ?? ARTICOLO])) };
   const vista = await render(CashRegisterComponent, {
     providers: [
       provideRouter([]),
@@ -114,6 +117,69 @@ async function montaCassa(opzioni?: {
 
 describe('CashRegisterComponent', () => {
   beforeEach(() => sessionStorage.clear());
+  it.each([
+    [22, 1000.1234, 3660],
+    [4.5, 1000.1234, 3135],
+    [0, 1218.6667, 3656],
+  ])(
+    'anteprima IVA %s e prezzo netto %s: tre pezzi pagano %s, senza arrotondare prima il prezzo',
+    async (rate, price, total) => {
+      const snapshot: VatSnapshot = {
+        code: 'IVA TEST',
+        natureKey: 'TAXABLE',
+        natureLabel: 'TEST',
+        officialCode: null,
+        ratePercent: rate,
+        description: 'TEST',
+        nonDeductiblePercent: 0,
+        calculationMode: 'standard',
+        vatAffectsSupplierTotal: true,
+      };
+      const { api } = await montaCassa({
+        item: {
+          ...ARTICOLO,
+          sellingPriceMinor: price,
+          vatRatePercent: Math.round(rate),
+          vatSnapshot: snapshot,
+        },
+      });
+      const user = userEvent.setup();
+      for (let count = 0; count < 3; count += 1) {
+        await user.type(screen.getByLabelText(/Cerca per codice/), 'maglia');
+        await user.click(screen.getByRole('button', { name: 'Cerca' }));
+        await user.click(screen.getByRole('button', { name: /^Maglia cotone/ }));
+      }
+      await user.click(screen.getByRole('button', { name: 'Contanti' }));
+      await user.click(screen.getByRole('button', { name: 'Concludi vendita' }));
+      expect(api.checkout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lines: [expect.objectContaining({ quantity: 3, unitPriceMinor: price })],
+          payments: [expect.objectContaining({ amountMinor: total })],
+        }),
+      );
+    },
+  );
+
+  it('una modalità IVA che produrrebbe importi incoerenti impedisce la conclusione', async () => {
+    const snapshot: VatSnapshot = {
+      code: 'RC',
+      natureKey: 'TEST',
+      natureLabel: 'TEST',
+      officialCode: null,
+      ratePercent: 22,
+      description: 'TEST',
+      nonDeductiblePercent: 0,
+      calculationMode: 'reverse_charge',
+      vatAffectsSupplierTotal: false,
+    };
+    const { api } = await montaCassa({ item: { ...ARTICOLO, vatSnapshot: snapshot } });
+    await preparaVendita(userEvent.setup());
+    expect(
+      screen.getByText('Questa modalità IVA non è ancora supportata dalla Cassa.'),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+    expect(api.checkout).not.toHaveBeenCalled();
+  });
   it('senza sessione aperta dice cosa manca e offre il gesto', async () => {
     await montaCassa({ stato: CHIUSA });
 
@@ -142,7 +208,7 @@ describe('CashRegisterComponent', () => {
     // ⚠️ «Totale» compare due volte — intestazione di colonna e riepilogo
     //    dell'incasso: si conta, non si cerca l'unico.
     expect(screen.getAllByText('Totale').length).toBeGreaterThan(1);
-    expect(screen.getAllByText('100,00 €').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('122,00 €').length).toBeGreaterThan(0);
   });
 
   it('la vendita conclusa dice REGISTRATA, e che la fiscalizzazione non c_e`', async () => {
@@ -209,7 +275,7 @@ describe('CashRegisterComponent', () => {
     expect(sessionStorage.length).toBe(0);
     await utente.click(screen.getByRole('button', { name: 'Riprendi carrello modificato' }));
     fixture.detectChanges();
-    expect(screen.getAllByText('200,00 €').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('244,00 €').length).toBeGreaterThan(0);
     expect(checkout).toHaveBeenCalledTimes(2);
   });
 

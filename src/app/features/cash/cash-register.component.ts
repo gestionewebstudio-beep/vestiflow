@@ -29,6 +29,11 @@ import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import type { StoreSaleLookupItem } from '@domain/store-sales/models/store-sale.model';
 import { StoreSalesService } from '@domain/store-sales/services/store-sales.service';
+import {
+  computeVatLineAmounts,
+  vatInputFromLegacyRate,
+  vatInputFromSnapshot,
+} from '@domain/documents/utils/document-vat.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
@@ -120,8 +125,26 @@ export class CashRegisterComponent {
 
   /** ⭐ Il totale è un'ANTEPRIMA: il server ricalcola tutto alla conferma. */
   protected readonly totaleMinor = computed(() =>
-    this.righe().reduce((tot, r) => tot + r.item.sellingPriceMinor * r.quantity, 0),
+    this.righe().reduce((tot, r) => tot + this.importiRiga(r.item, r.quantity).lineGrossMinor, 0),
   );
+  protected readonly ivaNonSupportata = computed(() =>
+    this.righe().some((row) => {
+      const amounts = this.importiRiga(row.item, row.quantity);
+      return amounts.lineNetMinor + amounts.lineVatMinor !== amounts.lineGrossMinor;
+    }),
+  );
+
+  protected importiRiga(item: StoreSaleLookupItem, quantity = 1) {
+    return computeVatLineAmounts({
+      enteredUnitCostMinor: item.sellingPriceMinor,
+      costEntryMode: 'vat_excluded',
+      quantity,
+      discountPercent: 0,
+      vat: item.vatSnapshot
+        ? vatInputFromSnapshot(item.vatSnapshot)
+        : vatInputFromLegacyRate(item.vatRatePercent),
+    });
+  }
 
   protected readonly quotePronte = computed(() => {
     const quote = this.quote();
@@ -150,6 +173,7 @@ export class CashRegisterComponent {
       this.righe().length > 0 &&
       this.totaleMinor() > 0 &&
       this.quotePronte() &&
+      !this.ivaNonSupportata() &&
       !this.conclusione() &&
       !this.invioPrecedente().request &&
       !this.invioPrecedente().error,

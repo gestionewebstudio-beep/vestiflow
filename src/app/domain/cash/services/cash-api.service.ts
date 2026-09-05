@@ -143,8 +143,19 @@ export class CashApiService {
 
   checkout(payload: CashCheckoutPayload): Observable<CashCheckoutResult> {
     return this.http
-      .post<CashCheckoutResult>(this.url('/cash-sessions/checkout'), payload)
-      .pipe(timeout(HTTP_TIMEOUT_MS));
+      .post<{ documentId: EntityId; reference: string; totaleMinor: number; restoMinor: number }>(
+        this.url('/cash-sessions/checkout'),
+        payload,
+      )
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((result) => ({
+          documentId: result.documentId,
+          reference: result.reference,
+          totalMinor: result.totaleMinor,
+          changeMinor: result.restoMinor,
+        })),
+      );
   }
 
   /**

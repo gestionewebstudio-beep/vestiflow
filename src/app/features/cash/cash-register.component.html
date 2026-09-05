@@ -163,7 +163,9 @@
                     }
                     · disp. {{ item.available }}
                   </span>
-                  <span class="cassa__result-price">{{ soldi(item.sellingPriceMinor) }}</span>
+                  <span class="cassa__result-price">{{
+                    soldi(importiRiga(item).lineGrossMinor)
+                  }}</span>
                 </button>
               </li>
             }
@@ -174,6 +176,12 @@
       <!-- ── Carrello ────────────────────────────────────────────────────── -->
       <section class="cassa__cart" aria-labelledby="carrello-titolo">
         <h2 id="carrello-titolo" class="cassa__section-title">Carrello</h2>
+        @if (ivaNonSupportata()) {
+          <app-inline-banner
+            tone="warning"
+            message="Questa modalità IVA non è ancora supportata dalla Cassa."
+          />
+        }
 
         @if (avvisi().length > 0) {
           <!-- ⚠️ Avvisi, non blocchi: la disponibilità non ferma la vendita. -->
@@ -218,9 +226,9 @@
                       (ngModelChange)="cambiaQuantita(riga.item.variantId, +$event)"
                     />
                   </td>
-                  <td class="cassa__num">{{ soldi(riga.item.sellingPriceMinor) }}</td>
+                  <td class="cassa__num">{{ soldi(importiRiga(riga.item).lineGrossMinor) }}</td>
                   <td class="cassa__num">
-                    {{ soldi(riga.item.sellingPriceMinor * riga.quantity) }}
+                    {{ soldi(importiRiga(riga.item, riga.quantity).lineGrossMinor) }}
                   </td>
                   <td class="cassa__num">
                     <app-button

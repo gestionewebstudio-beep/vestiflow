@@ -4,6 +4,8 @@ import type { Prisma } from '@prisma/client';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
+import type { VatCodeWithNature } from '../vat/vat-codes.service';
 
 import type { LookupStoreSaleItemQueryDto } from './dto/lookup-store-sale-item.query.dto';
 
@@ -21,6 +23,8 @@ export interface StoreSaleItemLookupResult {
   /** Codice IVA risolto (predefinito articolo, altrimenti predefinito aziendale). */
   readonly vatCodeId: string | null;
   readonly vatCodeLabel: string | null;
+  /** Dati completi per le primitive economiche: l'aliquota di display può essere arrotondata. */
+  readonly vatSnapshot: Prisma.InputJsonObject | null;
   readonly onHand: number;
   readonly committed: number;
   readonly available: number;
@@ -122,11 +126,11 @@ export class StoreSaleLookupService {
       if (row.product.defaultVatCodeId) idsToFetch.add(row.product.defaultVatCodeId);
     }
     if (tenantDefaultVatCodeId) idsToFetch.add(tenantDefaultVatCodeId);
-    const vatCodesById = new Map<string, { id: string; code: string; ratePercent: Prisma.Decimal }>();
+    const vatCodesById = new Map<string, VatCodeWithNature>();
     if (idsToFetch.size > 0) {
       const found = await this.prisma.vatCode.findMany({
         where: { tenantId, id: { in: [...idsToFetch] }, deletedAt: null },
-        select: { id: true, code: true, ratePercent: true },
+        include: { nature: true },
       });
       for (const vatCode of found) {
         vatCodesById.set(vatCode.id, vatCode);
@@ -150,6 +154,7 @@ export class StoreSaleLookupService {
         vatRatePercent: vatCode ? Math.round(Number(vatCode.ratePercent)) : null,
         vatCodeId: vatCode?.id ?? null,
         vatCodeLabel: vatCode ? vatCode.code : null,
+        vatSnapshot: vatCode ? buildVatCodeSnapshot(vatCode) : null,
         onHand: level?.onHand ?? 0,
         committed: level?.committed ?? 0,
         available: level?.available ?? 0,
