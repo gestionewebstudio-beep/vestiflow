@@ -40,10 +40,7 @@ import { assertUserCanAccessLocation } from '../inventory/user-location-scope.ut
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
-import {
-  computeVatLineAmounts,
-  type VatComputationInput,
-} from '../vat/vat-line-calculation.util';
+import { computeVatLineAmounts, type VatComputationInput } from '../vat/vat-line-calculation.util';
 import {
   resolveRetailLineVatCode,
   resolveRetailVariants,
@@ -54,6 +51,7 @@ import {
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
 import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';
+import { assertDocumentMutable } from '../documents/document-mutation.util';
 
 /** Esito della registrazione vendita/reso per la UI di cassa. */
 export interface StoreSaleResult {
@@ -231,6 +229,7 @@ export class StoreSalesService {
       ? await this.loadEditableStoreDocument(tenantId, dto.id, DocumentType.store_sale)
       : null;
     this.authorizeStoreDocumentLocations(user, existing?.locationId ?? null, dto.locationId);
+    assertDocumentMutable(existing);
     await this.assertLocationExists(tenantId, dto.locationId);
 
     const variants = await this.resolveVariants(
@@ -709,6 +708,7 @@ export class StoreSalesService {
     type: DocumentType,
   ): Promise<{
     readonly id: string;
+    readonly cashSessionId: string | null;
     readonly series: string | null;
     readonly number: number | null;
     readonly reference: string | null;
@@ -754,6 +754,7 @@ export class StoreSalesService {
         reference: true,
         documentDate: true,
         status: true,
+        cashSessionId: true,
         locationId: true,
         paymentMethod: true,
         paymentMethodNote: true,
@@ -807,6 +808,7 @@ export class StoreSalesService {
       ? await this.loadEditableStoreDocument(tenantId, dto.id, DocumentType.store_return)
       : null;
     this.authorizeStoreDocumentLocations(user, existing?.locationId ?? null, dto.locationId);
+    assertDocumentMutable(existing);
     await this.assertLocationExists(tenantId, dto.locationId);
 
     const variants = await this.resolveVariants(

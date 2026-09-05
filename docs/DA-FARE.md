@@ -1,5 +1,16 @@
 # Cosa resta da fare — VestiFlow
 
+## Cassa — correzioni del preflight (05/09/2026)
+
+- Verificata l'immutabilità sui percorsi alternativi del banco e dei documenti,
+  inclusi allegati e conversione: 38 prove HTTP su PostgreSQL TEST, a sessione
+  aperta e chiusa. Il normale banco e il reso autonomo restano modificabili.
+- Da completare: idempotenza client/server e replay autorizzato; ripartizione dei
+  resi successivi; migration correttiva RLS; backup, ripristino e cancellazione
+  amministrativa; installazione/aggiornamento e collaudo browser con API reali.
+- Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
+  Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
+
 ## 🔴 PRODUZIONE — tre cose da controllare (03/09/2026, sera)
 
 Emerse tutte e tre mentre si cambiava l'app Shopify. Nessuna è stata toccata: sono

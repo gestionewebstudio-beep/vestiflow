@@ -20,6 +20,7 @@ import {
 } from '../common/attachments/attachment-rules.util';
 import { ensureAttachmentBucket } from '../common/attachments/attachment-storage.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertDocumentMutable } from './document-mutation.util';
 
 /** Spazio allegati del documento: usato, totale e residuo (byte). */
 export interface DocumentAttachmentQuota {
@@ -73,7 +74,7 @@ export class DocumentAttachmentsService {
     file: Express.Multer.File,
     createdByName: string,
   ): Promise<DocumentAttachment> {
-    await this.assertDocument(tenantId, documentId);
+    await this.assertDocument(tenantId, documentId, true);
     const mimeType = assertValidAttachmentFile(file);
     assertAttachmentQuota(await this.usedBytes(tenantId, documentId), file.size);
 
@@ -116,7 +117,7 @@ export class DocumentAttachmentsService {
     attachmentId: string,
     fileName: string,
   ): Promise<DocumentAttachment> {
-    const attachment = await this.findAttachment(tenantId, documentId, attachmentId);
+    const attachment = await this.findAttachment(tenantId, documentId, attachmentId, true);
     const nextName = sanitizeAttachmentFileName(
       fileName,
       attachmentExtensionForMime(attachment.mimeType),
@@ -156,7 +157,7 @@ export class DocumentAttachmentsService {
     documentId: string,
     attachmentId: string,
   ): Promise<void> {
-    const attachment = await this.findAttachment(tenantId, documentId, attachmentId);
+    const attachment = await this.findAttachment(tenantId, documentId, attachmentId, true);
 
     const client = this.supabase.getStorageClient();
     if (client && attachment.storagePath) {
@@ -178,8 +179,9 @@ export class DocumentAttachmentsService {
     tenantId: string,
     documentId: string,
     attachmentId: string,
+    forMutation = false,
   ): Promise<DocumentAttachment> {
-    await this.assertDocument(tenantId, documentId);
+    await this.assertDocument(tenantId, documentId, forMutation);
     const attachment = await this.prisma.documentAttachment.findFirst({
       where: { id: attachmentId, documentId, tenantId },
     });
@@ -199,13 +201,18 @@ export class DocumentAttachmentsService {
     return client;
   }
 
-  private async assertDocument(tenantId: string, documentId: string): Promise<void> {
+  private async assertDocument(
+    tenantId: string,
+    documentId: string,
+    forMutation = false,
+  ): Promise<void> {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, tenantId },
-      select: { id: true },
+      select: { id: true, cashSessionId: true },
     });
     if (!document) {
       throw new NotFoundException('Documento non trovato');
     }
+    if (forMutation) assertDocumentMutable(document);
   }
 }

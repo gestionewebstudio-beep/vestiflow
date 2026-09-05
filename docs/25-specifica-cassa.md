@@ -1431,6 +1431,14 @@ dove riguarda solo le quote nuove.
 
 ### Il replay ha TRE esiti, non due
 
+La protezione dei documenti registrati passa anche dai percorsi alternativi:
+`assertDocumentMutable`, condivisa dal banco, dal gate di scrittura documentale
+e dagli allegati, rifiuta le mutazioni quando `cashSessionId` è valorizzato.
+Vale anche dopo la chiusura; il solo tipo `store_sale`/`store_return` non distingue
+la Cassa dal banco. I workflow dedicati continuano a rifiutare tipi estranei.
+`cassa-immutabilita.integration-spec.ts` prova le chiamate HTTP reali e confronta
+quote, movimenti, giacenze, contatori e quadratura prima/dopo ogni rifiuto.
+
 ```text
 stesso intento, stesso payload      → restituisce la vendita GIA` CREATA
 stesso intento, payload diverso     → conflitto

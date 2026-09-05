@@ -155,6 +155,7 @@ import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 import { parseDocumentListSort } from './documents-sort.util';
 import { pageWindow } from '../common/dto/unpaged.util';
+import { assertDocumentMutable } from './document-mutation.util';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
 
@@ -702,15 +703,16 @@ export class DocumentsService {
   }
 
   /**
-   * Gate di SCRITTURA per le mutazioni di un documento legato a una sede:
+   * Gate di SCRITTURA: origine immutabile e autorizzazione sulle sedi.
    * l'utente deve poter operare sulla sede del documento (e, per i
    * trasferimenti, la destinazione segue la regola 'transferDestination').
-   * Documenti senza locationId (fatture, corrispettivi, ecc.) passano sempre.
+   * I documenti senza sede non richiedono il controllo location.
    */
-  private assertDocumentLocationWritable(
+  private assertDocumentWritable(
     user: UserProfileDto | undefined,
-    doc: Pick<Document, 'locationId' | 'targetLocationId'>,
+    doc: Pick<Document, 'locationId' | 'targetLocationId' | 'cashSessionId'>,
   ): void {
+    assertDocumentMutable(doc);
     if (!user) {
       return;
     }
@@ -736,7 +738,7 @@ export class DocumentsService {
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
     this.assertDocumentTypeManageable(user, doc.type);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     return doc;
   }
 
@@ -1624,7 +1626,7 @@ export class DocumentsService {
       dto.includedSalesOrderIds,
       doc.linkedSalesOrders.length,
     );
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       // ⚠️ Il blocco resta, il MESSAGGIO no: diceva «non sono modificabili», e
       // dopo la decisione A2 (`11`) è falso — Vendita e Reso al banco si
@@ -1753,9 +1755,10 @@ export class DocumentsService {
     // ⭐ Riusa la politica esistente e non ne inventa una: `write` sulla sede,
     // `transferDestination` sulla destinazione. Sta **prima** di qualunque
     // scrittura — fra la guardia di riga 1533 e qui non si persiste nulla.
-    this.assertDocumentLocationWritable(user, {
+    this.assertDocumentWritable(user, {
       locationId: newLocationId,
       targetLocationId: newTargetLocationId,
+      cashSessionId: doc.cashSessionId,
     });
     const newAdjustmentDirection =
       dto.adjustmentDirection !== undefined ? dto.adjustmentDirection : doc.adjustmentDirection;
@@ -2563,7 +2566,7 @@ export class DocumentsService {
     if (!doc) {
       throw new NotFoundException('Documento non trovato');
     }
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       // Vendita al banco: creati già confermati con movimenti in transazione.
       throw new ConflictException(
@@ -2782,7 +2785,7 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<ConvertPrefillDto> {
     const source = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, source);
+    this.assertDocumentWritable(user, source);
     const isProformaSource = source.type === DocumentType.proforma;
     const isSalesDdtSource = source.type === DocumentType.sales_ddt;
     if (!isProformaSource && !isSalesDdtSource) {
@@ -2877,7 +2880,7 @@ export class DocumentsService {
   async cancel(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
     this.assertDocumentTypeManageable(user, doc.type);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     // Annullare un documento con ordini agganciati li RIAPRE e ne ricrea gli
     // impegni di magazzino: è un'azione sulla famiglia «ordine cliente», non
     // solo su questo documento. Senza, il permesso sui DDT bastava a rimettere
@@ -3201,7 +3204,7 @@ export class DocumentsService {
   async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
     const doc = await this.getById(tenantId, id, user);
     this.assertDocumentTypeManageable(user, doc.type);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     // ⭐ Vendita e Reso al banco SI ELIMINANO (`11` A2, passo 14): il documento
     // è l'unica evidenza dell'operazione, e per questo l'annullamento non
     // esiste — «si elimina, non si annulla». L'eliminazione neutralizza gli
@@ -3507,7 +3510,7 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
     const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     if (!allowedFrom.includes(doc.status)) {
       throw new ConflictException('Transizione di stato non consentita per questo documento.');
     }
