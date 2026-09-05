@@ -117,6 +117,67 @@ async function montaCassa(opzioni?: {
 
 describe('CashRegisterComponent', () => {
   beforeEach(() => sessionStorage.clear());
+  it('quantità: il vuoto resta in modifica anche al blur, senza togliere la riga né cambiare quote e totale', async () => {
+    const { api } = await montaCassa();
+    const user = userEvent.setup();
+    await preparaVendita(user);
+    const quantity = screen.getByLabelText('Quantità di Maglia cotone');
+    await user.clear(quantity);
+    await user.tab();
+    expect(screen.getByText('Maglia cotone')).toBeVisible();
+    expect(quantity).toHaveValue('');
+    expect(quantity).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getAllByText('122,00 €').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+    await user.type(quantity, '12');
+    expect(quantity).toHaveValue('12');
+    expect(screen.getAllByText('1464,00 €').length).toBeGreaterThan(0);
+    // La quota originale non viene riscritta per inseguire il nuovo totale.
+    expect(screen.getByLabelText('Importo Contanti')).toHaveValue('122,00');
+    expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+    expect(api.checkout).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Togli Maglia cotone' }));
+    expect(screen.queryByText('Maglia cotone')).toBeNull();
+  });
+
+  it.each(['0', '-1', '1.5', '1e2', 'abc', '2147483648', '9007199254740992'])(
+    'quantità non valida %s: resta leggibile e non può essere inviata',
+    async (draft) => {
+      const { api } = await montaCassa();
+      const user = userEvent.setup();
+      await preparaVendita(user);
+      const quantity = screen.getByLabelText('Quantità di Maglia cotone');
+      await user.clear(quantity);
+      await user.type(quantity, draft);
+      await user.tab();
+      expect(quantity).toHaveValue(draft);
+      expect(quantity).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+      expect(api.checkout).not.toHaveBeenCalled();
+    },
+  );
+
+  it('il recupero di un invio incerto conserva anche una quantità temporaneamente vuota', async () => {
+    const checkout = vi
+      .fn<CashApiService['checkout']>()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })))
+      .mockReturnValue(
+        of({ documentId: 'd1', reference: 'CS/2026/1', totalMinor: 12200, changeMinor: 0 }),
+      );
+    await montaCassa({ checkout });
+    const user = userEvent.setup();
+    await preparaVendita(user);
+    await user.click(screen.getByRole('button', { name: 'Concludi vendita' }));
+    const original = structuredClone(checkout.mock.calls[0]![0]);
+    await user.clear(screen.getByLabelText('Quantità di Maglia cotone'));
+    await user.click(screen.getByRole('button', { name: "Recupera l'esito" }));
+    expect(checkout.mock.calls[1]![0]).toEqual(original);
+    await user.click(screen.getByRole('button', { name: 'Riprendi carrello modificato' }));
+    expect(screen.getByLabelText('Quantità di Maglia cotone')).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+    expect(checkout).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     [22, 1000.1234, 3660],
     [4.5, 1000.1234, 3135],
@@ -180,6 +241,42 @@ describe('CashRegisterComponent', () => {
     expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
     expect(api.checkout).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['split_payment', 22, 1000.1234, 1220],
+    ['margin_scheme', 0, 1000.1234, 1000],
+    ['informational', 0, 1000.1234, 1000],
+    ['reverse_charge', 0, 1000.1234, 1000],
+    ['reverse_charge', 22, 1, 1],
+  ] as const)(
+    'caratterizzazione IVA %s al %s: anteprima e invio accettati, senza attestare supporto fiscale',
+    async (mode, rate, price, gross) => {
+      const snapshot: VatSnapshot = {
+        code: 'TEST',
+        natureKey: 'TEST',
+        natureLabel: 'TEST',
+        officialCode: null,
+        ratePercent: rate,
+        description: 'TEST',
+        nonDeductiblePercent: 0,
+        calculationMode: mode,
+        vatAffectsSupplierTotal: false,
+      };
+      const { api } = await montaCassa({
+        item: { ...ARTICOLO, sellingPriceMinor: price, vatSnapshot: snapshot },
+      });
+      const user = userEvent.setup();
+      await preparaVendita(user);
+      expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeEnabled();
+      await user.click(screen.getByRole('button', { name: 'Concludi vendita' }));
+      expect(api.checkout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lines: [expect.objectContaining({ quantity: 1, unitPriceMinor: price })],
+          payments: [expect.objectContaining({ amountMinor: gross })],
+        }),
+      );
+    },
+  );
   it('senza sessione aperta dice cosa manca e offre il gesto', async () => {
     await montaCassa({ stato: CHIUSA });
 

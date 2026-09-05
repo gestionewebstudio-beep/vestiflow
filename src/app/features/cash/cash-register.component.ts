@@ -99,6 +99,9 @@ export class CashRegisterComponent {
 
   protected readonly righe = signal<readonly CartLine[]>([]);
   protected readonly quote = signal<readonly CashQuotaDraft[]>([]);
+  protected readonly quantitaDaCorreggere = computed(() =>
+    this.righe().some((r) => this.quantitaValida(r.quantityDraft) === null),
+  );
 
   protected readonly fondoApertura = signal<number | null>(0);
   protected readonly conclusione = signal(false);
@@ -173,6 +176,7 @@ export class CashRegisterComponent {
       this.righe().length > 0 &&
       this.totaleMinor() > 0 &&
       this.quotePronte() &&
+      !this.quantitaDaCorreggere() &&
       !this.ivaNonSupportata() &&
       !this.conclusione() &&
       !this.invioPrecedente().request &&
@@ -290,22 +294,40 @@ export class CashRegisterComponent {
     this.risultati.set([]);
     const esistente = this.righe().find((r) => r.item.variantId === item.variantId);
     if (esistente) {
-      this.cambiaQuantita(item.variantId, esistente.quantity + 1);
+      if (
+        this.quantitaValida(esistente.quantityDraft) === null ||
+        this.quantitaValida(String(esistente.quantity + 1)) === null
+      ) {
+        this.errore.set(
+          `Completa una quantità valida per ${item.productName}: l’articolo scansionato non è stato aggiunto.`,
+        );
+        return;
+      }
+      this.cambiaQuantita(item.variantId, String(esistente.quantity + 1));
       return;
     }
-    this.righe.set([...this.righe(), { item, quantity: 1 }]);
+    this.righe.set([...this.righe(), { item, quantity: 1, quantityDraft: '1' }]);
     this.verificaGiacenze();
   }
 
-  protected cambiaQuantita(variantId: EntityId, quantita: number): void {
-    if (quantita <= 0) {
-      this.rimuovi(variantId);
-      return;
-    }
+  protected cambiaQuantita(variantId: EntityId, digitato: string): void {
+    const quantita = this.quantitaValida(digitato);
     this.righe.set(
-      this.righe().map((r) => (r.item.variantId === variantId ? { ...r, quantity: quantita } : r)),
+      this.righe().map((r) =>
+        r.item.variantId === variantId
+          ? { ...r, quantityDraft: digitato, quantity: quantita ?? r.quantity }
+          : r,
+      ),
     );
     this.verificaGiacenze();
+  }
+
+  /** Come le righe documentali: obbligatorio, intero positivo. Il testo resta
+   * in modifica; il limite superiore è quello di quantity Int nel database. */
+  protected quantitaValida(digitato: string): number | null {
+    if (!/^\d+$/.test(digitato)) return null;
+    const value = Number(digitato);
+    return Number.isSafeInteger(value) && value > 0 && value <= 2_147_483_647 ? value : null;
   }
 
   protected rimuovi(variantId: EntityId): void {
@@ -393,8 +415,9 @@ export class CashRegisterComponent {
             documentId: esito.documentId,
           });
           const modificato =
+            this.quantitaDaCorreggere() ||
             JSON.stringify(this.contenutoVendita()) !==
-            JSON.stringify({ lines: payload.lines, payments: payload.payments });
+              JSON.stringify({ lines: payload.lines, payments: payload.payments });
           this.carrelloConservato.set(modificato && this.righe().length > 0);
           // Non scarta modifiche preparate mentre la risposta era in attesa o incerta.
           if (!modificato) {
@@ -454,6 +477,7 @@ export class CashRegisterComponent {
 interface CartLine {
   readonly item: StoreSaleLookupItem;
   readonly quantity: number;
+  readonly quantityDraft: string;
 }
 
 interface ConclusaResult {

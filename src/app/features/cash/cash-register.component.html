@@ -176,6 +176,13 @@
       <!-- ── Carrello ────────────────────────────────────────────────────── -->
       <section class="cassa__cart" aria-labelledby="carrello-titolo">
         <h2 id="carrello-titolo" class="cassa__section-title">Carrello</h2>
+        @if (quantitaDaCorreggere()) {
+          <app-inline-banner
+            id="cassa-quantita-errore"
+            tone="warning"
+            message="Completa le quantità con numeri interi positivi validi prima di concludere. I totali usano l’ultima quantità valida; le quote restano conservate. Per rimuovere un articolo usa Togli."
+          />
+        }
         @if (ivaNonSupportata()) {
           <app-inline-banner
             tone="warning"
@@ -207,30 +214,36 @@
             <tbody>
               @for (riga of righe(); track riga.item.variantId) {
                 <tr>
-                  <td>
-                    <span class="cassa__line-name">{{ riga.item.productName }}</span>
-                    <span class="cassa__line-meta">{{ riga.item.sku }}</span>
+                  <td data-label="Articolo">
+                    <div>
+                      <span class="cassa__line-name">{{ riga.item.productName }}</span>
+                      <span class="cassa__line-meta">{{ riga.item.sku }}</span>
+                    </div>
                   </td>
-                  <td class="cassa__num">
+                  <td class="cassa__num" data-label="Quantità">
                     <label class="sr-only" [for]="'qta-' + riga.item.variantId">
                       Quantità di {{ riga.item.productName }}
                     </label>
                     <input
                       class="cassa__qty"
                       [id]="'qta-' + riga.item.variantId"
-                      type="number"
-                      min="1"
-                      step="1"
-                      [ngModel]="riga.quantity"
-                      [ngModelOptions]="{ standalone: true }"
-                      (ngModelChange)="cambiaQuantita(riga.item.variantId, +$event)"
+                      type="text"
+                      inputmode="numeric"
+                      [value]="riga.quantityDraft"
+                      [attr.aria-invalid]="quantitaValida(riga.quantityDraft) === null"
+                      [attr.aria-describedby]="
+                        quantitaValida(riga.quantityDraft) === null ? 'cassa-quantita-errore' : null
+                      "
+                      (input)="cambiaQuantita(riga.item.variantId, $any($event.target).value)"
                     />
                   </td>
-                  <td class="cassa__num">{{ soldi(importiRiga(riga.item).lineGrossMinor) }}</td>
-                  <td class="cassa__num">
+                  <td class="cassa__num" data-label="Prezzo">
+                    {{ soldi(importiRiga(riga.item).lineGrossMinor) }}
+                  </td>
+                  <td class="cassa__num" data-label="Totale">
                     {{ soldi(importiRiga(riga.item, riga.quantity).lineGrossMinor) }}
                   </td>
-                  <td class="cassa__num">
+                  <td class="cassa__num" data-label="Azioni">
                     <app-button
                       variant="ghost"
                       [ariaLabel]="'Togli ' + riga.item.productName"
@@ -252,7 +265,7 @@
           [options]="opzioni()"
           [totalMinor]="totaleMinor()"
           [quotas]="quote()"
-          [disabled]="conclusione()"
+          [disabled]="conclusione() || quantitaDaCorreggere()"
           (quotasChange)="aggiornaQuote($event)"
         />
         <app-button

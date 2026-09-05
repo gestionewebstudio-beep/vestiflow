@@ -56,7 +56,7 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
   }
   for (const mobile of [false, true]) {
     const name = mobile ? 'mobile' : 'desktop';
-    it(`${name}: invii incerti, carrello modificato, resi 1+2 e quadratura`, async () => {
+    it(`${name}: digitazione quantità, invii incerti, resi 1+2 e quadratura`, async () => {
       const fixture = await creaDatasetCassa(prisma);
       await prisma.user.update({
         where: { id: IDS.utenteA1 },
@@ -127,12 +127,78 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
         await money(page, 'Fondo iniziale di cassa', '5');
         await page.getByRole('button', { name: 'Apri la cassa', exact: true }).click();
         await scan(page);
-        await scan(page);
-        await scan(page);
-        await browserExpect(
-          page.getByRole('spinbutton', { name: 'Quantità di Articolo Cassa TEST' }),
-        ).toHaveValue('3');
+        const quantity = page.getByRole('textbox', { name: 'Quantità di Articolo Cassa TEST' });
+        const conclude = page.getByRole('button', { name: 'Concludi vendita' });
         await page.getByRole('button', { name: 'Contanti TEST', exact: true }).click();
+        await browserExpect(quantity).toHaveValue('1');
+        if (mobile) {
+          const inputBox = await quantity.boundingBox();
+          expect(inputBox!.height).toBeGreaterThanOrEqual(44);
+          const removeBox = await page
+            .getByRole('button', { name: 'Togli Articolo Cassa TEST', exact: true })
+            .boundingBox();
+          expect(removeBox!.x).toBeGreaterThanOrEqual(0);
+          expect(removeBox!.x + removeBox!.width).toBeLessThanOrEqual(390);
+        }
+        await quantity.click();
+        await quantity.press('End');
+        await quantity.press('Backspace');
+        await browserExpect(quantity).toHaveValue('');
+        await quantity.press('Tab');
+        await browserExpect(quantity).toHaveValue('');
+        await browserExpect(quantity).toHaveAttribute('aria-invalid', 'true');
+        await browserExpect(conclude).toBeDisabled();
+        await browserExpect(page.locator('.tender__total').first()).toContainText('12,19');
+        await quantity.pressSequentially('12');
+        await browserExpect(quantity).toHaveValue('12');
+        await browserExpect(page.locator('.tender__total').first()).toContainText('146,24');
+        await browserExpect(
+          page.getByRole('textbox', { name: 'Importo Contanti TEST', exact: true }),
+        ).toHaveValue('12,19');
+        await browserExpect(conclude).toBeDisabled();
+        await quantity.press('Control+A');
+        await quantity.pressSequentially('7');
+        await browserExpect(quantity).toHaveValue('7');
+        // Incolla reale dal clipboard del browser; non assegnazione a input.value.
+        await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+          origin: server.url,
+        });
+        await page.evaluate("navigator.clipboard.writeText('12')");
+        await quantity.press('Control+A');
+        await quantity.press('Control+V');
+        await browserExpect(quantity).toHaveValue('12');
+        for (const draft of ['0', '-1', '1.5', '1e2', 'abc', '2147483648', '9007199254740992']) {
+          await quantity.press('Control+A');
+          await quantity.pressSequentially(draft);
+          await quantity.press('Tab');
+          await browserExpect(quantity).toHaveValue(draft);
+          await browserExpect(quantity).toHaveAttribute('aria-invalid', 'true');
+          await browserExpect(conclude).toBeDisabled();
+        }
+        await quantity.press('Control+A');
+        await quantity.press('Backspace');
+        await scan(page);
+        await browserExpect(quantity).toHaveValue('');
+        await browserExpect(
+          page.getByText(/l’articolo scansionato non è stato aggiunto/),
+        ).toBeVisible();
+        expect(server.requests.filter((r) => r.path.endsWith('/checkout'))).toHaveLength(0);
+        expect(
+          await prisma.document.count({
+            where: { tenantId: IDS.tenantA, cashSessionId: { not: null } },
+          }),
+        ).toBe(0);
+        await page.screenshot({
+          path: resolve(artifacts, `${name}-quantity-invalid.png`),
+          fullPage: true,
+        });
+        expect(
+          await page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'),
+        ).toBe(true);
+        await quantity.pressSequentially('1');
+        await scan(page);
+        await scan(page);
+        await browserExpect(quantity).toHaveValue('3');
         await money(page, 'Importo Contanti TEST', '10');
         await money(page, 'Contante ricevuto per Contanti TEST', '15');
         await page.getByRole('button', { name: 'Carta TEST', exact: true }).click();
@@ -153,7 +219,11 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
             await prisma.documentLine.findFirstOrThrow({ where: { documentId: sale.id } })
           ).unitPriceMinor.toString(),
         ).toBe('998.9071');
-        await scan(page);
+        // Stessa quantità valida del comando originale, ma una modifica incompleta:
+        // il recupero deve conservare anche questo draft, senza creare un documento nuovo.
+        await quantity.click();
+        await quantity.press('Control+A');
+        await quantity.press('Backspace');
         await browserExpect(page.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
         await page.getByRole('button', { name: "Recupera l'esito" }).click();
         await browserExpect(
@@ -170,10 +240,20 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
             .onHand,
         ).toBe(7);
         await page.getByRole('button', { name: 'Riprendi carrello modificato' }).click();
+        await browserExpect(quantity).toHaveValue('');
+        await browserExpect(conclude).toBeDisabled();
         await browserExpect(
-          page.getByRole('spinbutton', { name: 'Quantità di Articolo Cassa TEST' }),
-        ).toHaveValue('4');
+          page.getByRole('textbox', { name: 'Importo Contanti TEST', exact: true }),
+        ).toHaveValue('10,00');
+        await browserExpect(
+          page.getByRole('textbox', { name: 'Importo Carta TEST', exact: true }),
+        ).toHaveValue('26,56');
+        await quantity.pressSequentially('4');
+        await browserExpect(quantity).toHaveValue('4');
+        await browserExpect(conclude).toBeDisabled();
         await page.screenshot({ path: resolve(artifacts, `${name}-recovery.png`), fullPage: true });
+        await page.getByRole('button', { name: 'Togli Articolo Cassa TEST', exact: true }).click();
+        await browserExpect(quantity).toHaveCount(0);
 
         await page.goto(`${server.url}/app/cassa/operazioni/${sale.id}/reso`);
         await page.getByRole('spinbutton', { name: /^Quantità da rendere/ }).fill('1');

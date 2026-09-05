@@ -1,4 +1,5 @@
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 .cassa {
   display: flex;
@@ -336,12 +337,38 @@
   background: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
+
+  &[aria-invalid='true'] {
+    border-color: var(--color-warning);
+  }
 }
 
 .cassa__payment {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+}
+
+// Stesso adattamento delle righe documentali: un solo campo quantità nel DOM.
+@include rt.data-table-mobile-cards('cassa__lines');
+
+@include bp.media-down('lg') {
+  .cassa__cart {
+    padding: var(--space-4);
+  }
+
+  .cassa__lines tbody td {
+    padding-inline: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .cassa__qty {
+    block-size: var(--control-h-tap);
+    max-inline-size: 100%;
+    justify-self: end;
+    font-size: var(--text-md);
+  }
 }
 
 // ⚠️ Sul telefono il touch target torna a 44px: lo impongono i token, e i
