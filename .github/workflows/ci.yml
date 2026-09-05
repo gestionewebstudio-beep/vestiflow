@@ -39,14 +39,18 @@ jobs:
             package-lock.json
             api/package-lock.json
 
+      # ⭐ **L'ordine e' installazioni → client Prisma → controlli → test → build.**
+      #    I controlli statici costano poco e falliscono dicendo che cosa non va;
+      #    i test costano minuti e, se il difetto e' di compilazione, falliscono
+      #    per cause apparentemente ignote. Fino al 06/09/2026 i due passi di test
+      #    del frontend stavano PRIMA di lint e type-check: la stessa cosa che il
+      #    commento di «Build API (type-check)» dichiarava di non voler fare.
+      #
+      # ⚠️ Le due installazioni e la generazione del client Prisma stanno in testa
+      #    perche' il lint di root include il lint API e i controlli che leggono
+      #    Prisma: su un checkout pulito, prima di quei tre passi, non gira nulla.
       - name: Install frontend dependencies
         run: npm ci
-
-      - name: Test frontend with coverage
-        run: npm run test:coverage
-
-      - name: Test frontend components (ATL)
-        run: npm run test:components
 
       - name: Install API dependencies
         run: npm ci --prefix api
@@ -96,6 +100,13 @@ jobs:
       # Costa ~3 secondi contro i ~110 della build qui sopra.
       - name: Type-check dei test API
         run: npm run typecheck:test --prefix api
+
+      # ── I test, dopo che i controlli statici sono passati ──────────────────
+      - name: Test frontend with coverage
+        run: npm run test:coverage
+
+      - name: Test frontend components (ATL)
+        run: npm run test:components
 
       - name: Test API with coverage
         run: npm run test:coverage --prefix api

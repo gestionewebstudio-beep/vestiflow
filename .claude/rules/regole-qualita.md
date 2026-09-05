@@ -688,15 +688,46 @@ rialzarla al buio.
 
 Una pipeline CI deve eseguire (in ordine, fail-fast):
 
-1. **Install**: `npm ci` (riproducibilità dal lockfile).
-2. **Lint**: `npm run lint`.
-3. **Type-check**: `tsc --noEmit` (se non già coperto da `ng build`).
-4. **Test unit/component**: `npm run test:everything` (è quello che gira anche al push).
-5. **Build**: `npm run build` con `--configuration=production`.
-6. **E2E** (su PR/staging): `npm run e2e:headless`.
-7. **Lighthouse CI** (su PR/staging): `npm run audit:lhci`.
-8. **Audit dipendenze**: `npm audit --audit-level=high`.
-9. **Deploy** (solo su `main` / tag): provider-specific.
+1. **Install**: `npm ci` in root **e** `npm ci --prefix api` (riproducibilità dal lockfile).
+2. **Genera il client Prisma**: `npm run prisma:generate --prefix api`.
+3. **Lint**: `npm run lint`.
+4. **Type-check**: `npm run check:types` (frontend e spec), `npm run build --prefix api` (codice applicativo API) e `npm run typecheck:test --prefix api` (test API).
+5. **Test unit/component**: frontend con copertura, componenti ATL, API con copertura.
+6. **Build**: `npm run build` con `--configuration=production`.
+7. **E2E** (su PR/staging): `npm run e2e:headless`.
+8. **Lighthouse CI** (su PR/staging): `npm run audit:lhci`.
+9. **Audit dipendenze**: `npm audit --audit-level=high`.
+10. **Deploy** (solo su `main` / tag): provider-specific.
+
+## ⛔ I due passi che non si possono spostare — allineato al file il 06/09/2026
+
+⚠️ **Qui c'erano nove passi che cominciavano con «Install: `npm ci`» e mettevano il
+lint al secondo posto.** Non descrivevano `ci.yml`, e la divergenza non era innocua:
+seguita alla lettera, la pipeline non parte proprio.
+
+|                                                            |                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Le installazioni sono DUE**                              | `npm run lint` di root include `lint:api`: senza `npm ci --prefix api` il terzo passo fallisce per dipendenze mancanti, non per un difetto del codice                                                                                    |
+| **`prisma:generate` viene PRIMA di lint e type-check**     | il lint API e la build API compilano contro i tipi **generati** da Prisma. Misurato il 03/09/2026 su una macchina pulita: 1107 errori `TS2305`/`TS2694`/`TS2339`, tutti della stessa causa. `npm ci` non lo genera, e in locale non si vede |
+
+⭐ **E i test vengono DOPO i controlli statici**, non prima: un errore di
+compilazione deve fallire dicendo che cos'è, non tramite un test che esplode per
+cause apparentemente ignote. Fino al 06/09/2026 i due passi di test del frontend
+stavano prima di lint e type-check — mentre il commento di «Build API
+(type-check)», nello stesso file, dichiarava già l'ordine giusto.
+
+⚠️ **Il passo 5 non è `npm run test:everything`.** Quel comando esiste, gira
+nell'hook `pre-push` ed è la stessa copertura; in CI i tre pezzi sono passi
+separati perché un fallimento dica **quale** dei tre è rosso senza aprire il log.
+
+⭐ **Oltre a `lint-and-test` ci sono altri quattro job**, e non sono opzionali:
+`cassa-integration` (migration, integrazione API, browser reale e regressioni UI
+isolate su PostgreSQL effimero), `e2e`, `lighthouse` e `audit`.
+
+⛔ **La verifica RLS dell'ambiente reale sta FUORI da questa pipeline**, in
+`security.yml`, e resta obbligatoria: `npm run lint` contiene solo la fase
+statica (`check:rls:static`), che legge le migration e non può dire se in
+produzione le revoche sono davvero applicate.
 
 GitHub Actions / GitLab CI / Bitbucket Pipelines: scegli uno e mantieni un solo file `.yml` di pipeline. Documenta in README come riprodurre i passi localmente.
 
