@@ -1099,11 +1099,14 @@ un database che porta anche il lavoro di un altro ramo — cioè la cosa che `re
 vieta di fare alla leggera. La differenza fra le due situazioni è tutta qui, e vale la pena
 farsi la domanda «serve a qualcuno?» **prima** di applicare, non dopo.
 
-### ⚠️ La cronologia dei ritentativi oggi si perde
+### ⚠️ Cronologia dei tentativi da predisporre prima di C5
 
 `FiscalReceipt` ha `documentId @unique` e campi scalari singoli — `status`, `rawResponse`,
-`errorMessage`. Un secondo tentativo **sovrascrive** il primo: della risposta precedente non
-resta nulla, e con una risposta incerta è esattamente ciò che servirebbe per riconciliare.
+`errorMessage`. Usarli come unico storico sovrascriverebbe il primo tentativo:
+della risposta precedente non resterebbe nulla. **Oggi gli adapter compilati sono
+assenti e il checkout non scrive ricevute fiscali:** non è stata osservata una
+perdita di tentativi emessi da questo codice. È un limite strutturale da risolvere
+prima della prima emissione, non una funzionalità già implementata.
 
 ⏸ **Proposta, non implementata in C1B**: una tabella **append-only** dei tentativi, figlia
 della ricevuta, con esito, istante, adapter e diagnostica. `FiscalReceipt` resterebbe lo
@@ -1112,7 +1115,8 @@ cosa i dispositivi restituiscono davvero.
 
 ### Se il pagamento riesce e l'RT non risponde
 
-Vendita e pagamento **non** si duplicano né si cancellano; `fiscal_receipts` registra
+**Contratto futuro C5, non comportamento operativo attuale:** vendita e pagamento
+**non** si duplicano né si cancellano; `fiscal_receipts` registra
 `pending` o `failed`; esiste un ritentativo **della sola emissione fiscale**, che non ripete
 carta, contanti né scarico di magazzino; l'interfaccia dice chiaramente **«pagamento
 registrato, documento commerciale non emesso»**.
@@ -1665,7 +1669,12 @@ invalidi, scansioni ripetute, quote e recupero su desktop 1440 px e Chromium mob
 emulato 390 px. API gestionali e PostgreSQL TEST reali; non è un collaudo su un
 telefono fisico o su Safari. Screenshot e trace in `test-results/cassa-browser-real/`.
 
-### Censimento IVA: accettazione attuale e limiti (05/09)
+### Censimento IVA storico: accettazione prima del perimetro approvato (05/09)
+
+**Evidenza storica, valida fino a `42ff9f86`.** Le parole «attuale» e «oggi» in
+questa sezione si riferiscono a quel codice. I controesempi hanno motivato il
+perimetro approvato del 06/09 descritto subito dopo; non descrivono più le
+accettazioni dei nuovi checkout. La fotografia del condiviso non è stata ripetuta.
 
 Il catalogo di sistema contiene **25 Nature e sei modalità**: `standard` (TAXABLE),
 `zero_rate` (N1, N2.1–2, N3.1–6, N4, N7), `reverse_charge` (acquisti e N6.1–9),
@@ -1713,12 +1722,12 @@ economiche, la precisione Decimal e le autorizzazioni restano invariate. Nessuna
 nuova whitelist, restrizione o implementazione di regime è introdotta: prima
 dell'uso reale con quei codici serve una decisione esplicita sui casi sopra.
 
-### Proposta IVA circoscritta — decisione ancora necessaria (06/09)
+### Perimetro IVA temporaneo approvato — nuovi checkout Cassa (06/09)
 
-**Questa sezione è una proposta, non una nuova politica applicata.** Catalogo,
+**Decisione approvata e applicata ai soli nuovi checkout Cassa.** Catalogo,
 codici IVA, Nature, modalità, Decimal(16,6), autorizzazioni e primitive economiche
-restano quelli condivisi. La matrice precedente continua a descrivere ciò che
-l'API accetta oggi. Non viene introdotta una classificazione Cassa parallela.
+restano quelli condivisi. La matrice precedente conserva il comportamento
+storico. Non viene introdotta una classificazione o un motore IVA Cassa parallelo.
 
 Il confronto con i documenti esistenti distingue tre livelli:
 
@@ -1743,7 +1752,8 @@ Il confronto con i documenti esistenti distingue tre livelli:
 **Controesempio riproducibile:** tre unità a `1000.1234` minor danno netto 3000.
 Con split payment 22% e flag fornitore falso la primitiva dà IVA 660, lordo 3660,
 dovuto fornitore 3000. L'Arrivo merce registra testata 3000 + 0 = 3000 e conserva
-l'IVA di riga 660; la Cassa oggi registra 3000 + 660 = 3660 e incassa 3660.
+l'IVA di riga 660; la Cassa prima del perimetro registrava 3000 + 660 = 3660 e
+incassava 3660. Ora rifiuta il nuovo checkout split payment.
 Con RC 22% la stessa primitiva dà netto/lordo/dovuto 3000 e IVA/RC 660: la Cassa
 rifiuta per aritmetica, mentre l'Arrivo merce conserva l'imposta separata.
 Abbassare soltanto l'incasso Cassa a 3000 non risolverebbe quote, testata,
@@ -1753,28 +1763,113 @@ documenti di acquisto, ma nessuna delle primitive esaminate calcola il margine.
 Prove di confronto: sette casi aggiunti a `goods-receipt-vat.util.spec.ts`, più
 quelle già presenti nelle primitive IVA, nei totali documentali e nelle quote
 fattura fornitore: **51 test passati**. Verificano anche il canonico
-`unitCostNet='10.001234'`, senza arrotondarlo a due decimali. Le 39 prove HTTP
-della matrice Cassa restano caratterizzazione del comportamento attuale;
-non sono un collaudo fiscale integrato degli altri documenti.
+`unitCostNet='10.001234'`, senza arrotondarlo a due decimali. Le prove documentali
+non sono un collaudo fiscale integrato degli altri documenti. La matrice HTTP
+Cassa è stata aggiornata al perimetro approvato ed estesa come descritto sotto.
 
-| Gruppo proposto                                                | Casi e logiche già presenti                                                                                                                                     | Decisione circoscritta proposta                                                                                                                                                                            |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Già supportati nel calcolo/incasso Cassa provato               | `standard` con aliquote ordinarie/frazionarie e zero; `zero_rate` con aliquota zero. Snapshot, sconti, precisione e resi sugli importi originali già collaudati | Conservare questi casi. Il presupposto della Natura IVA resta una responsabilità di configurazione, non una certificazione dell'app                                                                        |
-| Recuperabili **solo per la parte di calcolo**                  | RC e split: la primitiva distingue già imposta e dovuto; gli acquisti conservano dati separati e raggruppano per codice                                         | Non creare un secondo motore. Non dichiararli subito supportati in Cassa: occorrerebbe definire incasso, registrazione e reso coerenti prima di una futura implementazione                                 |
-| Da impedire temporaneamente nella sola Cassa, **se approvato** | `reverse_charge`, `split_payment`, `margin_scheme`, `informational`, anche ad aliquota zero o con IVA arrotondata a zero; `zero_rate` con aliquota positiva     | Usare esclusivamente le modalità/aliquote già nel catalogo per rifiutare nuovi checkout, indipendentemente dall'uguaglianza aritmetica. Nessuna restrizione applicata in questa tranche                    |
-| Ambito e stato del codice                                      | Il catalogo distingue `sales/purchase/both` e attivo/storico; oggi il retail accetta un riferimento esplicito non eliminato, anche solo acquisto e inattivo     | Proposta: non usare codici con ambito solo acquisti per **nuove** vendite Cassa. Non introdurre un divieto indiscriminato sugli inattivi: riusare le regole condivise di selezione e conservazione storica |
+| Gruppo                                           | Casi e logiche già presenti                                                                                                                                      | Perimetro attuale e lavoro futuro                                                                                                                                                                           |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Già supportati nel calcolo/incasso Cassa provato | `standard` con aliquote ordinarie/frazionarie e zero; `zero_rate` con aliquota zero. Snapshot, sconti, precisione e resi sugli importi originali già collaudati  | Conservare questi casi. Il presupposto della Natura IVA resta una responsabilità di configurazione, non una certificazione dell'app                                                                         |
+| Recuperabili **solo per la parte di calcolo**    | RC e split: la primitiva distingue già imposta e dovuto; gli acquisti conservano dati separati e raggruppano per codice                                          | Non creare un secondo motore. Non dichiararli subito supportati in Cassa: occorrerebbe definire incasso, registrazione e reso coerenti prima di una futura implementazione                                  |
+| Impediti temporaneamente nella sola Cassa        | `reverse_charge`, `split_payment`, `margin_scheme`, `informational`, anche ad aliquota zero o con IVA arrotondata a zero; `zero_rate` con aliquota positiva      | Nuovi checkout rifiutati esplicitamente con HTTP 422, indipendentemente dall'uguaglianza aritmetica; nessun nuovo trattamento dei regimi                                                                    |
+| Ambito e stato del codice                        | Il catalogo distingue `sales/purchase/both` e attivo/storico; il retail condiviso accetta un riferimento esplicito non eliminato, anche solo acquisto e inattivo | La sola Cassa rifiuta `usageScope=purchase` sui nuovi checkout. Nessun nuovo divieto sugli inattivi: i riferimenti storici non eliminati con ambito vendite/entrambi mantengono il comportamento precedente |
 
 Il caso `standard` con flag fornitore falso **non è automaticamente split payment**:
-la modalità resta ordinaria e il flag governa il dovuto negli acquisti. Non propongo
-un blocco basato sul solo flag né una riduzione automatica dell'incasso al cliente.
-L'eventuale politica approvata riguarderebbe nuovi checkout: consultazione,
-recupero di intenti conclusi e snapshot storici non vanno rivalidati contro il
-catalogo corrente. I documenti particolari già registrati richiedono una verifica
-specifica prima di considerarne corretto l'incasso e il reso; non si riscrivono.
+la modalità resta ordinaria e il flag governa il dovuto negli acquisti. Non è
+introdotto un blocco sul solo flag né una riduzione dell'incasso al cliente.
+La politica riguarda nuovi checkout: consultazione, recupero di intenti conclusi
+e resi non rivalidano il regime contro il catalogo corrente. I resi ripartiscono
+gli importi originali e copiano gli snapshot, senza correggere retroattivamente
+l'incasso né certificare la correttezza fiscale di un vecchio regime.
 
-**Decisione richiesta al proprietario:** approvare o correggere il perimetro dei
-nuovi checkout proposto nella tabella. Fino a quel mandato nessun regime viene
-implementato o bloccato in più; la normale Vendita al banco resta indipendente.
+**Regola di ambito riusata:** `isSalesVatCode` nei selettori documentali e gli
+`allowedScopes` del reverse match IVA condiviso distinguono vendite/entrambi da
+solo acquisti. Il checkout controlla l'ambito del **codice effettivamente risolto**
+da `resolveRetailLineVatCode`, compreso quello dell'articolo; non cerca un altro
+codice con la stessa aliquota. Natura, aliquota e modalità restano dati distinti.
+La snapshot di lookup frontend non contiene `usageScope`: l'anteprima blocca le
+modalità escluse, mentre il server comunica esplicitamente anche il rifiuto per
+ambito acquisti. Nessun contratto condiviso è ampliato solo per questo controllo.
+
+Il controllo server è nella transazione del checkout, dopo il claim del registro
+intenti e prima di documenti/quote/movimenti. Un rifiuto annulla anche il nuovo
+claim. Un replay concluso segue invece il recupero originale, con autorizzazioni
+tenant/sede attuali, prima di leggere il catalogo: non incontra il nuovo filtro.
+
+**Prove rieseguite:** 53 casi in `cassa-vat-modes.integration-spec.ts`: matrice
+precedente aggiornata, standard a zero e inattivo vendite, controesempi da un
+centesimo, ambito acquisti dell'articolo senza fallback, e sette percorsi storici
+con replay/GET di consultazione/anteprima reso/reso/retry. Le fixture storiche
+rappresentano modalità ammesse dal codice precedente conservando importi e
+Decimal originali; poi rendono il catalogo corrente RC/solo acquisti/inattivo.
+Il nuovo intento è rifiutato, quello originale recupera lo stesso documento e
+il reso conserva snapshot, importi e riferimenti a riga/quota originali. Snapshot
+DB e registro intenti verificano assenza di effetti al rifiuto/replay. Il banco
+ordinario continua ad accettare il caso solo acquisti attraverso la propria API.
+Sette casi di componente prima accettati ora impediscono il nuovo invio,
+compresa IVA arrotondata a zero; resta la prova RC con IVA positiva.
+
+Non verificati come conformità fiscale: presupposti delle Nature, tutti gli
+incroci possibili del catalogo, adempimenti, emissione RT. RC/split hanno primitive
+di calcolo riusabili, ma incasso e registrazione Cassa richiedono una futura
+decisione prima dell'implementazione. Il perimetro temporaneo è invece deciso.
+
+### Dati per fiscalizzazione e riconciliazione future — verifica circoscritta (06/09)
+
+Verifica del codice e dello schema, senza migration né accesso al condiviso.
+La Cassa si può mettere in pausa come registrazione gestionale; non è pronta
+all'emissione fiscale o alla riconciliazione puntuale con un acquirer.
+
+| Dato                   | Conservato oggi                                                                                                                                                  | Limite e conseguenza                                                                                                                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identità operazione    | Documento, tenant, sede, sessione, riferimento/serie/numero/anno/data, operatore; intento con scope, impronta e risultato nel registro condiviso                 | L'intento di creazione non è uno storico dei tentativi fiscali                                                                                                                                                 |
+| Reso e originali       | `sourceDocumentId`, `returnedFromLineId`, `refundedFromPaymentId`; snapshot e importi originali ripartiti                                                        | `FiscalReceipt.originalReceiptId` è predisposto per la ricevuta fiscale originaria, non popolato dal reso gestionale; nessun numero fiscale va inventato                                                       |
+| Importi e articoli     | Prezzo unitario `unitPriceMinor` Decimal(16,6), quantità/sconto, netto/IVA/lordo, snapshot IVA e SKU/descrizione/variante                                        | Usare il prezzo canonico e i totali salvati, non prezzi correnti o campi unitari ausiliari arrotondati; lo snapshot non conserva tutti i metadati di catalogo possibili                                        |
+| Quote incasso/rimborso | Identità quota, importo, opzione e snapshot nome/classe, contanti consegnati, legame alla quota rimborsata                                                       | Mancano terminale POS effettivo, identificativo transazione acquirer e risposta tecnica: la quadratura aggregata è possibile, la riconciliazione puntuale storica **non è ricostruibile da queste sole quote** |
+| Emittente              | Il modello documentale ha `issuerSnapshot`, ma il checkout Cassa non lo valorizza                                                                                | Dati aziendali correnti possono cambiare: non promettere una ricostruzione dell'emittente storico per fiscalizzare retroattivamente                                                                            |
+| Dispositivo            | Dispositivo corrente della sessione e storico append-only dei cambi, con vecchio/nuovo ID, attore, motivo e istante; ricevuta predisposta con device e matricola | Il checkout non fissa l'RT effettivo per documento; configurazione del dispositivo modificabile. Lo storico dei cambi non prova quale RT abbia realmente ricevuto un invio incerto                             |
+| Fiscalizzazione        | `FiscalReceipt` ha identità, stato corrente, numeri fiscali testuali, matricola, istante, risposta/errore e ricevuta originale                                   | Nessun adapter compilato né writer fiscale attivo; nessuno storico tentativi. Non dedurre «nessun tentativo reale» dalla sola assenza di una ricevuta importata                                                |
+
+**Problema concreto da decidere prima di acquisire ulteriori dati per quel requisito:**
+se si vuole riconciliare ogni pagamento elettronico già incassato, i riferimenti
+POS mancanti servono da una fonte esterna reale. Se si vuole fiscalizzare in
+seguito vecchie vendite, manca anche lo snapshot dell'emittente al momento della
+vendita. Non basta una migration, la configurazione corrente o il solo importo
+per riempirli correttamente. Nessuna conversione o acquisizione aggiuntiva è
+implementata in questa tranche; questi limiti sono segnalati al proprietario,
+non classificati come rinviabili senza perdita di informazione storica.
+
+**Disegno additivo da completare prima del primo adapter, non implementazione:**
+
+1. Tenere `FiscalReceipt` come proiezione dello stato corrente e aggiungere uno
+   storico append-only collegato a ricevuta/documento, tenant/sede e originali del
+   reso. Prima della chiamata registrare la preparazione; risposta, timeout ed
+   esito incerto aggiungono eventi, non sovrascrivono preparazione o tentativi
+   precedenti. Sequenza e concorrenza vanno serializzate per operazione fiscale.
+2. Distinguere intento fiscale stabile da singolo tentativo di trasporto e da
+   intento di creazione vendita, riusando `CreationIntentService` per identità,
+   impronta e risultato nel dominio appropriato. Un retry non ricrea documento,
+   quote, pagamenti o scarichi. Esito incerto non autorizza una nuova emissione.
+3. Fissare alla preparazione il dispositivo effettivo, matricola, adapter/versione
+   e configurazione necessaria senza segreti, oltre al contenuto fiscale derivato
+   dagli importi/snapshot **persistiti**. Conservare questo legame sui retry anche
+   dopo un cambio dispositivo. Forma della diagnostica e protocollo restano da
+   definire con l'adapter reale; nessun dettaglio è inventato qui.
+4. Prevedere nuove migration additive per storico/legami/snapshot necessari,
+   indici e isolamento tenant/sede, RLS e revoche; estendere il registro esistente
+   del backup tecnico, validazione import, ordine restore/delete e prove atomiche.
+   Gli archivi precedenti restano importabili con storia fiscale sconosciuta:
+   nessun tentativo sintetico e nessuna ricostruzione di vendite o quote.
+5. Se approvata la riconciliazione puntuale, prevedere riferimenti tecnici dei
+   pagamenti e rimborsi alimentati dalla fonte reale, con migration additiva e
+   compatibilità degli storici privi di dati. La scelta del contratto richiede il
+   requisito concreto, non un nuovo sistema POS in questa tranche.
+
+Per C5 prospettico non emerge la necessità di convertire distruttivamente vendite
+o pagamenti: i legami e gli importi gestionali sono conservati. **Questo non
+recupera i metadati storici mancanti sopra.** Finché non esiste emissione reale
+nel codice, differire il suo registro tentativi non perde tentativi prodotti da
+questo flusso; implementarlo prima del primo invio resta una condizione obbligatoria.
 
 ### Recupero di invii locali illeggibili — criterio approvato (06/09)
 

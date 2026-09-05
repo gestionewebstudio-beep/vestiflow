@@ -10,12 +10,13 @@
   e Togli accessibili, campo da 44 px. Digitazione e clipboard reali verificate
   su desktop e mobile, comprese scansioni e risposta persa già committata nel DB.
 - Precisazione IVA: **il controllo netto + IVA = lordo non distingue i regimi**.
-  Censite 25 Nature/sei modalità nel catalogo globale e 72 codici aziendali nel
-  condiviso, solo in lettura. La matrice in `25-specifica-cassa.md`, sezione
-  «Censimento IVA», riporta accettazioni, rifiuti e casi non verificati: split
-  payment, margine/informativo a zero e RC con IVA zero possono passare senza un
-  trattamento Cassa dedicato. Controesempi provati via HTTP e segnalati al
-  proprietario; nessuna nuova restrizione IVA o autorizzazione introdotta.
+  Il censimento del 05/09 (25 Nature/sei modalità, 72 codici nel condiviso) è
+  storico, non rieseguito. Dopo approvazione, la sola Cassa ora accetta nuovi
+  checkout `standard` o `zero_rate` a zero, escludendo i codici solo acquisti.
+  Rifiuta esplicitamente RC, split, margine, informativo e `zero_rate` positivo,
+  anche con imposta arrotondata a zero. Catalogo, primitive e autorizzazioni
+  invariati; replay e resi conservano lo storico. Prove e limiti aggiornati nella
+  specifica, sezione «Perimetro IVA temporaneo approvato».
 - Verificata l'immutabilità sui percorsi alternativi del banco e dei documenti,
   inclusi allegati e conversione: 38 prove HTTP su PostgreSQL TEST, a sessione
   aperta e chiusa. Il normale banco e il reso autonomo restano modificabili.
@@ -70,7 +71,91 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
-### Preflight aggiornato — residui del 06/09/2026
+### Preflight aggiornato — chiusura per pausa del 06/09/2026
+
+**Consegna locale per revisione, non approvazione al merge o al rilascio.** Stato
+iniziale verificato: `42ff9f86`, ramo `feature/recupero-cassa`, nessuna modifica
+tracciata; solo `docs/RIPRESA-03-09-2026.md` non tracciato, lasciato intatto.
+Cartella: `C:/Users/Utente/Desktop/Progetto-Vestiflow/vestiflow`.
+Riferimento della correzione: `c5e3979f`; questo preflight e la
+specifica sono consegnati in un commit di documentazione separato.
+
+**Chiuso in questa tranche:** perimetro IVA temporaneo approvato sui nuovi
+checkout, con validazione server nella transazione prima degli effetti e dopo
+il recupero dell'intento concluso. Il frontend impedisce le modalità escluse;
+il server controlla anche `usageScope` del codice risolto, compresa l'IVA
+dell'articolo. Nessuna sostituzione con un codice dalla stessa aliquota o nuova
+classificazione. Non si confondono Natura, regime e aliquota. I codici inattivi
+vendite/entrambi non ricevono un nuovo divieto indiscriminato.
+
+Preservati Decimal(16,6), primitive economiche, snapshot storici, prezzo originale,
+quote e resi proporzionali. Replay dopo modifica del catalogo non è bloccato dal
+nuovo filtro, mantiene documento e controlli tenant/sede. Nessuna modifica al
+codice della normale Vendita al banco, al reso autonomo o ai permessi esistenti.
+Il caso IVA solo acquisti continua a funzionare nell'API ordinaria del banco.
+
+**Prove rieseguite in questa consegna:**
+
+| Verifica                   | Esito e confine                                                                                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run test:everything`  | **5.827 passati**: 2.073 frontend con coverage, 1.308 componenti, 2.446 API unitari                                                                                                                                                         |
+| `npm run test:integration` | **469 passati**, 26 file HTTP/PostgreSQL TEST; include protezioni documentali, tenant/sede, idempotenza e recupero, resi, backup/import/delete e privilegi SQL                                                                              |
+| Matrice IVA                | **53 casi** nel file dedicato: 45 nuovi checkout/censimento e 7 storici con replay/consultazione/reso/retry, più IVA articolo solo acquisti e banco indipendente; rifiuti senza effetti su documenti, quote, magazzino/quadratura e intenti |
+| `npm run test:cassa:real`  | **4 percorsi passati**, browser → API Nest → PostgreSQL TEST, desktop 1440 px e Chromium mobile emulato 390 px; quantità/totali, risposte perse, recupero leggibile/illeggibile, copia locale, resi e chiusura                              |
+| Controlli statici/build    | Lint completo, type-check frontend e test API, build frontend production/API; RLS offline su 74 tabelle                                                                                                                                     |
+| Coverage API               | 2.446 test passati, funzioni **69,17%** contro soglia invariata 56%; nessuna esclusione o soglia modificata                                                                                                                                 |
+
+RED conservati: 19 accettazioni API precedenti e sette anteprime frontend
+riproducevano i casi da bloccare. Dopo il filtro tutti i casi sono verdi.
+I sette scenari storici usano fixture TEST rappresentative delle modalità già
+accettate, senza riscrivere dati applicativi reali. L'ultima ripetizione mirata
+verifica anche l'etichetta variante copiata nel reso; nessuna esenzione alla
+guardia degli snapshot. I test reali non sono sostituiti dai mock; l'Auth provider
+è locale e mobile è emulato, non Supabase/MFA reali, Safari o telefono fisico.
+
+Log locali ignorati da Git: `test-results/cassa-pausa-{all-tests,integration,iva-final,browser-real,lint-final,types,api-test-types,build,api-build,api-coverage-final,rls-static}.log`,
+RED `cassa-pausa-{iva-red,frontend-red}.log`; screenshot/trace/richieste in
+`test-results/cassa-browser-real/`. Test e comandi restano versionati.
+
+**Evidenze precedenti, non rieseguite:** tre percorsi migration (installazione
+158, upgrade 147→158 e 157→158 con storico/GRANT), fotografie del condiviso e
+deriva del 05/09, 15 prove UI isolate dei registri dopo rimozione spike, misure
+desktop/mobile a grandi volumi. Nessuna migration o modifica del motore di
+rendering in questa tranche. Non confondere questi risultati con nuove prove.
+
+**Residui prioritari:**
+
+| Priorità / passaggio                             | Cosa rimane                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prima del merge                                  | Revisione della consegna e CI remota sul bersaglio effettivo, sotto mandato successivo; nessun push o fetch eseguito. Le prove locali non certificano l'allineamento remoto                                                                                                                                                                               |
+| Prima del rilascio                               | Piano coordinato delle **11 migration** con client/API e gestione della deriva; RLS/revoche/privilegi e Data API effettivi, backup/restore sull'infrastruttura prevista, Auth/MFA reali. L'accesso all'ambiente del proprietario può attendere l'allineamento; non è dichiarato collaudato                                                                |
+| Dati storici da non promettere come recuperabili | Quote elettroniche prive di terminale/transazione acquirer; checkout senza `issuerSnapshot`. Non si può garantire riconciliazione puntuale degli incassi precedenti o ricostruire l'emittente storico per emissioni retroattive dai soli dati Cassa. Problema segnalato prima di qualsiasi migration, senza inventare riferimenti o riaprire integrazioni |
+| Prima della prima fiscalizzazione reale          | Storico append-only dei tentativi e legame stabile a dispositivo/configurazione/contenuto effettivi; gli adapter compilati e il writer fiscale sono assenti. Il dispositivo corrente della sessione non dimostra chi abbia ricevuto un futuro invio incerto                                                                                               |
+| Pendenze non confermate                          | Recupero rimane sola lettura per dati illeggibili: verifica intenti/tenant/sede/tipo, apertura e conferma esplicita. Identità assente/incompatibile, richiesta in corso/non trovata o accesso revocato non significano «operazione non registrata»; verifica amministrativa, nessuno scarto/retry o sblocco forzato                                       |
+| Limite della copia locale                        | Byte originali e risultato copiati/riletti nello stesso `sessionStorage` per tenant/utente; non è archivio cifrato/durevole e non resiste a chiusura scheda o cancellazione browser. Archiviazione fallita non chiude la pendenza                                                                                                                         |
+| Rinviabili nel perimetro attuale                 | Adapter e fiscalizzazione reale, voucher, stampe/esportazioni operative, prestazioni mobile a grandi volumi. Gli importi/legami gestionali restano conservati; questa affermazione non comprende i metadati storici mancanti sopra                                                                                                                        |
+
+**Migration future prevedibili, non create:** storico fiscale append-only con
+identità e snapshot del dispositivo effettivo, tenant/sede/RLS/revoche e indici;
+estensione compatibile del registro backup/import/delete; eventuali riferimenti
+tecnici dei pagamenti/rimborsi per riconciliazione puntuale, dopo definizione
+del requisito e fonte reale. Sono estensioni additive: non richiedono di
+ricostruire vendite, quote o magazzino. Gli archivi storici senza questi dati
+restano incompleti su quel punto, non si popolano con tentativi sintetici.
+Disegno e prove concrete nella specifica, sezione «Dati per fiscalizzazione e
+riconciliazione future».
+
+Nessun push, merge, cambio ramo, modifica protezioni GitHub, scrittura sul
+database condiviso o intervento sulla porta 4200. Nessun nuovo permesso o sistema
+di attivazione tenant. Il successivo `develop → main` richiede comunque un
+preflight separato dell'intero rilascio. La Cassa si ferma qui per revisione.
+
+### Preflight precedente — recupero e proposta IVA del 06/09/2026
+
+**Evidenza storica consegnata in `42ff9f86`.** La proposta IVA non ancora
+approvata descritta sotto è superata dal perimetro attuale riportato sopra.
+Conteggi, diff e «questa tranche» di questa sezione si riferiscono a quella
+consegna, non alla chiusura per pausa.
 
 **Consegna per revisione, non approvazione al merge o al rilascio.** Ripresa da
 `13a1bbdc` sul ramo `feature/recupero-cassa`. Nessun fetch/push, merge o cambio di
