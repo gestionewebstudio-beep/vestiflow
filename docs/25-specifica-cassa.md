@@ -1296,11 +1296,28 @@ mai esposti inutilmente al frontend; nessuna credenziale nei log.
 permessi aggiuntivi Cassa**, mantenendo il loro `retail.register` e i controlli
 documentali ordinari. Il collaudo HTTP verifica entrambe le compatibilità.
 
-**Decisione ancora necessaria prima dell'esposizione:** «solo ai tenant abilitati»
-non ha un meccanismo dedicato nel codice attuale. Le rotte usano accesso al workspace
-e permessi retail; `TenantFeatureSettings` non contiene un'abilitazione Cassa.
-Va chiarito se questi permessi esauriscono l'abilitazione prevista oppure serve
-un'attivazione del modulo per tenant. Non è stata inventata una nuova regola.
+**Precisazione del mandato del 05/09: nessuna nuova attivazione tenant in questa
+tranche.** `TenantFeatureSettings` non contiene un flag Cassa. Restano i controlli
+esistenti, che non sono tutti equivalenti:
+
+| Confine    | Controllo attuale                                                                                                                                                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Menu Cassa | `canOpenRetailRegister`: profilo canale previsto (oggi gestionale, Shopify e TikTok), accesso a `section.sales` e `retail.register`                                                                                                                        |
+| Pagine     | Workspace tenant (operatore piattaforma reindirizzato), poi `retail.register` per checkout/registri/dettagli, `retail.cash_return` per reso, `retail.cash_session` per chiusura                                                                            |
+| API Cassa  | JWT e permesso dell'azione: `retail.register` per vendita/letture, `retail.cash_return` per reso/anteprima, `retail.cash_session` per apertura/chiusura/cambio dispositivo, `retail.cash_drawer` per movimenti del cassetto; scope tenant/sede nei servizi |
+
+Il titolare dispone di tutti i permessi; restano le regole ordinarie delle sessioni
+di assistenza autorizzate. **La visibilità del menu non è un'attivazione tenant:**
+le pagine dirette e le API Cassa non replicano il filtro menu su `section.sales`
+e profilo canale. Fonti: `shell-layout.component.ts`, `canOpenRetailRegister`,
+`app.routes.ts`, `cash.routes.ts`, `CashSessionsController` e guardie ordinarie.
+Nessuna autorizzazione è cambiata.
+
+Un'attivazione aggiuntiva servirebbe a un requisito diverso e concreto: distribuire
+la Cassa solo ad aziende selezionate, negandola anche ai loro titolari e agli utenti
+con `retail.register`, pur lasciando loro la normale Vendita al banco. Quel requisito
+richiederebbe un mandato separato; non viene assunto come nuovo blocco da risolvere
+qui. La frase «tenant abilitati» non attesta l'esistenza di tale selezione oggi.
 
 ### ⛔ Limite ereditato: il database NON garantisce l'isolamento tenant
 
@@ -1618,6 +1635,84 @@ il lock e la transazione, non un vincolo.
 ⭐ **L’ordine dei lock è deterministico** (`ORDER BY id`): due resi che bloccassero le stesse
 righe in ordine diverso si aspetterebbero a vicenda. Ordinati, il secondo aspetta e basta.
 
+### Editing quantità checkout (correzione del 05/09)
+
+Il campo mantiene separati testo digitato e ultima quantità valida. Svuotare,
+selezionare/sostituire o incollare non rimuove la riga. Vuoto, zero, negativi,
+frazioni, notazione esponenziale, testo e valori oltre l'Int del database restano
+visibili e impediscono un nuovo invio; nessun ripristino avviene al blur o durante
+la digitazione. I totali usano l'ultima quantità valida con avviso esplicito;
+le quote vengono conservate e devono tornare a coprire il totale dopo la modifica.
+La rimozione è solo **Togli**. Una scansione ripetuta incrementa una quantità
+valida; se il campo della stessa variante è incompleto, segnala che quell'aggiunta
+non è avvenuta e conserva il testo.
+
+Il recupero di un esito incerto invia il comando originale e conserva anche un
+campo incompleto, pur se la quantità valida è ancora uguale a quella già inviata.
+Il nuovo carrello resta da completare prima di un altro invio. Nessuna nuova
+persistenza dei draft è introdotta: il comando incerto continua a usare il servizio
+esistente, mentre il testo non inviato segue il ciclo di vita del carrello.
+
+Comportamento confrontato con i validator delle righe documentali e con la
+separazione testo/valore del `MoneyInput`; quest'ultimo non è usato per le unità.
+Su mobile il carrello adotta il mixin condiviso `data-table-mobile-cards`, con un
+solo input nel DOM e touch target di 44 px. Nessuna modifica alla normale Vendita
+al banco o al reso autonomo, né ai componenti e calcoli economici condivisi.
+
+Prove ripetibili: `cash-register.component.spec.ts`; `npm run test:cassa:real`
+esegue digitazione, Backspace, selezione/sostituzione e clipboard reale, blur vuoto,
+invalidi, scansioni ripetute, quote e recupero su desktop 1440 px e Chromium mobile
+emulato 390 px. API gestionali e PostgreSQL TEST reali; non è un collaudo su un
+telefono fisico o su Safari. Screenshot e trace in `test-results/cassa-browser-real/`.
+
+### Censimento IVA: accettazione attuale e limiti (05/09)
+
+Il catalogo di sistema contiene **25 Nature e sei modalità**: `standard` (TAXABLE),
+`zero_rate` (N1, N2.1–2, N3.1–6, N4, N7), `reverse_charge` (acquisti e N6.1–9),
+`split_payment`, `margin_scheme` (N5), `informational` (OTHER). Il seed propone
+12 codici aziendali: 22/10/5/4 ordinari, X15/FC/N8A/E10 a zero e 22R/10R/5R/4R
+reverse charge acquisti. Le Nature globali e i codici per tenant sono concetti
+distinti; la modalità effettiva viene dal codice e dal suo snapshot.
+
+Lettura del database condiviso alle **23:19 del 05/09**, protetta da transazione
+`READ ONLY`: confermate le 25 Nature; 72 codici non eliminati, tutti attivi, con
+24 ordinari, 24 zero e 24 reverse charge acquisti. Nessun codice split payment,
+margine o informativo presente in quella fotografia. Dati aggregati senza
+identificativi tenant: `test-results/cassa-vat-census.json`. Nessuna scrittura.
+
+**Accettato** nella tabella significa HTTP 201 e documento/quote registrati dal
+codice attuale, non validità fiscale del regime. Prove nuove: 39 casi HTTP su
+PostgreSQL usa-e-getta, con codici creati attraverso l'API ordinaria del catalogo,
+tutti i 12 seed e tutte le 25 Nature rappresentati. Le combinazioni non sono
+esaurite dal censimento. Le prove verificano snapshot, prezzo `1000.1234` minor
+conservato in Decimal(16,6), importi, quote, replay identico e rifiuti senza effetti
+su documenti, quote, magazzino, quadratura o registro degli intenti.
+
+| Modalità / caso provato                                                      | Comportamento attuale                                                                                                   | Limite                                                                                           |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `standard` 22/10/5/4%, frazionaria 4,5%; zero nelle prove frontend esistenti | Accetta; tre pezzi a 1000.1234 minor producono imponibile 3000, IVA 660/300/150/120/135, lordo 3660/3300/3150/3120/3135 | Calcolo ordinario verificato, nessuna attestazione fiscale generale                              |
+| `zero_rate` 0%, tutte le Nature previste                                     | Accetta 3000 + 0 = 3000                                                                                                 | Non verifica i presupposti normativi dell'esenzione/non imponibilità; al 22% con IVA 660 rifiuta |
+| `reverse_charge` acquisti 22/10/5/4%                                         | Rifiuta: IVA positiva ma lordo uguale al netto                                                                          | Non è un rifiuto per nome della modalità o per `usageScope`                                      |
+| `reverse_charge` a 0% (acquisti e Nature N6), oppure 22% su **1 centesimo**  | Accetta: IVA zero, anche per arrotondamento                                                                             | Il regime non ha un flusso Cassa verificato; controesempio al presunto blocco generale           |
+| `split_payment` 22%, `vatAffectsSupplierTotal=false`                         | Accetta: 3000 + 660 = 3660 e incassa 3660, mentre `supplierPayableLineMinor` è 3000                                     | Nessuna scissione dedicata del pagamento: caso non gestito segnalato al proprietario             |
+| `margin_scheme` (N5) e `informational` (OTHER) a 0%                          | Accettano 3000 + 0 = 3000; al 22% con IVA positiva rifiutano                                                            | Non c'è calcolo del margine né un nuovo trattamento fiscale informativo                          |
+| Codice `standard`, ambito solo acquisti e disattivo                          | Accettato se esplicitamente riferito e non eliminato                                                                    | Ambito e stato attivo non sono filtri di checkout nelle primitive retail esistenti               |
+| `standard` con `vatAffectsSupplierTotal=false`                               | Incasso ancora 3660, dovuto fornitore 3000                                                                              | Il flag non seleziona il totale incassato dalla Cassa                                            |
+
+Cinque prove di componente aggiunte confermano che l'anteprima lascia passare
+split payment, margine/informativo/RC a zero e RC con IVA arrotondata a zero.
+Il rifiuto RC a IVA positiva era già provato sia nel componente sia via HTTP.
+Test: `cassa-vat-modes.integration-spec.ts`, `cassa-checkout-iva.integration-spec.ts`
+e `cash-register.component.spec.ts`.
+
+**Non verificati come regimi:** presupposti e adempimenti fiscali, scissione,
+margine, trattamento RC, ogni incrocio di aliquote/indetraibilità/ambiti e Nature,
+emissione con registratore. I resi restano collaudati sugli importi originali nei
+casi già documentati, non come certificazione di tutti i regimi. Le primitive
+economiche, la precisione Decimal e le autorizzazioni restano invariate. Nessuna
+nuova whitelist, restrizione o implementazione di regime è introdotta: prima
+dell'uso reale con quei codici serve una decisione esplicita sui casi sopra.
+
 ### Ripartizione dei resi successivi (correzione preflight 05/09)
 
 **Contratto checkout/anteprima verificato:** il lookup condiviso aggiunge lo
@@ -1627,12 +1722,11 @@ la coda decimale del prezzo netto né arrotondare l'aliquota di calcolo. Dopo la
 conferma mostra `totaleMinor` e `restoMinor` restituiti dal server, tradotti nel
 modello frontend. Prove: 13 frontend e 3 HTTP/PostgreSQL TEST.
 
-Un codice IVA esplicito fuori dal tenant o non più disponibile si rifiuta prima
-dei fatti economici. Si rifiuta anche una modalità per cui la primitiva restituisce
-imponibile + IVA diversi dal lordo: non si salva un documento che il successivo
-reso non potrebbe ripartire coerentemente. I regimi particolari con IVA non
-esposta richiedono un contratto Cassa separato; questa correzione non ne inventa
-il trattamento e non cambia il comportamento della Vendita al banco.
+Un codice IVA esplicito fuori dal tenant o eliminato logicamente si rifiuta prima
+dei fatti economici. Si rifiuta anche un calcolo con imponibile + IVA diversi dal
+lordo. **Questo è un controllo aritmetico, non una lista di regimi supportati:**
+alcune modalità senza flusso dedicato sono accettate. Il censimento sotto sostituisce
+ogni precedente indicazione generica «l'IVA non supportata è rifiutata».
 
 `allocateRetailReturn` usa `proportionalMinor`, primitiva del denaro condivisa:
 rapporto esatto fra interi e arrotondamento half-up, senza prodotti floating point
