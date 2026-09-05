@@ -10,6 +10,8 @@ import { TENANT_BACKUP_FORMAT_VERSION } from './tenant-backup.constants';
 import { TenantBackupImportService } from './tenant-backup-import.service';
 
 interface MockDelegate {
+  findMany: ReturnType<typeof vi.fn>;
+  updateMany: ReturnType<typeof vi.fn>;
   deleteMany: ReturnType<typeof vi.fn>;
   createMany: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
@@ -40,6 +42,10 @@ function createAutoMockTx(): MockTx {
       let delegate = delegates.get(prop);
       if (!delegate) {
         delegate = {
+          findMany: vi
+            .fn()
+            .mockResolvedValue(prop === 'paymentMethodCode' ? [{ id: 'mc-05', code: 'MP05' }] : []),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
           deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
           createMany: vi.fn().mockResolvedValue({ count: 0 }),
           update: vi.fn().mockResolvedValue({}),
@@ -90,6 +96,7 @@ describe('TenantBackupImportService', () => {
       supabase as unknown as SupabaseService,
       config as unknown as ConfigService,
       platformAdmin as never,
+      { invalidateTenant: vi.fn() } as never,
     );
   });
 
@@ -118,7 +125,7 @@ describe('TenantBackupImportService', () => {
    */
   it('⭐ un archivio più VECCHIO dice che è vecchio, non «aggiorna»', async () => {
     const zip = await buildTenantBackupZip({
-      manifest: { formatVersion: TENANT_BACKUP_FORMAT_VERSION - 1 },
+      manifest: { formatVersion: 2 },
     });
 
     await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
@@ -223,7 +230,7 @@ describe('TenantBackupImportService', () => {
         users: [
           {
             id: 'id-falsificato',
-            tenantId: 'tenant-altrui',
+            tenantId,
             authUserId: 'auth-owner',
             email: 'scalata@altro.it',
             displayName: 'Titolare',
@@ -249,25 +256,17 @@ describe('TenantBackupImportService', () => {
     );
   });
 
-  it('impone il tenant corrente su OGNI riga: nessuna scrittura in un altro negozio', async () => {
+  it('rifiuta righe di un altro tenant prima del purge', async () => {
     const zip = await buildTenantBackupZip({
       manifest: { tenantId },
       entities: {
-        // Il tenantId altrui è visibile negli URL degli allegati: un file
-        // ritoccato proverebbe a scrivere prodotti nel negozio di un altro.
-        products: [
-          { id: 'prod-1', tenantId: 'tenant-vittima', name: 'Merce iniettata' },
-          { id: 'prod-2', tenantId, name: 'Merce legittima' },
-        ],
+        products: [{ id: 'prod-1', tenantId: 'tenant-vittima', name: 'Merce iniettata' }],
       },
     });
-
-    await service.importFromZipBuffer(tenantId, currentUserId, zip);
-
-    const call = tx['product']?.createMany.mock.calls[0]?.[0] as { data: { tenantId: string }[] };
-    const rows = call.data;
-    expect(rows).toHaveLength(2);
-    expect(rows.every((row) => row.tenantId === tenantId)).toBe(true);
+    await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
+      /altro negozio/,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('non ripristina i termini di contratto del tenant dal file', async () => {
@@ -320,7 +319,11 @@ describe('TenantBackupImportService', () => {
 
   it('un backup SUCCESSIVO conserva il collegamento alla modalità', async () => {
     const zip = await buildTenantBackupZip({
-      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      manifest: {
+        tenantId,
+        tenantName: 'Negozio Demo',
+        globalReferences: { vatNatures: [], paymentMethodCodes: [{ id: 'mc-05', code: 'MP05' }] },
+      },
       entities: {
         paymentOptions: [
           {
@@ -377,12 +380,9 @@ describe('TenantBackupImportService', () => {
 
     // La FK del database rifiuta: il service non la intercetta, e l'errore
     // esce dalla transazione — che è ciò che produce il rollback.
-    tx.paymentOption.createMany.mockRejectedValueOnce(
-      new Error('violates foreign key constraint "payment_options_method_code_id_fkey"'),
-    );
 
     await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
-      /foreign key/i,
+      /catalogo globale/i,
     );
   });
 });

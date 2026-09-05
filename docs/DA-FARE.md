@@ -18,8 +18,16 @@
   `20260905210000_protezione_storico_dispositivi_cassa`: RLS e revoche anche a
   PUBLIC, senza riscrivere la migration originaria. Passano 16 prove sui
   privilegi reali, accessi con GRANT accidentali e percorsi HTTP dello storico.
-- Da completare: backup, ripristino e cancellazione
-  amministrativa; installazione/aggiornamento e collaudo browser con API reali.
+- Corretto il backup tecnico: registro condiviso delle entità, ZIP v4 completo
+  della Cassa e dipendenze, compatibilità v3 quando i riferimenti sono presenti,
+  cataloghi globali risolti per chiave e mai riscritti. Ripristino DB atomico,
+  allegati caricati su nuovi percorsi prima della pubblicazione dei riferimenti,
+  cancellazione amministrativa con lo stesso ordine e revoca della cache profili.
+  Passano 28 prove su PostgreSQL TEST: export/ZIP/import HTTP, privilegi admin,
+  riferimenti invalidi/cross-tenant, rollback e SDK Storage su endpoint HTTP locale.
+  Lo Storage Supabase condiviso non è stato contattato; dettagli e limiti in
+  `BACKUP-DISASTER-RECOVERY.md`, sezione sul backup logico del tenant.
+- Da completare: installazione/aggiornamento e collaudo browser con API reali.
   Nel flusso vendita vanno inoltre verificati il totale IVA dell'anteprima e la
   traduzione dei nomi di totale/resto nella risposta API.
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.

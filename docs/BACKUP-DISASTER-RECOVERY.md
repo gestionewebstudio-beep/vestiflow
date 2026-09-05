@@ -14,6 +14,44 @@ Non richiede subito infrastruttura duplicata su tre cloud: richiede **copie veri
 
 Usa le checkbox `[ ]` / `[x]` man mano che completi ogni fase.
 
+## Backup logico del tenant — verifica del 05/09/2026
+
+Il percorso titolare `GET /tenant/backup/export` → archivio ZIP →
+`POST /tenant/backup/import?confirm=REPLACE` usa il formato **4**. Comprende ora
+le entità Cassa e tutte le dipendenze operative del registro condiviso in
+`tenant-backup.constants.ts`. OAuth state, sessioni di assistenza e audit utenti
+di piattaforma non sono dati ripristinabili dal titolare; non vengono esportati.
+I due cataloghi globali IVA/modalità pagamento vengono solo letti, con risoluzione
+degli ID per chiave normativa. Credenziali Auth e configurazione infrastrutturale
+continuano a richiedere il piano di disaster recovery descritto sotto.
+
+Gli archivi **v3** sono accettati se i riferimenti sono completi. Un archivio v3
+contenente documenti Cassa senza i dati allora omessi viene rifiutato; occorre una
+copia completa, non un backfill dedotto. I formati 1/2 richiedono ancora conversione
+per i cambi documentati il 26/08 in `00-DECISIONI.md`.
+
+L'export usa una transazione Repeatable Read per i dati e fallisce se non può leggere
+un allegato richiesto. L'import controlla manifest, conteggi, file obbligatori,
+percorsi e riferimenti tenant prima della sostituzione. I dati si ripristinano in
+una sola transazione Serializable, compresi i collegamenti storici e gli intenti.
+Restore e cancellazione amministrativa rifiutano anche riferimenti entranti da
+altri tenant, evitando effetti CASCADE/SET NULL fuori dal tenant bersaglio.
+
+I byte degli allegati vengono caricati con `upsert: false` su percorsi nuovi;
+soltanto la transazione DB riuscita pubblica quei riferimenti. Un errore mantiene
+intatti dati e oggetti precedenti e tenta di rimuovere i nuovi file. Un arresto del
+processo o un errore anche durante la pulizia può lasciare **oggetti non referenziati**:
+vanno identificati prima di una pulizia amministrativa dello Storage. I vecchi file
+non sono cancellati dal restore. Non si dichiara una transazione distribuita DB/Storage.
+
+**Evidenze locali:** 28 prove d'integrazione in `cassa-backup.integration-spec.ts` e
+`tenant-backup-storage.integration-spec.ts`, con PostgreSQL usa-e-getta, ZIP reale,
+API reali e SDK Storage su HTTP locale. Inclusi errore upload, errore DB dopo gli
+upload, rollback, cataloghi e cancellazione del solo tenant bersaglio.
+Queste prove non collaudano il servizio Storage del provider, il backup cifrato
+dell'intero database o un ripristino dell'infrastruttura di produzione. Nessuna
+casella delle fasi infrastrutturali seguenti è stata completata per deduzione.
+
 ---
 
 ## 1. Principi guida

@@ -132,3 +132,7 @@ process.env['SUPABASE_JWT_SECRET'] = SEGRETO_INTEGRAZIONE;
  *    nemmeno per errore.
  */
 process.env['SUPABASE_SERVICE_ROLE_KEY'] = '';
+
+// Allowlist locale letta prima di ConfigModule.forRoot: nessuna identità reale.
+export const ADMIN_EMAIL_INTEGRAZIONE = 'admin-backup@integrazione.local';
+process.env['PLATFORM_ADMIN_EMAILS'] = ADMIN_EMAIL_INTEGRAZIONE;

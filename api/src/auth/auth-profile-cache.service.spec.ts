@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { AuthProfileCacheService } from './auth-profile-cache.service';
 
 describe('AuthProfileCacheService', () => {
+  it('restore e cancellazione invalidano soltanto i profili del tenant bersaglio', () => {
+    const cache = new AuthProfileCacheService();
+    cache.set('owner-a', 'tenant-a', { role: 'owner' } as never);
+    cache.set('clerk-a', 'tenant-a', { role: 'clerk' } as never);
+    cache.set('owner-b', 'tenant-b', { role: 'owner' } as never);
+    cache.invalidateTenant('tenant-a');
+    expect(cache.get('owner-a')).toBeNull();
+    expect(cache.get('clerk-a')).toBeNull();
+    expect(cache.get('owner-b')).not.toBeNull();
+  });
   it('memorizza e recupera profilo entro TTL', () => {
     const cache = new AuthProfileCacheService();
     const appUser = { displayName: 'Mario', role: 'admin' } as never;

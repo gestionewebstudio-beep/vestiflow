@@ -374,6 +374,29 @@ da dare per scontato.
 ⚠️ Il **backup di tenant** è fra i consumer: export e import devono continuare a funzionare
 con i campi nuovi assenti.
 
+**Correzione preflight 05/09 — backup tecnico.** Il formato v4 comprende sessioni
+aperte e chiuse, movimenti, storico dispositivi, dispositivi/POS, ricevute fiscali,
+quote e origine dei rimborsi, intenti, assegnazioni delle sedi e dipendenze documentali.
+Export, import e cancellazione amministrativa usano un unico registro delle entità.
+L'export legge uno snapshot DB coerente; l'import verifica riferimenti e tenant,
+reinserisce i collegamenti circolari nella stessa transazione e conserva anche
+timestamp e Decimal originali. I cataloghi globali restano fuori dalle scritture:
+gli ID si risolvono tramite le chiavi normative incluse nel manifest.
+
+Gli archivi v3 restano importabili quando contengono i riferimenti necessari.
+Un v3 con documenti Cassa e senza le sessioni/quote omesse dall'esportatore precedente
+viene rifiutato: i dati mancanti non si ricostruiscono per supposizione. Un file JSON
+o allegato mancante non viene più sostituito silenziosamente con un elenco vuoto.
+Gli allegati si preparano su nuovi percorsi: errore DB o upload interrompe il restore,
+mantiene i vecchi oggetti e tenta la pulizia dei nuovi. Il dettaglio dei limiti
+infrastrutturali è in `BACKUP-DISASTER-RECOVERY.md`.
+
+Prove: `cassa-backup.integration-spec.ts` e `tenant-backup-storage.integration-spec.ts`,
+28 casi con PostgreSQL TEST, ZIP reale, endpoint API effettivi e client Storage verso
+un server HTTP locale. Comprendono quadratura chiusa, retry dopo restore, self-FK dei
+resi/ricevute, cataloghi, cross-tenant, rollback e cancellazione amministrativa reale.
+Nessuna fiscalizzazione o esportazione operativa è stata implementata in questa tranche.
+
 ### ⭐ Il modello di destinazione è GIÀ DECISO, e non è della Cassa
 
 ⛔ **Qui stavo per progettare un contratto nuovo. Era sbagliato.** La specifica
