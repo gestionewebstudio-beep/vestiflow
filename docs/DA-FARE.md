@@ -161,6 +161,80 @@ righe caricate riordinerebbe una pagina.
 
 ---
 
+## ⛔ APERTO — il registro Cassa impiega ~28 s con 5.000 righe (05/09/2026)
+
+⚠️ **NON e` chiuso, e la virtualizzazione non lo chiude.** Va scritto qui perche`
+la finestra di rendering funziona e sembra che il problema sia risolto: non lo e`.
+
+### Riproduzione
+
+```bash
+E2E_USE_MOCK_AUTH=1 E2E_BASE_URL=http://localhost:4310 \
+  npx playwright test virtual-spike -g "colonne restano allineate"
+```
+
+(aggiungere `virtual-spike` al `testMatch` del progetto `chromium-ci`). Le righe
+arrivano da un_intercettazione: nessun database, nessuna rete vera. La misura
+finisce in `test-results/finestra-cassa.txt`.
+
+### Che cosa e` DIMOSTRATO
+
+```text
+rete                  ~900 ms          non e` la rete
+righe rese            43, PICCO 43     le 5.000 non si rendono MAI
+nodi DOM              1.125            costanti a ogni scala
+curva                 500 → 1.319 ms   1.000 → 1.431
+                      2.000 → 4.139    5.000 → 29.641   ≈ O(n²)
+```
+
+⭐ **Il costo e` proporzionale alla LUNGHEZZA DELL_ARRAY passato al motore**, non
+alle righe rese. La variazione decisiva:
+
+```text
+insieme intero al motore                    27.000 ms
+solo `sezioni()` tagliato a 100 righe        1.146 ms   ← filtri e ordinamento
+                                                          restano sull_intero
+```
+
+### Ipotesi ESCLUSE, ognuna con una variazione a una variabile
+
+| Ipotesi                        | Variazione                                                | Esito                                                         |
+| ------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------- |
+| il DOM delle righe             | finestra accesa vs spenta                                 | 28,3 s vs 33,8 s — rendere 5.000 righe costa **5,5 s dei 34** |
+| la card di riga                | tolto `<ng-template appRowCard>`                          | 26,3 s — nessun effetto                                       |
+| `templateFor` per cella        | memoizzato in un `computed`                               | 28,7 → 27,3 s — **5%**                                        |
+| l_altezza delle distanziatrici | limitata a 2.000 px, array intatto                        | 29,6 s — nessun effetto                                       |
+| filtri e ordinamento           | lasciati sull_intero, tagliato solo l_ingresso del motore | 1,1 s — **non sono loro**                                     |
+| i valori distinti dei filtri   | codice letto: dietro un cancello spento di serie          | mai eseguiti a caricamento                                    |
+| la selezione (`visibleRowIds`) | codice letto: `selectionMode` e` `none` sui due registri  | mai valutata                                                  |
+
+### Il profilo
+
+```text
+~29,6 s su 30 dentro detectChangesInViewWhileDirty / detectChangesInView
+self-time in materializeViewResults e collectQueryResults
+
+catena fino al nostro codice:
+  materializeViewResults → collectQueryResults → getQueryResults
+    → refreshSignalQuery → computed → templateFor
+    → DataTableComponent_For_10_For_3_For_3_Template
+```
+
+⚠️ **Quello che NON torna, ed e`il punto da cui ripartire**: con 43 righe rese le
+letture di`templateFor` sono 43 × 9 = 387 per giro, e l_albero del contenuto ha
+43 viste di riga. Nessuna delle due grandezze cresce con le 5.000 — eppure il
+tempo cresce col quadrato dell_insieme. **Manca il passaggio che lega la
+lunghezza dell_array al costo per lettura.**
+
+⭐ **Il prossimo passo suggerito**: due profili a confronto, uno con l_insieme
+intero e uno con l_ingresso del motore tagliato a 100. La differenza fra i due
+nomina la funzione, senza altre ipotesi.
+
+⛔ **Non si chiude abbassando il numero**: niente aggiornamenti di dipendenze,
+niente controlli indeboliti, niente funzionalita` tolte.
+
+---
+
 ## ⛔ CASSA — due condizioni OBBLIGATORIE prima di dichiararla completa (04/09/2026)
 
 Decise dal proprietario il 04/09/2026, chiudendo C1C. **Non sono note di analisi**: sono

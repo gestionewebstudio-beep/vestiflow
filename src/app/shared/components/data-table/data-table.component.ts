@@ -709,7 +709,31 @@ export class DataTableComponent<T> {
     */
     const destinazione = this.sections()[0]?.rows[bersaglio];
     this.idRigaAFuoco = destinazione === undefined ? null : this.rowId()(destinazione);
+    /*
+      ⛔ **UN COMANDO ESPLICITO VINCE SULLA GUARDIA.**
+
+      La guardia di `ripristinaFuoco` interviene solo quando il fuoco e` andato
+      perduto — giusta per lo scorrimento con la rotellina, SBAGLIATA qui: dopo
+      un `PagGiu` breve la riga di partenza resta spesso nel margine reso,
+      quindi il fuoco non e` «perduto», la guardia esce subito e il comando non
+      arriva mai a destinazione.
+
+      ⚠️ **Era una regressione vera**, introdotta insieme alla guardia stessa.
+    */
+    this.spostamentoRichiesto = true;
+    /*
+      ⛔ **E il ripristino si chiama QUI, non solo dallo scorrimento.**
+
+      Se la destinazione e` gia' nella finestra — `PagSu` da una riga vicina
+      alla cima, con lo scorrimento gia' a zero — **nessun evento di
+      scorrimento parte**, e il ripristino non verrebbe mai eseguito: il fuoco
+      resterebbe dov'era. Trovato dalla prova, non ragionandoci sopra.
+    */
+    afterNextRender(() => this.ripristinaFuoco(), { injector: this.injector });
   }
+
+  /** Vero quando a chiedere il fuoco e` stato un TASTO, non lo scorrimento. */
+  private spostamentoRichiesto = false;
 
   /**
    * ⛔ **Il fuoco non si perde quando la riga esce dal DOM.**
@@ -759,7 +783,12 @@ export class DataTableComponent<T> {
     const scroller = this.host.nativeElement.querySelector<HTMLElement>('.data-table-scroll');
     const perduto = attivo === null || attivo === documento.body;
     const suDiNoi = attivo === scroller && this.fuocoDiRipiego;
-    if (!perduto && !suDiNoi) {
+    /*
+      ⛔ **`spostamentoRichiesto` scavalca la guardia**: se il fuoco lo ha
+      chiesto un TASTO, deve arrivare a destinazione anche quando la riga di
+      partenza e` ancora resa e quindi il fuoco non risulta «perduto».
+    */
+    if (!this.spostamentoRichiesto && !perduto && !suDiNoi) {
       return;
     }
 
@@ -769,6 +798,7 @@ export class DataTableComponent<T> {
     if (riga) {
       riga.focus();
       this.fuocoDiRipiego = false;
+      this.spostamentoRichiesto = false;
       return;
     }
     /*

@@ -179,6 +179,19 @@ test.describe('finestra di rendering — registro Cassa', () => {
       .then(() => {
         msRisposta = Date.now() - t0;
       });
+    // MISURA: quante righe esistono al MASSIMO durante il caricamento?
+    await page.addInitScript(() => {
+      (window as unknown as { __picco: number }).__picco = 0;
+      const osserva = (): void => {
+        const n = document.querySelectorAll('.data-table__row').length;
+        const w = window as unknown as { __picco: number };
+        if (n > w.__picco) {
+          w.__picco = n;
+        }
+        requestAnimationFrame(osserva);
+      };
+      requestAnimationFrame(osserva);
+    });
     await page.goto('/app/cassa/operazioni');
     await attesaRisposta;
     await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
@@ -207,6 +220,8 @@ test.describe('finestra di rendering — registro Cassa', () => {
     nota(`\n  caricamento (5.000 righe)   : ${caricamento}ms`);
     nota(`  righe rese                  : ${m.righeRese}`);
     nota(`  nodi DOM della tabella      : ${m.nodi}`);
+    const picco = await page.evaluate(() => (window as unknown as { __picco: number }).__picco);
+    nota(`  PICCO di righe rese         : ${picco}`);
 
     // ⛔ Le asserzioni: poche righe rese, colonne allineate, conteggio giusto.
     expect(m.righeRese).toBeLessThan(120);
@@ -332,6 +347,113 @@ test.describe('finestra di rendering — registro Cassa', () => {
     //    non e` toccato, e la sua lentezza resta un problema aperto.
     expect(m.righe).toBe(300);
     expect(m.spaziatrici).toBe(0);
+  });
+
+  /*
+    ⛔ **I TASTI DEVONO ARRIVARE A DESTINAZIONE, sempre.**
+
+    Distinta dalla prova sulla rotellina qui sotto: la` il fuoco si PERDE e va
+    raccolto; qui e' un COMANDO ESPLICITO e deve essere eseguito, anche quando
+    la riga di partenza resta nel margine reso e quindi il fuoco non risulta
+    «perduto».
+
+    ⚠️ Era una regressione vera: la guardia contro il furto del fuoco annullava
+    `PagGiu` e `PagSu` brevi.
+  */
+  test('⛔ Fine porta il fuoco sull_ultima riga, premendo davvero il tasto', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, QUANTE);
+    await page.goto('/app/cassa/operazioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+
+    await page.locator('.data-table__row').first().focus();
+    await page.keyboard.press('End');
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const a = document.activeElement;
+            return a?.querySelector('td[data-label="Numero"]')?.textContent?.trim() ?? '';
+          }),
+        { timeout: 30_000 },
+      )
+      .toBe(`CS/2026/${QUANTE}`);
+  });
+
+  test('⛔ PagSu raggiunge la destinazione anche se la riga di partenza RESTA resa', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, QUANTE);
+    await page.goto('/app/cassa/operazioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+
+    /*
+      ⛔ **LA CONDIZIONE ESATTA DELLA REGRESSIONE.**
+
+      Un `PagGiu` dall'inizio allontana la riga di partenza oltre il margine
+      reso: il fuoco si perde, e la guardia lascia comunque passare. Non prova
+      niente — misurato il 05/09/2026, con la guardia rimessa la prova restava
+      verde.
+
+      ⭐ Qui il fuoco parte da una riga VICINA alla cima e `PagSu` porta a
+      riga 1: lo scorrimento va a zero, la riga di partenza resta RESA, il
+      fuoco non risulta «perduto» — ed e' esattamente il caso in cui la guardia
+      annullava il comando.
+    */
+    const partenzaIndice = 5;
+    await page.locator('.data-table__row').nth(partenzaIndice).focus();
+    const partenza = await page.evaluate(
+      () =>
+        document.activeElement?.querySelector('td[data-label="Numero"]')?.textContent?.trim() ?? '',
+    );
+    expect(partenza).toBe(`CS/2026/${partenzaIndice + 1}`);
+
+    await page.keyboard.press('PageUp');
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              document.activeElement
+                ?.querySelector('td[data-label="Numero"]')
+                ?.textContent?.trim() ?? '',
+          ),
+        { timeout: 30_000 },
+      )
+      .toBe('CS/2026/1');
+
+    // ⭐ E la riga di partenza e` ancora resa: e` cio' che rende la prova valida.
+    const partenzaAncoraResa = await page.evaluate(
+      (testo) =>
+        Array.from(document.querySelectorAll('.data-table__row')).some(
+          (r) => r.querySelector('td[data-label="Numero"]')?.textContent?.trim() === testo,
+        ),
+      partenza,
+    );
+    expect(partenzaAncoraResa).toBe(true);
+  });
+
+  test('⭐ i tasti NON si prendono quelli di un controllo di cella', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, QUANTE);
+    await page.goto('/app/cassa/operazioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+
+    // La ricerca e` un controllo: `Home` deve muovere il CURSORE, non la tabella.
+    const ricerca = page.getByRole('searchbox').first();
+    await ricerca.click();
+    await ricerca.fill('abcdef');
+    await page.keyboard.press('Home');
+
+    const stato = await page.evaluate(() => {
+      const a = document.activeElement as HTMLInputElement | null;
+      return { tag: a?.tagName ?? '', cursore: a?.selectionStart ?? -1 };
+    });
+    expect(stato.tag).toBe('INPUT');
+    expect(stato.cursore).toBe(0);
   });
 
   /*
