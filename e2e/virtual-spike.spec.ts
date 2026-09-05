@@ -585,64 +585,82 @@ test.describe('finestra di rendering — registro Cassa', () => {
     ⭐ **I totali delle Sessioni sono dell_INTERO risultato**, non della
     finestra: e` la garanzia che la finestra riguarda solo il rendering.
   */
-  test('⭐ i totali delle Sessioni contano tutto il risultato, non la finestra', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.route('**/api/v1/inventory/locations**', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
-    );
-    await page.route('**/api/v1/payment-options**', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
-    );
-    const QUANTE_SESSIONI = 5000;
-    await page.route('**/api/v1/cash-sessions/sessions**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          items: Array.from({ length: QUANTE_SESSIONI }, (_, i) => ({
-            id: `s-${i}`,
-            status: 'closed',
-            locationId: 'loc-1',
-            locationName: 'Negozio di prova',
-            openedAt: new Date(Date.UTC(2026, 8, 1, 8, 0, 0) + i * 3_600_000).toISOString(),
-            openedByName: 'Anna',
-            closedAt: new Date(Date.UTC(2026, 8, 1, 16, 0, 0) + i * 3_600_000).toISOString(),
-            closedByName: 'Anna',
-            openingFloatMinor: 100,
-            fiscalDeviceId: null,
-            fiscalDeviceLabel: null,
-            notes: null,
-            saleCount: 1,
-            salesTotalMinor: 200,
-            returnCount: 0,
-            returnsTotalMinor: 0,
-            depositsMinor: 300,
-            withdrawalsMinor: 0,
-          })),
-          total: QUANTE_SESSIONI,
-          page: 1,
-          pageSize: QUANTE_SESSIONI,
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`⭐ i totali delle Sessioni contano tutto il risultato (${viewport.width}px)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await page.route('**/api/v1/inventory/locations**', (route) =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+      );
+      await page.route('**/api/v1/payment-options**', (route) =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+      );
+      const QUANTE_SESSIONI = 5000;
+      await page.route('**/api/v1/cash-sessions/sessions**', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            items: Array.from({ length: QUANTE_SESSIONI }, (_, i) => ({
+              id: `s-${i}`,
+              status: 'closed',
+              locationId: 'loc-1',
+              locationName: 'Negozio di prova',
+              openedAt: new Date(Date.UTC(2026, 8, 1, 8, 0, 0) + i * 3_600_000).toISOString(),
+              openedByName: 'Anna',
+              closedAt: new Date(Date.UTC(2026, 8, 1, 16, 0, 0) + i * 3_600_000).toISOString(),
+              closedByName: 'Anna',
+              openingFloatMinor: 100,
+              fiscalDeviceId: null,
+              fiscalDeviceLabel: null,
+              notes: null,
+              saleCount: 1,
+              salesTotalMinor: 200,
+              returnCount: 0,
+              returnsTotalMinor: 0,
+              depositsMinor: 300,
+              withdrawalsMinor: 0,
+            })),
+            total: QUANTE_SESSIONI,
+            page: 1,
+            pageSize: QUANTE_SESSIONI,
+          }),
         }),
-      }),
-    );
+      );
 
-    await page.goto('/app/cassa/sessioni');
-    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+      await page.goto('/app/cassa/sessioni');
+      await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
 
-    const m = await page.evaluate(() => ({
-      rese: document.querySelectorAll('.data-table__row').length,
-      piede: document.querySelector('.data-table tfoot')?.textContent ?? '',
-      rowcount: document.querySelector('.data-table')?.getAttribute('aria-rowcount'),
-    }));
+      const m = await page.evaluate(() => ({
+        rese: document.querySelectorAll('.data-table__row').length,
+        piede: document.querySelector('.data-table tfoot')?.textContent ?? '',
+        rowcount: document.querySelector('.data-table')?.getAttribute('aria-rowcount'),
+      }));
 
-    // Poche righe rese, ma il fondo somma TUTTE le 5.000 sessioni da 1,00 €.
-    expect(m.rese).toBeLessThan(120);
-    expect(m.piede).toContain(String(QUANTE_SESSIONI));
-    expect(m.piede).toContain('5.000,00');
-    // ⭐ E il conteggio accessibile conta tutte le righe piu` l'intestazione,
-    //    anche col piede dei totali presente.
-    expect(m.rowcount).toBe(String(QUANTE_SESSIONI + 1));
-  });
+      // Poche righe rese, ma il fondo somma TUTTE le 5.000 sessioni da 1,00 €.
+      if (viewport.width < 1024) expect(m.rese).toBe(QUANTE_SESSIONI);
+      else expect(m.rese).toBeLessThan(120);
+      expect(m.piede).toContain(String(QUANTE_SESSIONI));
+      expect(m.piede).toContain('5.000,00');
+      // ⭐ E il conteggio accessibile conta tutte le righe piu` l'intestazione,
+      //    anche col piede dei totali presente.
+      expect(m.rowcount).toBe(viewport.width < 1024 ? null : String(QUANTE_SESSIONI + 1));
+      const footer = page.locator('.data-table tfoot');
+      await expect(footer).toBeInViewport({ ratio: 1 });
+      const footerBefore = (await footer.boundingBox())!;
+      await page.evaluate(() => {
+        const scroller = document.querySelector<HTMLElement>('.data-table-scroll')!;
+        scroller.scrollTop = scroller.scrollHeight;
+      });
+      await expect(page.locator('.data-table__row[data-row-id="s-4999"]')).toBeInViewport({
+        ratio: 1,
+      });
+      await expect(footer).toBeInViewport({ ratio: 1 });
+      expect(Math.abs((await footer.boundingBox())!.y - footerBefore.y)).toBeLessThan(3);
+    });
+  }
 });

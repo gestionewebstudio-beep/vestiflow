@@ -1,4 +1,4 @@
-@use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
 /*
   ⭐ **Da 150 righe a queste.** Il contenitore pagina, la testata, la riga
@@ -21,18 +21,11 @@
   min-inline-size: 0;
 }
 .sess__period {
-  display: flex;
-  gap: var(--space-4);
+  @include lp.list-date-period;
 }
 
 .sess__note {
   margin: 0;
   font-size: var(--text-2xs);
   color: var(--color-text-muted);
-}
-
-@include bp.media-down('md') {
-  .sess__period {
-    inline-size: 100%;
-  }
 }

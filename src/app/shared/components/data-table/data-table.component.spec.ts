@@ -67,10 +67,8 @@ class OspiteComponent {
 }
 
 /**
- * ⚠️ Ospite separato, e non un `@if` nell'altro: un `ng-template` dentro un
- * blocco condizionale **non è contenuto proiettato** al primo render, quindi la
- * query sul contenuto non lo troverebbe mai. È il genere di dettaglio che fa
- * sembrare rotta una funzione che funziona.
+ * Ospite dedicato alla resa di una cella ricca. La comparsa e scomparsa dei
+ * template condizionali è verificata in data-table-templates.component.spec.ts.
  */
 @Component({
   imports: [DataTableComponent, DataTableCellDirective],

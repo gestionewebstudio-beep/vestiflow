@@ -1,3 +1,10 @@
+<!-- Le query si leggono prima dei cicli: creare una vista proiettata può
+     invalidarle. Le righe usano i riferimenti di questo render, aggiornati
+     al render successivo anche quando i template sono condizionali. -->
+@let celle = celleDiColonna();
+@let card = rowCardTemplate();
+@let comando = rowActionsTemplate();
+
 <!--
   ⚠️ **`tabindex="-1"` sul contenitore, e solo con la finestra accesa**: e`
   l'approdo del fuoco quando la riga che lo aveva esce dal DOM. Senza, il
@@ -228,7 +235,7 @@
                 [attr.data-label]="col.label"
                 [attr.title]="cellText()(row, col.id) || null"
               >
-                @if (templateFor(col.id); as cella) {
+                @if (celle.get(col.id); as cella) {
                   <ng-container
                     [ngTemplateOutlet]="cella.template"
                     [ngTemplateOutletContext]="{ $implicit: row }"
@@ -238,7 +245,7 @@
                 }
               </td>
             }
-            @if (hasRowCard()) {
+            @if (card) {
               <!--
                 ⚠️ **Una VESTE, non un dato**: porta `aria-hidden`, e ogni valore che
                 mostra esiste già nelle celle vere qui sopra — che sotto `lg` restano
@@ -246,12 +253,10 @@
                 divisione dei ruoli ogni riga verrebbe annunciata due volte.
               -->
               <td class="data-table__card" [attr.colspan]="totalColumns()" aria-hidden="true">
-                @if (rowCardTemplate(); as card) {
-                  <ng-container
-                    [ngTemplateOutlet]="card.template"
-                    [ngTemplateOutletContext]="{ $implicit: row }"
-                  />
-                }
+                <ng-container
+                  [ngTemplateOutlet]="card.template"
+                  [ngTemplateOutletContext]="{ $implicit: row }"
+                />
               </td>
             }
             @if (hasRowActions()) {
@@ -264,7 +269,7 @@
                 [attr.data-label]="rowActionsLabel()"
                 (click)="$event.stopPropagation()"
               >
-                @if (rowActionsTemplate(); as comando) {
+                @if (comando) {
                   <ng-container
                     [ngTemplateOutlet]="comando.template"
                     [ngTemplateOutletContext]="{ $implicit: row }"

@@ -1,5 +1,30 @@
 @use 'breakpoints' as bp;
 
+/// Due date del periodo: sul telefono si dividono la riga; il calendario
+/// usa la larghezza dell'intera coppia e si ancora dal lato del proprio campo.
+@mixin list-date-period {
+  display: flex;
+  gap: var(--space-4);
+
+  @include bp.media-down('md') {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    inline-size: 100%;
+
+    > app-date-input {
+      min-inline-size: 0;
+      --select-menu-width: 100%;
+      --date-input-panel-w: calc(200% + var(--space-4));
+      --date-input-panel-max-w: var(--date-input-panel-w);
+      --date-input-panel-inset: 0 auto;
+    }
+
+    > app-date-input:last-child {
+      --date-input-panel-inset: auto 0;
+    }
+  }
+}
+
 /// Layout standard delle pagine registro (header + toolbar ricerca/filtri).
 /// Genera i selettori BEM `#{$block}__header|heading|title|subtitle|actions|
 /// toolbar|toolbar-actions|search|search-icon|input|filters|field|label|

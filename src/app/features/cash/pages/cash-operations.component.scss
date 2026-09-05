@@ -1,4 +1,4 @@
-@use 'breakpoints' as bp;
+@use 'list-page' as lp;
 @use 'list-summary' as ls;
 
 /*
@@ -30,8 +30,7 @@
   min-inline-size: 0;
 }
 .ops__period {
-  display: flex;
-  gap: var(--space-4);
+  @include lp.list-date-period;
 }
 
 .ops__check {
@@ -210,12 +209,6 @@
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   color: var(--color-text);
-}
-
-@include bp.media-down('md') {
-  .ops__period {
-    inline-size: 100%;
-  }
 }
 
 /*

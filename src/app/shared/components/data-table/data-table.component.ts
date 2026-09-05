@@ -873,20 +873,17 @@ export class DataTableComponent<T> {
    * Lookup dei template per colonna. La query resta reattiva alle aggiunte e
    * rimozioni del contenuto: il computed non garantisce una lettura per ciclo,
    * perché creare viste proiettate può invalidarla durante lo stesso render.
-   * Il costo del caricamento si contiene evitando il render temporaneo di
-   * tutte le righe (avviaFinestra), senza restringere il contratto dei template.
+   * Il template legge questa mappa con @let prima dei cicli delle righe:
+   * così la creazione di ogni vista non scatena una nuova lettura della query.
+   * Restano supportati template condizionali e cambi dell'id di colonna.
    */
-  private readonly celleDiColonna = computed(() => {
+  protected readonly celleDiColonna = computed(() => {
     const mappa = new Map<string, DataTableCellDirective>();
     for (const cella of this.cellTemplates()) {
       mappa.set(cella.appCell(), cella);
     }
     return mappa;
   });
-
-  protected templateFor(columnId: string): DataTableCellDirective | undefined {
-    return this.celleDiColonna().get(columnId);
-  }
 
   /*
     ⭐ **Con `table-layout: fixed` una colonna senza larghezza si prende una

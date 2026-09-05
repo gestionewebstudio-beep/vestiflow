@@ -108,7 +108,7 @@ export default defineConfig({
         rispondere. Le sue risposte arrivano da un'intercettazione, quindi non
         chiede nulla al database.
       */
-      testMatch: /(ci-smoke|filtri-colonna|cassa|virtual-spike)\.spec\.ts$/,
+      testMatch: /(ci-smoke|filtri-colonna|cassa|cassa-mobile|virtual-spike)\.spec\.ts$/,
     },
     ...authenticatedProjects,
   ],
