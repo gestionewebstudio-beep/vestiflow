@@ -26,6 +26,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Test RLS checker offline
+        run: node --test scripts/check-rls.test.mjs
+
       # SUPABASE_URL e SUPABASE_ANON_KEY sono valori PUBBLICI (anon/publishable
       # key, gia' nel bundle JS), impostati come GitHub repo secrets
       # (Settings → Secrets and variables → Actions → Secrets).

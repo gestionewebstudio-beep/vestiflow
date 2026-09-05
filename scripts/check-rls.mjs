@@ -19,6 +19,8 @@
  *  - SUPABASE_ANON_KEY
  *
  * Uso locale:  SUPABASE_URL=... SUPABASE_ANON_KEY=... node scripts/check-rls.mjs
+ * Solo presenza statica nelle migration, senza rete: node scripts/check-rls.mjs --static
+ * La verifica statica NON sostituisce il controllo dell'ambiente di rilascio.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -88,6 +90,13 @@ if (unprotected.length > 0) {
 
 console.log(`[check-rls] Fase 1 OK: tutte le ${tables.length} tabelle abilitano la RLS.`);
 
+if (process.argv.includes('--static')) {
+  console.log(
+    '[check-rls] Sola verifica statica: ENABLE RLS presente nelle migration. Stato, privilegi e Data API dell’ambiente reale restano da verificare al rilascio.',
+  );
+  process.exit(0);
+}
+
 // ── Fase 2 (live): la anon key riesce comunque a leggere righe? ──────────────
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/+$/, '');
 const anonKey = process.env.SUPABASE_ANON_KEY;
@@ -119,15 +128,19 @@ for (const table of tables) {
       if (Array.isArray(body) && body.length > 0) {
         leaked = true;
         detail = `${body.length} riga/e restituite`;
-      } else {
+      } else if (Array.isArray(body)) {
         detail = 'array vuoto (RLS attiva)';
+      } else {
+        failures.push(`${table}: risposta 200 non interpretabile come elenco`);
+        continue;
       }
     } else if (status === 401 || status === 403) {
       detail = 'accesso negato (anon revocato)';
     } else if (status === 404) {
       detail = 'non esposta da PostgREST';
     } else {
-      detail = `status inatteso`;
+      failures.push(`${table}: status inatteso ${status}, verifica inconcludente`);
+      continue;
     }
   } catch (error) {
     failures.push(`${table}: errore di rete (${String(error)})`);
@@ -143,7 +156,9 @@ for (const table of tables) {
 }
 
 if (failures.length > 0) {
-  console.error(`\n[check-rls] FALLITO: ${failures.length} tabella/e esposta/e:`);
+  console.error(
+    `\n[check-rls] FALLITO: ${failures.length} tabella/e esposta/e o non verificabili:`,
+  );
   for (const f of failures) {
     console.error(`  - ${f}`);
   }
