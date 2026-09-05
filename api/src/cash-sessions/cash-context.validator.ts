@@ -1,9 +1,10 @@
 import {
+  ConflictException,
   ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { CashSession, FiscalDevice, Prisma } from '@prisma/client';
+import type { CashSession, DocumentType, FiscalDevice, Prisma } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { isFiscalAdapterRegistered } from '../fiscal/fiscal-adapter-registry';
@@ -169,4 +170,32 @@ export async function assertCashContext(
   }
 
   return { tenantId, locationId: richiesta.locationId, session, device };
+}
+
+/** Un replay legge un fatto concluso: controlla l'accesso attuale, anche a sessione chiusa. */
+export async function assertCashReplayContext(
+  tx: CashTx,
+  tenantId: string,
+  user: CashContextUser,
+  locationId: string,
+  documentId: string | null,
+  type: DocumentType,
+): Promise<void> {
+  await assertCashContext(tx, tenantId, user, { locationId });
+  if (!documentId) return;
+  const document = await tx.document.findFirst({
+    where: { id: documentId, tenantId, type, cashSessionId: { not: null } },
+    select: { locationId: true, cashSession: { select: { tenantId: true, locationId: true } } },
+  });
+  if (
+    !document?.locationId ||
+    document.cashSession?.tenantId !== tenantId ||
+    document.cashSession.locationId !== document.locationId
+  ) {
+    throw new ConflictException({
+      code: 'creation_intent_result_missing',
+      message: 'L’operazione risulta registrata, ma il documento non è disponibile.',
+    });
+  }
+  await assertCashContext(tx, tenantId, user, { locationId: document.locationId });
 }

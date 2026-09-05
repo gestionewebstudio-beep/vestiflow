@@ -1,8 +1,11 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { of, throwError } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AuthService } from '@core/auth';
 
 import type {
   CashOperationDetail,
@@ -61,16 +64,22 @@ const VENDITA: ReturnLookup = {
   ],
 };
 
-async function montaReso(opzioni?: { stato?: CashSessionState }) {
+async function montaReso(opzioni?: {
+  stato?: CashSessionState;
+  createReturn?: ReturnType<typeof vi.fn>;
+}) {
   const api = {
     operation: vi.fn(() => of(OPERAZIONE)),
     current: vi.fn(() => of(opzioni?.stato ?? APERTA)),
     lookupReturn: vi.fn(() => of(VENDITA)),
-    createReturn: vi.fn(() => of({ documentId: 'r1', reference: 'RS/2026/1', totaleMinor: 10_000 })),
+    createReturn:
+      opzioni?.createReturn ??
+      vi.fn(() => of({ documentId: 'r1', reference: 'RS/2026/1', totaleMinor: 10_000 })),
   };
   const vista = await render(CashReturnComponent, {
     providers: [
       provideRouter([]),
+      { provide: AuthService, useValue: { currentUser: () => ({ id: 'u1', tenantId: 't1' }) } },
       { provide: CashApiService, useValue: api },
       {
         provide: ActivatedRoute,
@@ -82,6 +91,7 @@ async function montaReso(opzioni?: { stato?: CashSessionState }) {
 }
 
 describe('CashReturnComponent', () => {
+  beforeEach(() => sessionStorage.clear());
   it('mostra venduto, già reso e ancora rendibile', async () => {
     await montaReso();
 
@@ -135,5 +145,27 @@ describe('CashReturnComponent', () => {
     await utente.click(screen.getByRole('button', { name: 'Proponi' }));
 
     expect(screen.getByRole('button', { name: 'Concludi reso' })).toBeDisabled();
+  });
+
+  it('risposta persa e motivo modificato: recupera lo stesso reso con il contenuto originale', async () => {
+    const createReturn = vi
+      .fn<CashApiService['createReturn']>()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })))
+      .mockReturnValue(of({ documentId: 'r1', reference: 'RS/2026/1', totaleMinor: 10_000 }));
+    await montaReso({ createReturn });
+    const utente = userEvent.setup();
+    await utente.clear(screen.getByLabelText(/Quantità da rendere/));
+    await utente.type(screen.getByLabelText(/Quantità da rendere/), '1');
+    await utente.click(screen.getByRole('button', { name: 'Proponi' }));
+    await utente.type(screen.getByLabelText(/Motivo/), 'Motivo originale');
+    await utente.click(screen.getByRole('button', { name: 'Concludi reso' }));
+    const originale = structuredClone(createReturn.mock.calls[0]![0]);
+    await utente.clear(screen.getByLabelText(/Motivo/));
+    await utente.type(screen.getByLabelText(/Motivo/), 'Motivo diverso');
+    expect(screen.getByRole('button', { name: 'Concludi reso' })).toBeDisabled();
+    await utente.click(screen.getByRole('button', { name: "Recupera l'esito" }));
+    expect(createReturn.mock.calls[1]![0]).toEqual(originale);
+    expect(screen.getByText('Reso registrato')).toBeVisible();
+    expect(sessionStorage.length).toBe(0);
   });
 });

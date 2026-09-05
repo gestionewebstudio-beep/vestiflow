@@ -17,7 +17,11 @@ import { DocumentSettingsService } from '../documents/document-settings.service'
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveRetailVariants } from '../retail/retail-line.util';
 
-import { assertCashContext, type CashContextUser } from './cash-context.validator';
+import {
+  assertCashContext,
+  assertCashReplayContext,
+  type CashContextUser,
+} from './cash-context.validator';
 
 /**
  * Il reso di cassa, collegato allo scontrino (tranche C4R).
@@ -389,12 +393,7 @@ export class CashReturnService {
         };
       });
     } catch (error) {
-      const gia = await this.replayIfAlreadyDone(
-        error,
-        tenantId,
-        input.creationIntentId,
-        fingerprint,
-      );
+      const gia = await this.replayIfAlreadyDone(error, tenantId, user, input, fingerprint);
       if (gia) {
         return gia;
       }
@@ -568,14 +567,26 @@ export class CashReturnService {
   private async replayIfAlreadyDone(
     error: unknown,
     tenantId: string,
-    intentId: string,
+    user: UserProfileDto,
+    input: ReturnInput,
     fingerprint: string,
   ): Promise<ReturnResult | null> {
     const esito = await this.intents.resolveConflict({
       error,
       tenantId,
-      intentId,
+      intentId: input.creationIntentId,
       fingerprint,
+      authorizeResult: (documentId) =>
+        this.prisma.$transaction((tx) =>
+          assertCashReplayContext(
+            tx,
+            tenantId,
+            user,
+            input.locationId,
+            documentId,
+            DocumentType.store_return,
+          ),
+        ),
     });
     if (!esito) {
       return null;
@@ -682,11 +693,13 @@ interface RimborsoRisolto {
 }
 
 function impronta(input: ReturnInput): string {
-  return JSON.stringify({
-    l: input.locationId,
-    s: input.sessionId,
-    o: input.originalDocumentId,
-    r: input.lines.map((x) => [x.originalLineId, x.quantity]),
-    p: input.refunds.map((x) => [x.originalPaymentId, x.amountMinor]),
+  return CreationIntentService.fingerprintOf({
+    operation: 'cash_return',
+    locationId: input.locationId,
+    sessionId: input.sessionId,
+    originalDocumentId: input.originalDocumentId,
+    reason: input.reason.replace(/\s+/g, ' ').trim(),
+    lines: input.lines,
+    refunds: input.refunds.map((refund) => ({ ...refund, confirmed: refund.confirmed ?? false })),
   });
 }

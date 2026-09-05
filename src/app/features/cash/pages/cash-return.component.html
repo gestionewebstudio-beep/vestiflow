@@ -12,6 +12,22 @@
     </div>
   </header>
 
+  @if (invioPrecedente().error; as messaggio) {
+    <app-inline-banner tone="error" [message]="messaggio" />
+  }
+  @if (!invio() && invioPrecedente().request; as precedente) {
+    <app-inline-banner tone="warning">
+      <p><strong>Esito da verificare</strong> · {{ precedente.description }}</p>
+      <p>
+        Recupera l'invio precedente prima di registrare un'altra operazione. Le modifiche successive
+        non cambiano l'invio conservato.
+      </p>
+      <app-button variant="secondary" [disabled]="invio()" (click)="recuperaInvio()"
+        >Recupera l'esito</app-button
+      >
+    </app-inline-banner>
+  }
+
   @if (errore(); as messaggio) {
     <app-inline-banner
       tone="error"
@@ -21,15 +37,7 @@
     />
   }
 
-  @if (caricamento()) {
-    <p class="reso__loading" role="status">Richiamo della vendita…</p>
-  } @else if (!vendita()) {
-    <app-error-state
-      description="Vendita non richiamabile."
-      retryLabel="Riprova"
-      (retry)="ricarica()"
-    />
-  } @else if (fatto(); as esito) {
+  @if (fatto(); as esito) {
     <section class="reso__done">
       <h2 class="reso__done-title">Reso registrato</h2>
       <p class="reso__done-ref">{{ esito.reference }} · {{ soldi(esito.totalMinor) }}</p>
@@ -38,6 +46,14 @@
         Torna alle operazioni
       </app-button>
     </section>
+  } @else if (caricamento()) {
+    <p class="reso__loading" role="status">Richiamo della vendita…</p>
+  } @else if (!vendita()) {
+    <app-error-state
+      description="Vendita non richiamabile."
+      retryLabel="Riprova"
+      (retry)="ricarica()"
+    />
   } @else if (!sessione()) {
     <!-- ⛔ Il reso muove denaro e merce: senza sessione aperta non si fa. -->
     <section class="reso__blocked">

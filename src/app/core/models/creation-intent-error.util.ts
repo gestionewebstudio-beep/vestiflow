@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-import type { AppError } from './app-error.model';
+import { AppErrorKind, isAppError, type AppError } from './app-error.model';
 
 /**
  * Gli esiti che il registro degli intenti di creazione può restituire in un 409
@@ -100,4 +100,22 @@ export function creationIntentStillHeld(error: unknown): boolean {
   // `vanished` e `result_missing` lasciano l'intento inservibile ma NON dicono
   // che esiste un record da proteggere: lì rigenerare è l'unica via d'uscita.
   return esito.code === 'creation_intent_mismatch' || esito.code === 'creation_intent_in_progress';
+}
+
+/** Una risposta incerta non autorizza a creare un nuovo intento. */
+export function creationResultUncertain(error: unknown): boolean {
+  const intent = creationIntentErrorOf(error);
+  if (intent) return intent.code !== 'creation_intent_vanished';
+  if (isAppError(error)) {
+    return (
+      [
+        AppErrorKind.Network,
+        AppErrorKind.Timeout,
+        AppErrorKind.Server,
+        AppErrorKind.Unknown,
+      ] as readonly string[]
+    ).includes(error.kind);
+  }
+  if (error instanceof HttpErrorResponse) return error.status === 0 || error.status >= 500;
+  return true;
 }

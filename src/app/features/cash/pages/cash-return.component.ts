@@ -14,8 +14,13 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import type { EntityId } from '@core/models/common.model';
 import { formatMoney } from '@core/utils/money.util';
+import { isAppError } from '@core/models/app-error.model';
 import { nuovoId } from '@core/utils/uuid.util';
-import type { CashSessionState, ReturnLookup } from '@domain/cash/models/cash.model';
+import type {
+  CashReturnPayload,
+  CashSessionState,
+  ReturnLookup,
+} from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -23,6 +28,8 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { FormSectionComponent } from '@shared/components/form-section/form-section.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
+
+import { CashPendingOperationsService } from '../services/cash-pending-operations.service';
 
 /**
  * Il **reso collegato allo scontrino** (`docs/25` §12-bis).
@@ -57,6 +64,8 @@ import { MoneyInputComponent } from '@shared/components/money-input/money-input.
 })
 export class CashReturnComponent {
   private readonly api = inject(CashApiService);
+  private readonly pending = inject(CashPendingOperationsService);
+  protected readonly invioPrecedente = this.pending.watch('returns');
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -104,7 +113,9 @@ export class CashReturnComponent {
       this.totaleMinor() > 0 &&
       this.rimborsatoMinor() === this.totaleMinor() &&
       this.motivo().trim().length > 0 &&
-      !this.invio(),
+      !this.invio() &&
+      !this.invioPrecedente().request &&
+      !this.invioPrecedente().error,
   );
 
   constructor() {
@@ -205,36 +216,67 @@ export class CashReturnComponent {
     if (!v || !sede || !sessione || !this.puoConfermare()) {
       return;
     }
+    try {
+      const payload = this.pending.prepare(
+        'returns',
+        {
+          locationId: sede,
+          sessionId: sessione.id,
+          originalDocumentId: v.documentId,
+          // ⛔ `nuovoId()`: in magazzino la pagina non è in contesto sicuro.
+          creationIntentId: nuovoId(),
+          reason: this.motivo().trim(),
+          lines: Object.entries(this.quantita())
+            .filter(([, q]) => q > 0)
+            .map(([originalLineId, quantity]) => ({ originalLineId, quantity })),
+          refunds: Object.entries(this.rimborsi())
+            .filter(([, importo]) => importo > 0)
+            .map(([originalPaymentId, amountMinor]) => ({
+              originalPaymentId,
+              amountMinor,
+              confirmed: this.confermati()[originalPaymentId] ?? false,
+            })),
+        },
+        'Reso della vendita ' + v.reference + ' di ' + this.soldi(this.totaleMinor()),
+      );
+      this.invia(payload, false);
+    } catch (error) {
+      this.errore.set(error instanceof Error ? error.message : 'Invio non disponibile.');
+    }
+  }
+
+  protected recuperaInvio(): void {
+    if (this.invio()) return;
+    try {
+      const payload = this.pending.recover('returns');
+      if (payload) this.invia(payload, true);
+    } catch (error) {
+      this.errore.set(error instanceof Error ? error.message : 'Recupero non disponibile.');
+    }
+  }
+
+  private invia(payload: CashReturnPayload, recovering: boolean): void {
     this.invio.set(true);
     this.errore.set(null);
-
     this.api
-      .createReturn({
-        locationId: sede,
-        sessionId: sessione.id,
-        originalDocumentId: v.documentId,
-        // ⛔ `nuovoId()`: in magazzino la pagina non è in contesto sicuro.
-        creationIntentId: nuovoId(),
-        reason: this.motivo().trim(),
-        lines: Object.entries(this.quantita())
-          .filter(([, q]) => q > 0)
-          .map(([originalLineId, quantity]) => ({ originalLineId, quantity })),
-        refunds: Object.entries(this.rimborsi())
-          .filter(([, importo]) => importo > 0)
-          .map(([originalPaymentId, amountMinor]) => ({
-            originalPaymentId,
-            amountMinor,
-            confirmed: this.confermati()[originalPaymentId] ?? false,
-          })),
-      })
+      .createReturn(payload)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (esito) => {
+          this.pending.complete('returns', payload.creationIntentId);
           this.fatto.set({ reference: esito.reference, totalMinor: esito.totaleMinor });
           this.invio.set(false);
         },
         error: (e: unknown) => {
-          this.errore.set(messaggio(e, 'Il reso non è stato registrato.'));
+          this.pending.failed('returns', payload.creationIntentId, e, recovering);
+          this.errore.set(
+            messaggio(
+              e,
+              this.invioPrecedente().request
+                ? 'Esito del reso da verificare. Recupera l’invio precedente.'
+                : 'Il reso è stato rifiutato.',
+            ),
+          );
           this.invio.set(false);
         },
       });
@@ -262,6 +304,7 @@ export class CashReturnComponent {
 }
 
 function messaggio(errore: unknown, riserva: string): string {
+  if (isAppError(errore)) return errore.message;
   const corpo = (errore as { error?: { message?: string | string[] } } | null)?.error;
   const testo = corpo?.message;
   if (Array.isArray(testo)) {

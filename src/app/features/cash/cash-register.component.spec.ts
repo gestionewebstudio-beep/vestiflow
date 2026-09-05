@@ -1,8 +1,10 @@
 import { provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
+import { HttpErrorResponse } from '@angular/common/http';
+import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import type { PaymentOption } from '@core/models/payment-option.model';
@@ -101,13 +103,17 @@ async function montaCassa(opzioni?: {
         useValue: { locations: () => [SEDE], defaultLocation: () => SEDE },
       },
       { provide: PaymentOptionsService, useValue: { list: () => of([CONTANTI]) } },
-      { provide: AuthService, useValue: { currentUser: () => ({ displayName: 'Anna' }) } },
+      {
+        provide: AuthService,
+        useValue: { currentUser: () => ({ id: 'u1', tenantId: 't1', displayName: 'Anna' }) },
+      },
     ],
   });
   return { ...vista, api, catalogo };
 }
 
 describe('CashRegisterComponent', () => {
+  beforeEach(() => sessionStorage.clear());
   it('senza sessione aperta dice cosa manca e offre il gesto', async () => {
     await montaCassa({ stato: CHIUSA });
 
@@ -131,7 +137,7 @@ describe('CashRegisterComponent', () => {
 
     await utente.type(screen.getByLabelText(/Cerca per codice/), 'maglia');
     await utente.click(screen.getByRole('button', { name: 'Cerca' }));
-    await utente.click(screen.getByRole('button', { name: /Maglia cotone/ }));
+    await utente.click(screen.getByRole('button', { name: /^Maglia cotone/ }));
 
     // ⚠️ «Totale» compare due volte — intestazione di colonna e riepilogo
     //    dell'incasso: si conta, non si cerca l'unico.
@@ -145,7 +151,7 @@ describe('CashRegisterComponent', () => {
 
     await utente.type(screen.getByLabelText(/Cerca per codice/), 'maglia');
     await utente.click(screen.getByRole('button', { name: 'Cerca' }));
-    await utente.click(screen.getByRole('button', { name: /Maglia cotone/ }));
+    await utente.click(screen.getByRole('button', { name: /^Maglia cotone/ }));
     await utente.click(screen.getByRole('button', { name: 'Contanti' }));
     await utente.click(screen.getByRole('button', { name: 'Concludi vendita' }));
 
@@ -169,7 +175,7 @@ describe('CashRegisterComponent', () => {
 
     await utente.type(screen.getByLabelText(/Cerca per codice/), 'maglia');
     await utente.click(screen.getByRole('button', { name: 'Cerca' }));
-    await utente.click(screen.getByRole('button', { name: /Maglia cotone/ }));
+    await utente.click(screen.getByRole('button', { name: /^Maglia cotone/ }));
     await utente.click(screen.getByRole('button', { name: 'Contanti' }));
     await utente.click(screen.getByRole('button', { name: 'Concludi vendita' }));
 
@@ -177,4 +183,77 @@ describe('CashRegisterComponent', () => {
     // ⭐ Il carrello resta: si riprova, non si ricomincia.
     expect(screen.getByText('Maglia cotone')).toBeVisible();
   });
+
+  it('risposta persa: conserva contenuto e intento nonostante modifiche al carrello', async () => {
+    const checkout = vi
+      .fn<CashApiService['checkout']>()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })))
+      .mockReturnValue(
+        of({ documentId: 'd1', reference: 'CS/2026/1', totalMinor: 10_000, changeMinor: 0 }),
+      );
+    const { fixture } = await montaCassa({ checkout });
+    const utente = userEvent.setup();
+    await preparaVendita(utente);
+    await utente.click(screen.getByRole('button', { name: 'Concludi vendita' }));
+    const originale = structuredClone(checkout.mock.calls[0]![0]);
+    expect(sessionStorage.length).toBe(1);
+    expect(screen.getByText('Esito da verificare')).toBeVisible();
+    // L'operatore può continuare a preparare il carrello; questo non cambia il comando conservato.
+    await utente.type(screen.getByLabelText(/Cerca per codice/), 'maglia');
+    await utente.click(screen.getByRole('button', { name: 'Cerca' }));
+    await utente.click(screen.getByRole('button', { name: /^Maglia cotone/ }));
+    expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+    await utente.click(screen.getByRole('button', { name: "Recupera l'esito" }));
+    expect(checkout.mock.calls[1]![0]).toEqual(originale);
+    expect(screen.getByText('Vendita registrata')).toBeVisible();
+    expect(sessionStorage.length).toBe(0);
+    await utente.click(screen.getByRole('button', { name: 'Riprendi carrello modificato' }));
+    fixture.detectChanges();
+    expect(screen.getAllByText('200,00 €').length).toBeGreaterThan(0);
+    expect(checkout).toHaveBeenCalledTimes(2);
+  });
+
+  it('navigazione e sessione chiusa: recupera il comando conservato senza ricostruire il carrello', async () => {
+    const checkout = vi
+      .fn<CashApiService['checkout']>()
+      .mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+    const vista = await montaCassa({ checkout });
+    const utente = userEvent.setup();
+    await preparaVendita(utente);
+    await utente.click(screen.getByRole('button', { name: 'Concludi vendita' }));
+    const originale = structuredClone(checkout.mock.calls[0]![0]);
+    vista.fixture.destroy();
+    vista.container.remove();
+    TestBed.resetTestingModule();
+    const seconda = await montaCassa({ stato: CHIUSA });
+    await utente.click(screen.getByRole('button', { name: "Recupera l'esito" }));
+    expect(seconda.api.checkout.mock.calls[0]![0]).toEqual(originale);
+    expect(screen.getByText('Vendita registrata')).toBeVisible();
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('un rifiuto certo al primo invio consente la correzione e un nuovo intento', async () => {
+    const checkout = vi
+      .fn<CashApiService['checkout']>()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 422 })))
+      .mockReturnValue(
+        of({ documentId: 'd1', reference: 'CS/2026/1', totalMinor: 10_000, changeMinor: 0 }),
+      );
+    await montaCassa({ checkout });
+    const utente = userEvent.setup();
+    await preparaVendita(utente);
+    await utente.click(screen.getByRole('button', { name: 'Concludi vendita' }));
+    expect(sessionStorage.length).toBe(0);
+    await utente.click(screen.getByRole('button', { name: 'Concludi vendita' }));
+    expect(checkout.mock.calls[1]![0].creationIntentId).not.toBe(
+      checkout.mock.calls[0]![0].creationIntentId,
+    );
+  });
 });
+
+async function preparaVendita(utente: ReturnType<typeof userEvent.setup>) {
+  await utente.type(screen.getByLabelText(/Cerca per codice/), 'maglia');
+  await utente.click(screen.getByRole('button', { name: 'Cerca' }));
+  await utente.click(screen.getByRole('button', { name: /^Maglia cotone/ }));
+  await utente.click(screen.getByRole('button', { name: 'Contanti' }));
+}

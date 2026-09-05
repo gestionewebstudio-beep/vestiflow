@@ -1,7 +1,14 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component,
-  DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { takeUntilDestroyed, toSignal  } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -11,12 +18,13 @@ import type { EntityId } from '@core/models/common.model';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { formatMoney } from '@core/utils/money.util';
+import { isAppError } from '@core/models/app-error.model';
 import { nuovoId } from '@core/utils/uuid.util';
 import {
   CashTenderSplitComponent,
   type CashQuotaDraft,
 } from '@domain/cash/components/cash-tender-split/cash-tender-split.component';
-import type { CashSessionState } from '@domain/cash/models/cash.model';
+import type { CashCheckoutPayload, CashSessionState } from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import type { StoreSaleLookupItem } from '@domain/store-sales/models/store-sale.model';
@@ -26,6 +34,8 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+
+import { CashPendingOperationsService } from './services/cash-pending-operations.service';
 
 /**
  * La Cassa: **vendita**, stato della sessione, riepilogo (`docs/25` §3).
@@ -62,6 +72,8 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 })
 export class CashRegisterComponent {
   private readonly api = inject(CashApiService);
+  private readonly pending = inject(CashPendingOperationsService);
+  protected readonly invioPrecedente = this.pending.watch('checkout');
   private readonly destroyRef = inject(DestroyRef);
   private readonly catalogo = inject(StoreSalesService);
   private readonly sedi = inject(OperationalLocationsService);
@@ -86,6 +98,7 @@ export class CashRegisterComponent {
   protected readonly fondoApertura = signal<number | null>(0);
   protected readonly conclusione = signal(false);
   protected readonly conclusa = signal<ConclusaResult | null>(null);
+  protected readonly carrelloConservato = signal(false);
 
   protected readonly opzioni = toSignal(
     this.tipiPagamento.list('method').pipe(catchError(() => of([] as readonly PaymentOption[]))),
@@ -137,7 +150,9 @@ export class CashRegisterComponent {
       this.righe().length > 0 &&
       this.totaleMinor() > 0 &&
       this.quotePronte() &&
-      !this.conclusione(),
+      !this.conclusione() &&
+      !this.invioPrecedente().request &&
+      !this.invioPrecedente().error,
   );
 
   constructor() {
@@ -180,17 +195,20 @@ export class CashRegisterComponent {
     }
     this.caricamento.set(true);
     this.errore.set(null);
-    this.api.current(sede).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (stato) => {
-        this.stato.set(stato);
-        this.caricamento.set(false);
-      },
-      error: (e: unknown) => {
-        this.stato.set(null);
-        this.errore.set(messaggio(e, 'Non è stato possibile leggere la sessione di cassa.'));
-        this.caricamento.set(false);
-      },
-    });
+    this.api
+      .current(sede)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (stato) => {
+          this.stato.set(stato);
+          this.caricamento.set(false);
+        },
+        error: (e: unknown) => {
+          this.stato.set(null);
+          this.errore.set(messaggio(e, 'Non è stato possibile leggere la sessione di cassa.'));
+          this.caricamento.set(false);
+        },
+      });
   }
 
   protected apriSessione(): void {
@@ -202,7 +220,8 @@ export class CashRegisterComponent {
     this.errore.set(null);
     this.api
       .open({ locationId: sede, openingFloatMinor: this.fondoApertura() ?? 0 })
-      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
         next: () => this.caricaSessione(),
         error: (e: unknown) => {
           this.errore.set(messaggio(e, 'Non è stato possibile aprire la sessione.'));
@@ -221,22 +240,25 @@ export class CashRegisterComponent {
       return;
     }
     this.cercando.set(true);
-    this.catalogo.lookupItems(testo, sede).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (items) => {
-        this.risultati.set(items);
-        this.cercando.set(false);
-        // ⭐ Codice esatto e un solo risultato: si aggiunge da sé. È la
-        //    scansione, e chiedere un secondo gesto al banco non ha senso.
-        if (items.length === 1 && this.eCodiceEsatto(items[0]!, testo)) {
-          this.aggiungi(items[0]!);
-        }
-      },
-      error: (e: unknown) => {
-        this.risultati.set([]);
-        this.cercando.set(false);
-        this.errore.set(messaggio(e, 'Ricerca articoli non riuscita.'));
-      },
-    });
+    this.catalogo
+      .lookupItems(testo, sede)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.risultati.set(items);
+          this.cercando.set(false);
+          // ⭐ Codice esatto e un solo risultato: si aggiunge da sé. È la
+          //    scansione, e chiedere un secondo gesto al banco non ha senso.
+          if (items.length === 1 && this.eCodiceEsatto(items[0]!, testo)) {
+            this.aggiungi(items[0]!);
+          }
+        },
+        error: (e: unknown) => {
+          this.risultati.set([]);
+          this.cercando.set(false);
+          this.errore.set(messaggio(e, 'Ricerca articoli non riuscita.'));
+        },
+      });
   }
 
   protected aggiungi(item: StoreSaleLookupItem): void {
@@ -277,8 +299,7 @@ export class CashRegisterComponent {
       this.righe()
         .filter((r) => r.quantity > r.item.available)
         .map(
-          (r) =>
-            `${r.item.productName}: disponibili ${r.item.available}, richiesti ${r.quantity}.`,
+          (r) => `${r.item.productName}: disponibili ${r.item.available}, richiesti ${r.quantity}.`,
         ),
     );
   }
@@ -295,31 +316,50 @@ export class CashRegisterComponent {
     if (!sede || !sessione || !this.puoConcludere()) {
       return;
     }
+    try {
+      const payload = this.pending.prepare(
+        'checkout',
+        {
+          locationId: sede,
+          sessionId: sessione.id,
+          // ⛔ `nuovoId()`, mai `crypto.randomUUID()`: in magazzino la pagina si
+          //    apre su `http://192.168…`, che NON è contesto sicuro
+          //    (`regole-qualita`).
+          creationIntentId: nuovoId(),
+          ...this.contenutoVendita(),
+        },
+        'Vendita di ' +
+          this.soldi(this.totaleMinor()) +
+          ': ' +
+          this.righe()
+            .map((r) => r.quantity + ' × ' + r.item.productName)
+            .join(', '),
+      );
+      this.invia(payload, false);
+    } catch (error) {
+      this.errore.set(error instanceof Error ? error.message : 'Invio non disponibile.');
+    }
+  }
+
+  protected recuperaInvio(): void {
+    if (this.conclusione()) return;
+    try {
+      const payload = this.pending.recover('checkout');
+      if (payload) this.invia(payload, true);
+    } catch (error) {
+      this.errore.set(error instanceof Error ? error.message : 'Recupero non disponibile.');
+    }
+  }
+
+  private invia(payload: CashCheckoutPayload, recovering: boolean): void {
     this.conclusione.set(true);
     this.errore.set(null);
-
     this.api
-      .checkout({
-        locationId: sede,
-        sessionId: sessione.id,
-        // ⛔ `nuovoId()`, mai `crypto.randomUUID()`: in magazzino la pagina si
-        //    apre su `http://192.168…`, che NON è contesto sicuro
-        //    (`regole-qualita`).
-        creationIntentId: nuovoId(),
-        lines: this.righe().map((r) => ({
-          variantId: r.item.variantId,
-          quantity: r.quantity,
-          unitPriceMinor: r.item.sellingPriceMinor,
-        })),
-        payments: this.quote().map((q) => ({
-          paymentOptionId: q.paymentOptionId,
-          amountMinor: q.amountMinor,
-          tenderedMinor: q.tenderedMinor,
-          confirmed: q.confirmed,
-        })),
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      .checkout(payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
         next: (esito) => {
+          this.pending.complete('checkout', payload.creationIntentId);
           // ⭐ I valori mostrati sono quelli del SERVER, non quelli calcolati
           //    dalla schermata.
           this.conclusa.set({
@@ -328,14 +368,29 @@ export class CashRegisterComponent {
             changeMinor: esito.changeMinor,
             documentId: esito.documentId,
           });
-          this.righe.set([]);
-          this.quote.set([]);
-          this.avvisi.set([]);
+          const modificato =
+            JSON.stringify(this.contenutoVendita()) !==
+            JSON.stringify({ lines: payload.lines, payments: payload.payments });
+          this.carrelloConservato.set(modificato && this.righe().length > 0);
+          // Non scarta modifiche preparate mentre la risposta era in attesa o incerta.
+          if (!modificato) {
+            this.righe.set([]);
+            this.quote.set([]);
+            this.avvisi.set([]);
+          }
           this.conclusione.set(false);
           this.caricaSessione();
         },
         error: (e: unknown) => {
-          this.errore.set(messaggio(e, 'La vendita non è stata registrata.'));
+          this.pending.failed('checkout', payload.creationIntentId, e, recovering);
+          this.errore.set(
+            messaggio(
+              e,
+              this.invioPrecedente().request
+                ? 'Esito della vendita da verificare. Recupera l’invio precedente.'
+                : 'La vendita è stata rifiutata.',
+            ),
+          );
           this.conclusione.set(false);
         },
       });
@@ -344,6 +399,22 @@ export class CashRegisterComponent {
   protected nuovaVendita(): void {
     this.conclusa.set(null);
     this.errore.set(null);
+  }
+
+  private contenutoVendita(): Pick<CashCheckoutPayload, 'lines' | 'payments'> {
+    return {
+      lines: this.righe().map((r) => ({
+        variantId: r.item.variantId,
+        quantity: r.quantity,
+        unitPriceMinor: r.item.sellingPriceMinor,
+      })),
+      payments: this.quote().map((q) => ({
+        paymentOptionId: q.paymentOptionId,
+        amountMinor: q.amountMinor,
+        tenderedMinor: q.tenderedMinor,
+        confirmed: q.confirmed,
+      })),
+    };
   }
 
   protected soldi(minor: number): string {
@@ -370,6 +441,7 @@ interface ConclusaResult {
 
 /** Il messaggio dell'API se c'è, altrimenti quello di riserva. */
 function messaggio(errore: unknown, riserva: string): string {
+  if (isAppError(errore)) return errore.message;
   const corpo = (errore as { error?: { message?: string | string[] } } | null)?.error;
   const testo = corpo?.message;
   if (Array.isArray(testo)) {

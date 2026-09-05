@@ -129,6 +129,8 @@ export class CreationIntentService {
     readonly tenantId: string;
     readonly intentId: string;
     readonly fingerprint: string;
+    /** Autorizza il riferimento anche prima di esporlo in un conflitto di contenuto. */
+    readonly authorizeResult?: (resultRef: string | null) => Promise<void>;
   }): Promise<{ readonly replay: string } | null> {
     if (!isCreationIntentConflict(params.error)) {
       return null;
@@ -146,6 +148,7 @@ export class CreationIntentService {
         message: 'La richiesta precedente non è andata a buon fine. Riprova.',
       });
     }
+    await params.authorizeResult?.(esistente.resultRef);
     if (esistente.fingerprint !== params.fingerprint) {
       throw new ConflictException({
         code: 'creation_intent_mismatch',

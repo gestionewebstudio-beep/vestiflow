@@ -23,7 +23,11 @@ import {
 } from '../retail/retail-line.util';
 import { computeVatLineAmounts } from '../vat/vat-line-calculation.util';
 
-import { assertCashContext, type CashContextUser } from './cash-context.validator';
+import {
+  assertCashContext,
+  assertCashReplayContext,
+  type CashContextUser,
+} from './cash-context.validator';
 
 /**
  * Il checkout della Cassa (tranche C4A).
@@ -269,12 +273,7 @@ export class CashCheckoutService {
       //
       //    ⛔ Rispondere sempre con un errore chiuderebbe l_intento lato
       //       client, e il clic successivo diventerebbe una SECONDA vendita.
-      const gia = await this.replayIfAlreadyDone(
-        error,
-        tenantId,
-        input.creationIntentId,
-        fingerprint,
-      );
+      const gia = await this.replayIfAlreadyDone(error, tenantId, user, input, fingerprint);
       if (gia) {
         return gia;
       }
@@ -305,14 +304,26 @@ export class CashCheckoutService {
   private async replayIfAlreadyDone(
     error: unknown,
     tenantId: string,
-    intentId: string,
+    user: UserProfileDto,
+    input: CheckoutInput,
     fingerprint: string,
   ): Promise<CheckoutResult | null> {
     const esito = await this.intents.resolveConflict({
       error,
       tenantId,
-      intentId,
+      intentId: input.creationIntentId,
       fingerprint,
+      authorizeResult: (documentId) =>
+        this.prisma.$transaction((tx) =>
+          assertCashReplayContext(
+            tx,
+            tenantId,
+            user,
+            input.locationId,
+            documentId,
+            DocumentType.store_sale,
+          ),
+        ),
     });
     if (!esito) {
       return null;
@@ -518,10 +529,20 @@ interface QuotaRisolta {
  * la stessa identità, e si rifiuta senza creare niente.
  */
 function impronta(input: CheckoutInput): string {
-  return JSON.stringify({
-    l: input.locationId,
-    s: input.sessionId,
-    r: input.lines.map((x) => [x.variantId, x.quantity, x.unitPriceMinor, x.discountPercent ?? 0]),
-    p: input.payments.map((x) => [x.paymentOptionId, x.amountMinor, x.tenderedMinor ?? null]),
+  return CreationIntentService.fingerprintOf({
+    operation: 'cash_checkout',
+    locationId: input.locationId,
+    sessionId: input.sessionId,
+    lines: input.lines.map((line) => ({
+      ...line,
+      discountPercent: line.discountPercent ?? 0,
+      vatCodeId: line.vatCodeId ?? null,
+      description: line.description ?? null,
+    })),
+    payments: input.payments.map((payment) => ({
+      ...payment,
+      tenderedMinor: payment.tenderedMinor ?? null,
+      confirmed: payment.confirmed ?? false,
+    })),
   });
 }

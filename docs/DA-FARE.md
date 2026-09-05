@@ -5,8 +5,12 @@
 - Verificata l'immutabilità sui percorsi alternativi del banco e dei documenti,
   inclusi allegati e conversione: 38 prove HTTP su PostgreSQL TEST, a sessione
   aperta e chiusa. Il normale banco e il reso autonomo restano modificabili.
-- Da completare: idempotenza client/server e replay autorizzato; ripartizione dei
-  resi successivi; migration correttiva RLS; backup, ripristino e cancellazione
+- Corretto il retry di vendita e reso: conservazione del comando nel browser,
+  impronta completa e nuova verifica della sede sul replay, anche dopo revoca.
+  Prove dedicate: 28 HTTP sul database isolato e 27 frontend; il collaudo finale
+  browser/API/database resta distinto dai test delle schermate con API simulate.
+- Da completare: ripartizione dei resi successivi; migration correttiva RLS;
+  backup, ripristino e cancellazione
   amministrativa; installazione/aggiornamento e collaudo browser con API reali.
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.

@@ -40,40 +40,32 @@
     </div>
   </header>
 
-  @if (errore(); as messaggio) {
-    <app-inline-banner tone="error" [message]="messaggio" dismissLabel="Chiudi" (dismissed)="errore.set(null)" />
+  @if (invioPrecedente().error; as messaggio) {
+    <app-inline-banner tone="error" [message]="messaggio" />
+  }
+  @if (!conclusione() && invioPrecedente().request; as precedente) {
+    <app-inline-banner tone="warning">
+      <p><strong>Esito da verificare</strong> · {{ precedente.description }}</p>
+      <p>
+        Recupera l'invio precedente prima di registrare un'altra operazione. Le modifiche successive
+        non cambiano l'invio conservato.
+      </p>
+      <app-button variant="secondary" [disabled]="conclusione()" (click)="recuperaInvio()"
+        >Recupera l'esito</app-button
+      >
+    </app-inline-banner>
   }
 
-  @if (!sedeId()) {
-    <app-empty-state
-      title="Scegli la sede"
-      description="La Cassa è sempre di una sede: scegline una per aprire o riprendere la sessione."
-      icon="pi-building"
+  @if (errore(); as messaggio) {
+    <app-inline-banner
+      tone="error"
+      [message]="messaggio"
+      dismissLabel="Chiudi"
+      (dismissed)="errore.set(null)"
     />
-  } @else if (caricamento()) {
-    <p class="cassa__loading" role="status">Lettura della sessione…</p>
-  } @else if (!sessione()) {
-    <!-- ⭐ Nessuna sessione aperta: si dice cosa manca e si offre il gesto. -->
-    <section class="cassa__opening" aria-labelledby="apri-titolo">
-      <h2 id="apri-titolo" class="cassa__opening-title">Nessuna sessione aperta</h2>
-      <p class="cassa__opening-text">
-        Per vendere serve una sessione di cassa aperta su questa sede. Dichiara il fondo
-        iniziale: è il contante che c'è già nel cassetto.
-      </p>
-      <div class="cassa__opening-form">
-        <label class="cassa__field" for="cassa-fondo">
-          <span class="cassa__label">Fondo iniziale</span>
-          <app-money-input
-            inputId="cassa-fondo"
-            [value]="fondoApertura()"
-            ariaLabel="Fondo iniziale di cassa"
-            (valueChange)="fondoApertura.set($event)"
-          />
-        </label>
-        <app-button variant="primary" (click)="apriSessione()">Apri la cassa</app-button>
-      </div>
-    </section>
-  } @else if (conclusa(); as esito) {
+  }
+
+  @if (conclusa(); as esito) {
     <!-- ⛔ «Registrata», non «emessa»: C5 non esiste e non si finge. -->
     <section class="cassa__done" aria-labelledby="fatta-titolo">
       <h2 id="fatta-titolo" class="cassa__done-title">Vendita registrata</h2>
@@ -91,14 +83,51 @@
         }
       </dl>
       <p class="cassa__done-note">
-        Fiscalizzazione non ancora disponibile in questa versione: il documento commerciale
-        non è stato emesso su un registratore telematico.
+        Fiscalizzazione non ancora disponibile in questa versione: il documento commerciale non è
+        stato emesso su un registratore telematico.
       </p>
       <div class="cassa__done-actions">
-        <app-button variant="primary" (click)="nuovaVendita()">Nuova vendita</app-button>
+        @if (carrelloConservato()) {
+          <app-inline-banner
+            tone="info"
+            message="Le modifiche successive sono rimaste nel carrello e non fanno parte della vendita recuperata."
+          />
+        }
+        <app-button variant="primary" (click)="nuovaVendita()">{{
+          carrelloConservato() ? 'Riprendi carrello modificato' : 'Nuova vendita'
+        }}</app-button>
         <a class="cassa__link" [routerLink]="['/app/cassa/operazioni', esito.documentId]">
           Vedi l'operazione
         </a>
+      </div>
+    </section>
+  } @else if (!sedeId()) {
+    <app-empty-state
+      title="Scegli la sede"
+      description="La Cassa è sempre di una sede: scegline una per aprire o riprendere la sessione."
+      icon="pi-building"
+    />
+  } @else if (caricamento()) {
+    <p class="cassa__loading" role="status">Lettura della sessione…</p>
+  } @else if (!sessione()) {
+    <!-- ⭐ Nessuna sessione aperta: si dice cosa manca e si offre il gesto. -->
+    <section class="cassa__opening" aria-labelledby="apri-titolo">
+      <h2 id="apri-titolo" class="cassa__opening-title">Nessuna sessione aperta</h2>
+      <p class="cassa__opening-text">
+        Per vendere serve una sessione di cassa aperta su questa sede. Dichiara il fondo iniziale: è
+        il contante che c'è già nel cassetto.
+      </p>
+      <div class="cassa__opening-form">
+        <label class="cassa__field" for="cassa-fondo">
+          <span class="cassa__label">Fondo iniziale</span>
+          <app-money-input
+            inputId="cassa-fondo"
+            [value]="fondoApertura()"
+            ariaLabel="Fondo iniziale di cassa"
+            (valueChange)="fondoApertura.set($event)"
+          />
+        </label>
+        <app-button variant="primary" (click)="apriSessione()">Apri la cassa</app-button>
       </div>
     </section>
   } @else {
@@ -155,7 +184,9 @@
           <p class="cassa__empty">Nessun articolo. Cerca o scansiona per cominciare.</p>
         } @else {
           <table class="cassa__lines">
-            <caption class="sr-only">Articoli nel carrello</caption>
+            <caption class="sr-only">
+              Articoli nel carrello
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Articolo</th>

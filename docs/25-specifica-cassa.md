@@ -1429,7 +1429,7 @@ non si perde è **come si è incassato**, e quello sta negli snapshot.
 importo 0: un vincolo stretto avrebbe rifiutato la migration. Il minimo `1` lo impone il DTO,
 dove riguarda solo le quote nuove.
 
-### Il replay ha TRE esiti, non due
+### Protezione dai percorsi documentali alternativi
 
 La protezione dei documenti registrati passa anche dai percorsi alternativi:
 `assertDocumentMutable`, condivisa dal banco, dal gate di scrittura documentale
@@ -1438,6 +1438,8 @@ Vale anche dopo la chiusura; il solo tipo `store_sale`/`store_return` non distin
 la Cassa dal banco. I workflow dedicati continuano a rifiutare tipi estranei.
 `cassa-immutabilita.integration-spec.ts` prova le chiamate HTTP reali e confronta
 quote, movimenti, giacenze, contatori e quadratura prima/dopo ogni rifiuto.
+
+### Il replay ha TRE esiti, non due
 
 ```text
 stesso intento, stesso payload      → restituisce la vendita GIA` CREATA
@@ -1449,6 +1451,28 @@ due richieste concorrenti           → una crea, l_altra recupera lo stesso ris
 la rete è caduta riceverebbe un errore su un_operazione riuscita, e riproverebbe ancora.
 `replayIfAlreadyDone` sta nel `catch` e chiede a `CreationIntentService.resolveConflict` di
 quale dei tre casi si tratti.
+
+La correzione del preflight del 05/09 usa `CreationIntentService.fingerprintOf`
+per tutti i campi del comando, inclusi descrizione, codice IVA, conferme dei
+pagamenti e motivo del reso. I valori facoltativi equivalenti sono normalizzati.
+Prima del replay **e prima di esporre un riferimento nel conflitto di contenuto**,
+`assertCashReplayContext` ricontrolla tenant e accesso alla sede richiesta e a
+quella del documento/sessione originari. Il recupero resta ammesso a sessione
+chiusa perché legge il documento già registrato, senza nuovi effetti.
+
+La schermata conserva in `sessionStorage`, separatamente per tenant, utente e
+vendita/reso, l'intero comando **prima del POST**. Dopo un esito incerto offre
+«Recupera l'esito»: reinvia lo stesso contenuto e intento anche dopo navigazione.
+Le modifiche successive del carrello non alterano questo comando; dopo il
+recupero vengono mostrate come carrello da riprendere esplicitamente. Un primo
+rifiuto certo libera l'invio; un rifiuto durante il recupero di un esito incerto
+non lo libera. Dati del browser non leggibili o non scrivibili bloccano un nuovo
+invio. Questa conservazione copre la sessione della scheda; non è un archivio di
+documenti né una coda offline e non sopravvive alla cancellazione dei dati del browser.
+
+`cassa-idempotenza.integration-spec.ts` esercita 28 prove HTTP su PostgreSQL
+isolato; i test delle schermate verificano la conservazione del comando e il
+recupero. Il percorso browser/API/database completo rientra nel collaudo finale.
 
 ### L_ordine dentro la transazione, e perché è quello
 
