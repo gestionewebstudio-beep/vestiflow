@@ -27,7 +27,14 @@
   riferimenti invalidi/cross-tenant, rollback e SDK Storage su endpoint HTTP locale.
   Lo Storage Supabase condiviso non è stato contattato; dettagli e limiti in
   `BACKUP-DISASTER-RECOVERY.md`, sezione sul backup logico del tenant.
-- Da completare: installazione/aggiornamento e collaudo browser con API reali.
+- Collaudate le 158 migration da zero e l'aggiornamento dal `develop` locale
+  (`d0a1d95b`, 147 migration), con documenti, quota legacy e Decimal rappresentativi.
+  Un terzo percorso verifica la nuova RLS su uno storico dispositivi già popolato
+  con privilegi concessi: dati invariati e privilegi revocati. Comando esplicito
+  `npm --prefix api run test:migration:cassa`, protetto sul solo database TEST.
+  Il baseline supportato mantiene vuote le tabelle dormienti della vecchia Cassa;
+  non è una conversione di una precedente Cassa già in esercizio.
+- Da completare: collaudo browser con API reali e verifiche complessive finali.
 - Corretto il contratto checkout: anteprima IVA dalle primitive condivise con
   snapshot completo (incluse aliquote frazionarie), arrotondamento a fine riga,
   traduzione di `totaleMinor`/`restoMinor` dal server. Passano 13 prove frontend

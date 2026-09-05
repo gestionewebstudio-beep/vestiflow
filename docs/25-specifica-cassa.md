@@ -1260,6 +1260,16 @@ annullati al termine della prova, INSERT rifiutati, join/CTE e consultazione HTT
 da tenant e sedi differenti. Il deploy sul database condiviso e la verifica della
 sua Data API restano passaggi del rilascio, fuori da questo mandato.
 
+**Collaudo migration 05/09:** `npm --prefix api run test:migration:cassa` verifica
+158 migration da zero, aggiornamento dalle 147 di `develop` locale (`d0a1d95b`)
+con documenti/quota legacy/Decimal, e applicazione della sola correttiva RLS su
+storico già popolato e privilegi concessi. Tutti e tre i percorsi sono passati
+sul database usa-e-getta. Il comando ricrea esclusivamente lo schema public di
+`localhost:5433/vestiflow_test`, dopo doppia verifica della destinazione; non è
+incluso nella suite ordinaria. Le migration del 04/09 presuppongono le vecchie
+tabelle Cassa dormienti vuote: resta una precondizione da ricontrollare sul
+condiviso prima del rilascio, non una conversione di una vecchia Cassa in uso.
+
 ⚠️ **Oggi esiste un solo permesso retail: `retail.register`**, e governa la **Vendita al
 banco** — non la Cassa. Il nome inganna, ed è un residuo del periodo in cui quelle rotte
 portavano al carrello.
