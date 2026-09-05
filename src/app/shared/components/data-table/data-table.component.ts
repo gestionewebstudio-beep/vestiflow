@@ -4,6 +4,8 @@ import {
   computed,
   contentChild,
   contentChildren,
+  afterNextRender,
+  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -284,6 +286,91 @@ export class DataTableComponent<T> {
         this.filterStore.registraColonne(vista, this.columns());
       }
     });
+
+    this.avviaFinestra();
+  }
+
+  // ── La finestra: misura, scorrimento, fuoco ───────────────────────────
+
+  private readonly destroyRef = inject(DestroyRef);
+
+  /**
+   * ⚠️ **Tutto qui dentro parte solo con `virtualizza` acceso**: a modalita`
+   * spenta non si registra nessun ascoltatore e non si misura niente — il
+   * componente si comporta esattamente come prima.
+   */
+  private avviaFinestra(): void {
+    afterNextRender(
+      () => {
+        if (!this.virtualizza()) {
+          return;
+        }
+        const scroller = this.host.nativeElement.querySelector<HTMLElement>('.data-table-scroll');
+        if (!scroller) {
+          return;
+        }
+
+        const aggiorna = (): void => {
+          this.scorrimento.set(scroller.scrollTop);
+          this.altezzaVista.set(scroller.clientHeight);
+          this.misuraAltezzaRiga();
+          this.aggiornaVeste();
+          /*
+            ⭐ **Il fuoco si rimette DOPO che Angular ha reso la finestra**: la
+            riga cercata non esiste ancora quando lo scorrimento parte.
+          */
+          if (this.rigaDaMettereAFuoco !== null) {
+            afterNextRender(() => this.ripristinaFuoco(), { injector: this.injector });
+          }
+        };
+
+        aggiorna();
+        scroller.addEventListener('scroll', aggiorna, { passive: true });
+
+        /*
+          ⭐ **Lo zoom e il passaggio scrivania↔compatto passano di qui**: il
+          contenitore cambia dimensione, e con lui altezza di riga e vista.
+          Un `ResizeObserver` li prende entrambi senza indovinare soglie.
+        */
+        const osservatore = new ResizeObserver(() => aggiorna());
+        osservatore.observe(scroller);
+
+        this.destroyRef.onDestroy(() => {
+          scroller.removeEventListener('scroll', aggiorna);
+          osservatore.disconnect();
+        });
+      },
+      { injector: this.injector },
+    );
+  }
+
+  /**
+   * ⭐ **Si misura una riga vera**, non il token: con lo zoom del browser i
+   * 25px dichiarati non sono piu` quelli resi, e una finestra che sbaglia
+   * l_altezza salta righe.
+   *
+   * ⚠️ Si aggiorna solo quando cambia davvero: scriverlo a ogni scorrimento
+   * rifarebbe il calcolo della finestra a vuoto.
+   */
+  private misuraAltezzaRiga(): void {
+    const riga = this.host.nativeElement.querySelector<HTMLElement>('.data-table__row');
+    if (!riga) {
+      return;
+    }
+    const alta = Math.round(riga.getBoundingClientRect().height);
+    if (alta > 0 && alta !== this.altezzaRiga()) {
+      this.altezzaRiga.set(alta);
+    }
+  }
+
+  /**
+   * ⛔ **Sotto `lg` la riga e` una CARD**, e la finestra si spegne. Lo si
+   * chiede al DOM invece che a una soglia scritta qui: e' la stessa classe
+   * che il foglio usa per commutare la veste.
+   */
+  private aggiornaVeste(): void {
+    const card = this.host.nativeElement.querySelector<HTMLElement>('.data-table__card');
+    this.cardAttive.set(card !== null && getComputedStyle(card).display !== 'none');
   }
 
   /** I controlli sono a vista? Lo comanda il pulsante «Filtri» del telaio. */
@@ -362,6 +449,23 @@ export class DataTableComponent<T> {
   */
   readonly totals = input<DataTableTotals | null>(null);
 
+  /**
+   * ⭐ **La finestra di rendering** — spenta di serie (05/09/2026).
+   *
+   * Rende solo le righe che si vedono, piu` un margine, e occupa lo spazio
+   * delle altre con due `<tr>` vuoti. `table`, `tbody`, `tr` e le celle
+   * restano quelli di sempre: cambia SOLO quante righe il `@for` rende.
+   *
+   * ⛔ **Non tocca i dati.** Filtri, ordinamento, selezione, «seleziona
+   * tutto» e totali continuano a leggere `sections()` INTERO — la finestra
+   * riguarda esclusivamente il DOM.
+   *
+   * ⚠️ **Chiederla non basta**: si accende solo dove e` supportata (vedi
+   * `finestraAttiva`). Una struttura non supportata la ignora, e rende
+   * tutto come prima — mai righe mancanti, mai offset sbagliati.
+   */
+  readonly virtualizza = input(false);
+
   private readonly cellTemplates = contentChildren(DataTableCellDirective);
   protected readonly rowActionsTemplate = contentChild(DataTableRowActionsDirective);
   protected readonly rowCardTemplate = contentChild(DataTableRowCardDirective);
@@ -428,6 +532,199 @@ export class DataTableComponent<T> {
     }
     this.preferenze ??= this.injector.get(TableColumnPreferenceService);
     return this.preferenze;
+  }
+
+  // ── La finestra di rendering ──────────────────────────────────────────
+
+  /** Quanto e` scorso il contenitore, e quanto e` alta la sua vista. */
+  private readonly scorrimento = signal(0);
+
+  /*
+    ⛔ **I RIPIEGHI NON SONO PIGRIZIA: senza, il primo render rende TUTTO.**
+
+    Partendo da zero, `finestraAttiva` era falsa fino alla prima misura — che
+    avviene DOPO il primo render. Su cinquemila righe si pagavano comunque
+    31.185 ms, e la finestra si accendeva quando il danno era fatto.
+
+    ⭐ Trovato da una prova che asseriva il caricamento, non da un numero
+    stampato: e` la ragione per cui gli esiti decisivi sono asserzioni.
+
+    ⚠️ Sono STIME, corrette alla prima misura vera: 25px e` il valore di
+    `--table-row-h`, 800px una vista plausibile. Se lo zoom le smentisce, la
+    finestra si riassesta al primo evento — un fotogramma, non una schermata.
+  */
+  private readonly altezzaVista = signal(800);
+
+  /**
+   * ⭐ **L_altezza di riga si MISURA, non si assume.** `--table-row-h` dice
+   * 25px, ma con lo zoom del browser o un testo ingrandito dal sistema quel
+   * numero non e` piu` quello vero — e una finestra che sbaglia l_altezza
+   * salta righe.
+   */
+  private readonly altezzaRiga = signal(25);
+
+  /** Righe rese in piu` sopra e sotto: evitano il bianco in scorrimento. */
+  private readonly MARGINE_RIGHE = 12;
+
+  /**
+   * ⛔ **Le strutture supportate, e solo quelle.**
+   *
+   * ```text
+   * una sezione sola, senza testata ne` piede   ← altrimenti le altezze
+   *                                               nel flusso non sono una
+   * altezza di riga gia` misurata               ← senza, non si sa dove
+   *                                               cade la finestra
+   * vista alta abbastanza                       ← sotto `lg` la tabella e`
+   *                                               fatta di CARD, e le card
+   *                                               non hanno altezza unica
+   * ```
+   *
+   * ⚠️ **Fuori da qui la finestra non si accende**: si rende tutto, come
+   * prima. Una struttura non supportata non deve produrre righe mancanti.
+   */
+  protected readonly finestraAttiva = computed(() => {
+    if (!this.virtualizza() || this.altezzaRiga() <= 0 || this.altezzaVista() <= 0) {
+      return false;
+    }
+    if (this.cardAttive()) {
+      return false;
+    }
+    const sezioni = this.sections();
+    if (sezioni.length !== 1) {
+      return false;
+    }
+    const sola = sezioni[0]!;
+    return sola.header === undefined && sola.footer === undefined;
+  });
+
+  /**
+   * ⚠️ **Sotto `lg` la riga diventa una CARD**, e le card non hanno una sola
+   * altezza: misurate 83, 105 e 127px sullo stesso elenco. La finestra la`
+   * non si accende — la lentezza sul telefono resta un problema aperto, non
+   * una cosa risolta di sbieco.
+   */
+  private readonly cardAttive = signal(false);
+
+  private readonly indicePrimo = computed(() => {
+    if (!this.finestraAttiva()) {
+      return 0;
+    }
+    const grezzo = Math.floor(this.scorrimento() / this.altezzaRiga()) - this.MARGINE_RIGHE;
+    return Math.max(0, Math.min(grezzo, Math.max(0, this.righeTotali() - 1)));
+  });
+
+  private readonly indiceUltimo = computed(() => {
+    const totale = this.righeTotali();
+    if (!this.finestraAttiva()) {
+      return totale;
+    }
+    const quante = Math.ceil(this.altezzaVista() / this.altezzaRiga()) + this.MARGINE_RIGHE * 2;
+    return Math.min(totale, this.indicePrimo() + quante);
+  });
+
+  private readonly righeTotali = computed(() => this.sections()[0]?.rows.length ?? 0);
+
+  /** Lo spazio delle righe che stanno PRIMA della finestra. */
+  protected readonly spazioSopra = computed(() =>
+    this.finestraAttiva() ? this.indicePrimo() * this.altezzaRiga() : 0,
+  );
+
+  /** E quello delle righe che stanno dopo. */
+  protected readonly spazioSotto = computed(() =>
+    this.finestraAttiva() ? (this.righeTotali() - this.indiceUltimo()) * this.altezzaRiga() : 0,
+  );
+
+  /**
+   * Le righe che il `@for` rende. Fuori dalla finestra e` l'elenco intero,
+   * identico a prima.
+   */
+  protected righeDaRendere(sezione: DataTableSection<T>): readonly T[] {
+    if (!this.finestraAttiva()) {
+      return sezione.rows;
+    }
+    return sezione.rows.slice(this.indicePrimo(), this.indiceUltimo());
+  }
+
+  /**
+   * ⭐ **L_indice ASSOLUTO della riga**, per `aria-rowindex`: la riga 4.000
+   * deve annunciarsi come tale anche se nel DOM e` la terza. Il `+ 2` conta
+   * la riga d'intestazione (1) e porta l'indice a base 1.
+   */
+  /** Le righe totali, per `aria-rowcount`: piu` la riga di intestazione. */
+  protected readonly righeTotaliAria = computed(() => this.righeTotali() + 1);
+
+  /**
+   * ⛔ **I tasti delle celle restano delle celle.**
+   *
+   * Si interviene SOLO quando il fuoco e` sulla riga stessa: dentro un
+   * controllo — una casella, un pulsante, una tendina di filtro — `Home` e
+   * `Fine` significano gia` qualcosa, e rubarglieli e` il difetto classico
+   * delle tabelle virtualizzate.
+   *
+   * ⚠️ **Senza questi tasti l_ultima riga sarebbe irraggiungibile da
+   * tastiera**: il Tab attraversa solo cio` che e` nel DOM, e con la finestra
+   * accesa le righe lontane non ci sono.
+   */
+  protected onRowKeydown(evento: KeyboardEvent, posizione: number): void {
+    if (!this.finestraAttiva() || evento.target !== evento.currentTarget) {
+      return;
+    }
+    const scroller = this.host.nativeElement.querySelector<HTMLElement>('.data-table-scroll');
+    if (!scroller) {
+      return;
+    }
+    const alta = this.altezzaRiga();
+    const assoluto = this.indicePrimo() + posizione;
+    let bersaglio: number | null = null;
+    switch (evento.key) {
+      case 'Home':
+        bersaglio = 0;
+        break;
+      case 'End':
+        bersaglio = this.righeTotali() - 1;
+        break;
+      case 'PageDown':
+        bersaglio = Math.min(
+          this.righeTotali() - 1,
+          assoluto + Math.floor(this.altezzaVista() / alta),
+        );
+        break;
+      case 'PageUp':
+        bersaglio = Math.max(0, assoluto - Math.floor(this.altezzaVista() / alta));
+        break;
+      default:
+        return;
+    }
+    evento.preventDefault();
+    scroller.scrollTop = bersaglio * alta;
+    this.rigaDaMettereAFuoco = bersaglio;
+  }
+
+  /**
+   * ⛔ **Il fuoco non si perde quando la riga esce dal DOM.**
+   *
+   * Angular rimuove il `<tr>` che aveva il fuoco, e il fuoco torna al
+   * `<body>`: da li` la tastiera non naviga piu` niente. Si ricorda quale
+   * riga cercare e la si rimette a fuoco appena rientra.
+   */
+  private rigaDaMettereAFuoco: number | null = null;
+
+  private ripristinaFuoco(): void {
+    const bersaglio = this.rigaDaMettereAFuoco;
+    if (bersaglio === null) {
+      return;
+    }
+    const posizione = bersaglio - this.indicePrimo();
+    const righe = this.host.nativeElement.querySelectorAll<HTMLElement>('.data-table__row');
+    const riga = righe.item(posizione);
+    if (riga) {
+      riga.focus();
+      this.rigaDaMettereAFuoco = null;
+    }
+  }
+
+  protected indiceAccessibile(posizione: number): number {
+    return this.indicePrimo() + posizione + 2;
   }
 
   protected readonly selectable = computed(() => this.selectionMode() !== 'none');
