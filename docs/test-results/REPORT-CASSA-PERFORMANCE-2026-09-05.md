@@ -99,7 +99,10 @@ Remove-Item Env:CASSA_PERF_MOBILE
 La configurazione isolata avvia solo il frontend E2E, rifiuta la porta 4200 e il
 riuso di server esistenti. Le fixture rispondono alle API; una richiesta API non
 prevista riceve 404 nel browser. Nessuna API reale, autenticazione Supabase o DB.
-`virtual-spike` è ora incluso anche nel `testMatch` ordinario di `chromium-ci`.
+`cassa-render-window.spec.ts` è incluso anche nel `testMatch` ordinario di
+`chromium-ci`. Il 06/09 è stato rinominato il test, che usa già le schermate reali:
+i tre file del componente sperimentale non collegato sono stati rimossi.
+Asserzioni e misure restano conservate; nessun intervento sullo scroll o sul motore.
 
 ## Residuo compatto
 
