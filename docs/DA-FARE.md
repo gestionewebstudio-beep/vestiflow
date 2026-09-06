@@ -1295,18 +1295,18 @@ dell'intero rilascio**, inclusi i problemi di produzione riportati sotto.
 ⛔ **Qui c'erano tre allarmi, e non valgono più.** Restano nominati perché chi li ricorda non
 li cerchi invano, e perché la forma in cui si erano incastrati può tornare.
 
-| Diceva | Oggi |
-| --- | --- |
-| «la produzione è ferma da 28 giorni: la CI è rossa e Railway salta ogni deploy» | ✅ Railway serve `main@9b59a14b`, CI verde su `main` |
-| «dieci disallineamenti fra il database condiviso e il codice in produzione», su 147 migration | ✅ **159/159 migration applicate**, zero pendenti e zero annullate; gli endpoint Shopify girano col codice nuovo |
-| «`purchase_price_minor` fa fallire ogni creazione da webhook, da undici giorni» | ✅ il codice scrive `?? 0` su ogni percorso di pull; nessun percorso produttivo passa `null`. Il vincolo `NOT NULL DEFAULT 0` resta, ed è corretto che resti |
+| Diceva                                                                                        | Oggi                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| «la produzione è ferma da 28 giorni: la CI è rossa e Railway salta ogni deploy»               | ✅ Railway serve `main@9b59a14b`, CI verde su `main`                                                                                                         |
+| «dieci disallineamenti fra il database condiviso e il codice in produzione», su 147 migration | ✅ **159/159 migration applicate**, zero pendenti e zero annullate; gli endpoint Shopify girano col codice nuovo                                             |
+| «`purchase_price_minor` fa fallire ogni creazione da webhook, da undici giorni»               | ✅ il codice scrive `?? 0` su ogni percorso di pull; nessun percorso produttivo passa `null`. Il vincolo `NOT NULL DEFAULT 0` resta, ed è corretto che resti |
 
 ⭐ **La lezione che vale ancora**, ed è la ragione per cui questa sezione non si cancella del
 tutto: il difetto non era il vincolo del database, era **un codice vecchio servito da un deploy
 che non passava mai**. Un cancello di CI che blocca ogni distribuzione produce un sistema in cui
 ogni correzione sembra fatta e nessuna è in produzione — e nulla lo dichiara in modo evidente.
 
-⚠️ **Una traccia rimane visibile**: la connessione `test-vestiflow.myshopify.com` porta ancora
+⚠️ **Una traccia rimane visibile**: la connessione di uno dei negozi di prova porta ancora
 `lastErrorCode: product_webhook_failed` del 03/09 alle 23:40, con il messaggio sul vincolo. È
 storia, non un guasto attuale — ma il pannello la mostra come «ultimo errore» (vedi la sezione
 SHOPIFY più sotto).
@@ -1485,14 +1485,14 @@ regola è in `docs/24` §1.8 e nel codice (`shopify-variant-match.util.ts`).
 
 ### Comportamento ATTUALE, misurato il 06/09/2026
 
-| | |
-| --- | --- |
-| migration | **159/159 applicate**, zero pendenti, zero annullate |
+|                       |                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| migration             | **159/159 applicate**, zero pendenti, zero annullate                                                                                                          |
 | ambiente «production» | Railway serve `main@9b59a14b`, CI verde, endpoint Shopify eseguiti dal codice nuovo. ⚠️ **Si chiama così, ma non serve attività reale**: nessun utente lo usa |
-| prodotti collegati | **178**; con almeno una variante senza GID: **18** |
-| i «12 nudi» | **esistono ancora come record** (una sola variante, senza SKU, barcode né opzioni) |
-| database | ⚠️ **soli dati di prova**, creati dal proprietario con account diversi, su sei tenant |
-| negozio Shopify | ⚠️ **shop di sviluppo**, non un negozio commerciale |
+| prodotti collegati    | **178**; con almeno una variante senza GID: **18**                                                                                                            |
+| i «12 nudi»           | **esistono ancora come record** (una sola variante, senza SKU, barcode né opzioni)                                                                            |
+| database              | ⚠️ **soli dati di prova**, creati dal proprietario con account diversi, su sei tenant                                                                         |
+| negozio Shopify       | ⚠️ **shop di sviluppo**, non un negozio commerciale                                                                                                           |
 
 ⭐ **Ne discende come si leggono le voci qui sotto**: sono correzioni **strutturali** da fare
 prima che qualcuno usi davvero il gestionale, non emergenze su dati commerciali. Le prove
@@ -1501,16 +1501,16 @@ e ripristino (`docs/24` §8.5.7).
 
 ### ⏸ Aperti — e ognuno dice PERCHÉ
 
-| Cosa | Stato |
-| --- | --- |
-| **i 12 prodotti a variante nuda** | ⚠️ regola **decisa e implementata**; la voce si chiude **solo dopo la prova sullo shop di sviluppo**, che non è stata fatta. Le prove esistenti sono unitarie |
-| **media Shopify in stato `FAILED`** | ⏸ aperto e **confermato nel codice**: `MEDIA_SELECTION` legge `media(first: 250) { nodes { id } }` — solo l'id, nessuno `status`. Un media fallito prende il suo id, non viene ricaricato, e l'immagine non arriva in vetrina senza che niente lo dica |
-| **creazione prodotto ancora su REST** | ⏸ passa a `productSet` con la Tranche 2B; con lei l'abbinamento varianti di `persistShopifyIds`, oggi a solo SKU |
-| **metafield stagione e costo variante su REST** | ⏸ stesso cutover |
-| **azione massiva «Copia nome VestiFlow»** | ⏸ decisa in `docs/24` §1.9, entra col menu delle azioni massive |
-| **`apiVersion` mostrata nel pannello** | ⚠️ viene dalla riga di connessione, aggiornata solo a una riconnessione — le chiamate usano invece `SHOPIFY_API_VERSION`. Su un negozio la scheda dice `2025-01` mentre l'API chiama `2026-07` |
-| **rifiuti HMAC invisibili** | ⏸ `verifyHmac` lancia 401 e nulla di più: nessun contatore, nessuna traccia, nessuna degradazione dello stato. ⭐ `lastWebhookEventAt` **esiste ora** ed è timbrato, quindi l'assenza di eventi si vede; il **motivo** no |
-| **Location indovinata** | ⏸ `shopify-order-location.util.ts:52` ripiega ancora sulla prima sede in ordine alfabetico, e il valore letto non dice se è dichiarato o dedotto |
+| Cosa                                            | Stato                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **i 12 prodotti a variante nuda**               | ⚠️ regola **decisa e implementata**; la voce si chiude **solo dopo la prova sullo shop di sviluppo**, che non è stata fatta. Le prove esistenti sono unitarie                                                                                                                                                                                                                                                          |
+| **media Shopify in stato `FAILED`**             | ⏸ aperto e **confermato nel codice**: `MEDIA_SELECTION` legge `media(first: 250) { nodes { id } }` — solo l'id, nessuno `status`. Un media fallito prende il suo id, non viene ricaricato, e l'immagine non arriva in vetrina senza che niente lo dica                                                                                                                                                                 |
+| **creazione prodotto ancora su REST**           | ⏸ passa a `productSet` con la Tranche 2B; con lei l'abbinamento varianti di `persistShopifyIds`, oggi a solo SKU                                                                                                                                                                                                                                                                                                       |
+| **metafield stagione e costo variante su REST** | ⏸ stesso cutover                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **azione massiva «Copia nome VestiFlow»**       | ⏸ decisa in `docs/24` §1.9, entra col menu delle azioni massive                                                                                                                                                                                                                                                                                                                                                        |
+| **`apiVersion` mostrata nel pannello**          | ⚠️ **debito separato, NON bloccante** — riconfermato il 07/09/2026: viene dalla riga di connessione, aggiornata solo a una riconnessione (`shopify-oauth.service.ts:169`), mentre le chiamate usano `SHOPIFY_API_VERSION`. Un negozio registra `2025-01` e risponde correttamente a `2026-07`: è un valore **informativo stantio**, non un difetto di comunicazione col canale. Non blocca il modello dei collegamenti |
+| **rifiuti HMAC invisibili**                     | ⏸ `verifyHmac` lancia 401 e nulla di più: nessun contatore, nessuna traccia, nessuna degradazione dello stato. ⭐ `lastWebhookEventAt` **esiste ora** ed è timbrato, quindi l'assenza di eventi si vede; il **motivo** no                                                                                                                                                                                              |
+| **Location indovinata**                         | ⏸ `shopify-order-location.util.ts:52` ripiega ancora sulla prima sede in ordine alfabetico, e il valore letto non dice se è dichiarato o dedotto                                                                                                                                                                                                                                                                       |
 
 ### ✅ Il modello che manca è ora PROGETTATO — 06/09/2026, non ancora costruito
 
@@ -1519,11 +1519,11 @@ forma. Ora ha una forma: `ShopifyShop`, `ShopifyProductLink`, `ShopifyVariantLin
 registro delle consegne webhook, progettati per intero in `docs/24` §8.5.1-§8.5.6. Restano
 **tre lavori di costruzione**, non più tre incognite:
 
-| Direzione                                              | Cosa manca nel codice OGGI                                                                                                            | Dove il modello lo risolve |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| **Shopify elimina → VestiFlow deve saperlo**            | `SHOPIFY_WEBHOOK_TOPICS` **non contiene `products/delete`**: nessuna sottoscrizione, nessun evento in arrivo, mai                        | `docs/24` §8.5.6, §11.7 |
-| **404 su lettura/scrittura → deve significare qualcosa** | `shopify-admin-http.client.ts` intercetta il `404` **solo sulle `DELETE`** (e lo tratta come successo); su GET/PUT diventa un errore generico indistinguibile da un guasto di rete | `docs/24` §8.5.4 (classificazione: solo nodo GraphQL nullo o 404 di risorsa autenticata chiude un link) |
-| **VestiFlow elimina → non deve rientrare dal pull**     | 🔴 **CONFERMATO ATTIVO, non solo assente**: `importProductFromWebhook` (`shopify-product-pull.service.ts:175`) cerca il prodotto con `findFirst({ shopifyProductId })`; se `null` **procede a `product.create` (riga 344)**. Un id mai visto e un id di un prodotto eliminato producono lo stesso `null` | `docs/24` §8.5.2 (le due tabelle di collegamento) + §8.5.4 (dove interrogarle nel pull/push) |
+| Direzione                                                | Cosa manca nel codice OGGI                                                                                                                                                                                                                                                                               | Dove il modello lo risolve                                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Shopify elimina → VestiFlow deve saperlo**             | `SHOPIFY_WEBHOOK_TOPICS` **non contiene `products/delete`**: nessuna sottoscrizione, nessun evento in arrivo, mai                                                                                                                                                                                        | `docs/24` §8.5.6, §11.7                                                                                 |
+| **404 su lettura/scrittura → deve significare qualcosa** | `shopify-admin-http.client.ts` intercetta il `404` **solo sulle `DELETE`** (e lo tratta come successo); su GET/PUT diventa un errore generico indistinguibile da un guasto di rete                                                                                                                       | `docs/24` §8.5.4 (classificazione: solo nodo GraphQL nullo o 404 di risorsa autenticata chiude un link) |
+| **VestiFlow elimina → non deve rientrare dal pull**      | 🔴 **CONFERMATO ATTIVO, non solo assente**: `importProductFromWebhook` (`shopify-product-pull.service.ts:175`) cerca il prodotto con `findFirst({ shopifyProductId })`; se `null` **procede a `product.create` (riga 344)**. Un id mai visto e un id di un prodotto eliminato producono lo stesso `null` | `docs/24` §8.5.2 (le due tabelle di collegamento) + §8.5.4 (dove interrogarle nel pull/push)            |
 
 ⚠️ **La terza riga non è teorica**: è il comportamento che il codice produce **oggi**, appena
 esisterà un comando di eliminazione definitiva locale (§0-bis voce 2, ancora non decisa). Va
@@ -1540,14 +1540,14 @@ fallimento già avvenuto.
 
 **L'evidenza che il fallimento è di Shopify, non un difetto VestiFlow** — tre citazioni:
 
-1. `shopify-webhook-topics.ts:27` — *«Richiedono Protected customer data approval su Shopify
-   Partners.»*
-2. `shopify-oauth.service.ts:467-472`, quando falliscono solo i protetti: *«Webhook giacenze
+1. `shopify-webhook-topics.ts:27` — _«Richiedono Protected customer data approval su Shopify
+   Partners.»_
+2. `shopify-oauth.service.ts:467-472`, quando falliscono solo i protetti: _«Webhook giacenze
    attivo. Ordini e clienti richiedono permesso Protected customer data su Shopify Partners
-   (app VestiFlow): riconnetti dopo averlo abilitato.»* (`code: webhook_partial_registration`)
-3. `shopify-oauth.service.ts:475-481`, se falliscono anche le giacenze: *«Webhook
+   (app VestiFlow): riconnetti dopo averlo abilitato.»_ (`code: webhook_partial_registration`)
+3. `shopify-oauth.service.ts:475-481`, se falliscono anche le giacenze: _«Webhook
    ordini/clienti non registrati: Shopify richiede Protected customer data sull'app
-   VestiFlow…»* (`code: webhook_registration_failed`)
+   VestiFlow…»_ (`code: webhook_registration_failed`)
 
 ⭐ **La UI lo mostra**: `shopify-integration-panel.component.ts:295` legge
 `lastError.code === 'webhook_partial_registration'` — non è un difetto silenzioso, è un
@@ -1572,10 +1572,31 @@ Le tre voci «la produzione è ferma da 28 giorni», «dieci disallineamenti fra
 e «`purchase_price_minor` fa fallire ogni creazione da webhook» **non valgono più**. Restano
 nominate solo perché chi le ricorda non le cerchi invano: il rilascio le ha chiuse tutte e tre.
 
-⚠️ Ne resta **una traccia visibile e ingannevole**: la riga di connessione di
-`test-vestiflow.myshopify.com` porta ancora `lastErrorCode: product_webhook_failed` del
-03/09 alle 23:40, col messaggio sul vincolo `purchase_price_minor`. È un errore **storico** che
-il pannello mostra come ultimo errore.
+⚠️ Ne resta **una traccia visibile e ingannevole**: la riga di connessione di uno dei due
+negozi di prova porta ancora `lastErrorCode: product_webhook_failed` del 03/09 alle 23:40, col
+messaggio sul vincolo `purchase_price_minor`. È un errore **storico** che il pannello mostra
+come ultimo errore.
+
+### ✅ Preflight del modello storico — eseguito il 07/09/2026
+
+Fotografia anonimizzata, in sola lettura: **due connessioni**, entrambe `connected`, entrambe
+con credenziale. Negozio A: 125 prodotti e 222 varianti collegati. Negozio B: 53 prodotti e 65
+varianti. **Nessun prodotto collegato senza connessione risolvibile**, **nessun negozio su più
+tenant**.
+
+**Tredici controlli bloccanti, tutti a zero righe**: nessun duplicato di `shopifyProductId`,
+`shopifyVariantId` o `shopifyInventoryItemId` (né dentro un tenant né fra tenant), nessuna
+variante collegata con prodotto scollegato, nessuna incoerenza di tenant fra variante e
+prodotto, nessun identificativo vuoto o con spazi. I dati di prova sono **coerenti**: il
+backfill non dovrà correggere nulla — e non deve essere messo in condizione di farlo.
+
+⚠️ **Gli identificativi salvati sono TUTTI numerici (legacy REST)**: 178 prodotti, 287 varianti,
+zero in forma `gid://`. Le tabelle nuove useranno il **GID completo** (`docs/24` §8.5.1); le
+colonne numeriche restano come cache di compatibilità e **non si toccano** in questa fase.
+
+⭐ **`shop_gid` è acquisibile**: due letture in sola lettura hanno confermato che entrambi i
+negozi espongono un Shop GID valido e distinto, col dominio coincidente con quello locale. Era
+l'unico dato del backfill che non esisteva in locale.
 
 ---
 
@@ -1587,15 +1608,15 @@ decisioni e il codice di oggi, diviso per quello che è: **debito**, **comportam
 
 ### 🔴 Debito tecnico — deciso da tempo, mai chiuso
 
-| # | Debito | Evidenza | Regola violata |
-| - | ------ | -------- | -------------- |
-| 1 | **VestiFlow cancella prodotti su Shopify.** `DELETE /admin/api/…/products/{id}.json` parte da due pulsanti dell'interfaccia | `shopify-admin.client.ts:281` ← `shopify-product-push.service.ts:350` ← `channel-sync.facade.ts:198` ← `products.service.ts:960` | `docs/24` §11.1 |
-| 2 | **82 prodotti di prova sono oggi eliminabili** anche da Shopify: origine VestiFlow, collegati, senza movimenti. ⚠️ **Dati di prova su shop di sviluppo**, non catalogo commerciale: è una correzione strutturale, non un'emergenza | misurato sul database il 06/09 | idem |
-| 3 | **La guardia anti-cancellazione guarda dalla parte sbagliata**: le prove leggono il sorgente del **client GraphQL**, dove la cancellazione non c'è. Il client REST, dove c'è, non è sorvegliato | `shopify-graphql.client.spec.ts:561-564` | — |
-| 4 | **Una variante che sparisce dal payload viene cancellata dal database**, con le sue giacenze, se non ha movimenti | `products.service.ts:1176-1179` | `docs/24` §14.3 |
-| 5 | **Gli avvisi di eliminazione non nominano Shopify**: né nell'elenco né nel dettaglio. Chi preme non sa che il prodotto sparisce anche dalla vetrina | `product-detail.component.html:97` · `product-list.component.ts:583` | `docs/24` §7.3 |
-| 6 | **`lifecycleStatus` della variante esiste e non lo cambia nessuno**: nessun comando, nessun endpoint, nessuna azione | modello `VariantLifecycleStatus`; nessun chiamante | `docs/24` §7.1 |
-| 7 | **«Sincronizza con Shopify» governa DUE assi**: spegnerlo ferma lo scambio dati **e** archivia il prodotto su Shopify in una sola operazione (`archiveOnSyncDisabled`). Il modello a tre assi separati li vuole indipendenti — ⚠️ **non si assume che l'archiviazione remota debba restare legata allo spegnimento della sincronizzazione**: è debito, non comportamento da conservare | `products.service.ts:929` → `shopify-product-push.service.ts:365-420` | `docs/24` §1.11, §3.1 |
+| #   | Debito                                                                                                                                                                                                                                                                                                                                                                                 | Evidenza                                                                                                                         | Regola violata        |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| 1   | **VestiFlow cancella prodotti su Shopify.** `DELETE /admin/api/…/products/{id}.json` parte da due pulsanti dell'interfaccia                                                                                                                                                                                                                                                            | `shopify-admin.client.ts:281` ← `shopify-product-push.service.ts:350` ← `channel-sync.facade.ts:198` ← `products.service.ts:960` | `docs/24` §11.1       |
+| 2   | **82 prodotti di prova sono oggi eliminabili** anche da Shopify: origine VestiFlow, collegati, senza movimenti. ⚠️ **Dati di prova su shop di sviluppo**, non catalogo commerciale: è una correzione strutturale, non un'emergenza                                                                                                                                                     | misurato sul database il 06/09                                                                                                   | idem                  |
+| 3   | **La guardia anti-cancellazione guarda dalla parte sbagliata**: le prove leggono il sorgente del **client GraphQL**, dove la cancellazione non c'è. Il client REST, dove c'è, non è sorvegliato                                                                                                                                                                                        | `shopify-graphql.client.spec.ts:561-564`                                                                                         | —                     |
+| 4   | **Una variante che sparisce dal payload viene cancellata dal database**, con le sue giacenze, se non ha movimenti                                                                                                                                                                                                                                                                      | `products.service.ts:1176-1179`                                                                                                  | `docs/24` §14.3       |
+| 5   | **Gli avvisi di eliminazione non nominano Shopify**: né nell'elenco né nel dettaglio. Chi preme non sa che il prodotto sparisce anche dalla vetrina                                                                                                                                                                                                                                    | `product-detail.component.html:97` · `product-list.component.ts:583`                                                             | `docs/24` §7.3        |
+| 6   | **`lifecycleStatus` della variante esiste e non lo cambia nessuno**: nessun comando, nessun endpoint, nessuna azione                                                                                                                                                                                                                                                                   | modello `VariantLifecycleStatus`; nessun chiamante                                                                               | `docs/24` §7.1        |
+| 7   | **«Sincronizza con Shopify» governa DUE assi**: spegnerlo ferma lo scambio dati **e** archivia il prodotto su Shopify in una sola operazione (`archiveOnSyncDisabled`). Il modello a tre assi separati li vuole indipendenti — ⚠️ **non si assume che l'archiviazione remota debba restare legata allo spegnimento della sincronizzazione**: è debito, non comportamento da conservare | `products.service.ts:929` → `shopify-product-push.service.ts:365-420`                                                            | `docs/24` §1.11, §3.1 |
 
 ⚠️ **Il debito #7 non ha ancora una correzione scritta**: la FORMA della separazione — che cosa
 protegge lo stock mentre la sincronizzazione è spenta, se non l'archiviazione automatica — è un
@@ -1675,9 +1696,9 @@ costruite.
 
 **Le due sedi corrette esistono già**, e non vanno duplicate:
 
-| Sede                                                        | Perché è quella giusta                                                       |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `GUIDA-UTENTE-VESTIFLOW.md` §6, **«La casella Sincronizza con Shopify»** (riga 517) | è già dove il toggle sync/vendita è documentato: i comandi Disattiva/Riattiva/Ritira/Rimetti-in-vendita sostituiranno e amplieranno questo paragrafo, non ne apriranno uno nuovo |
+| Sede                                                                                                            | Perché è quella giusta                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GUIDA-UTENTE-VESTIFLOW.md` §6, **«La casella Sincronizza con Shopify»** (riga 517)                             | è già dove il toggle sync/vendita è documentato: i comandi Disattiva/Riattiva/Ritira/Rimetti-in-vendita sostituiranno e amplieranno questo paragrafo, non ne apriranno uno nuovo                                                  |
 | `GUIDA-UTENTE-VESTIFLOW.md` §14 troubleshooting, **«Ho eliminato un prodotto ma resta su Shopify»** (riga 1449) | descrive oggi correttamente il comportamento attuale (l'eliminazione locale cancella anche su Shopify) — diventerà falsa non appena la Tranche A-sicurezza sostituisce quella chiamata, e va riscritta in quel momento, non prima |
 
 **Il testo, pronto da incollare quando le funzioni esisteranno** (voce per voce, nell'ordine

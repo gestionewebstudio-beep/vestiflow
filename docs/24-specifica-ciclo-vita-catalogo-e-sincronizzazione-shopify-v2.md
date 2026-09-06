@@ -1574,7 +1574,7 @@ risalire al negozio precedente.
 ```text
 shopify_shops
   id (uuid) · tenant_id (FK tenants)
-  shop_gid              gid://shopify/Shop/99462054183   — identità immutabile
+  shop_gid              gid://shopify/Shop/{id}          — identità immutabile
   myshopify_domain      fotografia al momento del collegamento
   first_seen_at · last_seen_at
 
@@ -1620,6 +1620,61 @@ transazione:
 (`shopify-shop-change.service.ts`) e oggi **cancella** prodotti e clienti collegati invece di
 chiudere i link. Il comportamento richiesto qui è diverso da quello attuale, e va registrato
 come lavoro di tranche, non come correzione immediata.
+
+#### ✅ Preflight eseguito: entrambi i negozi espongono un GID valido — 07/09/2026
+
+Due letture in sola lettura, una per connessione, con la query `{ shop { id myshopifyDomain } }`
+alla versione API **effettiva del client** (`2026-07`):
+
+|                                        | Negozio A | Negozio B |
+| -------------------------------------- | --------- | --------- |
+| Shop GID presente e formalmente valido | ✅        | ✅        |
+| distinti fra loro                      | ✅        | ✅        |
+| `myshopifyDomain` == dominio locale    | ✅        | ✅        |
+| errori o permessi mancanti             | nessuno   | nessuno   |
+
+⛔ **GID e domini reali non compaiono in questo documento, né nelle migration.** Restano nel
+database e nelle letture: un identificativo di negozio in un file versionato è un dato del
+cliente in un posto che non lo riguarda.
+
+⭐ **Il valore che mancava esiste ed è acquisibile**: era l'unico punto in cui il backfill
+dipendeva da un dato assente in locale (§8.5.8).
+
+⚠️ **`apiVersion` registrata `2025-01` su un negozio è un valore informativo STANTIO, e non
+blocca niente.** La lettura è avvenuta a `2026-07` ed è riuscita: la colonna si aggiorna solo
+a una riconnessione (`shopify-oauth.service.ts:169`), mentre le chiamate leggono sempre la
+configurazione. È un **debito separato** — il pannello mostra quella colonna — registrato in
+`DA-FARE.md`, non un ostacolo a questo modello.
+
+#### ⭐ L'identificativo canonico è il GID completo — deciso il 07/09/2026
+
+> **Nelle tabelle di collegamento l'identificativo remoto è il GID Shopify completo.** Il
+> modello nuovo è GraphQL, e il GID porta con sé il **tipo** della risorsa: `Product` e
+> `ProductVariant` non possono essere scambiati per errore, cosa che due numeri accanto non
+> impediscono.
+
+Conversioni del backfill, deterministiche:
+
+```text
+prodotto        gid://shopify/Product/{id}
+variante        gid://shopify/ProductVariant/{id}
+inventory item  gid://shopify/InventoryItem/{id}
+negozio         gid://shopify/Shop/{id}
+```
+
+⚠️ **Gli identificativi numerici attuali NON si sovrascrivono e non si eliminano**: misurato il
+06/09/2026, sono tutti in forma legacy REST — 178 prodotti e 287 varianti, zero `gid://`.
+Restano nelle colonne esistenti come **cache di compatibilità** per il codice non ancora
+migrato (§8.5.5), e il loro ritiro è la tranche finale.
+
+⛔ **Nelle tabelle nuove non si mette una seconda copia numerica.** Il numero è già disponibile
+nelle colonne legacy e si ricava dal GID con una divisione di stringa: duplicarlo creerebbe due
+scritture da tenere allineate per un dato derivabile — cioè la stessa doppia fonte che §8.5.5
+esiste per chiudere.
+
+⭐ **Il tipo si verifica nel database, non solo nel codice**: ogni colonna GID porta un `CHECK`
+che ne impone il prefisso esatto. Un `gid://shopify/Product/…` in una colonna di variante viene
+rifiutato da PostgreSQL, non da una convenzione.
 
 ### 8.5.2 Storico dei collegamenti Shopify — modello
 
@@ -2025,7 +2080,33 @@ fedelmente si torna indietro, e senza provarlo non la si è misurata.
 
 ### 8.5.8 Migration e backfill
 
-> ✅ **Decisione confermata** (06/09/2026)
+> ✅ **Decisione confermata** (06/09/2026) — forma del rilascio decisa il 07/09/2026
+
+#### ⭐ Rilascio ESPANDIBILE A FASI, non una migration atomica — deciso il 07/09/2026
+
+⛔ **L'atomica è stata valutata e scartata, e non per prudenza**: il suo passo «collegamento
+della connessione al negozio» richiede lo `shop_gid`, che **non esiste nei dati locali** — non
+è in `ShopifyConnection`, non è in `ShopifyCredential`, e `getShop()` (`shopify-admin.client.ts:106`)
+lo scarta leggendo solo `{ name }`. Una migration atomica dovrebbe interrogare Shopify, cosa
+che una migration non fa.
+
+Le cinque fasi, in quest'ordine:
+
+| #   | Fase                                                                                      | Vincolo                                                 |
+| --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 1   | **schema**: tabelle, enum, indici, FK, CHECK — con `shop_gid` **nullable**                | RLS e REVOKE **nella stessa migration di ogni tabella** |
+| 2   | **acquisizione esplicita dell'identità**: `shop_gid` letto e scritto per ogni connessione | passo dichiarato, mai nascosto dentro una migration     |
+| 3   | **backfill dei collegamenti**                                                             | preceduto dai controlli bloccanti                       |
+| 4   | **verifica completa**: conteggi prima/dopo, nessun id ambiguo                             | —                                                       |
+| 5   | **`NOT NULL` e unicità globale**                                                          | solo qui, e solo se 2-4 sono verdi                      |
+
+⭐ **Il rischio di fermarsi a metà si chiude con lo SCHEMA, non con l'atomicità**: se i campi
+identitari nascono nullable e le tabelle non sono ancora canoniche, un'interruzione lascia uno
+stato **incompleto ma coerente**. Con l'atomica lascerebbe uno stato **impossibile**.
+
+⛔ **Le tabelle NON sono fonte canonica** finché il backfill non è completo e verificato **e**
+i lettori di push e pull non sono migrati (§8.5.5). Fino ad allora sono una fonte in
+costruzione, e vanno descritte così anche a chi legge il codice.
 
 **Una sola migration** per la creazione: enum, le tre tabelle, gli indici (compresi i parziali),
 le ausiliarie su `products`/`product_variants`, le FK composite, i `CHECK`, **e nello stesso
