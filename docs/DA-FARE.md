@@ -71,6 +71,142 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
+### ⭐ CONSERVATO dal vecchio ramo `feature/cassa` — la conoscenza, non il codice (06/09/2026)
+
+Il ramo `origin/feature/cassa` (testa `6e4f9e79`, 19/08/2026) resta **intatto e non
+eliminato**. Non porta migration né oggetti di schema che manchino a `develop`: le sue
+sei migration sono **byte-identiche** a quelle già applicate, verificato per hash di blob.
+
+⛔ **Qui non si copia codice.** Dei 52 file che `develop` non ha, la classificazione ha
+lasciato in piedi **quattro isole di conoscenza** — misurate, non stimate, e ognuna
+sopravvissuta a una verifica avversaria che cercava l'equivalente in `develop` e non
+l'ha trovato. Quello che segue è ciò che va **saputo** per riscriverle; il codice si
+recupera dal ramo con `git show`, quando e se servirà.
+
+⚠️ **Perché non riportarle adesso.** Tre delle quattro appartengono alla fiscalizzazione,
+che `docs/25` §0 decisione 10 rinvia alla tranche C5, e la loro forma vecchia viola il
+contratto neutrale (nomi di produttore, `paymentType` numerici, indirizzi codificati).
+La quarta — i terminali POS — ha già modello e migration in `develop` e **nient'altro**.
+
+---
+
+#### 1 · La finestra di comunicazione POS al portale
+
+**Dove**: `api/src/pos-terminals/pos-portal-window.util.ts` e `.spec.ts`, commit
+`577235db` (07/08/2026).
+
+⭐ **È l'unico pezzo di logica NORMATIVA che `develop` non ha in nessuna forma.** Il
+resto del gruppo POS è ricostruibile (un CRUD e un pannello); questa regola no — sta in
+un provvedimento, non in un'intuizione.
+
+La regola, per come è stata letta dal Provv. AdE 424470/2025 e dalle FAQ 2026:
+
+```text
+regime           dal 6° giorno all'ultimo giorno del SECONDO mese successivo
+                 all'attivazione o variazione
+                 (attivato ad aprile → finestra 6–30 giugno)
+prima finestra   POS in uso al 01/01/2026, o attivati entro il 31/01/2026
+                 → 5 marzo – 20 aprile 2026
+stato            linked · upcoming · open · overdue
+```
+
+⚠️ **Due scelte di attuazione da non riscoprire:**
+
+- la norma dice «ultimo giorno **lavorativo**»; l'attuazione usa l'**ultimo giorno del
+  mese**, perché «il promemoria deve anticipare, non inseguire il calendario festivi».
+  È una semplificazione deliberata, non un difetto;
+- i calcoli sono in **UTC puro** (`Date.UTC`), e il caso del cavallo d'anno
+  (novembre → gennaio successivo) è uno dei casi di prova.
+
+#### 2 · Il protocollo Epson ePOS-Print
+
+**Dove**: `src/app/domain/fiscal/models/epson-fiscal-xml.util.ts` e `.spec.ts`, commit
+`e6e01d0f` (07/08/2026). Stampanti RT FP-81II / FP-90III.
+
+⭐ **Il valore non è il codice: sono le costanti del dialetto**, che si ricostruirebbero
+solo leggendo il firmware o sbagliando contro un dispositivo vero.
+
+```text
+endpoint      <base>/cgi-bin/fpmate.cgi?devid=local_printer&timeout=10000
+vendita       printRecItem per riga  +  printRecTotal per metodo di pagamento
+reso          printRecRefund per riga, preceduto dal preambolo «RESO MERCE»
+              con numero zRep-progressivo, data e matricola dell'originale
+messageType   4 = preambolo del reso   ·   3 = riferimento interno in coda
+descrizione   troncata a 38 caratteri
+importi       stringa decimale col punto, valore assoluto
+```
+
+⚠️ **Il preambolo del reso è convenzione documentata, non verificata sul campo**: il
+commento originale avverte che «il firmware ha l'ultima parola» e che il flusso di reso
+va validato su dispositivo reale in fase di POC. Va riportato come dubbio, non come
+fatto.
+
+⛔ **La forma vecchia non si riusa**: `develop` ha adottato un contratto **neutrale**
+(`adapterKey` + registro statico, `api/src/fiscal/fiscal-adapter-registry.ts`) che vieta
+esplicitamente nomi di produttore e `paymentType` numerici nel contratto normalizzato.
+Questa conoscenza appartiene all'**adapter Epson**, quando esisterà — non al contratto.
+
+⚠️ **La prova XML è la parte più preziosa**: `epson-fiscal-xml.util.spec.ts` fissa le
+stringhe attese **carattere per carattere** (`printRecItem`, `printRecRefund`,
+`printRecTotal` con `paymentType` 0 e 2, `printRecMessage` con messageType 3 e 4). È la
+forma più verificabile in cui questa conoscenza esista.
+
+#### 3 · I casi numerici dell'arrotondamento fiscale
+
+**Dove**: `api/src/fiscal-devices/fiscal-print-payload.util.spec.ts`, commit `e6e01d0f`.
+
+⭐ **Restano validi qualunque sia l'adapter**, perché non parlano di protocollo ma di
+denaro — e sono la disciplina di `regole-gestionale` («si arrotonda solo all'uscita»)
+applicata alla stampa:
+
+| Caso                                 | Numeri                                                                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| lordo **divisibile** per la quantità | 4856 minori su 2 pezzi → quantità reale 2, unitario **2428**                                                                 |
+| lordo **non divisibile** (sconti)    | 10000 su 3 → **una riga sola a quantità 1** col totale 10000                                                                 |
+| reparto IVA                          | aliquota mappata sul dispositivo; **ripiego sul reparto 1** se la mappa manca, se l'aliquota manca o se la voce è malformata |
+
+⛔ **La regola che i numeri codificano**: quando il lordo non si divide esattamente per
+la quantità, **non si arrotonda l'unitario** — si stampa una riga sola a quantità 1 col
+totale esatto, perché «il totale stampato deve tornare al centesimo». È lo stesso
+principio di `regole-gestionale` «l'arrotondamento sta sul totale di riga, mai sul
+prezzo unitario», applicato dove sbagliarlo produce uno scontrino che non quadra.
+
+#### 4 · Il pannello Impostazioni, e cosa esattamente ricostruire
+
+**Dove**: `src/app/features/settings/components/pos-terminals-panel/` (commit
+`577235db`) e `.../fiscal-device-panel/` (commit `e6e01d0f`), più il **delta** in
+`settings.component.ts` / `.html`.
+
+⛔ **I due file `settings.component.*` NON si prendono**: quelli di `develop` sono
+divergenti e sostituirli sarebbe una regressione. Serve **solo il delta**, che è:
+
+```text
+settings.component.ts    il computed `showFiscalDevicePanel`, gated su
+                         `canManageSettingsCompany` (che in develop esiste ancora)
+settings.component.html  due <section> sotto @if (showFiscalDevicePanel()):
+                         «Dispositivo fiscale» e «Terminali POS»
+```
+
+⭐ **Il pannello POS è quello che vale la pena ricostruire per primo**, e non per la
+grafica: il suo template porta il **testo normativo** della finestra di comunicazione e
+i quattro stati resi all'operatore. È la parte di dominio che, riscritta da zero,
+verrebbe riscoperta a fatica.
+
+⚠️ **Il pannello dispositivo fiscale va invece RIPROGETTATO, non ricostruito**: presume
+`brand` come selettore del driver, `endpoint` obbligatorio ed `enabled` con default
+`true` — tre cose che le migration `20260904140000` e `20260904150000` hanno rovesciato
+(`enabled` nasce **false**, e un CHECK impone che sia false finché non c'è un
+`adapter_key`).
+
+---
+
+⚠️ **Che cosa NON è stato conservato, e perché non è una perdita.** Tre voci sono state
+respinte da una verifica che cercava di smentirle, e l'ha fatto: il servizio stampante
+lato browser (`develop` ha già deciso la strada e la documenta in `docs/25`), il modello
+`PosTerminal` del frontend (i campi persistiti sono **già identici** in
+`api/prisma/schema.prisma`, righe 3635-3654) e il servizio HTTP dei terminali
+(«boilerplate che `develop` ripete 40 volte»).
+
 ### Tranche 2 — finestra mobile ad altezze variabili (06/09/2026)
 
 **Il motore condiviso è stato ESTESO, non affiancato.** Nessun componente,
