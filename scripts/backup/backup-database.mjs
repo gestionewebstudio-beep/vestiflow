@@ -2,8 +2,9 @@ import { spawn } from 'node:child_process';
 import { open, unlink } from 'node:fs/promises';
 import { createGzip } from 'node:zlib';
 
+import { mascheraUrl } from './backup-url.mjs';
 import { encryptStreamToFile } from './crypto.mjs';
-import { probePgTool } from './pg-tools.mjs';
+import { perDocker, probePgTool } from './pg-tools.mjs';
 
 /**
  * Dump completo Postgres (formato custom) → gzip → AES-256-GCM.
@@ -19,10 +20,19 @@ export async function backupDatabase({ directUrl, passphrase, outputPath }) {
     );
   }
 
-  const pgDumpPath = await probePgTool('pg_dump');
+  const strumento = await probePgTool('pg_dump');
+  // Con Docker l'host locale va riscritto: dentro il container `localhost` e' il
+  // container. Sul bersaglio remoto (Supabase) la riscrittura non tocca nulla.
+  const bersaglio = strumento.viaDocker ? perDocker(directUrl.trim()) : directUrl.trim();
   const pgDump = spawn(
-    pgDumpPath,
-    ['--format=custom', '--no-owner', '--no-acl', `--dbname=${directUrl.trim()}`],
+    strumento.comando,
+    [
+      ...strumento.prefisso,
+      '--format=custom',
+      '--no-owner',
+      '--no-acl',
+      `--dbname=${bersaglio}`,
+    ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
 
@@ -35,7 +45,8 @@ export async function backupDatabase({ directUrl, passphrase, outputPath }) {
     pgDump.on('error', reject);
     pgDump.on('close', (code) => {
       if (code !== 0) {
-        reject(new Error(`pg_dump terminato con codice ${code}.\n${stderr}`));
+        // ⛔ Lo stderr di pg_dump puo' contenere host e utente: si maschera.
+        reject(new Error(`pg_dump terminato con codice ${code}.\n${mascheraUrl(stderr)}`));
         return;
       }
       resolve(undefined);

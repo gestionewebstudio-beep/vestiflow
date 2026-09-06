@@ -19,7 +19,8 @@ import { createGunzip } from 'node:zlib';
 
 import { createDecryptStream } from './crypto.mjs';
 import { loadApiEnv, repoRoot } from './load-env.mjs';
-import { probePgTool } from './pg-tools.mjs';
+import { mascheraUrl } from './backup-url.mjs';
+import { perDocker, probePgTool } from './pg-tools.mjs';
 
 function parseArgs(argv) {
   const args = { confirm: false, backupDir: null, directUrl: null };
@@ -107,26 +108,99 @@ async function main() {
   await assertPgRestoreAvailable();
 
   console.log('[restore] Decifratura e pg_restore in corso…');
-  console.warn('[restore] Target database:', directUrl.replace(/:[^:@/]+@/, ':***@'));
+  // ⛔ Nemmeno l'host: il nome del progetto Supabase ci sta dentro.
+  console.warn('[restore] Target database:', mascheraUrl(directUrl));
 
-  const pgRestorePath = await probePgTool('pg_restore');
+  const strumento = await probePgTool('pg_restore');
+  /*
+    ⭐ Con Docker il bersaglio va riscritto: dentro il container `localhost` e'
+    il container, non la macchina. Il ripristino punta quasi sempre a un
+    database usa-e-getta su `localhost:5433`, quindi e' proprio il caso comune.
+  */
+  const bersaglio = strumento.viaDocker ? perDocker(directUrl) : directUrl;
+  if (strumento.viaDocker) {
+    console.log('[restore] pg_restore da container postgres:17 (nessuna installazione locale).');
+  }
   const pgRestore = spawn(
-    pgRestorePath,
-    ['--dbname', directUrl, '--verbose', '--no-owner', '--no-acl', '--clean', '--if-exists', '-'],
-    { stdio: ['pipe', 'inherit', 'inherit'] },
+    strumento.comando,
+    [
+      ...strumento.prefisso,
+      '--dbname',
+      bersaglio,
+      '--verbose',
+      '--no-owner',
+      '--no-acl',
+      '--clean',
+      '--if-exists',
+      /*
+        ⛔ **QUI C`ERA `'-'`, e pg_restore non lo intende come standard input.**
+
+        A differenza di `psql`, `pg_restore` tratta `'-'` come un NOME DI FILE, e
+        falliva con «could not open input file "-": No such file or directory».
+        Per leggere dallo standard input il nome del file si OMETTE.
+
+        ⚠️ Il difetto era li` da sempre e non se n`era accorto nessuno perche`
+        il ripristino non era MAI stato eseguito: la casella «Restore di prova
+        completato» di `docs/BACKUP-DISASTER-RECOVERY.md` era ancora vuota. Un
+        backup mai ripristinato non e` una rete: e` un file.
+      */
+    ],
+    { stdio: ['pipe', 'inherit', 'pipe'] },
   );
 
   const decrypt = createDecryptStream(passphrase);
   const gunzip = createGunzip();
+
+  /*
+    ⭐ **UN DUMP SUPABASE IN UN POSTGRES SEMPLICE LASCIA SEMPRE TRE ERRORI**,
+    e non sono un guasto: `supabase_vault` e` un`estensione che esiste solo
+    sull`infrastruttura Supabase. Misurato il 06/09/2026 su un ripristino in
+    schema vuoto: TRE errori, tutti e tre di quell`estensione, e 75 tabelle su
+    75 con i conteggi identici al database di origine.
+
+    ⛔ `pg_restore` esce comunque con codice 1, e prima lo script lo trattava
+    come fallimento: il ripristino RIUSCITO risultava fallito. Questa e` la
+    ragione per cui la procedura sembrava non funzionare.
+
+    ⚠️ **Non si ignora il codice di uscita**: si guardano gli errori uno per
+    uno. Se anche uno solo non appartiene agli oggetti di sola infrastruttura,
+    il ripristino fallisce come prima.
+  */
+  const SOLO_INFRASTRUTTURA_SUPABASE =
+    /supabase_vault|vault\.secrets|extension "supabase_[a-z_]+" (?:is not available|does not exist)/;
+
+  let stderr = '';
+  pgRestore.stderr.on('data', (chunk) => {
+    const testo = chunk.toString();
+    stderr += testo;
+    process.stderr.write(testo);
+  });
 
   const restoreDone = new Promise((resolve, reject) => {
     pgRestore.on('error', reject);
     pgRestore.on('close', (code) => {
       if (code === 0) {
         resolve(undefined);
-      } else {
-        reject(new Error(`pg_restore terminato con codice ${code}.`));
+        return;
       }
+      const errori = stderr
+        .split(/\r?\n/)
+        .filter((riga) => riga.startsWith('pg_restore: error'));
+      const estranei = errori.filter((riga) => !SOLO_INFRASTRUTTURA_SUPABASE.test(riga));
+      if (errori.length > 0 && estranei.length === 0) {
+        console.warn(
+          `[restore] ${errori.length} errori IGNORATI, tutti su oggetti di sola ` +
+            'infrastruttura Supabase (supabase_vault): non riguardano i dati.',
+        );
+        resolve(undefined);
+        return;
+      }
+      reject(
+        new Error(
+          `pg_restore terminato con codice ${code}, ${estranei.length} errori NON ` +
+            `riconducibili all'infrastruttura Supabase:\n${mascheraUrl(estranei.slice(0, 10).join('\\n'))}`,
+        ),
+      );
     });
   });
 
