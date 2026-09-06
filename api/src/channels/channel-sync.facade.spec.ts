@@ -17,7 +17,7 @@ function setup(profile: TenantChannelProfile | null) {
   const shopifyInventoryPush = { pushLevels: vi.fn().mockResolvedValue(undefined) };
   const shopifyProductPush = {
     enqueuePush: vi.fn().mockResolvedValue({ pushed: true }),
-    deleteProduct: vi.fn().mockResolvedValue({ deleted: true }),
+    // ⛔ Nessun `deleteProduct`: il servizio di push non lo espone piu'.
     archiveOnSyncDisabled: vi.fn().mockResolvedValue({ pushed: true }),
   };
   const tiktokInventoryPush = { pushVariantStock: vi.fn().mockResolvedValue(undefined) };
@@ -65,13 +65,14 @@ describe('ChannelSyncFacade', () => {
       expect(t.tiktokProductPush.enqueuePush).not.toHaveBeenCalled();
     });
 
-    it('deleteProduct riporta not_connected senza interrogare Shopify', async () => {
-      const t = setup(TenantChannelProfile.gestionale);
+    // ⛔ Qui c'era «deleteProduct riporta not_connected senza interrogare
+    //    Shopify». Il metodo non esiste piu' sul facade: VestiFlow non cancella
+    //    su Shopify (docs/24 §11.1), e la prova che conta ora e' l'assenza
+    //    della capacita', verificata sotto.
+    it('il facade non espone nessun modo di cancellare un prodotto sul canale', () => {
+      const t = setup(TenantChannelProfile.shopify);
 
-      const result = await t.facade.deleteProduct('tenant-1', 'gid://shopify/Product/1');
-
-      expect(result).toEqual({ deleted: false, reason: 'not_connected' });
-      expect(t.shopifyProductPush.deleteProduct).not.toHaveBeenCalled();
+      expect((t.facade as unknown as Record<string, unknown>).deleteProduct).toBeUndefined();
     });
 
     it('lo spegnimento della sync non interroga Shopify e non annulla niente', async () => {

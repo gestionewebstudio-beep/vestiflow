@@ -39,6 +39,7 @@ import {
 } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { createListSelection } from '@shared/utils/list-selection';
+import { isShopifyLinkedProduct } from '@domain/products/models/catalog-origin.util';
 import { createSelectionMode } from '@shared/utils/selection-mode';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import type { AppError } from '@core/models/app-error.model';
@@ -535,6 +536,19 @@ export class ProductListComponent {
       ? ([
           comando('delete', {
             busy: this.deleteBusy(),
+            /*
+              ⛔ Spento quando NESSUNO dei selezionati è eliminabile: tutti
+              collegati a Shopify, e l'API li rifiuterebbe uno per uno
+              (docs/24 §11.1). Proporre un comando che non può riuscire è
+              peggio che non offrirlo.
+
+              ⚠️ Con una selezione MISTA resta acceso, di proposito: gli
+              eliminabili vanno eliminati, e i collegati finiscono nel
+              conteggio dei non eliminati. Spegnere tutto per un solo
+              collegato bloccherebbe un'operazione legittima.
+            */
+            disabled: this.selezioneTuttaCollegata(),
+            disabledReason: 'Non è possibile eliminare un prodotto collegato a Shopify.',
             ariaLabel: 'Elimina i prodotti selezionati',
             run: (target) => {
               if (target.scope === 'selection') {
@@ -585,6 +599,22 @@ export class ProductListComponent {
     return n === 1
       ? 'Spariscono anche le sue varianti e le relative giacenze. I documenti già emessi restano invariati.'
       : `Spariscono anche le varianti dei ${n} articoli e le relative giacenze. I documenti già emessi restano invariati.`;
+  });
+
+  /**
+   * Tutti i selezionati sono collegati a Shopify, quindi nessuno è eliminabile.
+   *
+   * ⚠️ Con selezione vuota risponde `false`: a comando spento per assenza di
+   * selezione ci pensa già `requires`, e dire «tutti collegati» di zero righe
+   * darebbe una spiegazione sbagliata a chi legge il motivo.
+   */
+  private readonly selezioneTuttaCollegata = computed(() => {
+    const selezionati = this.selectedProductIds();
+    if (selezionati.size === 0) {
+      return false;
+    }
+    const righe = this.products().filter((prodotto) => selezionati.has(prodotto.id));
+    return righe.length > 0 && righe.every((prodotto) => isShopifyLinkedProduct(prodotto));
   });
 
   private requestDeleteSelection(ids: readonly string[]): void {

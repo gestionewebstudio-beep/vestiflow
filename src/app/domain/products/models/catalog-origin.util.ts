@@ -11,6 +11,22 @@ export function isShopifyCatalogProduct(
   return product.catalogOrigin === CatalogOrigin.Shopify;
 }
 
+/**
+ * Il prodotto è COLLEGATO a Shopify adesso — asse diverso dall'origine.
+ *
+ * ⚠️ `catalogOrigin` dice da dove viene il prodotto, questo dice se ha un
+ * collegamento vivo: un articolo nato in VestiFlow e poi pubblicato ha origine
+ * `vestiflow` e collegamento presente. L'eliminazione si ferma su entrambi, e
+ * per ragioni diverse.
+ *
+ * ⛔ Serve a non PROPORRE un comando che l'API rifiuterebbe: il controllo vero
+ * resta lato server (`assertShopifyLinkedDeleteAllowed`), qui si evita solo di
+ * offrire un'azione che non può riuscire.
+ */
+export function isShopifyLinkedProduct(product: Pick<Product, 'shopify'>): boolean {
+  return Boolean(product.shopify?.shopifyId);
+}
+
 export function catalogOriginLabel(origin: CatalogOriginType): string {
   return origin === CatalogOrigin.Shopify ? 'Fonte: Shopify' : 'Fonte: VestiFlow';
 }
