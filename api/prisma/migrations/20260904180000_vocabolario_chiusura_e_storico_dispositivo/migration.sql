@@ -186,3 +186,24 @@ CREATE INDEX "cash_session_device_changes_session_id_created_at_idx"
 
 CREATE INDEX "cash_session_device_changes_tenant_id_idx"
   ON "cash_session_device_changes"("tenant_id");
+
+-- ⛔ LA PROTEZIONE NASCE CON LA TABELLA, e non un giorno dopo.
+--
+-- `regole-sicurezza` [scope: supabase] e' esplicita: «OGNI tabella nuova nello
+-- schema DEVE avere la RLS abilitata NELLA STESSA migration che la crea».
+-- Questa migration non lo faceva, e la lacuna restava aperta per cinque
+-- migration — dalla 20260904180000 alla 20260905210000 del giorno dopo.
+--
+-- ⚠️ Si corregge QUI e non altrove perche' queste undici migration non sono
+--    mai state applicate al database condiviso: non si sta riscrivendo una
+--    storia distribuita, si sta chiudendo una finestra prima che si apra.
+--    La 20260905210000 RESTA al suo posto come riapplicazione difensiva e
+--    idempotente, per i database che hanno gia` applicato la forma vecchia.
+--
+-- ⚠️ Nessun FORCE ROW LEVEL SECURITY: l'API si connette come proprietario
+--    della tabella, e FORCE bloccherebbe anche lui.
+ALTER TABLE "cash_session_device_changes" ENABLE ROW LEVEL SECURITY;
+
+-- La revoca include PUBLIC: un privilegio ereditato da PUBLIC non viene
+-- rimosso revocando soltanto la concessione diretta ai due ruoli Data API.
+REVOKE ALL ON "cash_session_device_changes" FROM PUBLIC, anon, authenticated;

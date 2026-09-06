@@ -255,6 +255,52 @@ describe('Cassa — installazione pulita e aggiornamento da develop', () => {
     await svuota(prisma);
   }, 300_000);
 
+  /*
+    ⛔ **LA FINESTRA DI ESPOSIZIONE NON DEVE ESISTERE.**
+
+    Fino al 06/09/2026 la 20260904180000 creava `cash_session_device_changes`
+    SENZA RLS, e la protezione arrivava solo con la 20260905210000 — cinque
+    migration dopo, il giorno seguente. Su un deploy interrotto in mezzo la
+    tabella restava leggibile dalla Data API pubblica di Supabase.
+
+    ⭐ Questa prova ferma il deploy ESATTAMENTE dove la 20260904180000
+    conclude — nessuna migration successiva, nemmeno la correttiva — e
+    verifica che la tabella sia gia` protetta li`.
+
+    ⚠️ **Verifica i PRIVILEGI EFFETTIVI, non il testo della migration.**
+    `has_table_privilege` risponde tenendo conto anche di cio` che i ruoli
+    ereditano da PUBLIC, che e` il motivo per cui la revoca nomina PUBLIC:
+    un grep sul file .sql non avrebbe potuto accorgersene.
+  */
+  it('dopo la 20260904180000 la tabella dello storico non e` MAI esposta', async () => {
+    const finoAllaSesta = await stage(null, '20260904190000_check_ridondante_e_append_only');
+    await cleanSchema();
+    await deploy(finoAllaSesta.schema, 'fino-alla-sesta');
+
+    // La tabella esiste davvero: senza questo, le verifiche sotto sarebbero
+    // vere per vacuita` e la prova non proverebbe niente.
+    const esiste = await prisma.$queryRaw<{ presente: boolean }[]>`
+      SELECT to_regclass('public.cash_session_device_changes') IS NOT NULL AS presente`;
+    expect(esiste).toEqual([{ presente: true }]);
+
+    // E la migration correttiva NON e` ancora stata applicata: e` cio` che
+    // rende la prova una prova sulla 20260904180000 e non sulla 20260905210000.
+    const applicate = await prisma.$queryRaw<{ nome: string }[]>`
+      SELECT migration_name AS nome FROM _prisma_migrations
+       WHERE migration_name = '20260905210000_protezione_storico_dispositivi_cassa'`;
+    expect(applicate).toEqual([]);
+
+    const sicurezza = await prisma.$queryRaw<
+      { rls: boolean; anon: boolean; authenticated: boolean; pubblico: boolean }[]
+    >`
+      SELECT relrowsecurity AS rls,
+        has_table_privilege('anon', oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS anon,
+        has_table_privilege('authenticated', oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS authenticated,
+        has_table_privilege('public', oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS pubblico
+      FROM pg_class WHERE oid = 'public.cash_session_device_changes'::regclass`;
+    expect(sicurezza).toEqual([{ rls: true, anon: false, authenticated: false, pubblico: false }]);
+  }, 300_000);
+
   it('la nuova migration RLS preserva lo storico esistente e revoca i privilegi effettivi', async () => {
     const old = await stage(null, '20260905210000_protezione_storico_dispositivi_cassa');
     const current = await stage(null);
