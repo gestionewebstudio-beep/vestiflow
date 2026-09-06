@@ -166,6 +166,25 @@ jobs:
         run: npm run test:cassa:real
       - name: Regressioni browser isolate dei componenti condivisi
         run: npx playwright test --config=e2e/cassa-isolated.config.ts
+
+      # ⭐ **DEROGA del 06/09/2026, autorizzata dal proprietario e circoscritta.**
+      #    Non blocca il merge **la sola soglia temporale** della misura mobile a
+      #    grandi volumi: e' un limite noto e temporaneamente accettato — sotto
+      #    `lg` la finestra di rendering e' spenta per scelta — non una funzione
+      #    completata. Motivazione e limite per l'utente in `docs/DA-FARE.md`.
+      #
+      # ⛔ **`continue-on-error` sta su QUESTO passo, non sul job.** Le prove
+      #    funzionali del telefono restano obbligatorie e stanno nel passo qui
+      #    sopra: completezza delle 5.000 card, finestra spenta, ultima riga
+      #    raggiungibile, apertura dell'operazione. Anche la preparazione
+      #    dell'ambiente e le migration restano bloccanti.
+      #
+      # ⚠️ **La misura non sparisce: si sposta.** I numeri finiscono nel log, in
+      #    `test-results/prestazioni-mobile.txt` e negli allegati, e salgono con
+      #    l'artefatto `cassa-integration`.
+      - name: Misura prestazionale mobile (deroga dichiarata, non blocca)
+        continue-on-error: true
+        run: npx playwright test --config=e2e/cassa-prestazioni.config.ts
       - name: Evidenze del collaudo Cassa
         if: always()
         uses: actions/upload-artifact@v4

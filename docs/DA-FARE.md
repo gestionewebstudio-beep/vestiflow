@@ -132,6 +132,88 @@ budget vada tarato sul corridore, o se la prova a 5.000 card debba restare fuori
 dal cancello finché la virtualizzazione mobile non esiste, **è una decisione del
 proprietario**, non un ritocco da fare di passaggio.
 
+⭐ **Seconda misura: 10.366 ms.** Due esecuzioni indipendenti sopra soglia, +3,7%
+e +6,1%: **superamento sistematico sul corridore, non variabilità.**
+
+### ⭐ DEROGA — la sola soglia temporale mobile esce dal cancello (06/09/2026)
+
+**Autorizzata dal proprietario, e circoscritta a un numero.** Non è una funzione
+completata: è un **limite noto e temporaneamente accettato**.
+
+#### Che cosa resta obbligatorio
+
+⛔ **Tutte le verifiche funzionali**, e nessuna prova è stata eliminata. Della
+prova `mobile: 5.000 card complete senza stallo iniziale` è uscita **una riga su
+sei**:
+
+| Verifica                                         | Stato         |
+| ------------------------------------------------ | ------------- |
+| le 5.000 card ci sono tutte (nessun troncamento) | **bloccante** |
+| finestra di rendering spenta sotto `lg`          | **bloccante** |
+| ultima riga raggiungibile scorrendo              | **bloccante** |
+| apertura dell'operazione col tocco               | **bloccante** |
+| ricerca, filtri, azzeramento, testi lunghi       | **bloccante** |
+| totali su 390px, date e calendari                | **bloccante** |
+| `loadMs < 10.000`                                | non bloccante |
+
+⛔ **`continue-on-error` sta sul singolo passo, non sul job.** Preparazione
+dell'ambiente, migration, integrazione API e browser reali restano bloccanti —
+verificato leggendo il workflow: dei tredici passi del job Cassa, **uno solo** è
+non bloccante.
+
+⛔ **Nessun dato è stato troncato e nessun timeout è stato alzato per ottenere
+verde.** Il volume resta 5.000 e la misura continua a essere eseguita e
+pubblicata: log, `test-results/prestazioni-mobile.txt` e allegati, dentro
+l'artefatto `cassa-integration`.
+
+#### Il limite per chi usa l'applicazione
+
+Su telefono il registro Cassa **carica tutte le righe del filtro nel DOM**: sotto
+`lg` la finestra di rendering è spenta per scelta, perché le card non hanno
+un'altezza unica (misurate 83, 105 e 127px sullo stesso elenco) e una finestra
+che sbaglia l'altezza salta righe.
+
+Conseguenza pratica: **con un periodo molto ampio l'elenco impiega secondi ad
+apparire** — misurato su hardware da corridore CI, ~10,5 s per 5.000 operazioni.
+I dati sono completi e corretti: lento è il primo disegno, non il risultato.
+**Il rimedio operativo è restringere il periodo**, e su un telefono in negozio è
+anche il gesto naturale.
+
+⚠️ Su scrivania il problema non esiste: lì la finestra di rendering è accesa e il
+tempo non dipende dal numero di righe (misurato: 1,5 s da 100 a 5.000).
+
+#### Il lavoro futuro, non fatto ora
+
+⛔ **Nessuna virtualizzazione mobile è stata implementata in questa tranche**, e
+non va improvvisata: richiede una finestra ad **altezze variabili** — misurare e
+memorizzare l'altezza di ogni card, o imporne una uniforme, che è una decisione
+di disegno con conseguenze su `regole-stile-ui`. Resta in `DA-FARE` come P2.
+
+#### La misura sul corridore, per scegliere la soglia futura
+
+`e2e/cassa-prestazioni.spec.ts` misura una **scala** — 300, 1.000, 2.000, 5.000
+card — **tre volte per volume nella stessa esecuzione**, e pubblica minimo,
+mediana, massimo e dispersione. Serve a scegliere il volume e la soglia del
+cancello prestazionale obbligatorio **con i numeri del corridore CI**, non con
+quelli della macchina di chi sviluppa.
+
+⚠️ **Riferimento locale (macchina di sviluppo, NON la base della soglia):**
+
+```text
+  300 card   min 1.109  mediana 1.156  max 1.172 ms   dispersione  5%
+1.000 card   min 1.610  mediana 1.650  max 1.810 ms   dispersione 12%
+2.000 card   min 2.717  mediana 2.954  max 2.980 ms   dispersione  9%
+5.000 card   min 5.655  mediana 5.717  max 5.851 ms   dispersione  3%
+```
+
+Il corridore CI è circa **1,8×** più lento (5.000 card: 5,7 s in locale contro
+10,4–10,6 s in CI).
+
+⛔ **Nessuna soglia è ancora armata, e l'assenza è dichiarata invece che
+nascosta.** Sceglierne una prima di avere la scala misurata in CI significherebbe
+sceglierla perché passa. Il volume e la soglia si propongono al proprietario
+dopo la prima esecuzione della scala.
+
 ### Residui di processo del preflight — chiusi il 06/09/2026
 
 **Tre residui indicati dal proprietario, chiusi in tre commit locali separati.**
