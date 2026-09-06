@@ -36,6 +36,7 @@
     "audit:lhci": "lhci autorun",
     "check:rls": "node scripts/check-rls.mjs",
     "check:rls:static": "node scripts/check-rls.mjs --static",
+    "schema:export": "node scripts/export-schema.mjs",
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:subscriptions": "node scripts/check-subscriptions.mjs",
     "check:table-views": "node scripts/check-table-views.mjs",
