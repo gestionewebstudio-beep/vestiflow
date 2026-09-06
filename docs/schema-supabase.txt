@@ -3,8 +3,8 @@ SCHEMA DEL DATABASE — VestiFlow
 
 Ambiente:   database condiviso utilizzato anche dall'app distribuita; dati di
             prova.
-Estratto:   2026-09-06T10:10:20.167Z
-Commit:     2e701841
+Estratto:   2026-09-06T10:28:33.027Z
+Commit:     6d1976a6
 Schema:     public — esclusi gli schemi interni di Supabase, che non sono
             nostri.
 Contenuto:  solo STRUTTURA. Nessuna riga di dati, nessun conteggio di righe,
@@ -85,9 +85,13 @@ TABELLE
   con la chiave pubblica e fallisce se torna anche una sola riga. Non
   ispeziona policy ne` privilegi, e non sostituisce quella ispezione.
 
-  L unica tabella senza RLS e` `_prisma_migrations`, che e` la contabilita`
-  di Prisma e non una tabella di business: sta fuori dalle 74 dichiarate
-  nello schema, quindi fuori anche dal perimetro di `check:rls`.
+  Con RLS abilitata: 74 tabelle su 75. Dichiarate nello schema Prisma: 74.
+
+  Nessuna tabella DICHIARATA NELLO SCHEMA e` senza RLS.
+
+  Senza RLS e non dichiarate nello schema (1) — fuori dal perimetro
+  di `check:rls`, che scopre le tabelle dallo schema Prisma:
+    _prisma_migrations
 
 ── _backup_customers_pre_party  [RLS abilitata]
      id                                 uuid                           null

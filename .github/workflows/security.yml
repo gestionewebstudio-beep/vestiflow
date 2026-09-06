@@ -26,8 +26,11 @@ jobs:
         with:
           node-version: 22
 
+      # Due guardie offline sulla RLS, e guardano cose diverse: la prima che il
+      # controllo sappia ancora accorgersi di una tabella esposta, la seconda che
+      # il file di schema non DICHIARI uno stato RLS diverso da quello che elenca.
       - name: Test RLS checker offline
-        run: node --test scripts/check-rls.test.mjs
+        run: node --test scripts/check-rls.test.mjs scripts/export-schema.test.mjs
 
       # SUPABASE_URL e SUPABASE_ANON_KEY sono valori PUBBLICI (anon/publishable
       # key, gia' nel bundle JS), impostati come GitHub repo secrets

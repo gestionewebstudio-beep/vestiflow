@@ -42,7 +42,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const radice = join(dirname(fileURLToPath(import.meta.url)), '..');
 const soloCorpo = process.argv.includes('--corpo');
@@ -69,23 +69,36 @@ function daEnv(chiave) {
   return process.env[chiave];
 }
 
-const url = daEnv('DIRECT_URL') ?? daEnv('DATABASE_URL');
-if (!url) {
-  console.error('[schema:export] Manca DIRECT_URL/DATABASE_URL in api/.env.');
-  process.exit(2);
-}
-
-const requireApi = createRequire(join(radice, 'api/package.json'));
-const { PrismaClient } = requireApi('@prisma/client');
 
 // ── Fonti 2 e 3: quello che il ramo dichiara, senza toccare la rete ─────────
 
-const schemaPrisma = readFileSync(join(radice, 'api/prisma/schema.prisma'), 'utf8');
-// `@@map` esiste anche dentro un `enum`, dove nomina un TIPO e non una tabella.
-const soloModelli = schemaPrisma.replace(/^enum\s+\w+\s*\{[^}]*\}/gm, '');
-const tabelleAttese = [...soloModelli.matchAll(/@@map\("([^"]+)"\)/g)]
-  .map((m) => m[1])
-  .sort((a, b) => a.localeCompare(b));
+/**
+ * Quello che il RAMO dichiara: tabelle attese, colonne attese, cartelle di
+ * migration. Le fonti 2 e 3, lette dal disco e senza toccare la rete.
+ *
+ * ⭐ **È una funzione e non tre costanti di modulo**, e non è un riordino
+ * estetico: `componiCorpo` riceve questi fatti come PARAMETRO, così il corpo
+ * del documento si può comporre anche su un ramo inventato. È quello che rende
+ * possibile la prova offline in `export-schema.test.mjs` — senza database,
+ * senza rete, e senza toccare lo schema vero.
+ */
+function leggiIlRamo() {
+  const schemaPrisma = readFileSync(join(radice, 'api/prisma/schema.prisma'), 'utf8');
+  // `@@map` esiste anche dentro un `enum`, dove nomina un TIPO e non una tabella.
+  const soloModelli = schemaPrisma.replace(/^enum\s+\w+\s*\{[^}]*\}/gm, '');
+  return {
+    tabelleAttese: [...soloModelli.matchAll(/@@map\("([^"]+)"\)/g)]
+      .map((m) => m[1])
+      .sort((a, b) => a.localeCompare(b)),
+    colonneAttese: colonneDichiarate(schemaPrisma),
+    cartelleMigration: readdirSync(join(radice, 'api/prisma/migrations'), {
+      withFileTypes: true,
+    })
+      .filter((v) => v.isDirectory())
+      .map((v) => v.name)
+      .sort((a, b) => a.localeCompare(b)),
+  };
+}
 
 /**
  * Le COLONNE che Prisma dichiara, per nome di tabella.
@@ -104,7 +117,7 @@ const tabelleAttese = [...soloModelli.matchAll(/@@map\("([^"]+)"\)/g)]
  * in camelCase e le colonne in snake_case, e senza questa lettura ogni campo
  * risulterebbe assente dal database.
  */
-function colonneDichiarate() {
+function colonneDichiarate(schemaPrisma) {
   const nomiModello = new Set(
     [...schemaPrisma.matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]),
   );
@@ -132,14 +145,6 @@ function colonneDichiarate() {
   return perTabella;
 }
 
-const colonneAttese = colonneDichiarate();
-
-const cartelleMigration = readdirSync(join(radice, 'api/prisma/migrations'), {
-  withFileTypes: true,
-})
-  .filter((v) => v.isDirectory())
-  .map((v) => v.name)
-  .sort((a, b) => a.localeCompare(b));
 
 function commitCorrente() {
   try {
@@ -227,6 +232,13 @@ const INTERROGAZIONI = {
 };
 
 async function leggi() {
+  const url = daEnv('DIRECT_URL') ?? daEnv('DATABASE_URL');
+  if (!url) {
+    console.error('[schema:export] Manca DIRECT_URL/DATABASE_URL in api/.env.');
+    process.exit(2);
+  }
+  const requireApi = createRequire(join(radice, 'api/package.json'));
+  const { PrismaClient } = requireApi('@prisma/client');
   const prisma = new PrismaClient({ datasources: { db: { url } } });
   try {
     return await prisma.$transaction(async (tx) => {
@@ -265,7 +277,8 @@ function raggruppa(righe, chiave) {
   return mappa;
 }
 
-function componiCorpo(dati) {
+export function componiCorpo(dati, ramo) {
+  const { tabelleAttese, colonneAttese, cartelleMigration } = ramo;
   const r = [];
   const tabelle = dati.tabelle;
   const colonne = raggruppa(dati.colonne, 'tabella');
@@ -373,9 +386,50 @@ function componiCorpo(dati) {
   r.push('  con la chiave pubblica e fallisce se torna anche una sola riga. Non');
   r.push('  ispeziona policy ne` privilegi, e non sostituisce quella ispezione.');
   r.push('');
-  r.push('  L unica tabella senza RLS e` `_prisma_migrations`, che e` la contabilita`');
-  r.push('  di Prisma e non una tabella di business: sta fuori dalle 74 dichiarate');
-  r.push('  nello schema, quindi fuori anche dal perimetro di `check:rls`.');
+  /*
+    ⛔ **Il riepilogo RLS si RICAVA dai dati, non si scrive a mano.**
+
+    Qui c'era un paragrafo fisso: «l unica tabella senza RLS e`
+    `_prisma_migrations`» e «le 74 dichiarate nello schema». Due affermazioni
+    vere il giorno in cui sono state scritte e destinate a diventare false da
+    sole — la prima al primo `ENABLE ROW LEVEL SECURITY` dimenticato, la
+    seconda alla prima tabella nuova.
+
+    ⚠️ **E sarebbero diventate false in SILENZIO**: il file avrebbe continuato
+    a rassicurare mentre l elenco poche righe piu` sotto diceva il contrario.
+    Un documento che smentisce se stesso e` peggio di un documento assente,
+    perche' chi legge la frase non arriva all elenco.
+  */
+  const senzaRls = tabelle.filter((t) => !t.rls).map((t) => t.nome);
+  const senzaRlsDentro = senzaRls.filter((n) => tabelleAttese.includes(n));
+  const senzaRlsFuori = senzaRls.filter((n) => !tabelleAttese.includes(n));
+  r.push(
+    `  Con RLS abilitata: ${tabelle.length - senzaRls.length} tabelle su ${tabelle.length}.` +
+      ` Dichiarate nello schema Prisma: ${tabelleAttese.length}.`,
+  );
+  r.push('');
+  if (senzaRlsDentro.length === 0) {
+    r.push('  Nessuna tabella DICHIARATA NELLO SCHEMA e` senza RLS.');
+  } else {
+    r.push(
+      `  ⛔ TABELLE APPLICATIVE SENZA RLS (${senzaRlsDentro.length}) — sono dichiarate nello`,
+    );
+    r.push('     schema Prisma, quindi stanno DENTRO il perimetro di `check:rls`:');
+    for (const n of senzaRlsDentro) {
+      r.push(`       ${n}`);
+    }
+  }
+  r.push('');
+  r.push(
+    `  Senza RLS e non dichiarate nello schema (${senzaRlsFuori.length}) — fuori dal perimetro`,
+  );
+  r.push('  di `check:rls`, che scopre le tabelle dallo schema Prisma:');
+  for (const n of senzaRlsFuori) {
+    r.push(`    ${n}`);
+  }
+  if (senzaRlsFuori.length === 0) {
+    r.push('    nessuna');
+  }
   r.push('');
 
   for (const tabella of tabelle) {
@@ -502,14 +556,25 @@ function componiTestata() {
   ].join('\n');
 }
 
-const dati = await leggi();
-const corpo = componiCorpo(dati);
+/*
+  ⭐ **Importare questo modulo NON apre nessuna connessione.** È la condizione
+  che rende possibile la prova offline: `export-schema.test.mjs` importa
+  `componiCorpo` e le passa dati e ramo finti, senza database e senza rete.
+*/
+const invocatoDirettamente =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-if (soloCorpo) {
-  process.stdout.write(corpo);
-} else {
-  const percorso = join(radice, 'docs/schema-supabase.txt');
-  writeFileSync(percorso, componiTestata() + corpo, 'utf8');
-  console.log(`[schema:export] Scritto docs/schema-supabase.txt (${corpo.split('\n').length} righe di corpo).`);
-  console.log('[schema:export] Rileggilo prima del commit: il repository e` pubblico.');
+if (invocatoDirettamente) {
+  const corpo = componiCorpo(await leggi(), leggiIlRamo());
+
+  if (soloCorpo) {
+    process.stdout.write(corpo);
+  } else {
+    const percorso = join(radice, 'docs/schema-supabase.txt');
+    writeFileSync(percorso, componiTestata() + corpo, 'utf8');
+    console.log(
+      `[schema:export] Scritto docs/schema-supabase.txt (${corpo.split('\n').length} righe di corpo).`,
+    );
+    console.log('[schema:export] Rileggilo prima del commit: il repository e` pubblico.');
+  }
 }
