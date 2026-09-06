@@ -659,7 +659,7 @@ describe('ProductsService', () => {
 
     // ⭐ Le tre cose che questa patch garantisce, in una prova sola.
     expect(prisma.product.delete).not.toHaveBeenCalled();
-    expect(channelSync.deleteProduct).toBeUndefined();
+    expect((channelSync as Record<string, unknown>).deleteProduct).toBeUndefined();
     expect(prisma.stockMovement.count).not.toHaveBeenCalled();
   });
 
@@ -682,7 +682,7 @@ describe('ProductsService', () => {
 
     // ⭐ Non e' una verifica di chiamata: e' una verifica di ASSENZA di
     //    capacita'. Il facade non espone piu' un modo per cancellare sul canale.
-    expect(channelSync.deleteProduct).toBeUndefined();
+    expect((channelSync as Record<string, unknown>).deleteProduct).toBeUndefined();
   });
 
   it('selezione MISTA: il collegato si rifiuta, il non collegato si elimina', async () => {
