@@ -149,6 +149,89 @@ o la finestra in mezzo va tenuta senza resi.
 ⚠️ **La suite RISCRIVE i dati** (`svuota` e fixture): va eseguita **dopo** ogni misura sui
 dati ripristinati, non prima. Costata una misura da rifare.
 
+### ⏸ DECISIONE APERTA — i Tipi pagamento sono doppi, e dopo le 11 si vedono (06/09/2026)
+
+Misurato in **sola lettura** sul condiviso, e verificato sul database migrato per cosa
+l'operatore vedrebbe davvero.
+
+#### Il fatto
+
+Tutti e **quattro** i tenant portano **due generazioni di seed insieme**. Trenta Tipi
+pagamento «metodo» ciascuno, di cui **cinque coppie** che nominano lo stesso codice
+normativo — e in tutti e quattro i tenant **entrambe le voci di ogni coppia sono attive**:
+
+```text
+MP01   «Contanti»            +  «Contanti (MP01)»
+MP02   «Assegno»             +  «Assegno (MP02)»
+MP05   «Bonifico bancario»   +  «Bonifico (MP05)»
+MP08   «Carta di pagamento»  +  «Carta di pagamento (MP08)»
+MP12   «RiBa»                +  «RIBA (MP12)»
+                                        20 coppie attive su 4 tenant
+```
+
+⭐ **Non è un difetto delle 11 migration.** La `20260904120000` lo sapeva già: ha due
+blocchi di backfill, `4a` per i nomi nuovi e `4b` per quelli vecchi, col commento
+«misurato il 04/09/2026: i clienti usano _Bonifico bancario_». Le migration **collegano
+entrambe** al codice, ed è la scelta giusta — scollegare quella vecchia perderebbe il
+significato normativo dei documenti che la usano.
+
+#### Che cosa vedrebbe l'operatore in Cassa
+
+Misurato sul database migrato, per ogni tenant:
+
+```text
+  Contanti                    (cash)
+  Carta di pagamento          (electronic)
+  Contanti (MP01)             (cash)
+  Carta di pagamento (MP08)   (electronic)
+```
+
+⛔ **Quattro pulsanti d'incasso dove i modi di pagare sono due.** Al banco si sceglie
+alla svelta, e due voci che dicono la stessa cosa costringono a fermarsi — o, peggio, si
+scelgono a caso e lo stesso incasso finisce classificato in due modi diversi a giorni
+alterni.
+
+⚠️ Le altre tre coppie (MP02, MP05, MP12) **non** compaiono in Cassa: `tender_kind` resta
+`NULL`, perché la `20260904170000` classifica solo MP01 e MP08. Il doppione lì si vede
+nelle tendine dei documenti, non al banco.
+
+#### Nessun dato le referenzia, oggi
+
+Misurato sul condiviso: **nessuna chiave esterna punta a `payment_options`**, e nessuna
+riga le referenzia. Il collegamento `store_sale_payments.payment_option_id` nasce con la
+`20260904210000`, e l'unica riga esistente non lo valorizza.
+
+⭐ **Questo cambia il costo della correzione**: oggi ritirare una voce di ogni coppia non
+rompe nessun documento storico. Dopo il primo incasso in Cassa, non è più vero.
+
+#### La proposta, e ⛔ non cancella né spegne niente da sola
+
+**Nessun `UPDATE` automatico.** Un seed che disattiva voci scelte da lui è esattamente il
+modo in cui si perde la fiducia in una migration: il titolare troverebbe spenta una voce
+che magari usa in fattura.
+
+La forma proposta, in tre pezzi, da decidere:
+
+1. ⭐ **Il pannello Impostazioni → Tipi pagamento mostra il doppione e lo dice.** Due voci
+   che portano lo stesso `method_code_id` si segnalano con un avviso non bloccante — «due
+   Tipi puntano a MP01: al banco compariranno entrambi» — e un comando **«Unisci»** che
+   l'operatore preme se vuole. Unire = spegnere quella che sceglie lui e, quando serviranno,
+   spostare i riferimenti.
+2. ⭐ **La Cassa intanto non aspetta**: nell'elenco d'incasso si mostra **una voce per
+   codice normativo**, scegliendo quella che il tenant ha effettivamente usato di più (e a
+   parità, quella con `sort_order` minore). Le altre restano disponibili sotto «Altri
+   Tipi». È una decisione di **presentazione**, reversibile, e non tocca un dato.
+3. ⚠️ **Il seed dei tenant nuovi resta com'è**: nasce già con i soli nomi `(MPxx)`, quindi
+   il problema non si riproduce. Riguarda solo i quattro tenant esistenti.
+
+⛔ **Che cosa NON proporre**: un `UPDATE ... SET is_active = false WHERE name IN (...)`
+dentro una migration. Sceglie per il titolare, non è reversibile senza sapere cosa c'era
+prima, e su un tenant che avesse rinominato una voce colpirebbe quella sbagliata.
+
+⏸ **Da decidere dal proprietario**: se il punto 2 (una voce per codice in Cassa) sia
+accettabile come comportamento predefinito, o se preferisca vedere tutto e sistemare a
+mano dal pannello.
+
 ### ⭐ CONSERVATO dal vecchio ramo `feature/cassa` — la conoscenza, non il codice (06/09/2026)
 
 Il ramo `origin/feature/cassa` (testa `6e4f9e79`, 19/08/2026) resta **intatto e non
