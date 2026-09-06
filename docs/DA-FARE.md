@@ -71,6 +71,117 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
+### Tranche 1 — date e periodi della Cassa (06/09/2026)
+
+**Il fuso dell'attività è `Europe/Rome`, costante applicativa centralizzata.**
+Nessuna migration: non è una colonna su tenant o sede, e il giorno in cui lo
+diventerà i punti da cambiare sono **due** — `api/src/common/business-time.util.ts`
+e `src/app/core/utils/business-day.util.ts` — non venti.
+
+#### ⛔ Il difetto non era nel filtro: era nel DATO
+
+`documentDate` è una colonna `@db.Date` e riceveva `new Date()`: Prisma ne prende
+la parte **UTC**. Una vendita alle 00:30 del 7 settembre a Roma si archiviava
+**col 6**. Nessun confine di ricerca poteva rimediarlo — il documento era già
+datato ieri.
+
+⚠️ **Difetto gemello, stesso punto**: l'anno della serie veniva da
+`getFullYear()`, che è locale al **processo**. In produzione i contenitori
+girano in UTC, in locale no: lo stesso codice dava due risposte, e a Capodanno
+un documento poteva prendere la serie dell'anno nuovo con la data dell'anno
+vecchio.
+
+#### ⭐ Data civile e istante sono due cose diverse
+
+| Grandezza                   | Che cosa riceve            |
+| --------------------------- | -------------------------- |
+| `documentDate` (`@db.Date`) | la **data civile** di Roma |
+| `year` della numerazione    | l'anno **di quella data**  |
+| `StockMovement.createdAt`   | l'**istante**, invariato   |
+| `CashSession.openedAt`      | l'**istante**, invariato   |
+
+⛔ **Il movimento poteva finire a mezzanotte**, ed è il difetto che la
+distinzione ha evitato: `movementDate` alimenta `StockMovement.createdAt`, e
+passargli la data civile avrebbe fatto risultare ogni movimento di Cassa fatto a
+mezzanotte. Ora riceve `adesso`.
+
+⛔ **Per una colonna `DATE` la mezzanotte giusta è UTC**, non quella di Roma:
+`dataCivile('2026-09-07')` è `2026-09-07T00:00:00Z`. Passare l'inizio del giorno
+romano (`2026-09-06T22:00Z`) la archivierebbe col 6 — lo stesso difetto con un
+travestimento nuovo, e c'è una prova che lo tiene fermo.
+
+#### I confini: `[inizio, inizio del giorno dopo)`
+
+⛔ Non `lte 23:59:59.999`: perde l'ultimo millisecondo e, nel giorno del cambio
+d'ora, **un'ora intera** — quel giorno dura 23 o 25 ore, non 24.
+
+⚠️ **I due registri usano confini di natura diversa, ed è corretto**: Operazioni
+confronta date `@db.Date` (`dataCivile` + giorno successivo), Sessioni confronta
+l'istante `openedAt` (`intervalloDiGiorni`). Scambiarli sposterebbe i confini di
+due ore.
+
+#### I periodi
+
+⭐ **Oggi e Ieri aggiunti al sistema CONDIVISO**, `movement-period.util`, non a un
+elenco della Cassa: lo usano anche Documenti, Ordini cliente, Ordini fornitore,
+Movimenti e Vendite online, con regressioni che ne tengono fermi gli intervalli.
+
+- **Operazioni**: parte da **Oggi**, visibile nel selettore e azzerabile con
+  «Tutti». Le date nascono già valorizzate: se partissero vuote, la **prima**
+  richiesta chiederebbe tutta la storia.
+- **Sessioni**: **nessun periodo predefinito**. Filtra su `openedAt`, e con
+  «Oggi» una sessione aperta ieri e ancora aperta sparirebbe. «Oggi più quelle
+  aperte» sarebbe un filtro con un'eccezione nascosta, che è peggio.
+- **Richiamo scontrino**: indipendente per costruzione — endpoint separato con
+  `from`/`to` propri e opzionali, che la maschera di reso non collega al
+  periodo del registro.
+
+⛔ **«Oggi» NON è la soluzione del problema mobile**, e non va raccontato così:
+è una scelta funzionale, e il limite a grandi volumi resta aperto (tranche 2).
+
+#### Prove
+
+| Prova                                | Copertura                                                                                                                    |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `business-time.util.spec.ts` (API)   | 10 casi: mezzanotte, cambio anno, entrambi i cambi d'ora (23 e 25 ore), confine `[gte, lt)`, colonna DATE, giorno malformato |
+| `business-day.util.spec.ts` (client) | 4 casi: mezzanotte, «ieri» su mese/anno/cambio d'ora                                                                         |
+| `movement-period.util.spec.ts`       | 13 casi, di cui 4 nuovi + **una regressione** che tiene fermi gli altri preset                                               |
+| `cassa-fuso-orario.integration-spec` | 5 casi **contro il database**, con l'orologio spostato: data, anno di serie, istante del movimento, filtro, storico          |
+| `cash-operations.component.spec.ts`  | 3 casi nuovi: parte da Oggi **nella prima richiesta**, è visibile e azzerabile, «Ieri» è un giorno solo                      |
+
+⭐ **Indipendenza dal fuso del processo, dimostrata**: le prove dell'API girano
+verdi con `TZ=UTC`, `America/New_York`, `Pacific/Kiritimati` ed `Europe/Rome`; le
+attese sono assolute, quindi il corridore CI (UTC) e la macchina di sviluppo
+(Roma) devono concordare.
+
+⭐ **Falsificate, non solo passate**: rimesso il difetto (`documentDate = adesso`,
+`year = getFullYear()`), tre prove d'integrazione arrossano e i messaggi sono
+letteralmente il guasto — «expected '2026-09-06' to be '2026-09-07'» e «expected
+'2026-12-31' to be '2027-01-01'».
+
+#### ⛔ Difetti VERIFICATI e NON corretti, negli altri registri
+
+Il mandato dice di non cambiarli automaticamente. Sono **sei endpoint** che
+tagliano ancora il giorno a mezzanotte UTC, e vanno distinti per natura del campo:
+
+| Registro              | Campo filtrato           | Natura          |
+| --------------------- | ------------------------ | --------------- |
+| Corrispettivi         | data del documento       | **data civile** |
+| Corrispettivo manuale | data                     | **data civile** |
+| Ordini cliente        | data                     | **data civile** |
+| Ordini fornitore      | data                     | **data civile** |
+| Vendite online        | `placedAt`/`fulfilledAt` | **istante**     |
+| Analytics / report    | periodo                  | misto           |
+
+⚠️ **Per i campi `DATE` lo scarto è meno grave** — il confronto resta fra date, e
+sbaglia solo se il valore archiviato è a sua volta derivato da un istante UTC.
+**Per gli istanti è lo stesso difetto della Cassa.** Nessuno dei sei è stato
+toccato.
+
+⚠️ **E anche `resolveMovementPeriodRange` resta al fuso del browser** per tutti i
+preset diversi da Oggi/Ieri: per un utente in Italia non sposta una riga, ma è
+divergenza dichiarata, non risolta.
+
 ### Integrazione in develop — PR #2 aperta il 06/09/2026
 
 **Le due evidenze che il preflight dichiarava mancanti sono chiuse.**

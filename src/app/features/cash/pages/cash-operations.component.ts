@@ -51,6 +51,12 @@ import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 
+import {
+  MOVEMENT_PERIOD_OPTIONS,
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@domain/inventory/models/movement-period.util';
+
 import { CASH_TABS } from '../models/cash-nav';
 import {
   CASH_OPERATIONS_COLUMN_DEFS,
@@ -59,6 +65,9 @@ import {
 
 /** Il debounce della ricerca e' quello degli altri elenchi, non uno suo. */
 const RICERCA_DEBOUNCE_MS = 300;
+
+/** Il periodo con cui il registro si apre, risolto una volta al caricamento. */
+const PERIODO_INIZIALE = resolveMovementPeriodRange(MovementPeriodPreset.Today, '', '');
 
 interface StatoRegistro {
   readonly pagina: CashOperationsPage | null;
@@ -121,8 +130,33 @@ export class CashOperationsComponent {
   protected readonly vista = TableViewId.CashOperations;
 
   // ── Filtri ───────────────────────────────────────────────────────────────
-  protected readonly da = signal('');
-  protected readonly a = signal('');
+
+  /**
+   * ⭐ **Il registro si apre su OGGI** (decisione del 06/09/2026).
+   *
+   * ⛔ **Non è un rimedio alla lentezza a grandi volumi**, e non va raccontato
+   * così: è una scelta funzionale — una cassa guarda la propria giornata. Che
+   * riduca anche le righe da disegnare è una conseguenza, non la ragione, e il
+   * limite mobile resta aperto in `docs/DA-FARE.md`.
+   *
+   * ⚠️ **Visibile e azzerabile**: il selettore mostra «Oggi», e «Tutti» toglie
+   * ogni vincolo di data. Un filtro predefinito che non si vede è un elenco
+   * che mente.
+   *
+   * ⭐ **Il preset viene dal sistema condiviso**, lo stesso di Documenti,
+   * Ordini e Movimenti: non un elenco di periodi della Cassa.
+   */
+  protected readonly periodOptions = MOVEMENT_PERIOD_OPTIONS;
+  protected readonly periodo = signal<MovementPeriodPreset>(MovementPeriodPreset.Today);
+
+  /*
+    ⚠️ **Le date nascono già valorizzate**, dal preset predefinito: se partissero
+    vuote, la prima richiesta chiederebbe tutta la storia e solo la seconda
+    filtrerebbe — cioè si pagherebbe comunque il caricamento che il predefinito
+    esiste per evitare.
+  */
+  protected readonly da = signal(PERIODO_INIZIALE.from ?? '');
+  protected readonly a = signal(PERIODO_INIZIALE.to ?? '');
   protected readonly sedeId = signal<EntityId | null>(null);
   protected readonly tipo = signal<CashOperationKind | null>(null);
   protected readonly tipoPagamento = signal<EntityId | null>(null);
@@ -283,7 +317,33 @@ export class CashOperationsComponent {
     this.rilettura.update((n) => n + 1);
   }
 
+  /** Il preset scelto diventa una coppia di date: la richiesta non lo conosce. */
+  protected cambiaPeriodo(preset: string): void {
+    const scelto = preset as MovementPeriodPreset;
+    this.periodo.set(scelto);
+    if (scelto === MovementPeriodPreset.Custom) {
+      // Le date restano quelle già digitate: si passa a «Personalizzato» per
+      // modificarle, non per azzerarle.
+      return;
+    }
+    const intervallo = resolveMovementPeriodRange(scelto, this.da(), this.a());
+    this.da.set(intervallo.from ?? '');
+    this.a.set(intervallo.to ?? '');
+    this.carica();
+  }
+
+  /**
+   * ⚠️ Toccare una data a mano porta il selettore su «Personalizzato»: lasciarlo
+   * su «Oggi» mentre le date dicono altro è la schermata che mente su sé stessa.
+   */
+  protected cambiaData(quale: 'da' | 'a', valore: string): void {
+    (quale === 'da' ? this.da : this.a).set(valore);
+    this.periodo.set(MovementPeriodPreset.Custom);
+    this.carica();
+  }
+
   protected azzeraFiltri(): void {
+    this.periodo.set(MovementPeriodPreset.All);
     this.da.set('');
     this.a.set('');
     this.sedeId.set(null);

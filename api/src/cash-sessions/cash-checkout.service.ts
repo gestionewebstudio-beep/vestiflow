@@ -9,6 +9,7 @@ import type { PaymentTenderKind } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { annoDiAttivita, dataCivile, giornoDiAttivita } from '../common/business-time.util';
 import { CreationIntentService } from '../common/idempotency/creation-intent.util';
 import { variantLabel } from '../common/variant-label.util';
 import { syncUnloadLineMovements } from '../documents/document-stock-unload-sync.util';
@@ -171,7 +172,21 @@ export class CashCheckoutService {
         //    rappresenta con la stringa vuota, non con `null`.
         const series = setting.defaultSeries;
         await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
-        const documentDate = new Date();
+        /*
+          ⛔ **Due grandezze diverse, e prima erano la stessa.** Qui c'era
+          `const documentDate = new Date()`, usato sia per la colonna
+          `@db.Date` sia per l'istante del movimento: Prisma prendeva la parte
+          **UTC** dell'istante, e una vendita delle 00:30 del 7 settembre a
+          Roma finiva archiviata **col 6** — con la serie di numerazione presa
+          da `getFullYear()`, che invece era locale al processo.
+
+          ⭐ `adesso` è l'ISTANTE, `giorno` è la DATA CIVILE dell'attività, e
+          l'anno della numerazione viene dalla stessa data — non da un terzo
+          calcolo che può discordare.
+        */
+        const adesso = new Date();
+        const giorno = giornoDiAttivita(adesso);
+        const documentDate = dataCivile(giorno);
         const assigned = await resolveDocumentNumber({
           tx,
           tenantId,
@@ -192,7 +207,7 @@ export class CashCheckoutService {
             series,
             number: assigned.number,
             reference: assigned.reference,
-            year: documentDate.getFullYear(),
+            year: annoDiAttivita(giorno),
             documentDate,
             locationId: input.locationId,
             // ⭐ È QUESTO a distinguere una vendita Cassa da una Vendita al banco
@@ -265,7 +280,10 @@ export class CashCheckoutService {
           documentType: DocumentType.store_sale,
           locationId: input.locationId,
           reason: `Vendita Cassa ${assigned.reference}`,
-          movementDate: documentDate,
+          // ⚠️ L'ISTANTE, non la data civile: finisce in `StockMovement.createdAt`,
+          //    che e' un momento e non un giorno. Sostituirlo con la mezzanotte
+          //    farebbe risultare ogni movimento di Cassa fatto a mezzanotte.
+          movementDate: adesso,
           origin: MovementOrigin.vestiflow_pos,
           // ⚠️ Le righe COMPLETE come le ha appena scritte il database: la
           //    primitiva legge piu` campi di quanti se ne passerebbero a mano,

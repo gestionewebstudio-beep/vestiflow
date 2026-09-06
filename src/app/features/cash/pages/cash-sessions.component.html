@@ -26,19 +26,33 @@
   <app-nav-tabs tabs [items]="schede" ariaLabel="Aree della Cassa" />
 
   <div period class="sess__period">
+    <!--
+      ⛔ **Senza periodo predefinito**: una sessione aperta ieri e ancora aperta
+      non deve sparire dall'elenco. Lo strumento c'è, il valore iniziale no.
+    -->
+    <app-select-menu
+      chipLabel="Periodo"
+      [options]="periodOptions"
+      [value]="periodo()"
+      ariaLabel="Filtra per periodo"
+      placeholder="Tutto"
+      [compact]="true"
+      [fitContent]="true"
+      (valueChange)="cambiaPeriodo($event ?? '')"
+    />
     <app-date-input
       inputId="sess-da"
       ariaLabel="Dal"
       [value]="da()"
       [compact]="true"
-      (valueChange)="da.set($event); carica()"
+      (valueChange)="cambiaData('da', $event)"
     />
     <app-date-input
       inputId="sess-a"
       ariaLabel="Al"
       [value]="a()"
       [compact]="true"
-      (valueChange)="a.set($event); carica()"
+      (valueChange)="cambiaData('a', $event)"
     />
   </div>
 

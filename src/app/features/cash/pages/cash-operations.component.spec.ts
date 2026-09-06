@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -14,6 +14,8 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { CASH_OPERATIONS_COLUMN_DEFS } from '../models/cash-register-columns.config';
+import { giornoDiAttivita, giornoDiAttivitaSpostato } from '@core/utils/business-day.util';
+
 import { CashOperationsComponent } from './cash-operations.component';
 
 /**
@@ -41,6 +43,11 @@ const COLONNE_FINTE = {
  *   il reso si cerca per identificativo  si cerca per numero, articolo, cliente
  * ```
  */
+
+interface Filtri {
+  readonly from?: string;
+  readonly to?: string;
+}
 
 const PAGINA: CashOperationsPage = {
   page: 1,
@@ -233,5 +240,64 @@ describe('CashOperationsComponent', () => {
 
     // ⛔ Il campo parla di numero, articolo e cliente: mai di UUID o id.
     expect(screen.getByText('Numero, articolo o cliente')).toBeInTheDocument();
+  });
+
+  /*
+    ── Il periodo predefinito, deciso il 06/09/2026 ─────────────────────────
+  */
+
+  it('⭐ si apre su OGGI, e il periodo è già nella PRIMA richiesta', async () => {
+    const { api } = await montaOperazioni();
+
+    const oggi = giornoDiAttivita();
+    /*
+      ⛔ **Nella prima richiesta, non nella seconda.** Se le date partissero
+      vuote e il preset le riempisse dopo, il primo caricamento chiederebbe
+      tutta la storia — cioè si pagherebbe comunque quello che il predefinito
+      esiste per evitare.
+    */
+    expect(api.operations).toHaveBeenCalled();
+    const chiamate = api.operations.mock.calls as unknown as Filtri[][];
+    const primaChiamata = chiamate[0]![0]!;
+    expect(primaChiamata.from).toBe(oggi);
+    expect(primaChiamata.to).toBe(oggi);
+  });
+
+  it('⭐ il periodo è VISIBILE e azzerabile: «Tutti» toglie il vincolo di data', async () => {
+    const { api } = await montaOperazioni();
+    const utente = userEvent.setup();
+
+    // Visibile: il selettore mostra il periodo attivo, non lo nasconde.
+    const selettore = screen.getByRole('button', { name: /Filtra per periodo/ });
+    expect(selettore).toBeVisible();
+    expect(selettore).toHaveTextContent(/Oggi/);
+
+    await utente.click(selettore);
+    // ⚠️ Ristretto al pannello del PERIODO: «Tutti» compare anche in un altro
+    //    filtro della barra, e una ricerca globale ne troverebbe due.
+    await utente.click(
+      within(screen.getByRole('listbox', { name: 'Filtra per periodo' })).getByRole('option', {
+        name: 'Tutti',
+      }),
+    );
+
+    const chiamate = api.operations.mock.calls as unknown as Filtri[][];
+    const ultima = chiamate.at(-1)![0]!;
+    expect(ultima.from).toBeUndefined();
+    expect(ultima.to).toBeUndefined();
+  });
+
+  it('⭐ «Ieri» è un giorno solo, e resta un giorno solo', async () => {
+    const { api } = await montaOperazioni();
+    const utente = userEvent.setup();
+
+    await utente.click(screen.getByRole('button', { name: /Filtra per periodo/ }));
+    await utente.click(screen.getByRole('option', { name: 'Ieri' }));
+
+    const ieri = giornoDiAttivitaSpostato(-1);
+    const chiamate = api.operations.mock.calls as unknown as Filtri[][];
+    const ultima = chiamate.at(-1)![0]!;
+    expect(ultima.from).toBe(ieri);
+    expect(ultima.to).toBe(ieri);
   });
 });

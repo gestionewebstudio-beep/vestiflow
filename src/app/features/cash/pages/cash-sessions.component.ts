@@ -43,6 +43,12 @@ import {
   CASH_SESSIONS_COLUMN_DEFS,
   CASH_SESSIONS_COLUMN_PRESETS,
 } from '../models/cash-register-columns.config';
+import {
+  MOVEMENT_PERIOD_OPTIONS,
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@domain/inventory/models/movement-period.util';
+
 import { CASH_TABS } from '../models/cash-nav';
 
 interface StatoSessioni {
@@ -137,6 +143,22 @@ export class CashSessionsComponent {
   protected readonly pagina = computed(() => this.statoRichiesta().pagina);
   protected readonly caricamento = computed(() => this.statoRichiesta().caricamento);
   protected readonly errore = computed(() => this.statoRichiesta().errore);
+
+  /**
+   * ⛔ **Nessun periodo predefinito, e non è una dimenticanza.**
+   *
+   * Il registro filtra su `openedAt`: con «Oggi» una sessione **aperta ieri e
+   * ancora aperta** sparirebbe dall'elenco proprio mentre ci si lavora dentro.
+   * L'alternativa — «oggi PIÙ quelle ancora aperte» — sarebbe un filtro con
+   * un'eccezione nascosta, che è peggio di nessun filtro: chi legge «Oggi» non
+   * si aspetta righe di ieri.
+   *
+   * ⚠️ **Il selettore c'è comunque**, con lo stesso elenco condiviso del
+   * registro operazioni: quello che manca è il valore iniziale, non lo
+   * strumento.
+   */
+  protected readonly periodOptions = MOVEMENT_PERIOD_OPTIONS;
+  protected readonly periodo = signal<MovementPeriodPreset>(MovementPeriodPreset.All);
 
   protected readonly da = signal('');
   protected readonly a = signal('');
@@ -245,6 +267,25 @@ export class CashSessionsComponent {
   /** Rilegge senza toccare i filtri: e` il gesto di «Riprova». */
   protected carica(): void {
     this.rilettura.update((n) => n + 1);
+  }
+
+  /** Stessa meccanica del registro operazioni: il preset diventa due date. */
+  protected cambiaPeriodo(preset: string): void {
+    const scelto = preset as MovementPeriodPreset;
+    this.periodo.set(scelto);
+    if (scelto === MovementPeriodPreset.Custom) {
+      return;
+    }
+    const intervallo = resolveMovementPeriodRange(scelto, this.da(), this.a());
+    this.da.set(intervallo.from ?? '');
+    this.a.set(intervallo.to ?? '');
+    this.carica();
+  }
+
+  protected cambiaData(quale: 'da' | 'a', valore: string): void {
+    (quale === 'da' ? this.da : this.a).set(valore);
+    this.periodo.set(MovementPeriodPreset.Custom);
+    this.carica();
   }
 
   /**

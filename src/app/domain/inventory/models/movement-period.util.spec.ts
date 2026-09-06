@@ -99,4 +99,79 @@ describe('resolveMovementPeriodRange', () => {
       to: '2026-07-18',
     });
   });
+
+  /*
+    ── Oggi e Ieri, aggiunti il 06/09/2026 ──────────────────────────────────
+
+    ⭐ **Passano dal fuso dell'ATTIVITÀ**, non da quello del browser: sono i due
+    preset in cui un'ora di scarto cambia il giorno, e sono quelli su cui la
+    Cassa si apre. Le attese sono assolute, quindi valgono sia sul corridore CI
+    (UTC) sia sulla macchina di sviluppo (Europe/Rome).
+  */
+  it('⭐ Oggi e Ieri sono un giorno solo, con estremi uguali', () => {
+    const meta = new Date('2026-07-18T10:00:00.000Z');
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.Today, '', '', meta)).toEqual({
+      from: '2026-07-18',
+      to: '2026-07-18',
+    });
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.Yesterday, '', '', meta)).toEqual({
+      from: '2026-07-17',
+      to: '2026-07-17',
+    });
+  });
+
+  it('⛔ a mezzanotte «Oggi» è il giorno di ROMA, non quello di UTC', () => {
+    // 00:30 del 7 settembre a Roma è ancora il 6 per il fuso di Greenwich.
+    const mezzanotte = new Date('2026-09-06T22:30:00.000Z');
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.Today, '', '', mezzanotte)).toEqual({
+      from: '2026-09-07',
+      to: '2026-09-07',
+    });
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.Yesterday, '', '', mezzanotte)).toEqual({
+      from: '2026-09-06',
+      to: '2026-09-06',
+    });
+  });
+
+  it('⭐ «Ieri» attraversa il cambio d’ora senza saltare un giorno', () => {
+    // Il 25 ottobre 2026 dura 25 ore: «ieri» il 26 resta il 25.
+    const dopoIlCambio = new Date('2026-10-26T09:00:00.000Z');
+    expect(
+      resolveMovementPeriodRange(MovementPeriodPreset.Yesterday, '', '', dopoIlCambio),
+    ).toEqual({ from: '2026-10-25', to: '2026-10-25' });
+    // Il 29 marzo 2026 dura 23 ore: «ieri» il 30 resta il 29.
+    const dopoIlCambioPrimavera = new Date('2026-03-30T09:00:00.000Z');
+    expect(
+      resolveMovementPeriodRange(MovementPeriodPreset.Yesterday, '', '', dopoIlCambioPrimavera),
+    ).toEqual({ from: '2026-03-29', to: '2026-03-29' });
+  });
+
+  /**
+   * ⛔ **REGRESSIONE sui consumatori esistenti.** Documenti, Ordini cliente,
+   * Ordini fornitore, Movimenti e Vendite online usano questo stesso risolutore:
+   * l'aggiunta di due preset non deve spostare di un giorno nessuno degli altri.
+   */
+  it('⛔ gli altri preset non si spostano di un giorno', () => {
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.Last7Days, '', '', REFERENCE)).toEqual({
+      from: '2026-07-12',
+      to: '2026-07-18',
+    });
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.Last30Days, '', '', REFERENCE)).toEqual({
+      from: '2026-06-19',
+      to: '2026-07-18',
+    });
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '', REFERENCE)).toEqual({
+      from: '2026-07-01',
+      to: '2026-07-31',
+    });
+    expect(resolveMovementPeriodRange(MovementPeriodPreset.All, '', '', REFERENCE)).toEqual({});
+    expect(
+      resolveMovementPeriodRange(
+        MovementPeriodPreset.Custom,
+        '2026-01-02',
+        '2026-01-09',
+        REFERENCE,
+      ),
+    ).toEqual({ from: '2026-01-02', to: '2026-01-09' });
+  });
 });

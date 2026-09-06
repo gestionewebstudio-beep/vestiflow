@@ -41,19 +41,34 @@
     entrano nelle colonne (`14` §0.2).
   -->
   <div period class="ops__period">
+    <!--
+      ⭐ **Il registro si apre su OGGI, e lo DICE.** Il selettore mostra il
+      periodo attivo ed è azzerabile con «Tutti»: un filtro predefinito che non
+      si vede è un elenco che mente su quanto sta mostrando.
+    -->
+    <app-select-menu
+      chipLabel="Periodo"
+      [options]="periodOptions"
+      [value]="periodo()"
+      ariaLabel="Filtra per periodo"
+      placeholder="Tutto"
+      [compact]="true"
+      [fitContent]="true"
+      (valueChange)="cambiaPeriodo($event ?? '')"
+    />
     <app-date-input
       inputId="ops-da"
       ariaLabel="Dal"
       [value]="da()"
       [compact]="true"
-      (valueChange)="da.set($event); carica()"
+      (valueChange)="cambiaData('da', $event)"
     />
     <app-date-input
       inputId="ops-a"
       ariaLabel="Al"
       [value]="a()"
       [compact]="true"
-      (valueChange)="a.set($event); carica()"
+      (valueChange)="cambiaData('a', $event)"
     />
   </div>
 

@@ -6,6 +6,7 @@ import {
   resolveReadableListLocationScope,
   scopedLocationFilter,
 } from '../inventory/licensed-location-scope.util';
+import { intervalloDiGiorni } from '../common/business-time.util';
 import { pageWindow } from '../common/dto/unpaged.util';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -28,11 +29,7 @@ import { calcolaAttesiSessione, type AttesiSessione } from './cash-session-total
 export class CashSessionsReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(
-    tenantId: string,
-    user: UserProfileDto,
-    query: SessionsQuery,
-  ): Promise<SessionsPage> {
+  async list(tenantId: string, user: UserProfileDto, query: SessionsQuery): Promise<SessionsPage> {
     const scope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
     if (scope !== 'unrestricted' && (!scope || scope.length === 0)) {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
@@ -44,6 +41,17 @@ export class CashSessionsReportService {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
 
+    /*
+      ⭐ **`openedAt` è un ISTANTE**, non una data civile: il confine va
+      calcolato nel fuso dell'attività, ed è il caso OPPOSTO a quello del
+      registro operazioni, dove si confrontano date `@db.Date`.
+
+      ⛔ Prima erano `T00:00:00.000Z`/`T23:59:59.999Z`: una sessione aperta alle
+      00:30 di Roma cadeva nel giorno prima, e il giorno del cambio d'ora durava
+      comunque 24 ore invece di 23 o 25.
+    */
+    const periodo = intervalloDiGiorni(query.from, query.to);
+
     const where: Prisma.CashSessionWhereInput = {
       tenantId,
       ...sede,
@@ -51,14 +59,7 @@ export class CashSessionsReportService {
         ? { OR: [{ openedById: query.operatorId }, { closedById: query.operatorId }] }
         : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.from || query.to
-        ? {
-            openedAt: {
-              ...(query.from ? { gte: new Date(`${query.from}T00:00:00.000Z`) } : {}),
-              ...(query.to ? { lte: new Date(`${query.to}T23:59:59.999Z`) } : {}),
-            },
-          }
-        : {}),
+      ...(periodo ? { openedAt: periodo } : {}),
     };
 
     const [sessioni, total] = await Promise.all([

@@ -7,6 +7,7 @@ import {
   resolveReadableListLocationScope,
   scopedLocationFilter,
 } from '../inventory/licensed-location-scope.util';
+import { dataCivile, giornoSuccessivo } from '../common/business-time.util';
 import { pageWindow } from '../common/dto/unpaged.util';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -307,14 +308,26 @@ export class CashOperationsService {
     };
   }
 
+  /**
+   * ⭐ **`documentDate` è una DATA CIVILE (`@db.Date`), non un istante**, e il
+   * confronto resta quindi fra date: l'estremo si costruisce con `dataCivile`,
+   * che è la mezzanotte UTC che il database archivia per quel giorno.
+   *
+   * ⛔ **Non si usa `intervalloDiGiorni`, che serve agli ISTANTI.** Applicarlo
+   * qui sposterebbe i confini di due ore rispetto ai valori memorizzati: è la
+   * confusione che `business-time.util` esiste per rendere impossibile.
+   *
+   * ⚠️ Il confine resta `[gte, lt)`, come per gli istanti: l'estremo superiore
+   * è il giorno DOPO, escluso.
+   */
   private periodo(from?: string, to?: string): Prisma.DocumentWhereInput {
     if (!from && !to) {
       return {};
     }
     return {
       documentDate: {
-        ...(from ? { gte: new Date(`${from}T00:00:00.000Z`) } : {}),
-        ...(to ? { lte: new Date(`${to}T23:59:59.999Z`) } : {}),
+        ...(from ? { gte: dataCivile(from) } : {}),
+        ...(to ? { lt: dataCivile(giornoSuccessivo(to)) } : {}),
       },
     };
   }
@@ -368,7 +381,10 @@ export class CashOperationsService {
     ]);
 
     const perClasse = (
-      gruppi: readonly { tenderKindSnapshot: PaymentTenderKind | null; _sum: { amountMinor: number | null } }[],
+      gruppi: readonly {
+        tenderKindSnapshot: PaymentTenderKind | null;
+        _sum: { amountMinor: number | null };
+      }[],
       classe: PaymentTenderKind,
     ): number => gruppi.find((g) => g.tenderKindSnapshot === classe)?._sum.amountMinor ?? 0;
 

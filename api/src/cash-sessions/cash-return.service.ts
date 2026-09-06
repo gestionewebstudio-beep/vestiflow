@@ -10,6 +10,7 @@ import type { DocumentLine, PaymentTenderKind } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { annoDiAttivita, dataCivile, giornoDiAttivita } from '../common/business-time.util';
 import { CreationIntentService } from '../common/idempotency/creation-intent.util';
 import { syncGoodsReceiptLineMovements } from '../documents/document-goods-receipt-sync.util';
 import { lockDocumentCounter, resolveDocumentNumber } from '../documents/document-numbering.util';
@@ -271,7 +272,15 @@ export class CashReturnService {
         const setting = await this.settings.getResolved(tenantId, DocumentType.store_return);
         const series = setting.defaultSeries;
         await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
-        const documentDate = new Date();
+        /*
+          ⛔ **Data civile e istante erano la stessa cosa**, come nel checkout: la
+          colonna `@db.Date` prendeva la parte UTC dell'istante, e un reso delle
+          00:30 di Roma si archiviava col giorno prima, con l'anno della serie
+          preso da `getFullYear()` — cioè dal fuso del processo.
+        */
+        const adesso = new Date();
+        const giorno = giornoDiAttivita(adesso);
+        const documentDate = dataCivile(giorno);
         const assigned = await resolveDocumentNumber({
           tx,
           tenantId,
@@ -290,7 +299,7 @@ export class CashReturnService {
             series,
             number: assigned.number,
             reference: assigned.reference,
-            year: documentDate.getFullYear(),
+            year: annoDiAttivita(giorno),
             documentDate,
             // ⭐ La sede CORRENTE, non quella della vendita: la merce rientra
             //    dove viene fisicamente riportata (`docs/25` §12).
@@ -372,7 +381,9 @@ export class CashReturnService {
           documentType: DocumentType.store_return,
           locationId: input.locationId,
           reason: `Reso Cassa ${assigned.reference}: ${reason}`,
-          movementDate: documentDate,
+          // ⚠️ L'ISTANTE, non la data civile: finisce in `StockMovement.createdAt`,
+          //    che è un momento e non un giorno.
+          movementDate: adesso,
           movementType: StockMovementType.return,
           origin: MovementOrigin.vestiflow_pos,
           // ⛔ Il costo NON si deriva dalla riga: lì c'è il prezzo di VENDITA, e
