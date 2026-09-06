@@ -51,7 +51,13 @@ describe('business-time — il giorno dell’attività', () => {
     expect(inizioGiornoDiAttivita('2026-07-15').toISOString()).toBe('2026-07-14T22:00:00.000Z');
   });
 
-  it('⛔ il giorno del cambio d’ora NON dura 24 ore, e il confine lo rispetta', () => {
+  /**
+   * ⭐ **A dare 23 o 25 ore è il calcolo NEL FUSO**, non la forma
+   * dell'intervallo: gli estremi sono due mezzanotti civili, e la distanza fra
+   * loro è quella che il calendario dice. Un intervallo chiuso costruito sugli
+   * stessi confini coprirebbe le stesse ore.
+   */
+  it('⛔ il giorno del cambio d’ora NON dura 24 ore, e i confini lo riflettono', () => {
     // 29 marzo 2026: alle 02:00 locali si va alle 03:00. Il giorno dura 23 ore.
     const inizioMarzo = inizioGiornoDiAttivita('2026-03-29');
     const fineMarzo = inizioGiornoDiAttivita(giornoSuccessivo('2026-03-29'));
@@ -75,7 +81,16 @@ describe('business-time — il giorno dell’attività', () => {
     expect(giornoSuccessivo('2026-12-31')).toBe('2027-01-01');
   });
 
-  it('⭐ l’intervallo è [inizio, inizio del giorno dopo): niente `lte 23:59:59.999`', () => {
+  it('⭐ l’intervallo è [inizio, inizio del giorno dopo), e i giorni COMBACIANO', () => {
+    // Il confine superiore di un giorno è il confine inferiore del successivo:
+    // niente vuoti, niente sovrapposizioni. È la proprietà che la forma
+    // semiaperta dà e quella chiusa no.
+    const sei = intervalloDiGiorni('2026-09-06', '2026-09-06')!;
+    const sette = intervalloDiGiorni('2026-09-07', '2026-09-07')!;
+    expect(sei.lt!.getTime()).toBe(sette.gte!.getTime());
+  });
+
+  it('⭐ l’estremo superiore non dipende dalla risoluzione della colonna', () => {
     const solo7 = intervalloDiGiorni('2026-09-07', '2026-09-07')!;
     expect(solo7.gte!.toISOString()).toBe('2026-09-06T22:00:00.000Z');
     expect(solo7.lt!.toISOString()).toBe('2026-09-07T22:00:00.000Z');
@@ -86,7 +101,13 @@ describe('business-time — il giorno dell’attività', () => {
     expect(vendita >= solo7.gte!).toBe(true);
     expect(vendita < solo7.lt!).toBe(true);
 
-    // E l'ultimo millisecondo del giorno non si perde.
+    /*
+      ⭐ **Il punto della forma semiaperta.** PostgreSQL memorizza i timestamp
+      al MICROSECONDO: un estremo chiuso a `23:59:59.999` scarterebbe in
+      silenzio gli ultimi 999 µs del giorno. Qui l'estremo è l'inizio del
+      giorno dopo, quindi non c'è nessuna risoluzione da indovinare — e
+      qualunque istante prima di quel confine appartiene al giorno chiesto.
+    */
     const ultimoIstante = new Date(solo7.lt!.getTime() - 1);
     expect(giornoDiAttivita(ultimoIstante)).toBe('2026-09-07');
   });

@@ -317,8 +317,11 @@ export class CashOperationsService {
    * qui sposterebbe i confini di due ore rispetto ai valori memorizzati: è la
    * confusione che `business-time.util` esiste per rendere impossibile.
    *
-   * ⚠️ Il confine resta `[gte, lt)`, come per gli istanti: l'estremo superiore
-   * è il giorno DOPO, escluso.
+   * ⚠️ **Il confine resta `[gte, lt)` per COERENZA, non per correzione.** Su una
+   * colonna `DATE` non ci sono valori infragiornalieri, quindi `lt` giorno-dopo
+   * e `lte` giorno-chiesto selezionano esattamente le stesse righe. Si scrive
+   * come l'altro registro perché due forme diverse per la stessa idea si leggono
+   * come due regole diverse.
    */
   private periodo(from?: string, to?: string): Prisma.DocumentWhereInput {
     if (!from && !to) {

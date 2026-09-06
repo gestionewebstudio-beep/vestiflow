@@ -22,10 +22,21 @@
 export const FUSO_ATTIVITA = 'Europe/Rome';
 
 /**
- * ⚠️ `en-CA` rende `AAAA-MM-GG` senza doverne ricomporre i pezzi a mano — ed è
- * la forma che l'API si aspetta nei parametri `from`/`to`.
+ * ⛔ **Il valore si COMPONE dai campi, non si legge dal testo della locale.**
+ *
+ * Qui c'era `new Intl.DateTimeFormat('en-CA', …).format()`, che oggi rende
+ * `2026-09-07` e sembra perfetto. Ma `AAAA-MM-GG` è il **contratto tecnico**
+ * verso l'API, e affidarlo alla resa testuale di una locale significa
+ * dipendere da una scelta di formattazione: l'ordine dei campi, i separatori e
+ * perfino i segni di direzionalità che alcune versioni di ICU inseriscono non
+ * sono garantiti da nessuna specifica. Cambierebbero senza rompere niente in
+ * compilazione, e il difetto arriverebbe fino al parametro `from`.
+ *
+ * ⭐ `formatToParts` restituisce i **campi**, e da quelli il formato lo
+ * componiamo noi. È la stessa forma usata dall'API in
+ * `api/src/common/business-time.util.ts`, e le due devono concordare.
  */
-const GIORNO_ATTIVITA = new Intl.DateTimeFormat('en-CA', {
+const PARTI = new Intl.DateTimeFormat('en-US', {
   timeZone: FUSO_ATTIVITA,
   year: 'numeric',
   month: '2-digit',
@@ -34,7 +45,12 @@ const GIORNO_ATTIVITA = new Intl.DateTimeFormat('en-CA', {
 
 /** `AAAA-MM-GG` nel fuso dell'attività. */
 export function giornoDiAttivita(istante: Date = new Date()): string {
-  return GIORNO_ATTIVITA.format(istante);
+  const campi = new Map(
+    PARTI.formatToParts(istante)
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, p.value]),
+  );
+  return `${campi.get('year')!}-${campi.get('month')!}-${campi.get('day')!}`;
 }
 
 /**

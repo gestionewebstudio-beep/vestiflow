@@ -151,8 +151,35 @@ export function giornoSuccessivo(giorno: string): string {
  * Il filtro su un ISTANTE per un intervallo di giorni civili.
  *
  * ⭐ **Inizio incluso, inizio del giorno dopo ESCLUSO** — `[gte, lt)`.
- * ⛔ Non `lte 23:59:59.999`: quel confine perde l'ultimo millisecondo e, nel
- * giorno del cambio d'ora, un'ora intera — quel giorno dura 23 o 25 ore, non 24.
+ *
+ * ⚠️ **Qui c'era una motivazione SBAGLIATA**, corretta il 06/09/2026: diceva
+ * che `lte 23:59:59.999` «perde l'ultimo millisecondo e, nel giorno del cambio
+ * d'ora, un'ora intera». Nessuna delle due cose è automatica, e vale la pena
+ * dire perché — una motivazione falsa fa correggere la cosa sbagliata.
+ *
+ * ⛔ **La lunghezza del giorno NON dipende dalla forma dell'intervallo**: 23 o
+ * 25 ore le dà il fatto che gli estremi si calcolino **nel fuso**. Un intervallo
+ * chiuso costruito sugli stessi confini coprirebbe le stesse ore. A sbagliare
+ * era il vecchio codice, che tagliava a mezzanotte **UTC** — non la scelta fra
+ * `lt` e `lte`.
+ *
+ * ⭐ **Quello che la forma semiaperta dà davvero sono due cose:**
+ *
+ * ```text
+ * PRECISIONE   un estremo chiuso obbliga a scegliere «l'ultimo istante
+ *              rappresentabile», che dipende dalla risoluzione della colonna.
+ *              PostgreSQL memorizza i timestamp al MICROSECONDO: `lte
+ *              …23:59:59.999` scarta in silenzio gli ultimi 999 µs del giorno.
+ *              `lt` inizio-del-giorno-dopo non ha nessuna risoluzione da
+ *              indovinare.
+ *
+ * COMBACIA    due giorni consecutivi si affiancano senza vuoti né
+ *              sovrapposizioni: il `lt` di uno è il `gte` dell'altro.
+ * ```
+ *
+ * ⚠️ **Su una colonna `@db.Date` le due forme sono equivalenti** — non ci sono
+ * valori infragiornalieri da perdere. Lì la forma semiaperta è una scelta di
+ * COERENZA con questa, non una correzione: vedi `cash-operations.service.ts`.
  */
 export function intervalloDiGiorni(da?: string, a?: string): { gte?: Date; lt?: Date } | undefined {
   if (!da && !a) {

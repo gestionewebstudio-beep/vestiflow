@@ -149,34 +149,71 @@ Movimenti e Vendite online, con regressioni che ne tengono fermi gli intervalli.
 | `cassa-fuso-orario.integration-spec` | 5 casi **contro il database**, con l'orologio spostato: data, anno di serie, istante del movimento, filtro, storico          |
 | `cash-operations.component.spec.ts`  | 3 casi nuovi: parte da Oggi **nella prima richiesta**, è visibile e azzerabile, «Ieri» è un giorno solo                      |
 
+**Conteggi, per suite e non sommati:**
+
+| Suite                                | File | Prove     |
+| ------------------------------------ | ---- | --------- |
+| Frontend con copertura               | 220  | **2.081** |
+| Componenti (ATL)                     | 89   | **1.315** |
+| API unitari                          | 221  | **2.456** |
+| Integrazione API/PostgreSQL (mirata) | 1    | **5**     |
+
+⚠️ Copertura frontend 85,97 / 80,93 / 81,03 / 86,37. **La suite d'integrazione
+completa non è stata rieseguita** in questa tranche: ho eseguito il solo file
+nuovo, ripetuto nei due fusi di processo.
+
 ⭐ **Indipendenza dal fuso del processo, dimostrata**: le prove dell'API girano
 verdi con `TZ=UTC`, `America/New_York`, `Pacific/Kiritimati` ed `Europe/Rome`; le
 attese sono assolute, quindi il corridore CI (UTC) e la macchina di sviluppo
 (Roma) devono concordare.
+
+⚠️ **`Document.createdAt` NON è asseribile in quelle prove, e non è un difetto**:
+è `@default(now())`, quindi lo genera PostgreSQL. È corretto che sia il database
+a datare la riga; l'orologio finto di Node non lo tocca, e il campo che
+l'applicazione decide è `StockMovement.createdAt`, che è asserito.
 
 ⭐ **Falsificate, non solo passate**: rimesso il difetto (`documentDate = adesso`,
 `year = getFullYear()`), tre prove d'integrazione arrossano e i messaggi sono
 letteralmente il guasto — «expected '2026-09-06' to be '2026-09-07'» e «expected
 '2026-12-31' to be '2027-01-01'».
 
-#### ⛔ Difetti VERIFICATI e NON corretti, negli altri registri
+#### ⚠️ Altri endpoint: UN difetto riprodotto, sei da VERIFICARE
 
-Il mandato dice di non cambiarli automaticamente. Sono **sei endpoint** che
-tagliano ancora il giorno a mezzanotte UTC, e vanno distinti per natura del campo:
+⛔ **Riprodotto è solo quello della Cassa**, e solo perché ha una prova che lo
+mostra fallire. Degli altri ho letto il codice e il tipo della colonna — è un
+fatto — ma **non ho scritto la prova che dimostri un difetto visibile**, e senza
+quella non si dice «difetto».
 
-| Registro              | Campo filtrato           | Natura          |
-| --------------------- | ------------------------ | --------------- |
-| Corrispettivi         | data del documento       | **data civile** |
-| Corrispettivo manuale | data                     | **data civile** |
-| Ordini cliente        | data                     | **data civile** |
-| Ordini fornitore      | data                     | **data civile** |
-| Vendite online        | `placedAt`/`fulfilledAt` | **istante**     |
-| Analytics / report    | periodo                  | misto           |
+⚠️ **Un taglio a mezzanotte UTC su una colonna `DATE` può essere CORRETTO**, e la
+prima stesura di questa sezione lo liquidava come «meno grave»: è una
+semplificazione sbagliata. Una `DATE` non ha ora né fuso, quindi confrontarla con
+una mezzanotte UTC è il confronto giusto — a essere in questione è **come quel
+valore è stato scritto**, che è una domanda diversa e va posta caso per caso.
 
-⚠️ **Per i campi `DATE` lo scarto è meno grave** — il confronto resta fra date, e
-sbaglia solo se il valore archiviato è a sua volta derivato da un istante UTC.
-**Per gli istanti è lo stesso difetto della Cassa.** Nessuno dei sei è stato
-toccato.
+| Registro                   | Campo filtrato            | Tipo letto nello schema        | Stato                                        |
+| -------------------------- | ------------------------- | ------------------------------ | -------------------------------------------- |
+| Vendite online             | `placedAt`, `fulfilledAt` | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Ordini fornitore           | `orderDate`               | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Ordini cliente             | `placedAt`                | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Corrispettivi (rettifiche) | `occurredAt`              | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Corrispettivi (registro)   | `documentDate`            | `DateTime @db.Date` — **data** | da verificare: dipende da come viene scritta |
+| Corrispettivo manuale      | data del documento        | `@db.Date` — **data**          | da verificare: dipende da come viene scritta |
+| Analytics / report         | periodo                   | non ispezionato                | da verificare                                |
+
+⭐ **La domanda da porre a ciascuno è una sola**, e sono due domande diverse a
+seconda del tipo:
+
+```text
+colonna ISTANTE   il confine è calcolato nel fuso dell'attività?
+                  (qui il taglio UTC sposta davvero le righe)
+
+colonna DATE      il valore ARCHIVIATO è la data civile dell'attività,
+                  o è la parte UTC di un istante?
+                  (è la domanda a cui la Cassa ha risposto «no»)
+```
+
+⛔ **Nessuno dei sette è stato toccato**, come da mandato, e nessuno è dichiarato
+sano: sono dichiarati **non verificati**.
 
 ⚠️ **E anche `resolveMovementPeriodRange` resta al fuso del browser** per tutti i
 preset diversi da Oggi/Ieri: per un utente in Italia non sposta una riga, ma è

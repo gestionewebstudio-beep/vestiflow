@@ -48,7 +48,11 @@ export class CashSessionsReportService {
 
       ⛔ Prima erano `T00:00:00.000Z`/`T23:59:59.999Z`: una sessione aperta alle
       00:30 di Roma cadeva nel giorno prima, e il giorno del cambio d'ora durava
-      comunque 24 ore invece di 23 o 25.
+      24 ore invece di 23 o 25.
+
+      ⚠️ **A sbagliare era il fuso, non la forma dell'intervallo**: sono gli
+      estremi calcolati in UTC a spostare tutto: la scelta fra `lt` e `lte` è
+      una questione di precisione, spiegata in `business-time.util`.
     */
     const periodo = intervalloDiGiorni(query.from, query.to);
 
