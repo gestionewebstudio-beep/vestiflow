@@ -31,9 +31,13 @@ import { test } from './helpers/isolated-test';
  * variabilità dal superamento sistematico: qui se ne fanno tre per volume,
  * nella stessa esecuzione.
  *
- * ⛔ **Nessuna soglia è ancora armata, e l'assenza è dichiarata.** Sceglierne
- * una prima di avere questi numeri significherebbe sceglierla perché passa, che
- * è esattamente ciò che il mandato vieta.
+ * ⭐ **LA SOGLIA ORA C`E`, ed è UNA SOLA** — armata il 06/09/2026 sui numeri
+ * del corridore, non su quelli di chi sviluppa.
+ *
+ * ⚠️ **Qui c'era «nessuna soglia è ancora armata, e l'assenza è dichiarata»**,
+ * con la ragione: sceglierne una prima di avere i numeri significa sceglierla
+ * perché passa. I numeri ora ci sono, misurati su questo corridore, e la
+ * regola non è stata aggirata — è stata soddisfatta.
  */
 
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -41,6 +45,42 @@ test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true
 /** I volumi della scala. 5.000 è il tetto di pagina dell'API (`docs/25`). */
 const VOLUMI = [300, 1000, 2000, 5000] as const;
 const RIPETIZIONI = 3;
+
+/*
+  ⛔ **UNA soglia, su UN volume, su UNA statistica.** Le tre scelte, e il
+  perché di ognuna:
+
+  **Il volume: 5.000.** È il tetto di pagina dell'API (`docs/25`), cioè il caso
+  peggiore che possa davvero arrivare al telefono di chi sta in negozio. Sotto,
+  la misura serve a vedere la forma della curva, non a fermare una PR: 300,
+  1.000 e 2.000 restano SENZA soglia, e si registrano soltanto.
+
+  **La statistica: la MEDIANA delle tre misure.** Il minimo lusinga — è il giro
+  fortunato — e il massimo è una lotteria su un corridore condiviso, dove basta
+  un vicino rumoroso per far fallire una PR sana. La mediana di tre scarta
+  entrambi gli estremi ed è l'unica delle tre che regge come cancello.
+
+  **Il valore: 5.000 ms.** Misurato sul corridore CI il 06/09/2026 —
+  `min 1674 / mediana 1714 / max 1798 ms`, dispersione 7%. La soglia lascia
+  quindi quasi TRE VOLTE il margine sulla misura osservata.
+
+  ⛔ **Non è un numero scelto perché passa**, ed è la domanda da farsi: il
+  comportamento che questa soglia esiste per intercettare sono le due misure
+  che avevano motivato la deroga — **10.610 e 10.366 ms**, sistematiche e non
+  variabilità. A 5.000 ms quelle diventano rosse con ampio margine.
+
+  ⚠️ **Perché non più stretta.** A 2.000 ms il cancello starebbe a un 17% dalla
+  mediana, cioè dentro la dispersione già osservata: sarebbe una lotteria, e un
+  cancello che fallisce a caso si impara ad aggirare. Stringerla è lavoro
+  dichiarato, da fare quando ci saranno abbastanza esecuzioni per conoscere la
+  coda alta di questo corridore — non un ritocco al numero.
+
+  ⚠️ **E misura un cronometro PRECISO**: dal `goto` fino a quando il risultato è
+  arrivato intero (`aria-rowcount`) e la prima card è dipinta. Non «tutte le
+  card nel DOM», che con la finestra accesa non accade mai.
+*/
+const VOLUME_CON_SOGLIA = 5000;
+const SOGLIA_MEDIANA_MS = 5_000;
 
 /*
   ⚠️ **`process.cwd()` è la RADICE del repository**, non `e2e/`: il processo lo
@@ -117,5 +157,15 @@ for (const quante of VOLUMI) {
     */
     await expect(page.locator('.data-table')).toHaveAttribute('aria-rowcount', String(quante + 1));
     expect(await page.locator('.data-table__row').count()).toBeLessThan(120);
+
+    /*
+      ⭐ **E infine il cancello, sul SOLO volume di soglia.** Le asserzioni di
+      sanità qui sopra vengono PRIMA apposta: se il risultato fosse troncato o
+      la finestra spenta, un tempo basso non direbbe niente di buono — direbbe
+      che si sta misurando un altro programma.
+    */
+    if (quante === VOLUME_CON_SOGLIA) {
+      expect(mediana).toBeLessThan(SOGLIA_MEDIANA_MS);
+    }
   });
 }

@@ -167,23 +167,27 @@ jobs:
       - name: Regressioni browser isolate dei componenti condivisi
         run: npx playwright test --config=e2e/cassa-isolated.config.ts
 
-      # ⭐ **DEROGA del 06/09/2026, autorizzata dal proprietario e circoscritta.**
-      #    Non blocca il merge **la sola soglia temporale** della misura mobile a
-      #    grandi volumi: e' un limite noto e temporaneamente accettato — sotto
-      #    `lg` la finestra di rendering e' spenta per scelta — non una funzione
-      #    completata. Motivazione e limite per l'utente in `docs/DA-FARE.md`.
+      # ⭐ **LA DEROGA E` CHIUSA — 06/09/2026.** Il passo torna BLOCCANTE.
       #
-      # ⛔ **`continue-on-error` sta su QUESTO passo, non sul job.** Le prove
-      #    funzionali del telefono restano obbligatorie e stanno nel passo qui
-      #    sopra: completezza delle 5.000 card, finestra spenta, ultima riga
-      #    raggiungibile, apertura dell'operazione. Anche la preparazione
-      #    dell'ambiente e le migration restano bloccanti.
+      # ⛔ **Qui c`era `continue-on-error: true`**, e la motivazione scritta
+      #    accanto diceva che «sotto `lg` la finestra di rendering e` spenta per
+      #    scelta». Non e` piu` vero: la finestra e` attiva anche su mobile, con
+      #    altezze di riga variabili misurate per identita`. Con la premessa
+      #    cadono sia la deroga sia la frase che la giustificava.
       #
-      # ⚠️ **La misura non sparisce: si sposta.** I numeri finiscono nel log, in
-      #    `test-results/prestazioni-mobile.txt` e negli allegati, e salgono con
-      #    l'artefatto `cassa-integration`.
-      - name: Misura prestazionale mobile (deroga dichiarata, non blocca)
-        continue-on-error: true
+      # ⭐ **Una soglia sola, deliberata sui numeri del CORRIDORE**: mediana di
+      #    tre misure sulle 5.000 operazioni, sotto i 5.000 ms. Misurata qui
+      #    1.714 ms; il comportamento precedente era 10.610 e 10.366 ms, che e`
+      #    esattamente cio` che questa soglia deve intercettare.
+      #
+      # ⚠️ **Gli altri volumi restano SENZA soglia**: 300, 1.000 e 2.000 si
+      #    misurano e si registrano, e basta. Servono a vedere la forma della
+      #    curva, non a fermare una PR.
+      #
+      # ⚠️ **Le misure restano allegate** comunque: log,
+      #    `test-results/prestazioni-mobile.txt` e artefatto `cassa-integration`,
+      #    che sale con `if: always()` anche quando questo passo e` rosso.
+      - name: Misura prestazionale mobile (soglia armata sulle 5.000)
         run: npx playwright test --config=e2e/cassa-prestazioni.config.ts
       - name: Evidenze del collaudo Cassa
         if: always()
