@@ -85,9 +85,12 @@ async function montaCassa(opzioni?: {
   stato?: CashSessionState;
   checkout?: ReturnType<typeof vi.fn>;
   item?: StoreSaleLookupItem;
+  /** Lettura della sessione su misura: serve a farla FALLIRE e poi riuscire. */
+  current?: ReturnType<typeof vi.fn>;
+  lookup?: ReturnType<typeof vi.fn>;
 }) {
   const api = {
-    current: vi.fn(() => of(opzioni?.stato ?? APERTA)),
+    current: opzioni?.current ?? vi.fn(() => of(opzioni?.stato ?? APERTA)),
     open: vi.fn(() => of(APERTA.session)),
     checkout:
       opzioni?.checkout ??
@@ -95,7 +98,9 @@ async function montaCassa(opzioni?: {
         of({ documentId: 'd1', reference: 'CS/2026/1', totalMinor: 10_000, changeMinor: 500 }),
       ),
   };
-  const catalogo = { lookupItems: vi.fn(() => of([opzioni?.item ?? ARTICOLO])) };
+  const catalogo = {
+    lookupItems: opzioni?.lookup ?? vi.fn(() => of([opzioni?.item ?? ARTICOLO])),
+  };
   const vista = await render(CashRegisterComponent, {
     providers: [
       provideRouter([]),
@@ -419,3 +424,83 @@ async function preparaVendita(utente: ReturnType<typeof userEvent.setup>) {
   await utente.click(screen.getByRole('button', { name: /^Maglia cotone/ }));
   await utente.click(screen.getByRole('button', { name: 'Contanti' }));
 }
+
+/*
+ * ── «Non lo so» non è «non c'è» ────────────────────────────────────────────
+ *
+ * ⛔ **Il difetto che queste prove falsificano**: a lettura fallita la
+ * schermata cadeva nel ramo successivo e diceva «Nessuna sessione aperta»,
+ * offrendo pure «Apri la cassa» — mentre lo stato non era stato letto. Il
+ * banner d'errore compariva accanto, e l'operatore credeva all'affermazione,
+ * perché è quella che porta un pulsante.
+ *
+ * ⚠️ **E il canale è SUO**: `errore()` resta quello delle azioni. Un errore di
+ * ricerca non deve far sparire il carrello, che è l'altra metà di questo
+ * contratto e ha una prova apposta.
+ */
+describe('CashRegisterComponent — stato della sessione non verificato', () => {
+  beforeEach(() => sessionStorage.clear());
+
+  const nonLetta = () => vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500 })));
+
+  it('lettura fallita: lo dice, offre Riprova, e NON afferma che la sessione non c’è', async () => {
+    await montaCassa({ current: nonLetta() });
+
+    expect(screen.getByText('Stato della cassa non verificato')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Riprova' })).toBeVisible();
+    // ⛔ Le due affermazioni che non deve fare.
+    expect(screen.queryByText('Nessuna sessione aperta')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Apri la cassa' })).toBeNull();
+  });
+
+  it('Riprova riuscita CON sessione: si vende', async () => {
+    const current = vi
+      .fn<CashApiService['current']>()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })))
+      .mockReturnValue(of(APERTA));
+    await montaCassa({ current });
+    const utente = userEvent.setup();
+
+    await utente.click(screen.getByRole('button', { name: 'Riprova' }));
+
+    expect(screen.queryByText('Stato della cassa non verificato')).toBeNull();
+    expect(screen.getByLabelText(/Cerca per codice/)).toBeVisible();
+    expect(current).toHaveBeenCalledTimes(2);
+  });
+
+  it('Riprova riuscita SENZA sessione: solo ora si può dire «Nessuna sessione aperta»', async () => {
+    const current = vi
+      .fn<CashApiService['current']>()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })))
+      .mockReturnValue(of(CHIUSA));
+    await montaCassa({ current });
+    const utente = userEvent.setup();
+
+    await utente.click(screen.getByRole('button', { name: 'Riprova' }));
+
+    expect(screen.getByText('Nessuna sessione aperta')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Apri la cassa' })).toBeVisible();
+    expect(screen.queryByText('Stato della cassa non verificato')).toBeNull();
+  });
+
+  it('errore di RICERCA a sessione aperta: il carrello resta, e non diventa un errore di sessione', async () => {
+    const lookup = vi
+      .fn<StoreSalesService['lookupItems']>()
+      .mockReturnValueOnce(of([ARTICOLO]))
+      .mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    await montaCassa({ lookup });
+    const utente = userEvent.setup();
+    await preparaVendita(utente);
+    expect(screen.getByText('Maglia cotone')).toBeVisible();
+
+    await utente.type(screen.getByLabelText(/Cerca per codice/), 'altro');
+    await utente.click(screen.getByRole('button', { name: 'Cerca' }));
+
+    // L'errore si vede…
+    expect(screen.getByText('Ricerca articoli non riuscita.')).toBeVisible();
+    // …e il carrello non è sparito dietro uno stato d'errore di sessione.
+    expect(screen.getByText('Maglia cotone')).toBeVisible();
+    expect(screen.queryByText('Stato della cassa non verificato')).toBeNull();
+    expect(screen.queryByText('Nessuna sessione aperta')).toBeNull();
+  });
+});

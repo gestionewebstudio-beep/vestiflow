@@ -40,6 +40,7 @@ import {
 } from '@domain/documents/utils/document-vat.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -72,6 +73,7 @@ import { CashPendingRecoveryComponent } from './components/cash-pending-recovery
     CashPendingRecoveryComponent,
     DatePipe,
     EmptyStateComponent,
+    ErrorStateComponent,
     FormsModule,
     InlineBannerComponent,
     MoneyInputComponent,
@@ -97,6 +99,22 @@ export class CashRegisterComponent {
   protected readonly stato = signal<CashSessionState | null>(null);
   protected readonly caricamento = signal(false);
   protected readonly errore = signal<string | null>(null);
+
+  /**
+   * ⛔ **«Non lo so» non è «non c'è».**
+   *
+   * Finché questo segnale è valorizzato, lo stato della sessione NON è stato
+   * letto: la schermata non può dire «Nessuna sessione aperta», perché non lo
+   * sa, e non può offrire l'apertura — aprirne una seconda su una sede che ne
+   * ha già una è esattamente ciò che il vincolo di unicità rifiuta.
+   *
+   * ⚠️ **Ed è un segnale SUO, non `errore()`.** Quello è il canale delle
+   * azioni — ricerca, scansione, incasso, recupero — e viaggia in un banner
+   * sopra il contenuto. Usarlo anche qui significherebbe che un errore di
+   * ricerca nasconde il carrello, o che un errore di lettura si può chiudere
+   * con «Chiudi» lasciando la schermata a dire una cosa non verificata.
+   */
+  protected readonly erroreSessione = signal<string | null>(null);
   protected readonly avvisi = signal<readonly string[]>([]);
 
   protected readonly ricerca = signal('');
@@ -237,17 +255,23 @@ export class CashRegisterComponent {
     }
     this.caricamento.set(true);
     this.errore.set(null);
+    this.erroreSessione.set(null);
     this.api
       .current(sede)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (stato) => {
           this.stato.set(stato);
+          // ⭐ Lettura riuscita: da qui `sessione()` a null significa davvero
+          //    «nessuna sessione aperta», e la schermata può dirlo.
+          this.erroreSessione.set(null);
           this.caricamento.set(false);
         },
         error: (e: unknown) => {
           this.stato.set(null);
-          this.errore.set(messaggio(e, 'Non è stato possibile leggere la sessione di cassa.'));
+          this.erroreSessione.set(
+            messaggio(e, 'Non è stato possibile leggere la sessione di cassa.'),
+          );
           this.caricamento.set(false);
         },
       });
@@ -255,7 +279,15 @@ export class CashRegisterComponent {
 
   protected apriSessione(): void {
     const sede = this.sedeId();
-    if (!sede) {
+    /*
+      ⛔ **Non si apre una sessione su uno stato non verificato**, e il
+      controllo sta QUI e non solo nel template: il ramo d'errore non mostra
+      il pulsante, ma «non si vede» non è «non si può fare». Se la lettura è
+      fallita, una sessione su questa sede potrebbe esserci gia' — e la
+      seconda la rifiuterebbe il database, dopo aver chiesto all'operatore un
+      fondo iniziale che non serviva.
+    */
+    if (!sede || this.erroreSessione()) {
       return;
     }
     this.caricamento.set(true);

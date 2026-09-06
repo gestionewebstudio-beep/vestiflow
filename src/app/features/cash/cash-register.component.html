@@ -119,6 +119,27 @@
     />
   } @else if (caricamento()) {
     <p class="cassa__loading" role="status">Lettura della sessione…</p>
+  } @else if (erroreSessione(); as motivo) {
+    <!--
+      ⛔ **Lettura FALLITA: qui non si dice «Nessuna sessione aperta».**
+
+      Prima di questa correzione la schermata cadeva nel ramo successivo e
+      affermava che la sessione non c'era, mentre non era riuscita a
+      leggerlo — e accanto mostrava il banner d'errore. Due messaggi che si
+      contraddicono, e l'operatore credeva al primo, perche' e' quello che
+      offre un pulsante.
+
+      ⚠️ **Sta PRIMA di `!sessione()` per costruzione**: `stato` a null e'
+      lo stesso valore nei due casi, e a distinguerli e' solo l'ordine dei
+      rami.
+    -->
+    <app-error-state
+      title="Stato della cassa non verificato"
+      [description]="motivo"
+      icon="pi-exclamation-triangle"
+      retryLabel="Riprova"
+      (retry)="caricaSessione()"
+    />
   } @else if (!sessione()) {
     <!-- ⭐ Nessuna sessione aperta: si dice cosa manca e si offre il gesto. -->
     <section class="cassa__opening" aria-labelledby="apri-titolo">
