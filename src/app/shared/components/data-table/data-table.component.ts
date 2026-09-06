@@ -287,6 +287,7 @@ export class DataTableComponent<T> {
     });
 
     this.avviaFinestra();
+    this.rimisuraQuandoCambiaIlContenuto();
   }
 
   // ── La finestra: misura, scorrimento, fuoco ───────────────────────────
@@ -308,33 +309,9 @@ export class DataTableComponent<T> {
         if (!scroller) {
           return;
         }
+        this.scroller = scroller;
 
-        const aggiorna = (): void => {
-          this.scorrimento.set(scroller.scrollTop);
-          // Lo slot dati di ListPage esiste anche durante il loading, ma è
-          // staccato dal DOM: clientHeight=0 non è una misura della finestra.
-          // Conservare la stima (o l'ultima misura valida) evita di spegnere
-          // la virtualizzazione proprio quando arriva l'intero risultato.
-          const altezza = scroller.clientHeight;
-          if (altezza <= 0) {
-            return;
-          }
-          this.altezzaVista.set(altezza);
-          this.misuraAltezzaRiga();
-          this.aggiornaVeste();
-          /*
-            ⭐ **Il fuoco si rimette DOPO che Angular ha reso la finestra**: la
-            riga cercata non esiste ancora quando lo scorrimento parte.
-          */
-          /*
-            ⭐ **Ogni volta che la finestra cambia**, non solo dopo i quattro
-            tasti: con la rotellina la riga a fuoco esce dal DOM esattamente
-            come con `PagGiu`.
-          */
-          if (this.idRigaAFuoco !== null) {
-            afterNextRender(() => this.ripristinaFuoco(), { injector: this.injector });
-          }
-        };
+        const aggiorna = (): void => this.aggiornaFinestra();
 
         aggiorna();
         scroller.addEventListener('scroll', aggiorna, { passive: true });
@@ -350,39 +327,363 @@ export class DataTableComponent<T> {
         this.destroyRef.onDestroy(() => {
           scroller.removeEventListener('scroll', aggiorna);
           osservatore.disconnect();
+          this.scroller = null;
         });
       },
       { injector: this.injector },
     );
   }
 
+  /** Il contenitore di scorrimento, una volta trovato: serve alla rimisura. */
+  private scroller: HTMLElement | null = null;
+
+  /** L'ultima larghezza nota: cambiandola, le altezze misurate scadono. */
+  private larghezzaNota = 0;
+
   /**
-   * ⭐ **Si misura una riga vera**, non il token: con lo zoom del browser i
-   * 25px dichiarati non sono piu` quelli resi, e una finestra che sbaglia
-   * l_altezza salta righe.
+   * Una passata di aggiornamento della finestra: posizione, vista, misure.
    *
-   * ⚠️ Si aggiorna solo quando cambia davvero: scriverlo a ogni scorrimento
-   * rifarebbe il calcolo della finestra a vuoto.
+   * ⭐ **È un METODO e non più una chiusura dentro `avviaFinestra`**, e non è
+   * un riordino estetico: dev'essere richiamabile anche quando **cambiano i
+   * dati**, non solo quando arriva un evento di scorrimento o di
+   * ridimensionamento (vedi `rimisuraQuandoCambiaIlContenuto`).
    */
-  private misuraAltezzaRiga(): void {
-    const riga = this.host.nativeElement.querySelector<HTMLElement>('.data-table__row');
-    if (!riga) {
+  private aggiornaFinestra(): void {
+    const scroller = this.scroller;
+    if (!scroller) {
       return;
     }
-    const alta = Math.round(riga.getBoundingClientRect().height);
-    if (alta > 0 && alta !== this.altezzaRiga()) {
-      this.altezzaRiga.set(alta);
+    this.scorrimento.set(scroller.scrollTop);
+    // Lo slot dati di ListPage esiste anche durante il loading, ma è
+    // staccato dal DOM: clientHeight=0 non è una misura della finestra.
+    // Conservare la stima (o l'ultima misura valida) evita di spegnere
+    // la virtualizzazione proprio quando arriva l'intero risultato.
+    const altezza = scroller.clientHeight;
+    if (altezza <= 0) {
+      return;
+    }
+    this.altezzaVista.set(altezza);
+
+    /*
+      ⛔ **Cambiata la LARGHEZZA, le altezze misurate non valgono più.**
+      Una card si riimpagina: un nome che stava su una riga va a capo, e
+      l'altezza cresce. Tenere le misure vecchie farebbe scorrere la
+      finestra su una geometria che non esiste più.
+
+      ⚠️ Si azzera sulla larghezza e non a ogni evento del `ResizeObserver`:
+      quello scatta anche quando cambia solo l'altezza del contenitore —
+      finestra ridimensionata in verticale, tastiera del telefono — e lì le
+      card non si riimpaginano.
+
+      ⚠️ **E non è l'unico modo in cui una misura scade**: a larghezza
+      invariata il contenuto può cambiare altezza (dati aggiornati con gli
+      stessi `rowId`, una colonna accesa dal selettore Colonne). Quel caso lo
+      prende `rimisuraQuandoCambiaIlContenuto`, non questo controllo.
+    */
+    const larghezza = scroller.clientWidth;
+    if (larghezza !== this.larghezzaNota) {
+      this.larghezzaNota = larghezza;
+      if (this.altezze.size > 0) {
+        this.altezze.clear();
+        this.versioneMisure.update((n) => n + 1);
+      }
+    }
+
+    /*
+      ⛔ **CHI ERA IN FONDO DEVE RESTARE IN FONDO**, e il ripristino va fatto
+      DOPO il render — non dentro la misura.
+
+      Misurato nel browser il 06/09/2026: mentre si scorre, le altezze misurate
+      cambiano le distanziatrici e quindi `scrollHeight`; il browser conserva
+      `scrollTop`, e alla fine restavano **6px** di residuo. Con la vista alta
+      248px l'ultima card sbordava di 2px dal ritaglio del contenitore, e
+      `toBeInViewport({ ratio: 1 })` la vedeva al **97%**.
+
+      ⚠️ **Fuori dalla guardia `cambiate`**: quando le righe di coda erano già
+      state misurate non cambia nulla, la misura esce subito — e il residuo
+      restava lì. È il primo tentativo, e non funzionava.
+    */
+    const inFondo =
+      scroller.scrollTop > 0 &&
+      scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 24;
+
+    this.misuraRigheRese(scroller);
+    /*
+      ⭐ **E poi di nuovo, DOPO il render**: la passata qui sopra ha misurato la
+      finestra precedente, non quella che il nuovo `scorrimento` sta per far
+      rendere. Vedi `rimisuraDopoIlRender`.
+    */
+    this.rimisuraDopoIlRender(scroller);
+
+    if (inFondo) {
+      afterNextRender(
+        () => {
+          scroller.scrollTop = scroller.scrollHeight;
+        },
+        { injector: this.injector },
+      );
+    }
+    /*
+      ⭐ **Il fuoco si rimette DOPO che Angular ha reso la finestra**: la riga
+      cercata non esiste ancora quando lo scorrimento parte, e vale ogni volta
+      che la finestra cambia — con la rotellina la riga a fuoco esce dal DOM
+      esattamente come con `PagGiu`.
+    */
+    if (this.idRigaAFuoco !== null) {
+      afterNextRender(() => this.ripristinaFuoco(), { injector: this.injector });
     }
   }
 
   /**
-   * ⛔ **Sotto `lg` la riga e` una CARD**, e la finestra si spegne. Lo si
-   * chiede al DOM invece che a una soglia scritta qui: e' la stessa classe
-   * che il foglio usa per commutare la veste.
+   * ⛔ **Le misure non devono restare obsolete in attesa di un ridimensionamento.**
+   *
+   * A larghezza invariata l'altezza di una card cambia eccome: dati aggiornati
+   * con gli **stessi `rowId`** (un reso che compare, uno stato che diventa
+   * «Annullato», un nome più lungo), o una colonna accesa dal selettore
+   * Colonne. Senza questo, la geometria resterebbe quella vecchia finché
+   * qualcuno non scorre o non ridimensiona la finestra — e la barra di
+   * scorrimento mentirebbe nel frattempo.
+   *
+   * ⚠️ **Non azzera le misure**: rimisura le righe RESE dopo il render, che
+   * sono quelle che si vedono. Buttare via tutta la mappa farebbe saltare la
+   * posizione, e per le righe fuori finestra la misura vecchia è comunque
+   * migliore della stima.
+   *
+   * ⭐ Dipende da `sections()` **e** da `columns()`: sono i due input che
+   * decidono che cosa una riga rende, quindi quanto è alta.
    */
-  private aggiornaVeste(): void {
-    const card = this.host.nativeElement.querySelector<HTMLElement>('.data-table__card');
-    this.cardAttive.set(card !== null && getComputedStyle(card).display !== 'none');
+  private rimisuraQuandoCambiaIlContenuto(): void {
+    effect(() => {
+      this.sections();
+      /*
+        ⛔ **Le COLONNE si trattano come la larghezza: si azzera tutto.**
+
+        Spegnere una colonna cambia cosa OGNI card scrive dentro, quindi
+        quanto e` alta — non solo quelle rese. Tenere le misure vecchie per le
+        righe fuori finestra lascerebbe la barra di scorrimento lunga come
+        prima: misurato il 06/09/2026, 29.044px per un elenco che ne vale
+        19.500.
+
+        ⚠️ **Il cambio dei DATI no**, ed e` la differenza: li` le righe fuori
+        finestra possono essere le stesse di prima, e la loro misura e`
+        comunque migliore della stima. Si rimisurano quelle rese e basta.
+
+        ⚠️ **Si confronta la FIRMA, non l'identita` dell'array**: un genitore
+        che ricostruisse l'elenco a ogni giro di rilevamento farebbe altrimenti
+        azzerare le misure di continuo, e la finestra sfarfallerebbe.
+      */
+      const firma = this.columns()
+        .map((c) => c.id)
+        .join('|');
+      if (!this.virtualizza() || !this.scroller) {
+        this.firmaColonne = firma;
+        return;
+      }
+      if (firma !== this.firmaColonne) {
+        this.firmaColonne = firma;
+        if (this.altezze.size > 0) {
+          this.altezze.clear();
+          this.versioneMisure.update((n) => n + 1);
+        }
+      }
+      afterNextRender(() => this.aggiornaFinestra(), { injector: this.injector });
+    });
+  }
+
+  /** Le colonne viste per ultime: cambiando, le altezze misurate scadono. */
+  private firmaColonne = '';
+
+  /**
+   * ⭐ **Misura OGNI riga resa, per identità**, e compensa lo scorrimento.
+   *
+   * ⛔ **Qui c'era `misuraAltezzaRiga`, che misurava UNA riga e la considerava
+   * l'altezza di tutte.** Va bene su scrivania, dove le righe sono uniformi; su
+   * card no — misurate 83, 105 e 127px nello stesso elenco — ed è la ragione
+   * per cui la finestra sotto `lg` era spenta.
+   *
+   * ⚠️ **Le misure si indicizzano per `rowId`, non per posizione**: filtro e
+   * ordinamento riordinano, e una misura legata all'indice finirebbe sulla riga
+   * sbagliata. È la stessa scelta già fatta per il fuoco.
+   *
+   * ⭐ **L'ANCORAGGIO è la parte delicata.** Quando una riga misurata risulta
+   * diversa dalla stima, cambia l'offset di tutto ciò che sta **sopra** la
+   * finestra: senza compensare, il contenuto salta sotto il dito. Si guarda
+   * quanto è cambiato l'offset della riga ancorata e si sposta `scrollTop`
+   * dello stesso delta — così quella riga resta nello stesso punto a schermo.
+   *
+   * ⛔ **L'ancora è un'IDENTITÀ, non un indice ricalcolato**, ed è un difetto
+   * corretto il 06/09/2026. Prima si scriveva così:
+   *
+   * ```ts
+   * const primaDi = this.offsets()[this.indicePrimo()];   // prima
+   * // …misura, cambia `versioneMisure`…
+   * const dopo    = this.offsets()[this.indicePrimo()];   // DOPO
+   * ```
+   *
+   * `indicePrimo()` è un `computed` che dipende da `offsets()`: aggiornate le
+   * misure, **può restituire un indice diverso**. Le due letture cadevano
+   * quindi su due righe diverse, e il delta non era lo spostamento di nessuno.
+   * Ora si fissa una volta l'indice della riga al bordo superiore della vista,
+   * si conserva il suo `rowId`, e dopo la misura si rilegge l'offset **di
+   * quella riga** — risolta per identità, non per posizione.
+   *
+   * ⚠️ **Nessuna doppia compensazione col browser**: il contenitore dichiara
+   * `overflow-anchor: none` quando la finestra è accesa, altrimenti anche
+   * Chrome tenterebbe di ancorare e i due aggiustamenti si sommerebbero.
+   */
+  private misuraRigheRese(scroller: HTMLElement): boolean {
+    const rese = this.host.nativeElement.querySelectorAll<HTMLElement>(
+      '.data-table__row[data-row-id]',
+    );
+    if (rese.length === 0) {
+      return false;
+    }
+
+    /*
+      L'ancora è la riga che sta al bordo SUPERIORE della vista: è quella che
+      l'occhio sta guardando, e tenerla ferma è la definizione di «non saltare».
+    */
+    const righe = this.sections()[0]?.rows ?? [];
+    const identita = this.rowId();
+    const indiceAncora = indiceAllOffset(this.offsets(), scroller.scrollTop);
+    const rigaAncora = righe[indiceAncora];
+    const idAncora = rigaAncora === undefined ? null : identita(rigaAncora);
+    const primaDi = this.offsets()[indiceAncora] ?? 0;
+    /*
+      ⛔ **Chi era in FONDO deve restare in fondo.** Misurato nel browser il
+      06/09/2026: scorrendo fino all'ultima card, la misura faceva crescere il
+      totale e la compensazione spostava `scrollTop` verso il basso — dove il
+      browser lo aveva già bloccato al massimo. L'ultima card restava tagliata
+      **al 97%**, e `toBeInViewport({ ratio: 1 })` lo ha preso.
+
+      ⚠️ Non è un caso di frontiera: «scorri fino in fondo» è il gesto con cui
+      si cerca l'ultima operazione della giornata.
+    */
+    const eraInFondo = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+
+    /*
+      ⛔ **Si misura il PASSO DI LAYOUT, non l'altezza della riga.**
+
+      Misurato nel browser il 06/09/2026: sotto `lg` la riga-card porta un
+      `margin-block-end` di 4px (`_responsive-table.scss`), che
+      `getBoundingClientRect().height` **non comprende**. Il modello degli
+      offset avanzava quindi di 4px meno del layout a ogni riga, e lo scarto
+      cresceva con la distanza: fra la prima riga resa e quella al bordo della
+      vista — una decina — faceva ~40px.
+
+      ⚠️ **Non falliva niente.** Cima e fondo restavano giusti (lì l'indice è
+      zero, o ci si ri-ancora alla coda), e il difetto si vedeva solo a metà
+      elenco, come uno slittamento della card mentre si scorre. Lo ha preso
+      l'invariante «scorrendo di N pixel la card si sposta di N pixel», non un
+      ragionamento sul CSS.
+
+      ⭐ **Si misura il passo invece di cercare il margine nel foglio di
+      stile**: qualunque cosa lo produca — margine, `border-spacing`, `gap` —
+      il passo è quello che il layout fa davvero, e resta giusto se domani lo
+      produce qualcos'altro.
+    */
+    const elementi = Array.from(rese);
+    const rettangoli = elementi.map((riga) => riga.getBoundingClientRect());
+    let scarto = 0;
+    for (let i = 0; i + 1 < rettangoli.length; i += 1) {
+      const passo = Math.round(rettangoli[i + 1]!.top - rettangoli[i]!.top - rettangoli[i]!.height);
+      // ⚠️ Il tetto scarta la coppia che scavalca una distanziatrice o un
+      //    riordino a metà render: il passo vero è di pochi pixel.
+      if (passo >= 0 && passo <= 64) {
+        scarto = passo;
+        break;
+      }
+    }
+
+    let cambiate = false;
+    let somma = 0;
+    let contate = 0;
+    for (let i = 0; i < elementi.length; i += 1) {
+      const id = elementi[i]!.dataset['rowId'];
+      const altezza = Math.round(rettangoli[i]!.height);
+      if (id === undefined || altezza <= 0) {
+        continue;
+      }
+      const alta = altezza + scarto;
+      somma += alta;
+      contate += 1;
+      if (this.altezze.get(id) !== alta) {
+        this.altezze.set(id, alta);
+        cambiate = true;
+      }
+    }
+    if (!cambiate || contate === 0) {
+      return false;
+    }
+
+    /*
+      ⭐ **La stima delle righe MAI VISTE è la media di quelle viste.** Un
+      valore fisso andrebbe bene solo a righe uniformi: su card sottostima di
+      un terzo, e la barra di scorrimento mentirebbe sulla lunghezza.
+    */
+    this.stima.set(Math.round(somma / contate));
+    this.versioneMisure.update((n) => n + 1);
+
+    if (eraInFondo) {
+      // Chi è in fondo lo riporta in fondo `aggiorna`, dopo il render: qui si
+      // evita solo di spostarlo col delta, che lo staccherebbe dalla coda.
+      return true;
+    }
+
+    /*
+      ⭐ **La STESSA riga di prima, risolta per identità.** Se l'identità non
+      c'è — elenco vuoto, riga sparita — non si compensa: meglio nessuno
+      spostamento che uno calcolato su una riga diversa.
+    */
+    const indiceDopo = idAncora === null ? indiceAncora : this.indicePerId().get(idAncora);
+    if (indiceDopo === undefined) {
+      return true;
+    }
+    const dopo = this.offsets()[indiceDopo] ?? 0;
+    const delta = dopo - primaDi;
+    if (delta !== 0) {
+      /*
+        ⚠️ **Non innesca un ciclo**: alla passata successiva le altezze sono già
+        quelle misurate, `cambiate` resta falso e non si compensa più.
+      */
+      scroller.scrollTop += delta;
+    }
+    return true;
+  }
+
+  /**
+   * ⛔ **LA MISURA ARRIVAVA SEMPRE UN EVENTO IN RITARDO.**
+   *
+   * `misuraRigheRese` gira **sincrona** dentro l'ascoltatore di scorrimento,
+   * quindi misura la finestra **precedente**: le righe che il nuovo
+   * `scorrimento` fa entrare non esistono ancora nel DOM. Restavano alla stima
+   * finché non arrivava un altro evento — e nel frattempo il modello degli
+   * offset descriveva righe diverse da quelle a schermo.
+   *
+   * ⚠️ **Misurato nel browser il 06/09/2026**, con una sonda dentro il
+   * componente: saltando a metà elenco le righe rese erano `d-138…d-164` e la
+   * misura girava su `d-0…d-14`; al passo successivo quelle ventisette righe
+   * venivano misurate per la prima volta, l'offset dell'ancora si spostava di
+   * 46px e la card slittava sotto il dito.
+   *
+   * ⭐ **Si rimisura DOPO il render**, e si ripete finché qualcosa cambia: ogni
+   * passata può far entrare righe mai viste, e la successiva le prende. Il
+   * numero di giri è limitato — senza convergenza si accetta un fotogramma
+   * approssimato, non un ciclo infinito.
+   */
+  private rimisuraDopoIlRender(scroller: HTMLElement, giri = 3): void {
+    afterNextRender(
+      () => {
+        // Il contenitore può essere cambiato (distruzione, rimontaggio).
+        if (this.scroller !== scroller) {
+          return;
+        }
+        if (this.misuraRigheRese(scroller) && giri > 0) {
+          this.rimisuraDopoIlRender(scroller, giri - 1);
+        }
+      },
+      { injector: this.injector },
+    );
   }
 
   /** I controlli sono a vista? Lo comanda il pulsante «Filtri» del telaio. */
@@ -568,15 +869,55 @@ export class DataTableComponent<T> {
   private readonly altezzaVista = signal(800);
 
   /**
-   * ⭐ **L_altezza di riga si MISURA, non si assume.** `--table-row-h` dice
-   * 25px, ma con lo zoom del browser o un testo ingrandito dal sistema quel
-   * numero non e` piu` quello vero — e una finestra che sbaglia l_altezza
-   * salta righe.
+   * ⭐ **Le altezze MISURATE, per identità di riga.**
+   *
+   * ⛔ **Qui c'era uno scalare**, `altezzaRiga`, e tutta la finestra era
+   * «altezza × indice». Regge finché le righe sono uguali — su scrivania lo
+   * sono — ma sotto `lg` la riga è una **card**, e le card no: misurate 83,
+   * 105 e 127px nello stesso elenco. Era la ragione per cui la finestra lì
+   * restava spenta, e con lei 5.000 card nel DOM.
+   *
+   * ⚠️ **Una `Map`, non un signal**: la si scrive riga per riga durante la
+   * misura, e un signal notificherebbe a ogni riga. A dire «è cambiato
+   * qualcosa» è `versioneMisure`, alzato **una volta** a fine passata.
    */
-  private readonly altezzaRiga = signal(25);
+  private readonly altezze = new Map<string, number>();
+  private readonly versioneMisure = signal(0);
+
+  /**
+   * L'altezza attribuita alle righe **mai rese**, e quindi mai misurate.
+   *
+   * ⚠️ Parte da `--table-row-h` (25px) e diventa la **media delle righe
+   * viste** alla prima misura: su card un valore fisso sottostimerebbe di un
+   * terzo, e la barra di scorrimento mentirebbe sulla lunghezza dell'elenco.
+   */
+  private readonly stima = signal(25);
 
   /** Righe rese in piu` sopra e sotto: evitano il bianco in scorrimento. */
   private readonly MARGINE_RIGHE = 12;
+
+  /**
+   * ⭐ **Gli OFFSET CUMULATIVI: `offsets[i]` è dove comincia la riga `i`.**
+   *
+   * ⛔ **Non si ricostruiscono a ogni scorrimento**, ed è il vincolo che
+   * governa la forma di questo `computed`: dipende da righe, stima e versione
+   * delle misure — **non** da `scorrimento`. Scorrere fa quindi una sola
+   * ricerca binaria, non una somma su cinquemila elementi.
+   *
+   * ⚠️ `Float64Array` e non un array normale: cinquemila somme in memoria
+   * contigua, senza boxing.
+   */
+  private readonly offsets = computed(() => {
+    const righe = this.sections()[0]?.rows ?? [];
+    this.versioneMisure();
+    const stima = this.stima();
+    const identita = this.rowId();
+    const cumulate = new Float64Array(righe.length + 1);
+    for (let i = 0; i < righe.length; i += 1) {
+      cumulate[i + 1] = cumulate[i]! + (this.altezze.get(identita(righe[i]!)) ?? stima);
+    }
+    return cumulate;
+  });
 
   /**
    * ⛔ **Le strutture supportate, e solo quelle.**
@@ -584,21 +925,20 @@ export class DataTableComponent<T> {
    * ```text
    * una sezione sola, senza testata ne` piede   ← altrimenti le altezze
    *                                               nel flusso non sono una
-   * altezza di riga gia` misurata               ← senza, non si sa dove
-   *                                               cade la finestra
-   * vista alta abbastanza                       ← sotto `lg` la tabella e`
-   *                                               fatta di CARD, e le card
-   *                                               non hanno altezza unica
+   * vista gia` misurata                         ← senza, non si sa quante
+   *                                               righe servono
    * ```
+   *
+   * ⭐ **Il veto sulle CARD non c'è più** (06/09/2026): serviva quando la
+   * finestra sapeva fare una sola altezza. Con gli offset misurati la vista a
+   * card è supportata come quella a tabella, e la differenza sta tutta nei
+   * numeri che si misurano.
    *
    * ⚠️ **Fuori da qui la finestra non si accende**: si rende tutto, come
    * prima. Una struttura non supportata non deve produrre righe mancanti.
    */
   protected readonly finestraAttiva = computed(() => {
-    if (!this.virtualizza() || this.altezzaRiga() <= 0 || this.altezzaVista() <= 0) {
-      return false;
-    }
-    if (this.cardAttive()) {
+    if (!this.virtualizza() || this.altezzaVista() <= 0) {
       return false;
     }
     const sezioni = this.sections();
@@ -609,19 +949,11 @@ export class DataTableComponent<T> {
     return sola.header === undefined && sola.footer === undefined;
   });
 
-  /**
-   * ⚠️ **Sotto `lg` la riga diventa una CARD**, e le card non hanno una sola
-   * altezza: misurate 83, 105 e 127px sullo stesso elenco. La finestra la`
-   * non si accende — la lentezza sul telefono resta un problema aperto, non
-   * una cosa risolta di sbieco.
-   */
-  private readonly cardAttive = signal(false);
-
   private readonly indicePrimo = computed(() => {
     if (!this.finestraAttiva()) {
       return 0;
     }
-    const grezzo = Math.floor(this.scorrimento() / this.altezzaRiga()) - this.MARGINE_RIGHE;
+    const grezzo = indiceAllOffset(this.offsets(), this.scorrimento()) - this.MARGINE_RIGHE;
     return Math.max(0, Math.min(grezzo, Math.max(0, this.righeTotali() - 1)));
   });
 
@@ -630,21 +962,44 @@ export class DataTableComponent<T> {
     if (!this.finestraAttiva()) {
       return totale;
     }
-    const quante = Math.ceil(this.altezzaVista() / this.altezzaRiga()) + this.MARGINE_RIGHE * 2;
-    return Math.min(totale, this.indicePrimo() + quante);
+    const fine = this.scorrimento() + this.altezzaVista();
+    const ultimo = indiceAllOffset(this.offsets(), fine) + 1 + this.MARGINE_RIGHE;
+    return Math.min(totale, Math.max(ultimo, this.indicePrimo() + 1));
+  });
+
+  /**
+   * Da `rowId` alla sua posizione nell’elenco corrente.
+   *
+   * ⛔ **Serve all’ancoraggio**, che deve ritrovare la riga di partenza DOPO
+   * che le misure sono cambiate. Non dipende da `versioneMisure`: le posizioni
+   * cambiano coi dati, non con le altezze — ed è esattamente la proprietà che
+   * rende l’ancora stabile.
+   */
+  private readonly indicePerId = computed(() => {
+    const righe = this.sections()[0]?.rows ?? [];
+    const identita = this.rowId();
+    const mappa = new Map<string, number>();
+    for (let i = 0; i < righe.length; i += 1) {
+      mappa.set(identita(righe[i]!), i);
+    }
+    return mappa;
   });
 
   private readonly righeTotali = computed(() => this.sections()[0]?.rows.length ?? 0);
 
   /** Lo spazio delle righe che stanno PRIMA della finestra. */
   protected readonly spazioSopra = computed(() =>
-    this.finestraAttiva() ? this.indicePrimo() * this.altezzaRiga() : 0,
+    this.finestraAttiva() ? (this.offsets()[this.indicePrimo()] ?? 0) : 0,
   );
 
   /** E quello delle righe che stanno dopo. */
-  protected readonly spazioSotto = computed(() =>
-    this.finestraAttiva() ? (this.righeTotali() - this.indiceUltimo()) * this.altezzaRiga() : 0,
-  );
+  protected readonly spazioSotto = computed(() => {
+    if (!this.finestraAttiva()) {
+      return 0;
+    }
+    const cumulate = this.offsets();
+    return (cumulate[this.righeTotali()] ?? 0) - (cumulate[this.indiceUltimo()] ?? 0);
+  });
 
   /**
    * Le righe che il `@for` rende. Fuori dalla finestra e` l'elenco intero,
@@ -685,8 +1040,15 @@ export class DataTableComponent<T> {
     if (!scroller) {
       return;
     }
-    const alta = this.altezzaRiga();
+    /*
+      ⭐ **Anche i tasti passano dagli OFFSET.** «Una schermata più giù» non è
+      più «tante righe quante ne stanno in una vista»: con altezze diverse quel
+      numero non esiste. Si guarda dove comincia la riga corrente, si aggiunge
+      l'altezza della vista e si cerca chi c'è a quella coordinata.
+    */
+    const cumulate = this.offsets();
     const assoluto = this.indicePrimo() + posizione;
+    const inizioCorrente = cumulate[assoluto] ?? 0;
     let bersaglio: number | null = null;
     switch (evento.key) {
       case 'Home':
@@ -698,17 +1060,23 @@ export class DataTableComponent<T> {
       case 'PageDown':
         bersaglio = Math.min(
           this.righeTotali() - 1,
-          assoluto + Math.floor(this.altezzaVista() / alta),
+          Math.max(assoluto + 1, indiceAllOffset(cumulate, inizioCorrente + this.altezzaVista())),
         );
         break;
       case 'PageUp':
-        bersaglio = Math.max(0, assoluto - Math.floor(this.altezzaVista() / alta));
+        bersaglio = Math.max(
+          0,
+          Math.min(
+            assoluto - 1,
+            indiceAllOffset(cumulate, Math.max(0, inizioCorrente - this.altezzaVista())),
+          ),
+        );
         break;
       default:
         return;
     }
     evento.preventDefault();
-    scroller.scrollTop = bersaglio * alta;
+    scroller.scrollTop = cumulate[bersaglio] ?? 0;
     /*
       ⭐ Si ricorda l'IDENTITA' della destinazione, non l'indice: un filtro che
       arriva nel frattempo cambia le posizioni, e un indice rimetterebbe il
@@ -1221,4 +1589,31 @@ export class DataTableComponent<T> {
     const prima = this.columns().findIndex((column) => values[column.id] !== undefined);
     return prima < 0 ? [] : this.columns().slice(prima);
   }
+}
+
+/**
+ * L'indice della riga che contiene la coordinata `y`, per ricerca binaria
+ * sugli offset cumulativi.
+ *
+ * ⛔ **È il pezzo che tiene lo scorrimento a costo logaritmico.** Con altezze
+ * uguali bastava una divisione; con altezze diverse la posizione non è più
+ * calcolabile, va **cercata** — e cercarla scorrendo l'array farebbe cinquemila
+ * confronti a ogni evento di scorrimento, cioè il difetto che la finestra
+ * esiste per togliere.
+ *
+ * ⚠️ `cumulate` ha lunghezza `n + 1`: l'ultimo elemento è l'altezza totale, e
+ * non è l'inizio di nessuna riga. L'indice restituito sta quindi in `[0, n-1]`.
+ */
+function indiceAllOffset(cumulate: Float64Array, y: number): number {
+  let basso = 0;
+  let alto = Math.max(0, cumulate.length - 2);
+  while (basso < alto) {
+    const mezzo = (basso + alto) >> 1;
+    if ((cumulate[mezzo + 1] ?? 0) <= y) {
+      basso = mezzo + 1;
+    } else {
+      alto = mezzo;
+    }
+  }
+  return basso;
 }

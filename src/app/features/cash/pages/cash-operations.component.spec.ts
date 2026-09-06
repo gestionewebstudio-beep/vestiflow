@@ -7,6 +7,7 @@ import { map } from 'rxjs/operators';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { giornoDiAttivita, giornoDiAttivitaSpostato } from '@core/utils/business-day.util';
 import type { CashOperationsPage } from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
@@ -14,7 +15,6 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { CASH_OPERATIONS_COLUMN_DEFS } from '../models/cash-register-columns.config';
-import { giornoDiAttivita, giornoDiAttivitaSpostato } from '@core/utils/business-day.util';
 
 import { CashOperationsComponent } from './cash-operations.component';
 

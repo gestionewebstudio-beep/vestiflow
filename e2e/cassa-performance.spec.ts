@@ -23,7 +23,7 @@ for (const size of sizes) {
     await page.goto('/app/cassa/operazioni');
     await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 90_000 });
     if (mobile)
-      await expect(page.locator('.data-table__row')).toHaveCount(size, { timeout: 90_000 });
+      await expect(page.locator('.data-table__card').first()).toBeVisible({ timeout: 90_000 });
     await page.goto('/app/dashboard');
 
     const cdp = await page.context().newCDPSession(page);
@@ -52,7 +52,7 @@ for (const size of sizes) {
     await response;
     await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 90_000 });
     if (mobile)
-      await expect(page.locator('.data-table__row')).toHaveCount(size, { timeout: 90_000 });
+      await expect(page.locator('.data-table__card').first()).toBeVisible({ timeout: 90_000 });
     const loadMs = Date.now() - start;
     const metrics = await cdp.send('Performance.getMetrics');
     const { profile } = await cdp.send('Profiler.stop');
@@ -86,8 +86,14 @@ for (const size of sizes) {
     writeFileSync(join(directory, `${name}.cpuprofile`), JSON.stringify(profile));
     console.log(JSON.stringify(result));
     if (mobile) {
-      expect(dom.rows).toBe(size);
-      expect(await page.locator('.data-table__spacer').count()).toBe(0);
+      /*
+        ⚠️ **Qui c'era `expect(dom.rows).toBe(size)` e zero distanziatrici**:
+        la finestra sotto `lg` era spenta. Dal 06/09/2026 e' accesa anche sulle
+        card, e la misura serve proprio a dire quanto costa ADESSO.
+      */
+      expect(dom.rows).toBeLessThan(120);
+      expect(dom.rows).toBeGreaterThan(0);
+      expect(await page.locator('.data-table__spacer').count()).toBeGreaterThan(0);
     } else {
       expect(dom.rows).toBeLessThan(120);
       if (phase !== 'before') expect(loadMs).toBeLessThan(10_000);

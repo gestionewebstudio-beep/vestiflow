@@ -71,6 +71,220 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
+### Tranche 2 — finestra mobile ad altezze variabili (06/09/2026)
+
+**Il motore condiviso è stato ESTESO, non affiancato.** Nessun componente,
+breakpoint o logica della Cassa: `app-data-table`, `appRowCard`, gli stili
+`list-card`, il catalogo e le preferenze colonne, i filtri, l'ordinamento, la
+selezione e i totali restano quelli di tutti.
+
+#### Che cosa è cambiato, in una riga
+
+`altezzaRiga` era **uno scalare**, e tutta la finestra era «altezza × indice».
+Ora sono **offset cumulativi** costruiti su altezze misurate per `rowId`.
+
+| Prima                       | Ora                               |
+| --------------------------- | --------------------------------- |
+| `floor(scorrimento / h)`    | ricerca binaria sugli offset      |
+| `i · h`, `(N − j) · h`      | `offset[i]`, `totale − offset[j]` |
+| una riga misurata per tutte | ogni riga resa, per identità      |
+| finestra spenta sotto `lg`  | accesa a ogni larghezza           |
+
+⛔ **Gli offset NON si ricostruiscono a ogni scorrimento**: il `computed`
+dipende da righe, stima e versione delle misure — **non** da `scorrimento`.
+Scorrere costa una ricerca binaria, non una somma su cinquemila elementi.
+
+⭐ **Le misure si invalidano sulla LARGHEZZA**, non a ogni evento del
+`ResizeObserver`: una card si riimpagina quando cambia la larghezza, non quando
+cambia l'altezza del contenitore.
+
+⭐ **E sulle COLONNE, che è la stessa cosa un piano più in là** — aggiunto il
+06/09/2026. Spegnere una colonna cambia cosa **ogni** card scrive dentro, non
+solo quelle rese: tenere le misure vecchie per le righe fuori finestra lasciava
+la barra di scorrimento lunga come prima — misurato, **29.044px** per un elenco
+che ne vale 19.500.
+
+⚠️ **Il cambio dei DATI no**, ed è la differenza: lì le righe fuori finestra
+possono essere le stesse di prima, e la loro misura è comunque migliore della
+stima. Si rimisurano quelle rese e basta.
+
+⚠️ **Si confronta la FIRMA delle colonne, non l'identità dell'array**: un
+genitore che ricostruisse l'elenco a ogni giro di rilevamento farebbe altrimenti
+azzerare le misure di continuo, e la finestra sfarfallerebbe.
+
+#### L'ancoraggio, che è la parte delicata
+
+⛔ **Niente doppia compensazione**: il contenitore dichiara `overflow-anchor:
+none` **solo** con la finestra accesa. Dove non compensa nessuno, l'ancoraggio
+del browser resta.
+
+⚠️ **CINQUE difetti trovati NEL BROWSER, non ragionandoci sopra.** I primi due
+il 05/09, gli altri tre il 06/09 rispondendo alla verifica mirata chiesta dal
+proprietario sui due punti della finestra.
+
+1. Chi era in fondo non ci restava: le altezze misurate cambiavano
+   `scrollHeight`, il browser conservava `scrollTop`, e restavano **6px** di
+   residuo — con la vista alta 248px l'ultima card sbordava di 2px dal ritaglio
+   e `toBeInViewport({ ratio: 1 })` la vedeva al **97%**.
+2. Il primo rimedio non funzionava: stava dentro la guardia `cambiate`, e quando
+   le righe di coda erano già misurate non si eseguiva. Il ripristino è ora
+   **fuori** da quella guardia e **dopo** il render.
+3. ⛔ **L’ancora era un INDICE RICALCOLATO, non un’identità.** `primaDi` e
+   `dopo` leggevano `offsets()[indicePrimo()]` prima e dopo la misura, e
+   `indicePrimo()` è un `computed` che dipende da `offsets()`: le due letture
+   cadevano su **due righe diverse**. Misurato con una sonda dentro il
+   componente: saltando a metà elenco l’ancora resta `d-150` mentre l’indice
+   ricalcolato dice via via **139, 167, 113, 160**, e i delta applicati a
+   `scrollTop` valgono **+1177, −2260, +4264, −1218** pixel. Chi saltava al 50%
+   della barra atterrava su `d-129` invece che su `d-150` — duemila pixel più
+   su di dove la barra diceva di essere.
+4. ⛔ **Si misurava l’ALTEZZA della riga, non il PASSO del layout.** Sotto `lg`
+   la riga-card porta un `margin-block-end` di 4px che
+   `getBoundingClientRect().height` **non comprende**: il modello avanzava di
+   4px meno del layout a ogni riga, e lo scarto cresceva con la distanza — fra
+   la prima riga resa e quella al bordo della vista faceva **~40px**. Ora si
+   misura il passo fra due righe rese, così qualunque cosa lo produca —
+   margine, `border-spacing`, `gap` — resta giusto.
+5. ⛔ **La misura arrivava sempre UN EVENTO IN RITARDO.** `misuraRigheRese` gira
+   sincrona dentro l’ascoltatore di scorrimento, quindi misura la finestra
+   **precedente**: le righe che il nuovo `scorrimento` fa entrare non esistono
+   ancora nel DOM. Misurato: saltando a metà elenco le righe rese erano
+   `d-138…d-164` e la misura girava su `d-0…d-14`. Ora si rimisura **dopo il
+   render** (`rimisuraDopoIlRender`), ripetendo finché qualcosa cambia, con un
+   numero di giri limitato.
+
+⛔ **Nessuno dei tre falliva niente.** Cima e fondo restavano giusti — lì
+l'indice è zero, o ci si ri-ancora alla coda — e le sette prove esistenti
+guardavano esattamente cima e fondo. Vivevano a **metà elenco**, dove sopra la
+finestra restano righe ancora stimate.
+
+#### Misura prima/dopo, stessa macchina e stessa build
+
+```text
+TELEFONO, 5.000 operazioni       PRIMA       DOPO    variazione
+tempo totale                    6.476ms      803ms      8,1x
+  di cui dopo la risposta       5.586ms      242ms     23,1x
+scorrimento fino in fondo       1.259ms       29ms     43,4x
+righe rese nel DOM                5.000         15    333,3x
+nodi dentro la tabella          125.048        425    294,2x
+memoria JS usata                  371MB       22MB     16,9x
+```
+
+⭐ **E la scrivania non è peggiorata**: 698 ms contro 671-692 di prima, 31 righe
+rese, 825 nodi, 26 MB — tutti dentro la variabilità già osservata. Rimisurata
+dopo le tre correzioni del 06/09: **683 ms**, 31 righe, 825 nodi.
+
+#### La scala mobile, dopo — ed è PIATTA
+
+La misura non bloccante (`cassa-prestazioni.config.ts`, tre giri per volume,
+questa macchina):
+
+```text
+  300 card   min 1002 ms   mediana 1012 ms   max 1120 ms   dispersione 12%
+ 1000 card   min 1001 ms   mediana 1063 ms   max 1094 ms   dispersione  9%
+ 2000 card   min 1034 ms   mediana 1040 ms   max 1105 ms   dispersione  7%
+ 5000 card   min 1061 ms   mediana 1071 ms   max 1134 ms   dispersione  7%
+```
+
+⭐ **Fra 300 e 5.000 card corrono 59 ms**, cioè meno della dispersione dei tre
+giri: il tempo ha smesso di dipendere dal numero di righe, che era lo scopo.
+
+⚠️ **Sono numeri di QUESTA macchina, non del corridore CI a 2 core.** La scelta
+del volume e della soglia del futuro cancello va fatta sui numeri del
+corridore, ed è la ragione per cui quel passo continua a girare non bloccante.
+
+#### Che cosa ho riusato, esteso, creato
+
+|             |                                                                                                                                                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Riusato** | `app-data-table` e il suo template, `appRowCard` e gli stili `list-card`, catalogo e preferenze colonne, filtri di colonna, ordinamento, selezione, totali, gestione del fuoco per identità, righe distanziatrici, `data-row-id`        |
+| **Esteso**  | la finestra: da scalare a offset; la misura: da una riga a tutte quelle rese; `finestraAttiva`: tolto il veto sulle card                                                                                                                |
+| **Creato**  | `indiceAllOffset` (ricerca binaria) e l'ancoraggio dello scorrimento — **le due sole cose che non esistevano**: senza la prima ogni evento di scorrimento costerebbe 5.000 confronti, senza il secondo il contenuto salta sotto il dito |
+
+⭐ **`ViewportService` esiste ed è stato verificato prima di toccare qualsiasi
+rilevamento**: risponde a «è viva la vista a card?» col token
+`--viewport-compact-max`, e lo usano 17 consumatori. **Non serviva**, e non è
+stato introdotto un secondo rilevamento: con gli offset misurati la finestra
+funziona in entrambe le vesti, quindi la domanda «quale modalità?» non si pone
+più. È sparito anche il `getComputedStyle` per evento di scorrimento che il
+vecchio `aggiornaVeste` faceva.
+
+#### `ResizeObserver` nei test
+
+⛔ **Gestito nel setup, non ignorato**: `src/test-setup.ts` definisce un doppio
+che rispetta il contratto — `observe`, `unobserve`, `disconnect` — e **non invoca
+mai la richiamata**. jsdom non impagina: fabbricare una misura vorrebbe dire far
+credere alle prove di aver misurato. Prima l'assenza produceva
+`ReferenceError: ResizeObserver is not defined` dentro `afterNextRender`, che
+Angular registra e non propaga: le prove passavano e l'errore restava nel log.
+
+⚠️ **Le verifiche geometriche decisive restano nel browser vero**, ed è dove
+sono stati trovati entrambi i difetti dell'ancoraggio.
+
+#### Prove aggiornate, nessuna eliminata
+
+Sette asserzioni codificavano la vecchia decisione «sotto `lg` si rende tutto» e
+sono state **riscritte, non cancellate**, ognuna con la nota di che cosa diceva
+prima:
+
+| File                  | Che cosa diceva                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `cassa-render-window` | «sul telefono la finestra NON si accende» → ora si accende, con altezze diverse fra loro       |
+| `cassa-render-window` | `aria-rowcount` nullo in compatto → ora c'è a ogni larghezza                                   |
+| `cassa-render-window` | 300 righe rese dopo il passaggio a compatto → ora poche                                        |
+| `cassa-mobile`        | `toHaveCount(5000)` e `toHaveCount(300)` sulle righe rese → la completezza si legge in testata |
+| `cassa-mobile`        | zero distanziatrici → ora presenti                                                             |
+| `cassa-performance`   | `dom.rows === size` su mobile → ora `< 120`                                                    |
+
+⭐ **Otto prove nuove**, tutte in `cassa-render-window.spec.ts`. Le prime due il
+05/09 — la finestra accesa sul telefono con altezze diverse, e l'ultima card
+raggiungibile senza spazio vuoto in coda — le altre sei il 06/09:
+
+| Prova                                                                        | Che cosa inchioda                                                  |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| «saltando a metà elenco ${donde}, si ATTERRA a metà» ×2                      | l'ancora è un'identità: si atterra su `d-150 ± 12`, non su `d-129` |
+| «scorrendo ${verso} la card resta LA STESSA e si sposta del passo esatto» ×2 | scorrendo di N pixel una card visibile si sposta di N pixel, ±3    |
+| «dati nuovi con gli STESSI rowId»                                            | la geometria segue le altezze nuove                                |
+| «colonna spenta: le card si accorciano e la geometria segue»                 | la rimisura al cambio di colonne                                   |
+
+⭐ **Ognuna è stata FALSIFICATA rimettendo il difetto**, uno per volta:
+
+```text
+ancora per indice ricalcolato   → rosse le 2 «ATTERRA»
+altezza invece del passo        → rosse le 2 «passo esatto»
+niente rimisura dopo il render  → rosse le 2 «passo esatto»
+effetto sul contenuto spento    → rossa «colonna spenta»
+```
+
+⚠️ **Una NON è falsificata da nessuna delle quattro, ed è scritto nel file**:
+«dati nuovi con gli STESSI rowId» resta verde con ognuna, perché il cambio di
+periodo passa da una richiesta — la zona dati si stacca e si riattacca, il
+`ResizeObserver` scatta e la rimisura arriva comunque. Protegge il
+comportamento osservabile, non una riga di codice.
+
+⛔ **E il fixture ha dovuto cambiare forma per provare qualcosa.** Con altezze
+a ciclo di tre righe ogni finestra contiene la stessa mescolanza, la **stima**
+delle righe mai viste non si muove mai e gli offset di ciò che sta sopra
+restano fermi — cioè sparisce proprio la condizione che l'ancoraggio deve
+reggere. Provato: col ciclo di tre, le prove restavano verdi anche rimettendo
+il difetto. Ora sono **blocchi di venti righe** su tre altezze.
+
+⚠️ **E `cassa-prestazioni.spec.ts` è stato riscritto, non cancellato**:
+aspettava `toHaveCount(quante)` sulle righe rese e dichiarava in testa che «la
+finestra è spenta sotto `lg` per scelta». Ora aspetta `aria-rowcount` — il
+risultato intero — e asserisce che le righe rese siano **poche**.
+
+#### Limiti rimasti
+
+⚠️ **La soglia 2.000/7.000 resta non armata**: la misura prestazionale mobile
+continua a girare nel passo CI non bloccante. Con questi numeri andrà ritarata,
+ed è una decisione del proprietario — non un ritocco.
+
+⚠️ **La stima delle righe mai viste è la media di quelle viste**: su un elenco
+molto disomogeneo la barra di scorrimento può cambiare lunghezza mentre si
+scorre. Non produce salti — l'ancoraggio li assorbe — ma è un comportamento da
+guardare su dati reali.
+
 ### Tranche 1 — date e periodi della Cassa (06/09/2026)
 
 **Il fuso dell'attività è `Europe/Rome`, costante applicativa centralizzata.**

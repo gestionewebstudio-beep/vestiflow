@@ -45,8 +45,18 @@ test('mobile: 5.000 card complete senza stallo iniziale', async ({ page }, info)
   await page.goto('/app/dashboard');
   const start = Date.now();
   await page.goto('/app/cassa/operazioni');
-  await expect(page.locator('.data-table__row')).toHaveCount(5000, { timeout: 90_000 });
-  await expect(page.locator('.data-table__card').first()).toBeVisible();
+  /*
+    ⚠️ **Qui c'era `toHaveCount(5000)` sulle righe RESE**, e misurava la
+    completezza contando i nodi. Dal 06/09/2026 non si può più: con la finestra
+    accesa i nodi sono una manciata **per costruzione**, e contarli
+    misurerebbe la finestra invece del risultato.
+
+    ⭐ **La completezza si verifica dove ora vive**: il conteggio dichiarato in
+    testata — che viene dal riepilogo del server, sullo stesso filtro — e la
+    raggiungibilità dell'ultima card, provata più sotto scorrendo fino in fondo.
+  */
+  await expect(page.locator('.data-table__card').first()).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText('5000 operazioni')).toBeVisible();
   const loadMs = Date.now() - start;
   await info.attach('caricamento-mobile', {
     body: JSON.stringify({ loadMs, rows: await page.locator('.data-table__row').count() }),
@@ -59,16 +69,28 @@ test('mobile: 5.000 card complete senza stallo iniziale', async ({ page }, info)
     un passo CI dichiarato non bloccante (deroga del 06/09/2026, `DA-FARE`).
 
     ⭐ **Tutto il resto di questa prova resta obbligatorio**, ed è la parte che
-    dice se la schermata FUNZIONA: le 5.000 card ci sono tutte — nessun
-    troncamento — la finestra di rendering resta spenta sotto `lg`, l'ultima
-    riga si raggiunge e l'operazione si apre.
+    dice se la schermata FUNZIONA: il risultato è completo — 5.000 dichiarate in
+    testata — la finestra è accesa, l'ultima card si raggiunge e l'operazione si
+    apre.
+
+    ⚠️ **«la finestra resta spenta sotto `lg`» era scritto qui, ed è superato**
+    dalla tranche del 06/09/2026: ora è accesa, e le distanziatrici lo provano.
 
     ⚠️ **Il numero continua a essere misurato e pubblicato**: `loadMs` sta
     nell'allegato qui sopra a ogni esecuzione. La deroga riguarda il CANCELLO,
     non la misura — «limite noto e temporaneamente accettato» non vuol dire
     «smettiamo di guardarlo».
   */
-  await expect(page.locator('.data-table__spacer')).toHaveCount(0);
+  /*
+    ⚠️ **Qui c'era `toHaveCount(0)` sulle distanziatrici**, e diceva il vero
+    finché la finestra sotto `lg` era spenta. Dal 06/09/2026 è accesa: le
+    distanziatrici ci sono, ed è il segno che sta funzionando.
+
+    ⛔ **Quello che NON cambia è la completezza**: la testata dichiara 5.000, e
+    l'ultima card si raggiunge — le due asserzioni che contano le RIGHE DEI
+    DATI invece dei nodi resi.
+  */
+  await expect(page.locator('.data-table__spacer').first()).toBeAttached();
   await page.evaluate(() => {
     const scroller = document.querySelector<HTMLElement>('.data-table-scroll')!;
     scroller.scrollTop = scroller.scrollHeight;
@@ -101,7 +123,12 @@ test('mobile: filtro in fondo, azzeramento e testi lunghi a diverse larghezze', 
 }, info) => {
   await intercetta(page, 300);
   await page.goto('/app/cassa/operazioni');
-  await expect(page.locator('.data-table__row')).toHaveCount(300);
+  /*
+    ⚠️ **Contava le righe RESE, e con la finestra accesa non sono piu' 300.**
+    La completezza si legge in testata, che viene dal riepilogo del server.
+  */
+  await expect(page.getByText('300 operazioni')).toBeVisible();
+  await expect(page.locator('.data-table__card').first()).toBeVisible();
   for (const viewport of [
     { width: 360, height: 800 },
     { width: 390, height: 844 },
@@ -144,5 +171,6 @@ test('mobile: filtro in fondo, azzeramento e testi lunghi a diverse larghezze', 
   await page.getByRole('button', { name: 'Filtri', exact: true }).tap();
   await page.getByRole('button', { name: /Azzera/ }).tap();
   await page.getByRole('button', { name: 'Vedi risultati', exact: true }).tap();
-  await expect(page.locator('.data-table__row')).toHaveCount(300);
+  // Azzerato il filtro, il risultato torna completo: lo dice la testata.
+  await expect(page.getByText('300 operazioni')).toBeVisible();
 });

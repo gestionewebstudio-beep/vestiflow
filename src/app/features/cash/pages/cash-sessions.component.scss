@@ -20,7 +20,18 @@
   min-block-size: 0;
   min-inline-size: 0;
 }
+/*
+  ⚠️ Il mixin governa la COPPIA di date, non tutta la fascia: dentro c'è anche
+  il selettore Periodo, e la larghezza del calendario si calcola sulle due date.
+*/
 .sess__period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.sess__dates {
   @include lp.list-date-period;
 }
 

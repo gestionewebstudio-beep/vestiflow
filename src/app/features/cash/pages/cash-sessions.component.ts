@@ -18,6 +18,11 @@ import type {
   CashSessionsPage,
 } from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
+import {
+  MOVEMENT_PERIOD_OPTIONS,
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@domain/inventory/models/movement-period.util';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
@@ -43,11 +48,6 @@ import {
   CASH_SESSIONS_COLUMN_DEFS,
   CASH_SESSIONS_COLUMN_PRESETS,
 } from '../models/cash-register-columns.config';
-import {
-  MOVEMENT_PERIOD_OPTIONS,
-  MovementPeriodPreset,
-  resolveMovementPeriodRange,
-} from '@domain/inventory/models/movement-period.util';
 
 import { CASH_TABS } from '../models/cash-nav';
 

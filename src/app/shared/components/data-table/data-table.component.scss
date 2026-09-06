@@ -1382,3 +1382,19 @@
   padding: 0;
   border: 0;
 }
+
+/*
+  ⛔ **NIENTE DOPPIA COMPENSAZIONE.**
+
+  Con la finestra accesa e' il motore a tenere ferma la riga guardata: misurate
+  le card rese, sposta `scrollTop` del delta accumulato sopra la finestra
+  (`misuraRigheRese`). Chrome fa da se' la stessa cosa — l'ancoraggio di
+  scorrimento — e i due aggiustamenti si sommerebbero: il contenuto salterebbe
+  del doppio, proprio mentre si scorre.
+
+  ⚠️ Solo con la finestra accesa: dove non c'e' nessuno che compensa,
+  l'ancoraggio del browser e' un miglioramento e resta.
+*/
+.data-table-scroll--finestra {
+  overflow-anchor: none;
+}

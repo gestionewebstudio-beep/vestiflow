@@ -40,20 +40,23 @@
       [fitContent]="true"
       (valueChange)="cambiaPeriodo($event ?? '')"
     />
-    <app-date-input
-      inputId="sess-da"
-      ariaLabel="Dal"
-      [value]="da()"
-      [compact]="true"
-      (valueChange)="cambiaData('da', $event)"
-    />
-    <app-date-input
-      inputId="sess-a"
-      ariaLabel="Al"
-      [value]="a()"
-      [compact]="true"
-      (valueChange)="cambiaData('a', $event)"
-    />
+    <!-- Le due date restano una COPPIA: vedi il registro operazioni. -->
+    <div class="sess__dates">
+      <app-date-input
+        inputId="sess-da"
+        ariaLabel="Dal"
+        [value]="da()"
+        [compact]="true"
+        (valueChange)="cambiaData('da', $event)"
+      />
+      <app-date-input
+        inputId="sess-a"
+        ariaLabel="Al"
+        [value]="a()"
+        [compact]="true"
+        (valueChange)="cambiaData('a', $event)"
+      />
+    </div>
   </div>
 
   <div filters>

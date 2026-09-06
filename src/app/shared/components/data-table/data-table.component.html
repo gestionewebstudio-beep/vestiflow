@@ -13,7 +13,11 @@
   ⛔ **`-1`, non `0`**: non entra nel giro del Tab — non e` una fermata, e`
   una rete.
 -->
-<div class="data-table-scroll" [attr.tabindex]="finestraAttiva() ? -1 : null">
+<div
+  class="data-table-scroll"
+  [class.data-table-scroll--finestra]="finestraAttiva()"
+  [attr.tabindex]="finestraAttiva() ? -1 : null"
+>
   <!--
     ⭐ **`aria-rowcount` dice quante righe ESISTONO**, non quante sono nel
     DOM: con la finestra accesa un lettore di schermo direbbe altrimenti

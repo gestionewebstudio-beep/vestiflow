@@ -56,20 +56,31 @@
       [fitContent]="true"
       (valueChange)="cambiaPeriodo($event ?? '')"
     />
-    <app-date-input
-      inputId="ops-da"
-      ariaLabel="Dal"
-      [value]="da()"
-      [compact]="true"
-      (valueChange)="cambiaData('da', $event)"
-    />
-    <app-date-input
-      inputId="ops-a"
-      ariaLabel="Al"
-      [value]="a()"
-      [compact]="true"
-      (valueChange)="cambiaData('a', $event)"
-    />
+    <!--
+      ⛔ **Le due date restano una COPPIA, in un contenitore loro.**
+
+      Il mixin `list-date-period` le dispone in due colonne sotto `md` e calcola
+      la larghezza del calendario come `calc(200% + gap)`, cioè sull'intera
+      coppia. Mettendo il selettore Periodo come terzo figlio dello stesso
+      contenitore quella matematica si rompe: misurato nel browser il
+      06/09/2026, il calendario usciva dallo schermo — visibile solo al **51%**.
+    -->
+    <div class="ops__dates">
+      <app-date-input
+        inputId="ops-da"
+        ariaLabel="Dal"
+        [value]="da()"
+        [compact]="true"
+        (valueChange)="cambiaData('da', $event)"
+      />
+      <app-date-input
+        inputId="ops-a"
+        ariaLabel="Al"
+        [value]="a()"
+        [compact]="true"
+        (valueChange)="cambiaData('a', $event)"
+      />
+    </div>
   </div>
 
   <div filters>

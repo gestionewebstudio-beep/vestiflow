@@ -8,11 +8,16 @@ import { test } from './helpers/isolated-test';
 /**
  * ⭐ **La misura prestazionale del registro Cassa sul TELEFONO.**
  *
- * ⛔ **Sotto `lg` la finestra di rendering è spenta per scelta** — le card non
- * hanno un'altezza unica (misurate 83, 105 e 127px sullo stesso elenco), e una
- * finestra che sbaglia l'altezza salta righe. Quindi tutte le card stanno nel
- * DOM, e il tempo cresce col numero di righe. È il limite dichiarato aperto in
- * `docs/DA-FARE.md`, non un difetto scoperto oggi.
+ * ⚠️ **Qui c’era il contrario, e non è stato cancellato: è stato riscritto.**
+ * Fino al 06/09/2026 questo file dichiarava che «sotto `lg` la finestra di
+ * rendering è spenta per scelta», perché le card non hanno un’altezza unica
+ * (misurate 83, 105 e 163px sullo stesso elenco) e una finestra che sbaglia
+ * l'altezza salta righe. Tutte le card stavano nel DOM e il tempo cresceva col
+ * numero di righe.
+ *
+ * ⭐ **Con gli offset misurati per riga quella premessa è caduta**: la finestra
+ * è accesa anche sulle card, e la misura di questa scala è ora quella di un
+ * elenco virtualizzato. I numeri prima/dopo stanno in `docs/DA-FARE.md`.
  *
  * ⚠️ **Questo file gira in un passo CI NON BLOCCANTE**, per la deroga del
  * 06/09/2026. Le prove funzionali del telefono restano obbligatorie e stanno in
@@ -64,7 +69,17 @@ for (const quante of VOLUMI) {
       await page.goto('/app/dashboard');
       const inizio = Date.now();
       await page.goto('/app/cassa/operazioni');
-      await expect(page.locator('.data-table__row')).toHaveCount(quante, { timeout: 90_000 });
+      /*
+        ⛔ **La condizione di completamento non è più «tutte le card nel DOM».**
+        Con la finestra accesa non lo saranno mai: si aspetta che il risultato
+        INTERO sia arrivato — lo dichiara `aria-rowcount`, che conta tutte le
+        righe più l’intestazione — e che la prima card sia dipinta.
+      */
+      await expect(page.locator('.data-table')).toHaveAttribute(
+        'aria-rowcount',
+        String(quante + 1),
+        { timeout: 90_000 },
+      );
       await expect(page.locator('.data-table__card').first()).toBeVisible();
       misure.push(Date.now() - inizio);
     }
@@ -94,10 +109,13 @@ for (const quante of VOLUMI) {
     );
 
     /*
-      ⭐ **L'unica asserzione e' di SANITA', non di tempo**: se le righe non
-      arrivano tutte, la misura non misura quello che dice — un elenco troncato
-      si carica in fretta proprio perche' e' incompleto.
+      ⭐ **Le asserzioni sono di SANITA', non di tempo**, e adesso sono due: il
+      risultato deve essere arrivato INTERO (altrimenti un elenco troncato si
+      carica in fretta proprio perche' e' incompleto) e le righe rese devono
+      essere POCHE (altrimenti si sta misurando una finestra spenta, cioe' un
+      altro programma).
     */
-    await expect(page.locator('.data-table__row')).toHaveCount(quante);
+    await expect(page.locator('.data-table')).toHaveAttribute('aria-rowcount', String(quante + 1));
+    expect(await page.locator('.data-table__row').count()).toBeLessThan(120);
   });
 }
