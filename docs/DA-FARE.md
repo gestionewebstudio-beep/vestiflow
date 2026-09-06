@@ -71,6 +71,67 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
+### Integrazione in develop — PR #2 aperta il 06/09/2026
+
+**Le due evidenze che il preflight dichiarava mancanti sono chiuse.**
+
+⛔ **Nessuna protezione su `develop`, e nemmeno su `main`.** Letto via API con la
+credenziale del repository: `branches/develop` risponde `"protected": false`, i
+ruleset sono un elenco vuoto e `rules/branches/develop` pure. **Nessun controllo
+di stato è obbligatorio**, quindi la CI informa ma non ferma: a impedire un merge
+prematuro c'è solo la disciplina di chi lo esegue.
+
+⚠️ **Il token disponibile ha `push`, non `admin`**: le protezioni si possono
+leggere ma non creare, e non sono state toccate. ⚠️ Registrato anche il fatto che
+il repository risulta **pubblico** (`"private": false`), che non era un
+presupposto di nessuna decisione presa finora e va saputo.
+
+⭐ **La migration col checksum divergente cambia SOLO un commento, dimostrato.**
+`20260811120000_supplier_order_line_number`: la revisione il cui contenuto
+corrisponde al checksum registrato è `25b33168`, e fra quella e HEAD l'**SQL
+eseguibile** — il testo privato delle righe `--` e di quelle vuote — ha lo stesso
+SHA-256, `d2083997…`, 10 righe per parte. Cambiano 13 righe di commento sul
+timestamp doppio. Nessun SQL storico e nessun checksum sono stati modificati.
+
+⚠️ **`migrate status` da solo non lo dimostrava**: dice che non ci sono migration
+modificate, non _che cosa_ è cambiato in un file il cui checksum diverge.
+
+**Consegnato:** ramo spinto (hook `pre-push` passato: build API, type-check dei
+test API, `test:everything`, build frontend) e **PR #2 verso `develop`**, 72
+commit e 211 file. **Nessun merge, nessuna migration applicata, nessuna scrittura
+sul database condiviso.**
+
+#### Esito della prima CI remota — una prova rossa, e non è una sorpresa
+
+| Job                                  | Esito                                   |
+| ------------------------------------ | --------------------------------------- |
+| Security checks                      | ✅ success                              |
+| Lint & unit tests                    | ✅ success                              |
+| Playwright E2E                       | ✅ success                              |
+| Lighthouse CI                        | ✅ success                              |
+| Audit dipendenze                     | ✅ success                              |
+| Cassa API, migration e browser reali | ⛔ **failure** — 31 prove passate su 32 |
+
+⛔ **`e2e/cassa-mobile.spec.ts:42` — «mobile: 5.000 card complete senza stallo
+iniziale»**: `expect(loadMs).toBeLessThan(10_000)` ha ricevuto **10.610 ms**.
+Sforamento del **6%** del budget, sul corridore GitHub a 2 core.
+
+⭐ **È il limite che questo documento dichiara già aperto**, non un difetto nuovo:
+«prestazioni mobile ferme alla tranche conclusa» e il P2 «grandi volumi mobile
+ancora pesanti». Sotto `lg` la finestra di rendering **è spenta per scelta** — le
+card non hanno un'altezza unica — quindi 5.000 card stanno tutte nel DOM.
+
+⚠️ **Non è causato dalla correzione dello stato sessione**: quella prova apre
+`/app/cassa/operazioni`, il registro, mentre la modifica è su
+`cash-register.component`, la schermata di vendita. Rotte e componenti diversi.
+
+⛔ **Il budget NON è stato abbassato, e la prova non è stata disabilitata.** Il
+commento nel test dice a cosa serve quel numero: «distinguere il difetto da 30 s
+dalla normale variabilità CI». 10,6 s non è quel difetto — ma decidere se il
+budget vada tarato sul corridore, o se la prova a 5.000 card debba restare fuori
+dal cancello finché la virtualizzazione mobile non esiste, **è una decisione del
+proprietario**, non un ritocco da fare di passaggio.
+
 ### Residui di processo del preflight — chiusi il 06/09/2026
 
 **Tre residui indicati dal proprietario, chiusi in tre commit locali separati.**
