@@ -149,6 +149,95 @@ o la finestra in mezzo va tenuta senza resi.
 ⚠️ **La suite RISCRIVE i dati** (`svuota` e fixture): va eseguita **dopo** ogni misura sui
 dati ripristinati, non prima. Costata una misura da rifare.
 
+### ✅ DOPPIONI DEI TIPI PAGAMENTO — corretti con una migration dati (06/09/2026)
+
+`20260906120000_ritiro_doppioni_sintetici_pagamento`, **dodicesima** pendente, dopo le
+undici. ⛔ Nessuna migration già applicata è stata riscritta, e il condiviso non è stato
+toccato: resta a **147 applicate**.
+
+#### La regola, e cosa NON è
+
+⛔ **Non è una deduplica per codice normativo**, ed è la distinzione che governa tutto.
+Più Tipi pagamento distinti che puntano allo stesso `MPxx` sono **legittimi**: «Carta —
+banco» e «Carta — online», entrambi MP08, che l'azienda vuole separati nei riepiloghi.
+Una regola per codice li spegnerebbe, e sarebbe un difetto peggiore del doppione.
+
+⭐ **Si ritira solo ciò che il progetto ha seminato due volte**, riconosciuto per **nome
+letterale** delle due generazioni di seed. Cinque coppie, scritte una per una: nessuna
+euristica, nessun `LIKE`, nessuna estrazione del codice dal nome.
+
+Cinque condizioni, tutte necessarie, prima di spegnere una voce:
+
+```text
+nome         esattamente quello sintetico del seed nuovo
+kind         'method'
+is_system    true          ← una voce dell'utente non si tocca mai
+is_active    true          ← se il titolare l'ha già spenta, non c'è niente da fare
+codice       quello atteso ← un nome giusto con codice rimappato non è la coppia
+storica      esiste nello STESSO tenant, di sistema, ATTIVA, stesso codice
+```
+
+⚠️ **L'ultima condizione è quella che protegge di più**: senza la storica accesa, la
+sintetica **resta accesa**. Lasciare un tenant senza nessuna voce attiva per un codice
+sarebbe molto peggio di un doppione.
+
+⛔ **Nessuna riga viene cancellata**: si spegne `is_active`. Le quote incassate e gli
+snapshot restano leggibili — `payment_option_id` continua a risolvere su una riga che
+esiste, e `option_name_snapshot` conserva comunque il nome. Cancellare avrebbe azzerato
+il riferimento (`ON DELETE SET NULL`) e lasciato la quota senza origine.
+
+⭐ **La Cassa continua a mostrare tutte le opzioni ATTIVE.** Questa migration non tocca
+la presentazione: riduce il numero di voci attive, che si vede in ogni elenco.
+
+#### Provata sul database ripristinato, da 147
+
+|                                       |                                                                 |
+| ------------------------------------- | --------------------------------------------------------------- |
+| migrazione                            | 147 → **159**, zero annullate, zero interrotte                  |
+| doppioni sintetici attivi             | **20 → 0**                                                      |
+| voci storiche                         | **20, tutte ancora attive**                                     |
+| righe cancellate                      | **nessuna** (148 + 2 di prova = 150)                            |
+| `(MPxx)` senza equivalente storico    | **72 su 72 ancora attive**                                      |
+| due opzioni deliberate, stesso codice | **entrambe visibili**                                           |
+| Cassa                                 | da **4 voci per tenant a 2** — «Contanti», «Carta di pagamento» |
+| seconda applicazione                  | **zero modifiche**, nemmeno `updated_at`                        |
+
+#### La prova automatica costruisce i casi che i dati veri non hanno
+
+Sul condiviso non esistono opzioni utente omonime né coppie a metà: la prova in
+`cassa-migrations.integration-spec.ts` le fabbrica. **Falsificata due volte**, una per
+guardia:
+
+```text
+tolto  EXISTS della storica   → la (MP08) senza partner si spegne     ⛔ prova rossa
+tolto  is_system              → la voce dell'UTENTE si spegne          ⛔ prova rossa
+```
+
+⚠️ **La seconda falsificazione non funzionava alla prima stesura**, e la nota serve: il
+caso dell'utente aveva il codice a `null`, quindi a proteggerlo era il controllo sul
+codice e non `is_system`. Reso stretto — nome esatto, codice giusto, storica accanto —
+l'unica cosa che lo distingue è `is_system`, ed è finalmente quello che la prova verifica.
+
+---
+
+### ⚠️ NOTA DI RILASCIO — da tenere fino a rilascio avvenuto
+
+**1. Il backup eseguito dimostra lo STRUMENTO, non sostituisce quello del rilascio.**
+Il backup del 06/09/2026 serviva a provare che la catena funziona — e ha trovato tre
+difetti che la rendevano inservibile. Prima di applicare le migration al condiviso serve
+un **backup nuovo**, fatto in quel momento: quello vecchio non contiene ciò che è successo
+nel frattempo.
+
+**2. Migration e distribuzione del nuovo codice devono essere RAVVICINATE.** Fra le due
+c'è una finestra in cui il database ha lo schema nuovo e la produzione gira ancora con
+`main`. La finestra è sicura solo finché nessuno usa la Cassa.
+
+**3. ⛔ Nessun reso prima del collaudo.** `document_lines_returned_from_line_id_fkey` è
+`ON DELETE RESTRICT`, e misurato: rifiuta il `deleteMany` delle righe **anche quando la
+riga referenziante è cancellata nello stesso statement**. Alla prima vendita con reso
+registrata dal codice di develop, `main` non riesce più a risalvare quel documento —
+`documents.service.ts:1856` fa quel `deleteMany` a ogni salvataggio.
+
 ### ⏸ DECISIONE APERTA — i Tipi pagamento sono doppi, e dopo le 11 si vedono (06/09/2026)
 
 Misurato in **sola lettura** sul condiviso, e verificato sul database migrato per cosa

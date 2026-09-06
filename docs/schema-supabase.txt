@@ -3,8 +3,8 @@ SCHEMA DEL DATABASE — VestiFlow
 
 Ambiente:   database condiviso utilizzato anche dall'app distribuita; dati di
             prova.
-Estratto:   2026-09-06T10:28:33.027Z
-Commit:     6d1976a6
+Estratto:   2026-09-06T13:32:23.731Z
+Commit:     f74655bc
 Schema:     public — esclusi gli schemi interni di Supabase, che non sono
             nostri.
 Contenuto:  solo STRUTTURA. Nessuna riga di dati, nessun conteggio di righe,
@@ -36,12 +36,12 @@ QUADRO
 
   tabelle nel database (fonte 1)      75   (compresa _prisma_migrations)
   tabelle dichiarate da Prisma (2)    74
-  cartelle di migration in locale (3) 158
+  cartelle di migration in locale (3) 159
   righe di _prisma_migrations (4)     147
     di cui concluse e non annullate   147
     di cui annullate                  0
     di cui interrotte (mai concluse)  0
-  migration da applicare (3 meno 4)   11
+  migration da applicare (3 meno 4)   12
   tipi enumerati                      38
 
 DIFFERENZE FRA IL DATABASE E LO SCHEMA DEL RAMO
@@ -2495,7 +2495,7 @@ MIGRATION
 
   La presenza nello storico NON significa applicazione riuscita.
 
-  Da applicare — cartella in locale, nessuna riga conclusa (11):
+  Da applicare — cartella in locale, nessuna riga conclusa (12):
     20260904120000_modalita_pagamento_normative  (mai tentata)
     20260904140000_dispositivo_fiscale_neutrale  (mai tentata)
     20260904150000_dispositivo_fiscale_garanzie  (mai tentata)
@@ -2507,6 +2507,7 @@ MIGRATION
     20260904210000_quote_di_incasso  (mai tentata)
     20260904220000_rimborso_collegato_alla_quota  (mai tentata)
     20260905210000_protezione_storico_dispositivi_cassa  (mai tentata)
+    20260906120000_ritiro_doppioni_sintetici_pagamento  (mai tentata)
 
   Annullate (0):
     nessuna
