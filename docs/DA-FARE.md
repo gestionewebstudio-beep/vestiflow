@@ -71,6 +71,84 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
+### ⭐ PREFLIGHT ESEGUITO — le 11 migration provate davvero (06/09/2026)
+
+Non su carta: su un database **ripristinato dal backup del condiviso** e usa-e-getta.
+Nessuna migration è stata applicata al condiviso, che è rimasto in sola lettura.
+
+```text
+1  backup cifrato del condiviso   pg_dump via container, 454 kB, fuori dal repository
+2  ripristino su usa-e-getta      postgres:17 su :5433 — MAI sul condiviso
+3  verifica del ripristino        75 tabelle, 147 migration, conteggi IDENTICI
+4  le 11 con prisma:deploy:test   158 applicate, 0 annullate, 0 interrotte
+```
+
+#### Che cosa hanno prodotto le 11
+
+|                            |                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| tabelle                    | 75 → **77** (`payment_method_codes`, `cash_session_device_changes`)                          |
+| protezione delle due nuove | `rls=true`, e **zero privilegi** ad `anon`, `authenticated`, `PUBLIC`                        |
+| codici normativi           | 23 seminati, da MP01 a MP23                                                                  |
+| Tipi pagamento             | 148 totali → **112 collegate** a un codice, **16 classificate** per l'incasso                |
+| `cash_sessions`            | `expected_electronic_minor` e `declared_electronic_minor` presenti; le due `_other_` sparite |
+
+⭐ **RLS su tutto lo schema migrato**: 76 tabelle su 77 con RLS abilitata, e l'unica
+esente è `_prisma_migrations` — la contabilità di Prisma, fuori dal perimetro. **Nessuna
+tabella concede privilegi ad `anon` o `authenticated`.**
+
+⚠️ **La sonda live non è stata eseguita, e va detto perché**: `check-rls` interroga la
+Data API di Supabase con `SUPABASE_ANON_KEY`, che **non è in `api/.env`** — è un secret di
+GitHub. E anche potendo, interrogherebbe il **condiviso**, dove le 11 non sono applicate:
+non direbbe nulla sullo schema migrato. La verifica sopra, fatta sui privilegi effettivi
+del database migrato, è l'equivalente locale e per questo schema è più stretta.
+
+#### `main@c4044d98` contro lo schema migrato
+
+Worktree isolato, dipendenze proprie, **client Prisma generato dallo schema di main** —
+l'unico modo di provare quello che main fa davvero.
+
+```text
+✅ avvio API           /api/v1/health → HTTP 200, {"status":"ok","database":"up"}
+✅ letture ordinarie   tenant, prodotti+varianti, documenti+righe, Tipi pagamento
+✅ Tipo pagamento      creato, modificato, riletto, cancellato
+✅ documento           risalvato col deleteMany delle righe (documents.service.ts)
+```
+
+#### ⛔ LA FK DEL RESO: il blocco è CONFERMATO, ed è peggio del previsto
+
+`document_lines_returned_from_line_id_fkey` è `ON DELETE RESTRICT`. Misurato con quattro
+prove in transazioni annullate:
+
+| Caso                                                                       | Esito                   |
+| -------------------------------------------------------------------------- | ----------------------- |
+| cancellare una riga **non referenziata**                                   | ✅ riesce — è main oggi |
+| cancellare la riga **puntata**, con la puntante viva                       | ⛔ rifiutata, `23503`   |
+| **`deleteMany` di TUTTE le righe del documento**, col collegamento interno | ⛔ **rifiutata**        |
+| cancellare le righe della **vendita**, col reso che le punta               | ⛔ rifiutata            |
+
+⛔ **Il terzo caso è quello che conta, ed è controintuitivo**: anche cancellando la riga
+referenziante nello **stesso statement**, `RESTRICT` rifiuta — non è differibile, a
+differenza di `NO ACTION`. Quindi `documents.service.ts:1856`, che fa `deleteMany` delle
+righe **a ogni salvataggio**, fallisce sul documento coinvolto.
+
+⚠️ **Oggi non scatta**: `returned_from_line_id` è tutta `NULL`. **Si arma alla prima
+vendita con reso fatta dal codice di develop** (`cash-return.service.ts:326`). Da quel
+momento, riaprire e risalvare in main quella vendita non riesce più.
+
+⭐ **La conseguenza operativa, e va decisa prima del rilascio**: applicare le 11 al
+condiviso mentre la produzione gira ancora con `main` è sicuro **finché nessuno usa la
+Cassa**. Non appena la Cassa registra un reso, main non può più risalvare quel documento.
+Le due cose — migration al condiviso e `develop → main` — vanno quindi fatte **vicine**,
+o la finestra in mezzo va tenuta senza resi.
+
+#### Suite di integrazione di develop
+
+**474 prove su 27 file, tutte verdi** sul database ripristinato e migrato.
+
+⚠️ **La suite RISCRIVE i dati** (`svuota` e fixture): va eseguita **dopo** ogni misura sui
+dati ripristinati, non prima. Costata una misura da rifare.
+
 ### ⭐ CONSERVATO dal vecchio ramo `feature/cassa` — la conoscenza, non il codice (06/09/2026)
 
 Il ramo `origin/feature/cassa` (testa `6e4f9e79`, 19/08/2026) resta **intatto e non
