@@ -376,32 +376,67 @@ Vedi `SICUREZZA-PENDENTE.md` §5 (Sentry):
 
 ### Prerequisiti
 
-- Dump file `.dump` (custom format) o `.sql.gz` cifrato
-- Progetto Supabase vuoto (staging)
-- `psql` / `pg_restore` installati
+- Cartella di backup prodotta da `npm run backup:full` (contiene `database.dump.enc`
+  e `manifest.json`)
+- `BACKUP_ENCRYPTION_PASSPHRASE` **la stessa usata al backup**
+- Un database di destinazione **usa-e-getta**. ⛔ Mai il condiviso.
+- `pg_restore` **oppure Docker**: dal 06/09/2026 lo script ripiega da solo su un
+  container `postgres:17` se i client tools non sono installati
+
+### ⚠️ Qui c`era una procedura che NON funziona, ed e` stata sostituita
+
+⛔ **Il documento prescriveva `age -d` per decifrare.** Lo script non ha mai
+usato `age`: cifra e decifra con **AES-256-GCM** in `scripts/backup/crypto.mjs`
+(`createCipheriv` / `createDecipheriv`), in pipeline con gzip. Seguendo il
+documento alla lettera il ripristino **non parte**: `age` non e` installato e,
+anche installandolo, non saprebbe leggere quel formato.
+
+⛔ **E la verifica usava nomi di tabella che non esistono**: `"Tenant"`,
+`"Product"`, `"StockMovement"`. Misurato sul database il 06/09/2026 con
+`to_regclass`: **nessuno dei tre esiste**. I nomi reali sono in snake_case,
+perche`ogni modello Prisma porta un`@@map`—`tenants`, `products`,
+`stock_movements`. Le tre query davano errore, quindi la «verifica di
+ripristino» non era eseguibile: e` il motivo per cui la casella «Restore di
+prova completato» al §7 era ancora vuota.
+
+⭐ **Non si decifra a mano.** Lo script fa tutto in una pipeline che non
+scrive mai il dump in chiaro sul disco: leggi cifrato → decifra → gunzip →
+`pg_restore`. Un dump in chiaro dimenticato in una cartella e` una copia
+integrale del database senza protezione.
 
 ### Passi
 
-1. Decifra il dump se cifrato:
+1. Ripristina su un bersaglio usa-e-getta. ⛔ `--direct-url` e`OBBLIGATORIO:
+senza, lo script usa`DIRECT_URL`di`api/.env`, che punta al **condiviso**.
 
 ```bash
-age -d -o vestiflow-restore.dump vestiflow-YYYYMMDD.dump.age
+# database usa-e-getta gia` pronto nel repository:
+npm --prefix api run db:test:up          # postgres:17 su localhost:5433
+
+npm run backup:restore -- \
+  --backup-dir <cartella FUORI dal repository> \
+  --confirm \
+  --direct-url "postgresql://vestiflow:***@localhost:5433/vestiflow_test"
 ```
 
-2. Crea nuovo progetto Supabase staging (o svuota schema su DB dedicato).
-
-3. Restore:
-
-```bash
-pg_restore --dbname="$STAGING_DIRECT_URL" --verbose --no-owner --no-acl vestiflow-restore.dump
-```
-
-4. Verifica:
+2. Verifica che lo schema sia arrivato, coi nomi REALI:
 
 ```sql
-SELECT COUNT(*) FROM "Tenant";
-SELECT COUNT(*) FROM "Product";
-SELECT COUNT(*) FROM "StockMovement";
+-- Le tabelle esistono (0 righe = il nome e` sbagliato, non il dato assente)
+SELECT to_regclass('public.tenants')         IS NOT NULL AS tenants,
+       to_regclass('public.products')        IS NOT NULL AS products,
+       to_regclass('public.stock_movements') IS NOT NULL AS stock_movements;
+
+-- E hanno i dati
+SELECT COUNT(*) FROM tenants;
+SELECT COUNT(*) FROM products;
+SELECT COUNT(*) FROM stock_movements;
+
+-- Quante tabelle in tutto, e quante migration risultano applicate
+SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'public' AND c.relkind = 'r';
+SELECT count(*) FROM _prisma_migrations
+ WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;
 ```
 
 5. Aggiorna **solo staging** Railway con nuove `DATABASE_URL` / JWT secret del progetto staging.

@@ -255,6 +255,159 @@ describe('Cassa — installazione pulita e aggiornamento da develop', () => {
     await svuota(prisma);
   }, 300_000);
 
+  /*
+    ⛔ **LA FINESTRA DI ESPOSIZIONE NON DEVE ESISTERE.**
+
+    Fino al 06/09/2026 la 20260904180000 creava `cash_session_device_changes`
+    SENZA RLS, e la protezione arrivava solo con la 20260905210000 — cinque
+    migration dopo, il giorno seguente. Su un deploy interrotto in mezzo la
+    tabella restava leggibile dalla Data API pubblica di Supabase.
+
+    ⭐ Questa prova ferma il deploy ESATTAMENTE dove la 20260904180000
+    conclude — nessuna migration successiva, nemmeno la correttiva — e
+    verifica che la tabella sia gia` protetta li`.
+
+    ⚠️ **Verifica i PRIVILEGI EFFETTIVI, non il testo della migration.**
+    `has_table_privilege` risponde tenendo conto anche di cio` che i ruoli
+    ereditano da PUBLIC, che e` il motivo per cui la revoca nomina PUBLIC:
+    un grep sul file .sql non avrebbe potuto accorgersene.
+  */
+  it('dopo la 20260904180000 la tabella dello storico non e` MAI esposta', async () => {
+    const finoAllaSesta = await stage(null, '20260904190000_check_ridondante_e_append_only');
+    await cleanSchema();
+    await deploy(finoAllaSesta.schema, 'fino-alla-sesta');
+
+    // La tabella esiste davvero: senza questo, le verifiche sotto sarebbero
+    // vere per vacuita` e la prova non proverebbe niente.
+    const esiste = await prisma.$queryRaw<{ presente: boolean }[]>`
+      SELECT to_regclass('public.cash_session_device_changes') IS NOT NULL AS presente`;
+    expect(esiste).toEqual([{ presente: true }]);
+
+    // E la migration correttiva NON e` ancora stata applicata: e` cio` che
+    // rende la prova una prova sulla 20260904180000 e non sulla 20260905210000.
+    const applicate = await prisma.$queryRaw<{ nome: string }[]>`
+      SELECT migration_name AS nome FROM _prisma_migrations
+       WHERE migration_name = '20260905210000_protezione_storico_dispositivi_cassa'`;
+    expect(applicate).toEqual([]);
+
+    const sicurezza = await prisma.$queryRaw<
+      { rls: boolean; anon: boolean; authenticated: boolean; pubblico: boolean }[]
+    >`
+      SELECT relrowsecurity AS rls,
+        has_table_privilege('anon', oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS anon,
+        has_table_privilege('authenticated', oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS authenticated,
+        has_table_privilege('public', oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS pubblico
+      FROM pg_class WHERE oid = 'public.cash_session_device_changes'::regclass`;
+    expect(sicurezza).toEqual([{ rls: true, anon: false, authenticated: false, pubblico: false }]);
+  }, 300_000);
+
+  /*
+    ⛔ **LA REGOLA NON E` «UNA VOCE PER CODICE», ed e` la parte che conta.**
+
+    Piu` Tipi pagamento distinti che puntano allo stesso `MPxx` sono LEGITTIMI
+    — «Carta — banco» e «Carta — online», entrambi MP08, che l`azienda vuole
+    separati nei riepiloghi. Una deduplica per codice li spegnerebbe.
+
+    ⭐ Si ritira SOLO cio` che il progetto ha seminato due volte, riconosciuto
+    per NOME LETTERALE delle due generazioni di seed.
+
+    ⚠️ **I dati veri non contengono i casi difficili**: sul condiviso non ci
+    sono opzioni utente omonime ne` coppie a meta`. Questa prova li costruisce.
+  */
+  it('ritira i doppioni SINTETICI e lascia stare tutto il resto', async () => {
+    const current = await stage(null);
+    await cleanSchema();
+    await deploy(current.schema, 'doppioni');
+    await creaDataset(prisma);
+
+    const mp01 = await prisma.paymentMethodCode.findFirstOrThrow({ where: { code: 'MP01' } });
+    const mp08 = await prisma.paymentMethodCode.findFirstOrThrow({ where: { code: 'MP08' } });
+    const mp02 = await prisma.paymentMethodCode.findFirstOrThrow({ where: { code: 'MP02' } });
+
+    const crea = (dati: {
+      nome: string;
+      sistema: boolean;
+      attiva: boolean;
+      codice: string | null;
+      tenant?: string;
+    }) =>
+      prisma.paymentOption.create({
+        data: {
+          tenantId: dati.tenant ?? IDS.tenantA,
+          kind: 'method',
+          name: dati.nome,
+          isSystem: dati.sistema,
+          isActive: dati.attiva,
+          methodCodeId: dati.codice,
+          sortOrder: 500,
+        },
+      });
+
+    // (a) La coppia sintetica completa: si ritira la seconda.
+    const storica = await crea({ nome: 'Contanti', sistema: true, attiva: true, codice: mp01.id });
+    const sintetica = await crea({
+      nome: 'Contanti (MP01)',
+      sistema: true,
+      attiva: true,
+      codice: mp01.id,
+    });
+    // (b) Una (MPxx) SENZA storica: e` l`unica voce di quel codice, resta.
+    const sola = await crea({
+      nome: 'Carta di pagamento (MP08)',
+      sistema: true,
+      attiva: true,
+      codice: mp08.id,
+    });
+    // (c) Due opzioni DELIBERATE dell`utente, stesso codice, nomi diversi.
+    const utenteA = await crea({ nome: 'Carta — banco', sistema: false, attiva: true, codice: mp08.id });
+    const utenteB = await crea({ nome: 'Carta — online', sistema: false, attiva: true, codice: mp08.id });
+    /*
+      (d) ⛔ **Il caso STRETTO**: una voce che l`utente ha creato col nome
+      esatto della sintetica, con il codice GIUSTO, e con la storica di
+      sistema accanto. Tutto combacia tranne `is_system` — che e` quindi
+      l`unica cosa che la protegge, ed e` cio` che questa prova verifica.
+
+      ⚠️ Col codice a `null` sarebbe stato il controllo sul codice a salvarla,
+      e la guardia su `is_system` non sarebbe stata provata affatto.
+    */
+    const finta = await crea({
+      nome: 'Assegno (MP02)',
+      sistema: false,
+      attiva: true,
+      codice: mp02.id,
+    });
+    await crea({ nome: 'Assegno', sistema: true, attiva: true, codice: mp02.id });
+
+    const sql = await readFile(
+      join(
+        apiRoot,
+        'prisma/migrations/20260906120000_ritiro_doppioni_sintetici_pagamento/migration.sql',
+      ),
+      'utf8',
+    );
+    await prisma.$executeRawUnsafe(sql);
+
+    const stato = async (id: string) =>
+      (await prisma.paymentOption.findUniqueOrThrow({ where: { id } })).isActive;
+
+    // ⛔ Solo la sintetica della coppia completa si spegne.
+    expect(await stato(sintetica.id)).toBe(false);
+    expect(await stato(storica.id)).toBe(true);
+    // ⭐ E tutto il resto resta acceso.
+    expect(await stato(sola.id)).toBe(true);
+    expect(await stato(utenteA.id)).toBe(true);
+    expect(await stato(utenteB.id)).toBe(true);
+    expect(await stato(finta.id)).toBe(true);
+
+    // ⭐ Nessuna riga cancellata, e la seconda passata non cambia nulla.
+    const prima = await prisma.paymentOption.findMany({ orderBy: { id: 'asc' } });
+    await prisma.$executeRawUnsafe(sql);
+    const dopo = await prisma.paymentOption.findMany({ orderBy: { id: 'asc' } });
+    expect(dopo).toEqual(prima);
+
+    await svuota(prisma);
+  }, 300_000);
+
   it('la nuova migration RLS preserva lo storico esistente e revoca i privilegi effettivi', async () => {
     const old = await stage(null, '20260905210000_protezione_storico_dispositivi_cassa');
     const current = await stage(null);

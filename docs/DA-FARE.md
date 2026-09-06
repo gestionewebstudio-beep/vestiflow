@@ -71,6 +71,392 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
+### ⭐ PREFLIGHT ESEGUITO — le 11 migration provate davvero (06/09/2026)
+
+Non su carta: su un database **ripristinato dal backup del condiviso** e usa-e-getta.
+Nessuna migration è stata applicata al condiviso, che è rimasto in sola lettura.
+
+```text
+1  backup cifrato del condiviso   pg_dump via container, 454 kB, fuori dal repository
+2  ripristino su usa-e-getta      postgres:17 su :5433 — MAI sul condiviso
+3  verifica del ripristino        75 tabelle, 147 migration, conteggi IDENTICI
+4  le 11 con prisma:deploy:test   158 applicate, 0 annullate, 0 interrotte
+```
+
+#### Che cosa hanno prodotto le 11
+
+|                            |                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| tabelle                    | 75 → **77** (`payment_method_codes`, `cash_session_device_changes`)                          |
+| protezione delle due nuove | `rls=true`, e **zero privilegi** ad `anon`, `authenticated`, `PUBLIC`                        |
+| codici normativi           | 23 seminati, da MP01 a MP23                                                                  |
+| Tipi pagamento             | 148 totali → **112 collegate** a un codice, **16 classificate** per l'incasso                |
+| `cash_sessions`            | `expected_electronic_minor` e `declared_electronic_minor` presenti; le due `_other_` sparite |
+
+⭐ **RLS su tutto lo schema migrato**: 76 tabelle su 77 con RLS abilitata, e l'unica
+esente è `_prisma_migrations` — la contabilità di Prisma, fuori dal perimetro. **Nessuna
+tabella concede privilegi ad `anon` o `authenticated`.**
+
+⚠️ **La sonda live non è stata eseguita, e va detto perché**: `check-rls` interroga la
+Data API di Supabase con `SUPABASE_ANON_KEY`, che **non è in `api/.env`** — è un secret di
+GitHub. E anche potendo, interrogherebbe il **condiviso**, dove le 11 non sono applicate:
+non direbbe nulla sullo schema migrato. La verifica sopra, fatta sui privilegi effettivi
+del database migrato, è l'equivalente locale e per questo schema è più stretta.
+
+#### `main@c4044d98` contro lo schema migrato
+
+Worktree isolato, dipendenze proprie, **client Prisma generato dallo schema di main** —
+l'unico modo di provare quello che main fa davvero.
+
+```text
+✅ avvio API           /api/v1/health → HTTP 200, {"status":"ok","database":"up"}
+✅ letture ordinarie   tenant, prodotti+varianti, documenti+righe, Tipi pagamento
+✅ Tipo pagamento      creato, modificato, riletto, cancellato
+✅ documento           risalvato col deleteMany delle righe (documents.service.ts)
+```
+
+#### ⛔ LA FK DEL RESO: il blocco è CONFERMATO, ed è peggio del previsto
+
+`document_lines_returned_from_line_id_fkey` è `ON DELETE RESTRICT`. Misurato con quattro
+prove in transazioni annullate:
+
+| Caso                                                                       | Esito                   |
+| -------------------------------------------------------------------------- | ----------------------- |
+| cancellare una riga **non referenziata**                                   | ✅ riesce — è main oggi |
+| cancellare la riga **puntata**, con la puntante viva                       | ⛔ rifiutata, `23503`   |
+| **`deleteMany` di TUTTE le righe del documento**, col collegamento interno | ⛔ **rifiutata**        |
+| cancellare le righe della **vendita**, col reso che le punta               | ⛔ rifiutata            |
+
+⛔ **Il terzo caso è quello che conta, ed è controintuitivo**: anche cancellando la riga
+referenziante nello **stesso statement**, `RESTRICT` rifiuta — non è differibile, a
+differenza di `NO ACTION`. Quindi `documents.service.ts:1856`, che fa `deleteMany` delle
+righe **a ogni salvataggio**, fallisce sul documento coinvolto.
+
+⚠️ **Oggi non scatta**: `returned_from_line_id` è tutta `NULL`. **Si arma alla prima
+vendita con reso fatta dal codice di develop** (`cash-return.service.ts:326`). Da quel
+momento, riaprire e risalvare in main quella vendita non riesce più.
+
+⭐ **La conseguenza operativa, e va decisa prima del rilascio**: applicare le 11 al
+condiviso mentre la produzione gira ancora con `main` è sicuro **finché nessuno usa la
+Cassa**. Non appena la Cassa registra un reso, main non può più risalvare quel documento.
+Le due cose — migration al condiviso e `develop → main` — vanno quindi fatte **vicine**,
+o la finestra in mezzo va tenuta senza resi.
+
+#### Suite di integrazione di develop
+
+**474 prove su 27 file, tutte verdi** sul database ripristinato e migrato.
+
+⚠️ **La suite RISCRIVE i dati** (`svuota` e fixture): va eseguita **dopo** ogni misura sui
+dati ripristinati, non prima. Costata una misura da rifare.
+
+### ✅ DOPPIONI DEI TIPI PAGAMENTO — corretti con una migration dati (06/09/2026)
+
+`20260906120000_ritiro_doppioni_sintetici_pagamento`, **dodicesima** pendente, dopo le
+undici. ⛔ Nessuna migration già applicata è stata riscritta, e il condiviso non è stato
+toccato: resta a **147 applicate**.
+
+#### La regola, e cosa NON è
+
+⛔ **Non è una deduplica per codice normativo**, ed è la distinzione che governa tutto.
+Più Tipi pagamento distinti che puntano allo stesso `MPxx` sono **legittimi**: «Carta —
+banco» e «Carta — online», entrambi MP08, che l'azienda vuole separati nei riepiloghi.
+Una regola per codice li spegnerebbe, e sarebbe un difetto peggiore del doppione.
+
+⭐ **Si ritira solo ciò che il progetto ha seminato due volte**, riconosciuto per **nome
+letterale** delle due generazioni di seed. Cinque coppie, scritte una per una: nessuna
+euristica, nessun `LIKE`, nessuna estrazione del codice dal nome.
+
+Cinque condizioni, tutte necessarie, prima di spegnere una voce:
+
+```text
+nome         esattamente quello sintetico del seed nuovo
+kind         'method'
+is_system    true          ← una voce dell'utente non si tocca mai
+is_active    true          ← se il titolare l'ha già spenta, non c'è niente da fare
+codice       quello atteso ← un nome giusto con codice rimappato non è la coppia
+storica      esiste nello STESSO tenant, di sistema, ATTIVA, stesso codice
+```
+
+⚠️ **L'ultima condizione è quella che protegge di più**: senza la storica accesa, la
+sintetica **resta accesa**. Lasciare un tenant senza nessuna voce attiva per un codice
+sarebbe molto peggio di un doppione.
+
+⛔ **Nessuna riga viene cancellata**: si spegne `is_active`. Le quote incassate e gli
+snapshot restano leggibili — `payment_option_id` continua a risolvere su una riga che
+esiste, e `option_name_snapshot` conserva comunque il nome. Cancellare avrebbe azzerato
+il riferimento (`ON DELETE SET NULL`) e lasciato la quota senza origine.
+
+⭐ **La Cassa continua a mostrare tutte le opzioni ATTIVE.** Questa migration non tocca
+la presentazione: riduce il numero di voci attive, che si vede in ogni elenco.
+
+#### Provata sul database ripristinato, da 147
+
+|                                       |                                                                 |
+| ------------------------------------- | --------------------------------------------------------------- |
+| migrazione                            | 147 → **159**, zero annullate, zero interrotte                  |
+| doppioni sintetici attivi             | **20 → 0**                                                      |
+| voci storiche                         | **20, tutte ancora attive**                                     |
+| righe cancellate                      | **nessuna** (148 + 2 di prova = 150)                            |
+| `(MPxx)` senza equivalente storico    | **72 su 72 ancora attive**                                      |
+| due opzioni deliberate, stesso codice | **entrambe visibili**                                           |
+| Cassa                                 | da **4 voci per tenant a 2** — «Contanti», «Carta di pagamento» |
+| seconda applicazione                  | **zero modifiche**, nemmeno `updated_at`                        |
+
+#### La prova automatica costruisce i casi che i dati veri non hanno
+
+Sul condiviso non esistono opzioni utente omonime né coppie a metà: la prova in
+`cassa-migrations.integration-spec.ts` le fabbrica. **Falsificata due volte**, una per
+guardia:
+
+```text
+tolto  EXISTS della storica   → la (MP08) senza partner si spegne     ⛔ prova rossa
+tolto  is_system              → la voce dell'UTENTE si spegne          ⛔ prova rossa
+```
+
+⚠️ **La seconda falsificazione non funzionava alla prima stesura**, e la nota serve: il
+caso dell'utente aveva il codice a `null`, quindi a proteggerlo era il controllo sul
+codice e non `is_system`. Reso stretto — nome esatto, codice giusto, storica accanto —
+l'unica cosa che lo distingue è `is_system`, ed è finalmente quello che la prova verifica.
+
+---
+
+### ⚠️ NOTA DI RILASCIO — da tenere fino a rilascio avvenuto
+
+**1. Il backup eseguito dimostra lo STRUMENTO, non sostituisce quello del rilascio.**
+Il backup del 06/09/2026 serviva a provare che la catena funziona — e ha trovato tre
+difetti che la rendevano inservibile. Prima di applicare le migration al condiviso serve
+un **backup nuovo**, fatto in quel momento: quello vecchio non contiene ciò che è successo
+nel frattempo.
+
+**2. Migration e distribuzione del nuovo codice devono essere RAVVICINATE.** Fra le due
+c'è una finestra in cui il database ha lo schema nuovo e la produzione gira ancora con
+`main`. La finestra è sicura solo finché nessuno usa la Cassa.
+
+**3. ⛔ Nessun reso prima del collaudo.** `document_lines_returned_from_line_id_fkey` è
+`ON DELETE RESTRICT`, e misurato: rifiuta il `deleteMany` delle righe **anche quando la
+riga referenziante è cancellata nello stesso statement**. Alla prima vendita con reso
+registrata dal codice di develop, `main` non riesce più a risalvare quel documento —
+`documents.service.ts:1856` fa quel `deleteMany` a ogni salvataggio.
+
+### ⏸ DECISIONE APERTA — i Tipi pagamento sono doppi, e dopo le 11 si vedono (06/09/2026)
+
+Misurato in **sola lettura** sul condiviso, e verificato sul database migrato per cosa
+l'operatore vedrebbe davvero.
+
+#### Il fatto
+
+Tutti e **quattro** i tenant portano **due generazioni di seed insieme**. Trenta Tipi
+pagamento «metodo» ciascuno, di cui **cinque coppie** che nominano lo stesso codice
+normativo — e in tutti e quattro i tenant **entrambe le voci di ogni coppia sono attive**:
+
+```text
+MP01   «Contanti»            +  «Contanti (MP01)»
+MP02   «Assegno»             +  «Assegno (MP02)»
+MP05   «Bonifico bancario»   +  «Bonifico (MP05)»
+MP08   «Carta di pagamento»  +  «Carta di pagamento (MP08)»
+MP12   «RiBa»                +  «RIBA (MP12)»
+                                        20 coppie attive su 4 tenant
+```
+
+⭐ **Non è un difetto delle 11 migration.** La `20260904120000` lo sapeva già: ha due
+blocchi di backfill, `4a` per i nomi nuovi e `4b` per quelli vecchi, col commento
+«misurato il 04/09/2026: i clienti usano _Bonifico bancario_». Le migration **collegano
+entrambe** al codice, ed è la scelta giusta — scollegare quella vecchia perderebbe il
+significato normativo dei documenti che la usano.
+
+#### Che cosa vedrebbe l'operatore in Cassa
+
+Misurato sul database migrato, per ogni tenant:
+
+```text
+  Contanti                    (cash)
+  Carta di pagamento          (electronic)
+  Contanti (MP01)             (cash)
+  Carta di pagamento (MP08)   (electronic)
+```
+
+⛔ **Quattro pulsanti d'incasso dove i modi di pagare sono due.** Al banco si sceglie
+alla svelta, e due voci che dicono la stessa cosa costringono a fermarsi — o, peggio, si
+scelgono a caso e lo stesso incasso finisce classificato in due modi diversi a giorni
+alterni.
+
+⚠️ Le altre tre coppie (MP02, MP05, MP12) **non** compaiono in Cassa: `tender_kind` resta
+`NULL`, perché la `20260904170000` classifica solo MP01 e MP08. Il doppione lì si vede
+nelle tendine dei documenti, non al banco.
+
+#### Nessun dato le referenzia, oggi
+
+Misurato sul condiviso: **nessuna chiave esterna punta a `payment_options`**, e nessuna
+riga le referenzia. Il collegamento `store_sale_payments.payment_option_id` nasce con la
+`20260904210000`, e l'unica riga esistente non lo valorizza.
+
+⭐ **Questo cambia il costo della correzione**: oggi ritirare una voce di ogni coppia non
+rompe nessun documento storico. Dopo il primo incasso in Cassa, non è più vero.
+
+#### La proposta, e ⛔ non cancella né spegne niente da sola
+
+**Nessun `UPDATE` automatico.** Un seed che disattiva voci scelte da lui è esattamente il
+modo in cui si perde la fiducia in una migration: il titolare troverebbe spenta una voce
+che magari usa in fattura.
+
+La forma proposta, in tre pezzi, da decidere:
+
+1. ⭐ **Il pannello Impostazioni → Tipi pagamento mostra il doppione e lo dice.** Due voci
+   che portano lo stesso `method_code_id` si segnalano con un avviso non bloccante — «due
+   Tipi puntano a MP01: al banco compariranno entrambi» — e un comando **«Unisci»** che
+   l'operatore preme se vuole. Unire = spegnere quella che sceglie lui e, quando serviranno,
+   spostare i riferimenti.
+2. ⭐ **La Cassa intanto non aspetta**: nell'elenco d'incasso si mostra **una voce per
+   codice normativo**, scegliendo quella che il tenant ha effettivamente usato di più (e a
+   parità, quella con `sort_order` minore). Le altre restano disponibili sotto «Altri
+   Tipi». È una decisione di **presentazione**, reversibile, e non tocca un dato.
+3. ⚠️ **Il seed dei tenant nuovi resta com'è**: nasce già con i soli nomi `(MPxx)`, quindi
+   il problema non si riproduce. Riguarda solo i quattro tenant esistenti.
+
+⛔ **Che cosa NON proporre**: un `UPDATE ... SET is_active = false WHERE name IN (...)`
+dentro una migration. Sceglie per il titolare, non è reversibile senza sapere cosa c'era
+prima, e su un tenant che avesse rinominato una voce colpirebbe quella sbagliata.
+
+⏸ **Da decidere dal proprietario**: se il punto 2 (una voce per codice in Cassa) sia
+accettabile come comportamento predefinito, o se preferisca vedere tutto e sistemare a
+mano dal pannello.
+
+### ⭐ CONSERVATO dal vecchio ramo `feature/cassa` — la conoscenza, non il codice (06/09/2026)
+
+Il ramo `origin/feature/cassa` (testa `6e4f9e79`, 19/08/2026) resta **intatto e non
+eliminato**. Non porta migration né oggetti di schema che manchino a `develop`: le sue
+sei migration sono **byte-identiche** a quelle già applicate, verificato per hash di blob.
+
+⛔ **Qui non si copia codice.** Dei 52 file che `develop` non ha, la classificazione ha
+lasciato in piedi **quattro isole di conoscenza** — misurate, non stimate, e ognuna
+sopravvissuta a una verifica avversaria che cercava l'equivalente in `develop` e non
+l'ha trovato. Quello che segue è ciò che va **saputo** per riscriverle; il codice si
+recupera dal ramo con `git show`, quando e se servirà.
+
+⚠️ **Perché non riportarle adesso.** Tre delle quattro appartengono alla fiscalizzazione,
+che `docs/25` §0 decisione 10 rinvia alla tranche C5, e la loro forma vecchia viola il
+contratto neutrale (nomi di produttore, `paymentType` numerici, indirizzi codificati).
+La quarta — i terminali POS — ha già modello e migration in `develop` e **nient'altro**.
+
+---
+
+#### 1 · La finestra di comunicazione POS al portale
+
+**Dove**: `api/src/pos-terminals/pos-portal-window.util.ts` e `.spec.ts`, commit
+`577235db` (07/08/2026).
+
+⭐ **È l'unico pezzo di logica NORMATIVA che `develop` non ha in nessuna forma.** Il
+resto del gruppo POS è ricostruibile (un CRUD e un pannello); questa regola no — sta in
+un provvedimento, non in un'intuizione.
+
+La regola, per come è stata letta dal Provv. AdE 424470/2025 e dalle FAQ 2026:
+
+```text
+regime           dal 6° giorno all'ultimo giorno del SECONDO mese successivo
+                 all'attivazione o variazione
+                 (attivato ad aprile → finestra 6–30 giugno)
+prima finestra   POS in uso al 01/01/2026, o attivati entro il 31/01/2026
+                 → 5 marzo – 20 aprile 2026
+stato            linked · upcoming · open · overdue
+```
+
+⚠️ **Due scelte di attuazione da non riscoprire:**
+
+- la norma dice «ultimo giorno **lavorativo**»; l'attuazione usa l'**ultimo giorno del
+  mese**, perché «il promemoria deve anticipare, non inseguire il calendario festivi».
+  È una semplificazione deliberata, non un difetto;
+- i calcoli sono in **UTC puro** (`Date.UTC`), e il caso del cavallo d'anno
+  (novembre → gennaio successivo) è uno dei casi di prova.
+
+#### 2 · Il protocollo Epson ePOS-Print
+
+**Dove**: `src/app/domain/fiscal/models/epson-fiscal-xml.util.ts` e `.spec.ts`, commit
+`e6e01d0f` (07/08/2026). Stampanti RT FP-81II / FP-90III.
+
+⭐ **Il valore non è il codice: sono le costanti del dialetto**, che si ricostruirebbero
+solo leggendo il firmware o sbagliando contro un dispositivo vero.
+
+```text
+endpoint      <base>/cgi-bin/fpmate.cgi?devid=local_printer&timeout=10000
+vendita       printRecItem per riga  +  printRecTotal per metodo di pagamento
+reso          printRecRefund per riga, preceduto dal preambolo «RESO MERCE»
+              con numero zRep-progressivo, data e matricola dell'originale
+messageType   4 = preambolo del reso   ·   3 = riferimento interno in coda
+descrizione   troncata a 38 caratteri
+importi       stringa decimale col punto, valore assoluto
+```
+
+⚠️ **Il preambolo del reso è convenzione documentata, non verificata sul campo**: il
+commento originale avverte che «il firmware ha l'ultima parola» e che il flusso di reso
+va validato su dispositivo reale in fase di POC. Va riportato come dubbio, non come
+fatto.
+
+⛔ **La forma vecchia non si riusa**: `develop` ha adottato un contratto **neutrale**
+(`adapterKey` + registro statico, `api/src/fiscal/fiscal-adapter-registry.ts`) che vieta
+esplicitamente nomi di produttore e `paymentType` numerici nel contratto normalizzato.
+Questa conoscenza appartiene all'**adapter Epson**, quando esisterà — non al contratto.
+
+⚠️ **La prova XML è la parte più preziosa**: `epson-fiscal-xml.util.spec.ts` fissa le
+stringhe attese **carattere per carattere** (`printRecItem`, `printRecRefund`,
+`printRecTotal` con `paymentType` 0 e 2, `printRecMessage` con messageType 3 e 4). È la
+forma più verificabile in cui questa conoscenza esista.
+
+#### 3 · I casi numerici dell'arrotondamento fiscale
+
+**Dove**: `api/src/fiscal-devices/fiscal-print-payload.util.spec.ts`, commit `e6e01d0f`.
+
+⭐ **Restano validi qualunque sia l'adapter**, perché non parlano di protocollo ma di
+denaro — e sono la disciplina di `regole-gestionale` («si arrotonda solo all'uscita»)
+applicata alla stampa:
+
+| Caso                                 | Numeri                                                                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| lordo **divisibile** per la quantità | 4856 minori su 2 pezzi → quantità reale 2, unitario **2428**                                                                 |
+| lordo **non divisibile** (sconti)    | 10000 su 3 → **una riga sola a quantità 1** col totale 10000                                                                 |
+| reparto IVA                          | aliquota mappata sul dispositivo; **ripiego sul reparto 1** se la mappa manca, se l'aliquota manca o se la voce è malformata |
+
+⛔ **La regola che i numeri codificano**: quando il lordo non si divide esattamente per
+la quantità, **non si arrotonda l'unitario** — si stampa una riga sola a quantità 1 col
+totale esatto, perché «il totale stampato deve tornare al centesimo». È lo stesso
+principio di `regole-gestionale` «l'arrotondamento sta sul totale di riga, mai sul
+prezzo unitario», applicato dove sbagliarlo produce uno scontrino che non quadra.
+
+#### 4 · Il pannello Impostazioni, e cosa esattamente ricostruire
+
+**Dove**: `src/app/features/settings/components/pos-terminals-panel/` (commit
+`577235db`) e `.../fiscal-device-panel/` (commit `e6e01d0f`), più il **delta** in
+`settings.component.ts` / `.html`.
+
+⛔ **I due file `settings.component.*` NON si prendono**: quelli di `develop` sono
+divergenti e sostituirli sarebbe una regressione. Serve **solo il delta**, che è:
+
+```text
+settings.component.ts    il computed `showFiscalDevicePanel`, gated su
+                         `canManageSettingsCompany` (che in develop esiste ancora)
+settings.component.html  due <section> sotto @if (showFiscalDevicePanel()):
+                         «Dispositivo fiscale» e «Terminali POS»
+```
+
+⭐ **Il pannello POS è quello che vale la pena ricostruire per primo**, e non per la
+grafica: il suo template porta il **testo normativo** della finestra di comunicazione e
+i quattro stati resi all'operatore. È la parte di dominio che, riscritta da zero,
+verrebbe riscoperta a fatica.
+
+⚠️ **Il pannello dispositivo fiscale va invece RIPROGETTATO, non ricostruito**: presume
+`brand` come selettore del driver, `endpoint` obbligatorio ed `enabled` con default
+`true` — tre cose che le migration `20260904140000` e `20260904150000` hanno rovesciato
+(`enabled` nasce **false**, e un CHECK impone che sia false finché non c'è un
+`adapter_key`).
+
+---
+
+⚠️ **Che cosa NON è stato conservato, e perché non è una perdita.** Tre voci sono state
+respinte da una verifica che cercava di smentirle, e l'ha fatto: il servizio stampante
+lato browser (`develop` ha già deciso la strada e la documenta in `docs/25`), il modello
+`PosTerminal` del frontend (i campi persistiti sono **già identici** in
+`api/prisma/schema.prisma`, righe 3635-3654) e il servizio HTTP dei terminali
+(«boilerplate che `develop` ripete 40 volte»).
+
 ### Tranche 2 — finestra mobile ad altezze variabili (06/09/2026)
 
 **Il motore condiviso è stato ESTESO, non affiancato.** Nessun componente,
