@@ -1,17 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, SupplierOrderStatus } from '@prisma/client';
 
+import { variantTitle } from '../common/variant-label.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import {
   locationScopeToInventoryLevelFilter,
   resolveOperationalLocationScope,
 } from '../inventory/licensed-location-scope.util';
-
-interface SelectedOption {
-  readonly name: string;
-  readonly value: string;
-}
 
 /** Riga giacenza pronta per la dashboard (title già composto server-side). */
 export interface DashboardLevelRow {
@@ -125,7 +121,7 @@ export class DashboardService {
         variantId: level.variantId,
         locationId: level.locationId,
         sku: level.variant.sku ?? '',
-        title: this.buildTitle(level.variant.product.name, level.variant.optionValues),
+        title: variantTitle(level.variant.product.name, level.variant.optionValues),
         available: level.available,
         minThreshold: level.minThreshold,
         locationName: level.location.name,
@@ -133,12 +129,4 @@ export class DashboardService {
     };
   }
 
-  /** "Nome prodotto — Valore1 / Valore2" (forma allineata al frontend). */
-  private buildTitle(productName: string, optionValues: Prisma.JsonValue): string {
-    const options = Array.isArray(optionValues)
-      ? (optionValues as unknown as SelectedOption[])
-      : [];
-    const suffix = options.map((option) => option.value).join(' / ');
-    return suffix ? `${productName} — ${suffix}` : productName;
-  }
 }

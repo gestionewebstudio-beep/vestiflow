@@ -48,6 +48,27 @@
     display: table-header-group;
   }
 
+  /*
+    ⭐ **L'intestazione resta ferma mentre le righe scorrono** — e la dichiara il
+    MIXIN, non ogni tabella.
+
+    ⛔ Otto tabelle se la scrivevano da sé, e la nona se l'era dimenticata:
+    l'elenco Fornitori non l'ha mai avuta, e si è visto solo scorrendo. Una
+    proprietà che ogni consumatore deve ricordarsi è una proprietà che prima o
+    poi qualcuno non ricorda.
+
+    ⚠️ Funziona solo dentro uno scrollport: il contenitore va dichiarato con
+    `table-scroll()`, che emette scorrimento e limite insieme. Senza, questa
+    riga non fallisce — non fa niente.
+  */
+  .#{$block} thead th,
+  .#{$block}__head th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-raised);
+    background-color: var(--color-table-header-bg);
+  }
+
   .#{$block} tbody tr,
   .#{$block}__row {
     display: table-row;
@@ -117,13 +138,219 @@
     letter-spacing: inherit;
   }
 
-  // Colonne numeriche: destra, cifre tabulari, mai a capo (v4).
+  /*
+    Colonne numeriche: destra, cifre tabulari, mai a capo (v4).
+
+    ⛔ **`tfoot` va NOMINATO**, ed è il difetto trovato dal proprietario il
+    01/09/2026 sugli Ordini fornitori: «gli importi si allineano a destra e i
+    totali ci vanno sotto allo stesso modo». La riga totali porta già
+    `__cell--numeric` sulla cella, ma il selettore copriva `tbody` e le righe —
+    quindi la somma restava a sinistra sotto una colonna di importi allineati a
+    destra, cioè proprio dove l'incolonnamento serve a verificarla.
+
+    ⚠️ **Non basta togliere `tbody`**: il `thead` e il `tfoot` hanno regole
+    proprie di fondo e peso, e un selettore che li prende tutti insieme
+    renderebbe impossibile distinguerli più sotto.
+  */
   .#{$block} th.#{$block}__cell--numeric,
   .#{$block} tbody td.#{$block}__cell--numeric,
+  .#{$block} tfoot td.#{$block}__cell--numeric,
   .#{$block}__row td.#{$block}__cell--numeric {
     text-align: end;
     font-variant-numeric: var(--numeric-tabular);
     white-space: nowrap;
+  }
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════
+/// LA GRAMMATICA DEI RIEPILOGHI — decisa dal proprietario il 20/08/2026
+/// ═══════════════════════════════════════════════════════════════════════════
+///
+/// Sette voci messe a confronto una per una sui dati veri, e scelte tutte e
+/// sette nella forma del **Registro Corrispettivi** (`14` §F5: dove il Registro
+/// e il motore divergono, ha ragione il Registro).
+///
+/// | 01 font del corpo       | 12px — un gradino sotto, più righe leggibili          |
+/// | 02 padding delle celle  | 4 × 12 — è la voce che decide quante righe si vedono   |
+/// | 03 altezza intestazione | 32px dichiarati, indipendenti dal padding delle righe |
+/// | 04 divisori di colonna  | nessuno: il bianco separa da sé                        |
+/// | 05 larghezze            | sul contenuto — `table-layout: auto`, che il mixin già dà |
+/// | 06 intestazioni         | MAIUSCOLE, con tracking                                |
+/// | 07 testo e filo         | i token dedicati di `regole-stile-ui` §2               |
+///
+/// ⛔ **È un mixin a sé e non fa parte di `data-table-desktop`**, che è incluso
+/// anche dalle **griglie di riga dei documenti** (`doc-lines`, gli step del
+/// prodotto, le righe dell'ordine fornitore). Quelle sono maschere di
+/// inserimento, non elenchi: hanno celle editabili, altezze proprie
+/// (`--control-h-cell`) e un'anatomia dichiarata in `_document-form.scss`.
+/// Portarle a 12px con l'intestazione maiuscola sarebbe un effetto collaterale
+/// su schermate che nessuno ha guardato.
+///
+/// ⭐ **Chi la può adottare**: qualunque tabella che sia un ELENCO — i quattro
+/// riepiloghi (via il motore), e le anagrafiche il giorno in cui si decide di
+/// uniformarle (clienti, fornitori, prodotti, vendite online, conteggi). Una
+/// riga di `@include`, e la verifica visiva di quella schermata.
+///
+/// Si include DOPO `data-table-desktop`: sovrascrive quattro delle sue regole.
+@mixin summary-grammar($block) {
+  .#{$block} {
+    font-size: var(--text-xs);
+
+    /*
+      ⭐ **Il taglio a colonna, «come su Danea»** — deciso dal proprietario il
+      30/08/2026: «il nome va su una riga e viene tagliato dalla colonna
+      successiva. Non solo il nome ma tutti i dati».
+
+      ⛔ **`fixed` non è un dettaglio, è il presupposto**: con `auto` una cella
+      `nowrap` **allarga la propria colonna** invece di tagliare, quindi il
+      taglio non avverrebbe mai e la tabella crescerebbe fino a scorrere.
+
+      ⚠️ **Le colonne senza larghezza si dividono lo spazio in parti uguali**, ed
+      è il rischio di questa scelta: undici modelli colonne non ne dichiarano una.
+      Lo copre `widthOf` nel motore, che ripiega su una larghezza dedotta dal
+      TIPO della colonna — numerica stretta, codice media, testo libero — invece
+      di chiedere a ogni elenco di misurarsi da sé.
+    */
+    table-layout: fixed;
+  }
+
+  /*
+    ⭐ **Il taglio, e la linea su cui avviene.** Sono una cosa sola: senza
+    divisore verticale il testo tagliato sembra finito lì, e non si capisce che
+    continua — è la ragione per cui il proprietario li ha chiesti insieme
+    («forse mettere anche la riga che separa le colonne»).
+
+    ⛔ Qui c'era `border-inline-end: 0`, cioè il contrario, con la motivazione
+    «il bianco separa da sé». Vero finché il testo non veniva tagliato: da quando
+    lo è, il bianco non basta più a dire dove finisce la colonna.
+
+    ⚠️ **`clip`, non `ellipsis`**: in una colonna stretta tre puntini mangiano tre
+    caratteri utili. Il testo intero resta nel `title` della cella.
+  */
+  /*
+    ⭐ **L'altezza della riga è DICHIARATA**, non risultante — 30/08/2026.
+
+    ⛔ `--table-row-h` esisteva nei token, `regole-stile-ui` lo elencava fra le
+    altezze dei controlli («Riga tabella · 30px»), e **nessun elenco lo usava**:
+    lo leggeva soltanto `_document-form.scss`, cioè le griglie di riga dei
+    documenti. Negli elenchi l'altezza era quello che veniva fuori da padding,
+    interlinea e da qualunque cosa una cella contenesse — quindi cambiava da un
+    elenco all'altro e nessuno poteva dire quanto fosse.
+
+    ⚠️ **Su un `tr` è un MINIMO, non un vincolo**: se una cella contenesse due
+    righe di testo, la riga crescerebbe lo stesso. Qui non succede perché il
+    taglio a colonna tiene tutto su una riga sola — sono due decisioni che si
+    tengono in piedi a vicenda.
+  */
+  /*
+    ⛔ **SOLO DA `lg` IN SU, e non è pignoleria: senza, le card si sovrappongono.**
+
+    Su un `<tr>` di tabella `block-size` è un MINIMO — la riga cresce se il
+    contenuto è più alto. Ma sotto `lg` la riga diventa `display: block`
+    (`data-table-mobile-cards`), e su un elemento a blocco la stessa dichiarazione
+    è un'**altezza fissa**: la card veniva bloccata a 30px e le sue tre fasce
+    traboccavano sopra la card successiva.
+
+    ⚠️ **Misurato dal proprietario a schermo il 31/08/2026**, non da un test:
+    build verde, lint pulito, 3.012 prove verdi. Su desktop non si manifesta
+    affatto — è la stessa dichiarazione che si comporta in due modi a seconda del
+    `display`, e nessun controllo automatico distingue i due casi.
+
+    ⭐ **L'altezza della card la fa il suo contenuto**, ed è giusto così: tre fasce
+    di testo non stanno in una misura decisa per una riga di tabella.
+  */
+  @include bp.media-up('lg') {
+    .#{$block} tbody tr,
+    .#{$block}__row {
+      block-size: var(--table-row-h);
+    }
+  }
+
+  .#{$block} tbody td,
+  .#{$block}__row td {
+    /*
+      ⭐ **2px sopra e sotto, da 4** — proprietario, 01/09/2026: «riduci il
+      padding interno delle righe», «a tutti e tutti uguali».
+
+      ⚠️ **Sta nella GRAMMATICA DEI RIEPILOGHI** perché «tutti uguali» vuol dire
+      «tutti gli elenchi»: qui passano i dodici che rendono il motore, il
+      Registro Corrispettivi compreso.
+
+      ⛔ **E per la stessa ragione NON tocca le griglie di riga dei documenti**,
+      che includono `data-table-desktop` e non questo mixin: sono maschere di
+      inserimento, con celle editabili e un'altezza propria
+      (`--control-h-cell`). Comprimerle sarebbe un effetto collaterale su
+      schermate che nessuno ha guardato — è la stessa separazione dichiarata in
+      testa a questo mixin.
+
+      ⚠️ **Orizzontale invariato**: `regole-stile-ui` §4 lo dice esplicito per
+      le card, e vale anche qui — i pixel verticali si moltiplicano per il
+      numero di righe, quelli orizzontali si pagano una volta e avvicinano il
+      testo al filo della colonna, dove si legge peggio.
+
+      ⭐ **SOPRA c'è un pixel in più, e non è una svista** — segnalato dal
+      proprietario a schermo, 01/09/2026: «il testo è leggermente non centrato
+      verticalmente, forse a causa di quel margine 1 presente».
+
+      Aveva ragione, ed era il filo della cella. La cella è `border-box` e porta
+      un bordo **solo in basso** (`--border-width`): il riquadro in cui il testo
+      si centra finisce un pixel prima del fondo, e con padding simmetrico il
+      testo si appoggia in alto.
+
+      Misurato in un browser vero, sopra/sotto il testo:
+
+      ```text
+      2 e 2, come prima            4 / 6     ⛔ 2px di scarto, quello visto a schermo
+      3 e 2                        4,5 / 5,5 ⛔ dimezzato, non chiuso
+      4 e 2                        5,5 / 5,5 ⛔ centrato, ma la riga sale a 26px
+      3 e 1  ← questa              5 / 5     ✅ centrato E la riga resta 25px
+      ```
+
+      ⭐ **Il pixel si sposta, non si aggiunge**: uno in più sopra e uno in meno
+      sotto lasciano l'ingombro invariato, quindi il centramento non costa
+      l'altezza appena guadagnata. Aggiungerlo soltanto sopra la faceva salire.
+
+      ⚠️ **Si compensa col token del bordo, non con un numero**: se un giorno il
+      filo diventasse più spesso, il centramento seguirebbe da sé.
+    */
+    padding: calc(var(--space-05) + var(--border-width)) var(--table-list-pad-inline) var(--border-width);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: clip;
+    border-inline-end: var(--border-width) solid var(--color-table-col-divider);
+  }
+
+  .#{$block} tbody td:last-child,
+  .#{$block}__row td:last-child {
+    border-inline-end: 0;
+  }
+
+  .#{$block} th {
+    block-size: var(--table-head-h);
+    padding: 0 var(--table-list-pad-inline);
+    color: var(--color-table-header-fg);
+    border-block-end: var(--border-width) solid var(--color-table-header-rule);
+    /*
+      ⭐ **Il divisore dell'INTESTAZIONE è più marcato di quello delle celle** —
+      proprietario, 01/09/2026: «la riga di divisione nell'intestazione è poco
+      evidente, bisognerebbe renderla leggermente più evidente».
+
+      ⛔ Era `--color-table-col-divider`, cioè `--color-border-cell`: la stessa
+      tinta chiara delle righe. Su una banda tinta come l'intestazione quel filo
+      quasi scompare, e da quando i titoli si tagliano a colonna (30/08) è
+      proprio lì che serve — è la linea su cui il taglio avviene.
+
+      ⚠️ **La stessa tinta del filo SOTTO l'intestazione**: i due fili chiudono
+      la stessa banda, e darle due grigi diversi la farebbe sembrare storta.
+    */
+    border-inline-end: var(--border-width) solid var(--color-table-header-rule);
+    overflow: hidden;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .#{$block} th:last-child {
+    border-inline-end: 0;
   }
 }
 
@@ -150,14 +377,47 @@
       display: none;
     }
 
+    /*
+      ⭐ **Il respiro della card è ASIMMETRICO** — deciso dal proprietario il
+      30/08/2026, indicando a schermo lo spazio sopra la prima riga e sotto
+      l'ultima: «possiamo cercare di recuperare altro spazio da questo qui
+      interno della card e un po' da quello esterno».
+
+      ```text
+      verticale     8px   ← si stringe: e' spazio ripetuto a ogni card
+      orizzontale  12px   ← resta: e' lo stacco dal bordo dello schermo
+      fra card      6px   ← si stringe
+      ```
+
+      ⚠️ **Verticale e orizzontale non valgono uguale**, ed è la ragione per cui
+      il padding smette di essere un valore solo. Su un telefono lo schermo è
+      alto e stretto: i 4px verticali risparmiati si moltiplicano per il numero
+      di card — venticinque, con il tetto di `regole-stile-ui` — mentre i 4
+      orizzontali si pagherebbero una volta sola e avvicinerebbero il testo al
+      bordo, dove si legge peggio.
+
+      ⛔ **Sotto gli 8px non si scende.** La regola di `regole-stile-ui` §4 dice
+      14px, ed erano già 12: il margine di manovra è finito. Ulteriore spazio va
+      cercato nel NUMERO di righe a schermo (il tetto a 25), non nel loro
+      respiro.
+    */
     .#{$block} tbody tr,
     .#{$block}__row {
       display: block;
       inline-size: 100%;
       max-inline-size: 100%;
       box-sizing: border-box;
-      margin-block-end: var(--space-2);
-      padding: var(--space-3);
+      /*
+        ⭐ **4px fra due card, non 6** — indicato dal proprietario il 30/08/2026:
+        «è il margine di 6px tra una card e l'altra».
+
+        ⚠️ È il margine ESTERNO, non il respiro interno: quello resta 8/12 ed è
+        già al pavimento dichiarato poco sopra. A separare due card bianche su
+        fondo grigio bastano il bordo e pochi pixel — sei erano un respiro da
+        elenco corto, e questo elenco non ha più un tetto di righe.
+      */
+      margin-block-end: var(--space-1);
+      padding: var(--space-2) var(--space-3);
       background-color: var(--color-surface);
       border: var(--border-width) solid var(--color-border);
       border-radius: var(--radius-md);
@@ -249,6 +509,194 @@
     .#{$title-class}::before {
       content: none;
       display: none;
+    }
+  }
+}
+
+/**
+ * La colonna «seleziona» di un elenco: larghezza e allineamento.
+ *
+ * ⛔ Una misura sola per tutte le tabelle. Era ripetuta in `document-table` e
+ * `sales-order-table` con due valori quasi uguali (una aveva `nowrap` in più):
+ * basta che divergano di poco perché la prima colonna risulti spostata
+ * passando da un elenco all'altro.
+ *
+ * ⚠️ Qui c'è la CELLA. La casella dentro è `app-selection-check`, che porta i
+ * propri stili: la cella non deve conoscerli.
+ */
+/// ⭐ **Il PONTE fra la pagina e il motore tabella.**
+///
+/// Un componente di feature che ospita `app-data-table` sta in mezzo: la pagina
+/// gli dà `flex: 1`, e lui deve girarlo al figlio. Se non lo fa, la catena si
+/// interrompe lì.
+///
+/// ⛔ **E i pavimenti sono DUE, uno per asse** — è la parte che si dimentica.
+///
+/// | manca | cosa succede |
+/// | --- | --- |
+/// | `min-block-size: 0` | l'altezza si ferma qui: il contenitore non scorre e l'intestazione `sticky` **smette di appiccicare, in silenzio** |
+/// | `min-inline-size: 0` | un elemento flessibile si rifiuta di stringersi sotto la larghezza del proprio contenuto: una tabella larga **spinge la pagina oltre il bordo** invece di scorrere dentro di sé |
+///
+/// ⚠️ **Misurato il 30/08/2026: nessuno dei sette ponti aveva quello
+/// orizzontale.** Si vedeva sui Clienti, che ha tredici colonne ed è la tabella
+/// più larga; sugli altri il difetto c'era e non si manifestava. Ed era già
+/// successo il 29/08 sulla stessa pagina, un anello più su — la correzione era
+/// stata fatta nella pagina e non nel ponte.
+///
+/// ⭐ **È un mixin e non due righe copiate** proprio per questo: scritte a mano,
+/// la coppia si dimentica a metà. È già successo due volte.
+@mixin ponte-tabella($figlio: 'app-data-table') {
+  :host {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  #{$figlio} {
+    flex: 1;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+}
+
+@mixin selection-column($block) {
+  .#{$block}__cell--select {
+    inline-size: var(--space-10);
+    text-align: center;
+    white-space: nowrap;
+
+    /*
+      ⭐ **QUI IL PIXEL IN PIÙ NON CI VA** — proprietario, 01/09/2026:
+      «l'allineamento mi sembra corretto adesso, tranne per la casellina di
+      selezione».
+
+      La cella di riga porta un pixel in più sopra per compensare due cose
+      insieme: il filo in basso, e il fatto che il **riquadro dei glifi non è
+      centrato dentro la propria riga di testo** — un carattere ha più ascendente
+      che discendente. Qui dentro non c'è testo: c'è una casella, cioè un
+      oggetto **geometricamente simmetrico**, e quella seconda compensazione la
+      spinge in basso. Misurato: **5,5 sopra e 4,5 sotto**, di un pixel — nella
+      direzione opposta a quella del difetto del testo.
+
+      ⭐ Resta il solo compenso del filo: sopra `--space-05`, sotto
+      `--border-width`, e il centro della cella torna a coincidere con il centro
+      della riga. Misurato: **5 e 5**.
+
+      ⚠️ **Orizzontale invariato**: lo decide `inline-size` qui sopra, non il
+      padding.
+    */
+  }
+
+  /*
+    ⛔ **Il genitore va NOMINATO, o questa regola non vale niente.** La cella di
+    riga è dichiarata come `.blocco tbody td` — classe più due elementi, **peso
+    3** — mentre `.blocco__cell--select` da sola pesa **1** e perde, per quanto
+    sia scritta dopo. Misurato lo stesso giorno, due volte: prima sulla riga di
+    riempimento del motore, poi qui.
+
+    ⭐ È la forma che la colonna numerica usa già in fondo a `data-table-desktop`,
+    e per la stessa ragione.
+  */
+  /*
+    ⛔ **E LA CASELLA SI APPOGGIA ALLA LINEA DI SCRITTURA** — proprietario,
+    01/09/2026, due volte: «tranne per la casellina di selezione», poi «quella
+    di fornitori è decentrata».
+
+    L'`<input>` è `inline-block` con `vertical-align: baseline`: sta seduto
+    sulla riga di testo, e sotto di lui resta lo spazio del **discendente**
+    della riga. Misurato in un browser vero: **3px sopra, 8 sotto** — cinque
+    pixel di scarto su una riga di venticinque.
+
+    ⛔ **La prima misura era un falso verde**: guardava l'host
+    `app-selection-check`, che è `display: inline` e il cui riquadro non è
+    quello che si vede. Il difetto era già lì e diceva 5/5.
+
+    ⭐ **`line-height: 0` toglie lo strut** della riga di testo: senza, la
+    cella ha comunque l'altezza di una riga di scrittura anche se dentro non
+    c'è testo, e il `vertical-align: middle` centra QUELLA, non la casella.
+
+    ⚠️ **Sta nella cella e non nel componente condiviso**: `selection-check` è
+    usato anche fuori dalle tabelle, e cambiargli `display` sposterebbe
+    schermate che nessuno ha guardato.
+  */
+  .#{$block} tbody td.#{$block}__cell--select,
+  .#{$block}__row td.#{$block}__cell--select,
+  .#{$block} thead th.#{$block}__cell--select,
+  .#{$block}__head th.#{$block}__cell--select {
+    padding-block: var(--space-05) var(--border-width);
+    line-height: 0;
+  }
+}
+
+/**
+ * Il contenitore di scorrimento di una tabella — **scorrimento e limite
+ * insieme**, che è tutto il punto.
+ *
+ * ⛔ **Difetto misurato il 29/08/2026, in quattro posti diversi.** Un wrapper
+ * che dichiara il solo `overflow-x: auto` diventa, per spec, lo scrollport più
+ * vicino su **entrambi** gli assi — ma senza un limite d'altezza non scorre mai
+ * in verticale, e l'intestazione `position: sticky` che gli sta dentro si ancora
+ * a un contenitore fermo: **non appiccica, e non fallisce.** Nessun errore,
+ * nessun test rosso. Si vede solo scorrendo un elenco lungo.
+ *
+ * ⭐ **`.doc-form__table-wrap` non ha mai avuto questo difetto**, e la ragione è
+ * che lì contenitore e tetto sono nati insieme. Questo mixin rende quella forma
+ * l'unica disponibile: chi scrive un wrapper nuovo non può dimenticarsi metà
+ * della coppia, perché la coppia è una cosa sola.
+ *
+ * ## Due forme legittime, e vanno scelte
+ *
+ * - `$limite: tetto` *(default)* — il contenitore non ha un genitore che gli dia
+ *   un'altezza, quindi se la prende da sé in unità di viewport.
+ * - `$limite: riempi` — il contenitore **sta già** dentro una regione delimitata
+ *   (la catena di altezze della pagina): allora coincide con lei, e un tetto in
+ *   unità di viewport sarebbe una seconda barra annidata. È il caso del Registro
+ *   Corrispettivi dentro `.corrispettivi__panel-scroll`.
+ *
+ * ⚠️ **Solo sopra `lg`.** Sotto, le tabelle diventano card che scorrono con la
+ * pagina: uno scroll dentro uno scroll sotto il dito è la trappola classica del
+ * mobile, e l'intestazione lì non esiste nemmeno (`data-table-mobile-cards` la
+ * mette a `display: none`).
+ *
+ * ⚠️ **La stampa è già gestita** in `src/styles.scss`: i mixin di breakpoint
+ * emettono `@media (min-width: …)` senza tipo di media, quindi restano attivi
+ * dentro `@media print` e su A4 orizzontale taglierebbero tutto ciò che sta
+ * oltre il primo riquadro.
+ */
+@mixin table-scroll($selettore, $limite: tetto) {
+  #{$selettore} {
+    overflow-x: auto;
+    inline-size: 100%;
+
+    @include bp.media-up('lg') {
+      overflow: auto;
+
+      @if $limite == flessibile {
+        // ⭐ Il contenitore È lui stesso un elemento flessibile e riceve la
+        //    propria altezza da `flex: 1` di chi lo ospita: qui basta togliergli
+        //    il pavimento.
+        //
+        // ⛔ `riempi` sarebbe SBAGLIATO: `block-size: 100%` si risolve contro
+        //    l'altezza del genitore, non contro la quota che il flex gli ha
+        //    assegnato — le due misure litigherebbero.
+        //
+        // ⚠️ **E il pavimento è DUE**, uno per asse. Senza quello orizzontale un
+        //    elemento flessibile si rifiuta di stringersi sotto la larghezza del
+        //    proprio contenuto: una tabella larga spinge il contenitore oltre il
+        //    bordo della pagina invece di scorrere dentro di sé. Misurato su
+        //    Clienti il 29/08/2026 — l'ultima colonna usciva dallo schermo, e su
+        //    Fornitori lo stesso difetto non si vedeva solo perché la sua tabella
+        //    è stretta.
+        min-block-size: 0;
+        min-inline-size: 0;
+      } @else if $limite == riempi {
+        block-size: 100%;
+      } @else if $limite == tetto {
+        max-block-size: var(--table-scroll-max-h);
+      } @else {
+        @error "table-scroll: $limite dev'essere `tetto`, `riempi` o `flessibile`, non `#{$limite}`.";
+      }
     }
   }
 }

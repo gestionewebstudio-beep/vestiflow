@@ -4,9 +4,18 @@
   @if (description(); as desc) {
     <p class="empty-state__description">{{ desc }}</p>
   }
-  @if (ctaLabel(); as label) {
-    <div class="empty-state__action">
+  <!--
+    L'azione è UNA sola CTA nella stragrande maggioranza dei casi, e per quella
+    basta `ctaLabel`. Dove la scelta è fra più cose — l'elenco Fatture, dove si
+    creano tre tipi diversi — il chiamante proietta il proprio comando invece di
+    passare un'etichetta: un empty state non può avere un pulsante che decide da
+    solo quale dei tre creare. Se non arriva né l'una né l'altro il contenitore
+    sparisce (`:empty` nel foglio), così non lascia spazio bianco.
+  -->
+  <div class="empty-state__action">
+    @if (ctaLabel(); as label) {
       <app-button (click)="ctaClick.emit()">{{ label }}</app-button>
-    </div>
-  }
+    }
+    <ng-content />
+  </div>
 </div>

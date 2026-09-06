@@ -43,12 +43,3 @@ export interface InventoryExportQuery {
   readonly stockStatus?: string;
   readonly columns?: string;
 }
-
-/** Filtri export corrispettivi (vendite/storni in un periodo). */
-export interface CorrispettiviExportQuery {
-  readonly locationId?: string;
-  /** Canale: origine movimento (es. vestiflow_pos, vestiflow_online). */
-  readonly origin?: string;
-  readonly from?: string;
-  readonly to?: string;
-}

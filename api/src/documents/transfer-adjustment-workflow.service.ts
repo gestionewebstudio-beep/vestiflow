@@ -13,6 +13,14 @@ import {
   type DocumentLine,
 } from '@prisma/client';
 
+import {
+  lineIdentitySnapshot,
+  persistedLineIdentities,
+  persistedLineVariants,
+  variantLabelSnapshot,
+} from './document-line-variant-snapshot.util';
+import type { LineIdentitySnapshot } from './document-line-variant-snapshot.util';
+
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import {
@@ -36,9 +44,11 @@ import {
   syncTransferLineMovements,
 } from './document-stock-transfer-sync.util';
 import { DocumentSettingsService } from './document-settings.service';
+import { ExternalDocumentTypesService } from './external-document-types.service';
 import {
   buildDocumentNumberConflict,
   isDocumentNumberConflict,
+  lockDocumentCounter,
   resolveDocumentNumber,
 } from './document-numbering.util';
 import type { SaveAdjustmentDto, SaveAdjustmentLineDto } from './dto/save-adjustment.dto';
@@ -52,6 +62,19 @@ const CONFIRMED_EDITABLE_STATUSES: readonly DocumentStatus[] = [
   DocumentStatus.printed,
   DocumentStatus.sent,
 ] as const;
+
+/**
+ * Ciò che si legge dall'anagrafica per UNA variante, in una lettura sola.
+ *
+ * ⚠️ Due mappe e non due query: le opzioni servono all'etichetta variante,
+ * l'identità a codice/nome/barcode, e sono gli stessi record. Separarle
+ * significherebbe interrogare due volte le stesse righe dentro la stessa
+ * transazione.
+ */
+interface DatiVarianteCorrente {
+  readonly opzioni: ReadonlyMap<string, Prisma.JsonValue>;
+  readonly identita: ReadonlyMap<string, LineIdentitySnapshot>;
+}
 
 interface ComputedSimpleLine {
   readonly lineNumber: number;
@@ -109,6 +132,7 @@ export class TransferAdjustmentWorkflowService {
     private readonly prisma: PrismaService,
     private readonly settings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly externalTypes: ExternalDocumentTypesService,
   ) {}
 
   /**
@@ -141,25 +165,45 @@ export class TransferAdjustmentWorkflowService {
     if (!numberChanged && series === current) {
       return { series, year, number: existing.number, reference: existing.reference };
     }
+    const candidate = dto.number ?? existing.number;
+    const requestedNumber = candidate && candidate > 0 ? candidate : null;
+    if (requestedNumber == null) {
+      // Nessun numero da tenere (né imposto né già assegnato): si prende il
+      // primo libero, quindi si legge il massimo — e prima si prende il lock,
+      // dentro questa transazione, per non leggerlo insieme a un altro
+      // operatore. Con un numero da tenere il massimo non si legge affatto.
+      await lockDocumentCounter(tx, { tenantId, type, series });
+    }
     const assigned = await resolveDocumentNumber({
       tx,
       tenantId,
       type,
       series,
+      // La data governa il primo libero (§2). Riceverla e non inoltrarla
+      // faceva numerare «a oggi» un documento datato indietro, cioè con una
+      // regola diversa da quella che la testata aveva appena mostrato.
+      documentDate,
       source: 'document',
       prefix: setting.numberPrefix,
-      requestedNumber: dto.number ?? existing.number,
+      requestedNumber,
     });
     return { series, year, number: assigned.number, reference: assigned.reference };
   }
 
-  /** Conflitto sul numero → 409 con il primo libero della serie. */
+  /**
+   * Conflitto sul numero → 409 con il numero rifiutato e il primo libero della
+   * serie. `attemptedNumber` è quello che `resolveImposedNumber` aveva deciso
+   * di scrivere: può venire dalla testata o essere il numero che il documento
+   * già portava (un cambio di sola serie lo rimette in gioco nella serie
+   * nuova). È l'unico numero che l'operatore vede, e l'unico da nominargli.
+   */
   private async throwNumberConflict(
     error: unknown,
     tenantId: string,
     type: DocumentType,
     series: string | null,
-    _documentDate: Date,
+    documentDate: Date,
+    attemptedNumber: number | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -173,6 +217,12 @@ export class TransferAdjustmentWorkflowService {
         series: (series ?? '').trim() || null,
         source: 'document',
         prefix: setting.numberPrefix,
+        requestedNumber: attemptedNumber,
+        // Il «primo libero» che l'avviso propone si calcola sulla stessa
+        // partizione con cui si è appena numerato: senza la data direbbe il
+        // primo libero a oggi, cioè un numero che il salvataggio successivo
+        // non assegnerebbe. Il parametro c'era e si chiamava `_documentDate`.
+        documentDate,
       }),
     );
   }
@@ -182,7 +232,7 @@ export class TransferAdjustmentWorkflowService {
   async saveTransfer(
     tenantId: string,
     dto: SaveTransferDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<DocumentWithLines> {
     if (dto.locationId === dto.targetLocationId) {
       throw new UnprocessableEntityException(
@@ -221,7 +271,21 @@ export class TransferAdjustmentWorkflowService {
       }
     }
 
+    // Documento della controparte: id del tipo + etichetta fotografata.
+    // La risoluzione sta FUORI dalla transazione perché è una lettura che non
+    // ha nulla a che vedere con le righe e i movimenti: dentro allungherebbe
+    // la finestra di lock senza aggiungere coerenza, e un tipo sconosciuto va
+    // respinto prima di aver toccato il magazzino.
+    //
+    // `resolveForWrite` legge anche i tipi eliminati, ed è voluto: eliminare un
+    // tipo lo toglie dalle tendine, non dai documenti che lo portano. Con la
+    // sola lettura dei tipi vivi, risalvare un trasferimento il cui tipo è
+    // stato eliminato nel frattempo darebbe 404 — e la dicitura già scritta in
+    // testata sparirebbe dall'elenco.
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
+    // Numero che la scrittura ha tentato: serve FUORI dalla transazione, perché
+    // è quello che il messaggio di conflitto deve nominare all'operatore.
+    let attemptedNumber: number | null = null;
 
     const saveTx = this.prisma.$transaction(async (tx) => {
       const existing = await tx.document.findFirst({
@@ -245,7 +309,14 @@ export class TransferAdjustmentWorkflowService {
         throw new ConflictException('Trasferimento privo di location di origine/destinazione.');
       }
 
-      await this.assertVariantsExist(tx, tenantId, stockLines);
+      const variantOptions = await this.loadVariantOptions(
+        tx,
+        tenantId,
+        computedLines,
+        stockLines,
+      );
+      const persistedVariants = persistedLineVariants(existing.lines);
+      const persistedIdentities = persistedLineIdentities(existing.lines);
 
       const oldLocationId = existing.locationId;
       const oldTargetLocationId = existing.targetLocationId;
@@ -287,6 +358,28 @@ export class TransferAdjustmentWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT, non un ricalcolo: su una riga che porta ancora la
+          // stessa variante si conserva quella persistita. La regola sta in un
+          // punto solo — se la duplicassimo qui e negli altri tre compositori,
+          // rinominare un valore d'opzione in anagrafica riscriverebbe i
+          // documenti gia' emessi.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? variantOptions.opzioni.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
+          // ⭐ Codice articolo, nome e barcode: stessa disciplina dell'etichetta
+          //    qui sopra, e stessa funzione unica. Senza questa riga le sole
+          //    righe NUOVE aggiunte da questo percorso resterebbero senza
+          //    identita', e la maschera — che dallo snapshot legge — mostrerebbe
+          //    una cella vuota invece del codice.
+          ...lineIdentitySnapshot({
+            lineId,
+            variantId: line.variantId,
+            corrente: line.variantId ? variantOptions.identita.get(line.variantId) : undefined,
+            persisted: persistedIdentities,
+          }),
           quantity: line.quantity,
           unitPriceMinor: 0,
           discountPercent: 0,
@@ -340,6 +433,7 @@ export class TransferAdjustmentWorkflowService {
         dto,
         existing,
       );
+      attemptedNumber = numbering.number;
 
       await tx.document.update({
         where: { id: existing.id },
@@ -367,13 +461,14 @@ export class TransferAdjustmentWorkflowService {
     });
 
     const saved = await saveTx.catch(async (error: unknown) => {
-      // Numero imposto già preso: 409 con il primo libero da proporre.
+      // Numero già preso: 409 con il numero rifiutato e il primo libero.
       await this.throwNumberConflict(
         error,
         tenantId,
         DocumentType.transfer,
         dto.series ?? '',
         documentDate,
+        attemptedNumber,
       );
       throw error;
     });
@@ -387,7 +482,7 @@ export class TransferAdjustmentWorkflowService {
   async saveAdjustment(
     tenantId: string,
     dto: SaveAdjustmentDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<DocumentWithLines> {
     await this.assertLocation(tenantId, dto.locationId);
     if (user) {
@@ -421,7 +516,14 @@ export class TransferAdjustmentWorkflowService {
       );
     }
 
+    // Come nel trasferimento: risoluzione fuori dalla transazione, e lettura
+    // che comprende i tipi eliminati — un tipo tolto dalle tendine resta scritto
+    // sui documenti che lo portano, e risalvarli non deve né dare 404 né
+    // cancellare la dicitura.
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
+    // Come nel trasferimento: il numero tentato serve fuori dalla transazione,
+    // per poterlo nominare nel conflitto.
+    let attemptedNumber: number | null = null;
 
     const saveTx = this.prisma.$transaction(async (tx) => {
       const existing = await tx.document.findFirst({
@@ -446,7 +548,14 @@ export class TransferAdjustmentWorkflowService {
         assertLocationInUserScope(user, existing.locationId, 'write');
       }
 
-      await this.assertVariantsExist(tx, tenantId, stockLines);
+      const variantOptions = await this.loadVariantOptions(
+        tx,
+        tenantId,
+        computedLines,
+        stockLines,
+      );
+      const persistedVariants = persistedLineVariants(existing.lines);
+      const persistedIdentities = persistedLineIdentities(existing.lines);
 
       const oldDirection = existing.adjustmentDirection;
       const oldLineIds = existing.lines.map((line) => line.id);
@@ -478,6 +587,28 @@ export class TransferAdjustmentWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT, non un ricalcolo: su una riga che porta ancora la
+          // stessa variante si conserva quella persistita. La regola sta in un
+          // punto solo — se la duplicassimo qui e negli altri tre compositori,
+          // rinominare un valore d'opzione in anagrafica riscriverebbe i
+          // documenti gia' emessi.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? variantOptions.opzioni.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
+          // ⭐ Codice articolo, nome e barcode: stessa disciplina dell'etichetta
+          //    qui sopra, e stessa funzione unica. Senza questa riga le sole
+          //    righe NUOVE aggiunte da questo percorso resterebbero senza
+          //    identita', e la maschera — che dallo snapshot legge — mostrerebbe
+          //    una cella vuota invece del codice.
+          ...lineIdentitySnapshot({
+            lineId,
+            variantId: line.variantId,
+            corrente: line.variantId ? variantOptions.identita.get(line.variantId) : undefined,
+            persisted: persistedIdentities,
+          }),
           quantity: line.quantity,
           unitPriceMinor: 0,
           discountPercent: 0,
@@ -532,6 +663,7 @@ export class TransferAdjustmentWorkflowService {
         dto,
         existing,
       );
+      attemptedNumber = numbering.number;
 
       await tx.document.update({
         where: { id: existing.id },
@@ -556,13 +688,14 @@ export class TransferAdjustmentWorkflowService {
     });
 
     const saved = await saveTx.catch(async (error: unknown) => {
-      // Numero imposto già preso: 409 con il primo libero da proporre.
+      // Numero già preso: 409 con il numero rifiutato e il primo libero.
       await this.throwNumberConflict(
         error,
         tenantId,
         DocumentType.adjustment,
         dto.series ?? '',
         documentDate,
+        attemptedNumber,
       );
       throw error;
     });
@@ -573,27 +706,67 @@ export class TransferAdjustmentWorkflowService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /** Le righe che movimentano stock devono referenziare varianti esistenti. */
-  private async assertVariantsExist(
+  /**
+   * Le varianti collegate devono esistere — **e** le loro opzioni servono a
+   * fotografare l'etichetta della variante sulla riga.
+   *
+   * ⚠️ Una query sola per due cose che avvengono nello stesso momento: prima
+   * questa validazione leggeva il solo `id`, e per l'etichetta ne sarebbe
+   * servita una seconda sugli stessi record.
+   *
+   * ⛔ Si guardano TUTTE le righe con una variante, non solo quelle che
+   * movimentano: anche una riga che non muove magazzino ha una variante da
+   * mostrare.
+   */
+  private async loadVariantOptions(
     tx: Prisma.TransactionClient,
     tenantId: string,
+    lines: readonly ComputedSimpleLine[],
     stockLines: readonly ComputedSimpleLine[],
-  ): Promise<void> {
+  ): Promise<DatiVarianteCorrente> {
     const variantIds = [
-      ...new Set(stockLines.map((line) => line.variantId).filter((id): id is string => id != null)),
+      ...new Set(lines.map((line) => line.variantId).filter((id): id is string => id != null)),
     ];
     if (variantIds.length === 0) {
-      return;
+      return { opzioni: new Map(), identita: new Map() };
     }
     const found = await tx.productVariant.findMany({
       where: { tenantId, id: { in: variantIds } },
-      select: { id: true },
+      select: {
+        id: true,
+        optionValues: true,
+        // ⭐ L'IDENTITA' dell'articolo, per la stessa lettura: codice, nome e
+        //    barcode si fotografano come l'etichetta variante (0A.2a).
+        barcode: true,
+        product: { select: { articleCode: true, name: true } },
+      },
     });
-    if (found.length !== variantIds.length) {
+    // La validazione resta sulle sole righe che movimentano: una riga senza
+    // effetto fisico può riferirsi a una variante uscita dal catalogo.
+    const trovati = new Set(found.map((variante) => variante.id));
+    const daValidare = [
+      ...new Set(
+        stockLines.map((line) => line.variantId).filter((id): id is string => id != null),
+      ),
+    ];
+    if (daValidare.some((id) => !trovati.has(id))) {
       throw new UnprocessableEntityException(
         'Una o più varianti collegate alle righe non esistono più.',
       );
     }
+    return {
+      opzioni: new Map(found.map((variante) => [variante.id, variante.optionValues])),
+      identita: new Map(
+        found.map((variante) => [
+          variante.id,
+          {
+            articleCode: variante.product?.articleCode ?? null,
+            productName: variante.product?.name ?? null,
+            barcode: variante.barcode ?? null,
+          },
+        ]),
+      ),
+    };
   }
 
   private async assertLocation(tenantId: string, locationId: string): Promise<void> {

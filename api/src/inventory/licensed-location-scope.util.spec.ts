@@ -4,6 +4,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import {
   locationScopeToInventoryLevelFilter,
   locationScopeToMovementFilter,
+  scopedLocationFilter,
   resolveLicensedLocationScope,
 } from './licensed-location-scope.util';
 
@@ -89,6 +90,44 @@ describe('licensed-location-scope.util', () => {
   it('locationScopeToMovementFilter usa locationId singolo per una sede', () => {
     expect(locationScopeToMovementFilter(['loc-1'])).toEqual({
       locationId: 'loc-1',
+    });
+  });
+
+
+  /*
+    ⛔ **La sede CHIESTA restringe, non sostituisce.**
+
+    Il difetto che questa funzione chiude viveva in tre servizi, scritto
+    uguale in tutti e tre: prima il perimetro, poi la sede del client, sulla
+    stessa proprieta` — e la seconda chiave vinceva.
+  */
+  describe('scopedLocationFilter', () => {
+    it('senza limiti e senza richiesta non filtra nulla', () => {
+      expect(scopedLocationFilter('unrestricted')).toEqual({});
+    });
+
+    it('senza limiti, la sede chiesta si applica', () => {
+      expect(scopedLocationFilter('unrestricted', 'loc-1')).toEqual({ locationId: 'loc-1' });
+    });
+
+    it('con un perimetro e nessuna richiesta, vale il perimetro', () => {
+      expect(scopedLocationFilter(['loc-1', 'loc-2'])).toEqual({
+        locationId: { in: ['loc-1', 'loc-2'] },
+      });
+    });
+
+    it('⭐ la sede chiesta DENTRO il perimetro restringe', () => {
+      expect(scopedLocationFilter(['loc-1', 'loc-2'], 'loc-2')).toEqual({
+        locationId: 'loc-2',
+      });
+    });
+
+    it('⛔ la sede chiesta FUORI dal perimetro non lo sostituisce: null', () => {
+      expect(scopedLocationFilter(['loc-1'], 'loc-2')).toBeNull();
+    });
+
+    it('⛔ e un perimetro VUOTO non si fa aprire da una richiesta', () => {
+      expect(scopedLocationFilter([], 'loc-1')).toBeNull();
     });
   });
 });

@@ -18,6 +18,7 @@ function setup(profile: TenantChannelProfile | null) {
   const shopifyProductPush = {
     enqueuePush: vi.fn().mockResolvedValue({ pushed: true }),
     deleteProduct: vi.fn().mockResolvedValue({ deleted: true }),
+    archiveOnSyncDisabled: vi.fn().mockResolvedValue({ pushed: true }),
   };
   const tiktokInventoryPush = { pushVariantStock: vi.fn().mockResolvedValue(undefined) };
   const tiktokProductPush = { enqueuePush: vi.fn().mockResolvedValue({ pushed: true }) };
@@ -72,6 +73,16 @@ describe('ChannelSyncFacade', () => {
       expect(result).toEqual({ deleted: false, reason: 'not_connected' });
       expect(t.shopifyProductPush.deleteProduct).not.toHaveBeenCalled();
     });
+
+    it('lo spegnimento della sync non interroga Shopify e non annulla niente', async () => {
+      const t = setup(TenantChannelProfile.gestionale);
+
+      const result = await t.facade.archiveProductOnSyncDisabled('tenant-1', 'prod-1');
+
+      // `not_linked`, non `shopify_error`: chi chiama deve lasciare il flag spento.
+      expect(result).toEqual({ pushed: false, reason: 'not_linked' });
+      expect(t.shopifyProductPush.archiveOnSyncDisabled).not.toHaveBeenCalled();
+    });
   });
 
   describe('profilo Shopify', () => {
@@ -93,6 +104,55 @@ describe('ChannelSyncFacade', () => {
       await expect(
         t.facade.pushInventoryLevels('tenant-1', 'var-1', ['loc-1']),
       ).resolves.toBeUndefined();
+    });
+
+    // ⛔ La prova che il vecchio `enqueueProductSyncDisabled` non è tornato: un
+    //    fire-and-forget si risolve SUBITO, e questo test diventerebbe rosso.
+    describe('lo spegnimento della sync ASPETTA Shopify', () => {
+      it("non si risolve finché l'archiviazione è in volo", async () => {
+        const t = setup(TenantChannelProfile.shopify);
+        let concludi: (esito: { pushed: boolean }) => void = () => {};
+        t.shopifyProductPush.archiveOnSyncDisabled.mockReturnValue(
+          new Promise((resolve) => {
+            concludi = resolve;
+          }),
+        );
+
+        let risolta = false;
+        const attesa = t.facade
+          .archiveProductOnSyncDisabled('tenant-1', 'prod-1')
+          .then((esito) => {
+            risolta = true;
+            return esito;
+          });
+
+        // ⛔ Un giro di macrotask, non due microtask: la facade legge prima il
+        //    profilo del tenant, quindi anche il percorso fire-and-forget si
+        //    risolve dopo qualche tick — e due `await Promise.resolve()` lo
+        //    lascerebbero passare. Misurato: il test così scritto era VERDE
+        //    anche rimettendo il `void`.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(risolta).toBe(false);
+
+        concludi({ pushed: true });
+        await expect(attesa).resolves.toEqual({ pushed: true });
+      });
+
+      it("riporta l'esito al chiamante, rifiuto compreso", async () => {
+        const t = setup(TenantChannelProfile.shopify);
+        t.shopifyProductPush.archiveOnSyncDisabled.mockResolvedValue({
+          pushed: false,
+          reason: 'shopify_error',
+        });
+
+        await expect(
+          t.facade.archiveProductOnSyncDisabled('tenant-1', 'prod-1'),
+        ).resolves.toEqual({ pushed: false, reason: 'shopify_error' });
+        expect(t.shopifyProductPush.archiveOnSyncDisabled).toHaveBeenCalledWith(
+          'tenant-1',
+          'prod-1',
+        );
+      });
     });
   });
 

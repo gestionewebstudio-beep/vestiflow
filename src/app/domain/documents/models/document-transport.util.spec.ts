@@ -25,7 +25,7 @@ describe('documentTravelsWithGoods', () => {
   });
 
   it('esclude i documenti che non viaggiano con la merce', () => {
-    expect(documentTravelsWithGoods(DocumentType.InvoiceDraft)).toBe(false);
+    expect(documentTravelsWithGoods(DocumentType.Invoice)).toBe(false);
     expect(documentTravelsWithGoods(DocumentType.Proforma)).toBe(false);
     expect(documentTravelsWithGoods(DocumentType.Quote)).toBe(false);
   });
@@ -33,7 +33,7 @@ describe('documentTravelsWithGoods', () => {
 
 describe('transportDataIncomplete', () => {
   it('non segnala mai i tipi che non viaggiano con la merce', () => {
-    expect(transportDataIncomplete(DocumentType.InvoiceDraft, {})).toBe(false);
+    expect(transportDataIncomplete(DocumentType.Invoice, {})).toBe(false);
     expect(transportDataIncomplete(DocumentType.Proforma, {})).toBe(false);
   });
 

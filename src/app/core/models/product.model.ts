@@ -60,6 +60,12 @@ export interface Product extends TenantScoped, Timestamped {
    */
   readonly articleCode: string;
   readonly name: string;
+  /**
+   * «Nome Shopify»: il titolo con cui il prodotto si vende su Shopify, distinto
+   * dal nome interno. Assente = mai inizializzato: si riempie da solo alla
+   * prima sincronizzazione (docs/24 §1.9).
+   */
+  readonly shopifyTitle?: string;
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;
@@ -77,6 +83,14 @@ export interface Product extends TenantScoped, Timestamped {
   readonly shopifyMetafields?: readonly ShopifyMetafieldRef[];
   readonly shopifyCategoryMetafields?: readonly ShopifyCategoryMetafieldValue[];
   readonly status: ProductStatus;
+  /**
+   * Cestino (docs/24 §4.1): valorizzato = «Nel cestino». È un asse DIVERSO da
+   * `status`: `archived` è «Non attivo» e non c'entra col cestino. L'eliminazione
+   * definitiva è la rimozione fisica del record, quindi non ha un campo.
+   */
+  readonly deletedAt?: string | null;
+  readonly deletedById?: string | null;
+  readonly deletionReason?: string | null;
   /** Se false, le modifiche a questo prodotto NON si propagano a Shopify. */
   readonly shopifySyncEnabled: boolean;
   /** Provenienza catalogo: determina quali campi sono editabili in gestionale. */

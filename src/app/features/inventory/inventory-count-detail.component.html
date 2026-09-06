@@ -98,7 +98,7 @@
             [formGroup]="scanForm"
             (ngSubmit)="submitScanCode()"
           >
-            @if (barcodeScannerEnabled) {
+            @if (barcodeScannerEnabled()) {
               <div class="count-detail__scan-scanner">
                 <span
                   class="count-detail__scan-label count-detail__scan-label--spacer"
@@ -187,67 +187,88 @@
           >
             Con differenza
           </button>
+
+          <!--
+            ⚠️ **Colonne e Filtri stanno QUI e non nel telaio**: questa è una
+            pagina di dettaglio, non un elenco, quindi non passa da
+            `app-list-page` — che è chi li porta altrove. Senza, la vista sarebbe
+            registrata e le colonne non si potrebbero né spegnere né riaccendere.
+          -->
+          <app-table-column-picker [viewId]="lineColumnsView" />
+
+          <app-button
+            type="button"
+            variant="secondary"
+            [attr.aria-pressed]="filtriAccesi()"
+            (click)="commutaFiltri()"
+          >
+            Filtri
+          </app-button>
         </div>
       </div>
 
-      <div class="count-detail__table-scroll">
-        <table class="count-detail__table">
-          <thead>
-            <tr>
-              <th scope="col">Prodotto</th>
-              <th scope="col">SKU</th>
-              <th scope="col" class="count-detail__col--numeric">Sistema</th>
-              <th scope="col" class="count-detail__col--numeric">Contato</th>
-              <th scope="col" class="count-detail__col--numeric">Delta</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (line of filteredLines(); track line.id) {
-              <tr
-                [id]="'count-line-' + line.id"
-                class="count-detail__row"
-                [class.count-detail__row--delta]="lineDelta(line) !== null && lineDelta(line) !== 0"
-                [class.count-detail__row--highlight]="highlightedLineId() === line.id"
-              >
-                <td data-label="Prodotto">{{ line.productName }}</td>
-                <td data-label="SKU">{{ line.sku }}</td>
-                <td class="count-detail__numeric tabular-nums" data-label="Sistema">
-                  {{ line.systemQuantity }}
-                </td>
-                <td class="count-detail__numeric" data-label="Contato">
-                  @if (canEdit()) {
-                    <input
-                      class="count-detail__qty-input tabular-nums"
-                      type="number"
-                      inputmode="numeric"
-                      min="0"
-                      step="1"
-                      [value]="line.countedQuantity ?? ''"
-                      [attr.aria-label]="'Quantità contata per ' + line.sku"
-                      [disabled]="savingLineId() === line.id"
-                      (blur)="onCountedBlur(line, $event)"
-                    />
-                  } @else {
-                    <span class="tabular-nums">{{ line.countedQuantity ?? '—' }}</span>
-                  }
-                </td>
-                <td
-                  class="count-detail__numeric tabular-nums"
-                  data-label="Delta"
-                  [class.count-detail__delta--pos]="(lineDelta(line) ?? 0) > 0"
-                  [class.count-detail__delta--neg]="(lineDelta(line) ?? 0) < 0"
-                >
-                  @if (lineDelta(line); as delta) {
-                    {{ delta > 0 ? '+' + delta : delta }}
-                  } @else {
-                    —
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+      <!--
+        ⭐ **Le colonne vengono dal motore comune** (02/09/2026): selettore
+        Colonne, larghezze che si conservano e filtri di colonna, come in ogni
+        altro elenco. Prima erano cinque `<th>` scritti a mano.
+
+        ⚠️ **La ricerca e i tre filtri qui sopra restano dove sono**: «Da
+        contare» e «Con differenza» non sono filtri di colonna — sono domande
+        sul conteggio, e vivono sopra la tabella.
+      -->
+      <app-data-table
+        [columns]="tableColumns()"
+        [sections]="lineSections()"
+        [rowId]="lineId"
+        [cellText]="lineCellText"
+        [rowTone]="lineTone"
+        [highlightedRowId]="highlightedLineId()"
+        [viewId]="lineColumnsView"
+        caption="Righe della sessione di inventario"
+      >
+        <!--
+          ⚠️ **La cella che si compila.** Il motore disegna la griglia; cosa
+          sta dentro una cella lo dice la schermata — qui un campo, perché
+          questa non è una tabella da leggere: è dove si conta.
+        -->
+        <ng-template appCell="countedQuantity" let-line>
+          @if (canEdit()) {
+            <input
+              class="count-detail__qty-input tabular-nums"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              step="1"
+              [value]="line.countedQuantity ?? ''"
+              [attr.aria-label]="'Quantità contata per ' + line.sku"
+              [disabled]="savingLineId() === line.id"
+              (blur)="onCountedBlur(line, $event)"
+            />
+          } @else {
+            <span class="tabular-nums">{{ line.countedQuantity ?? '—' }}</span>
+          }
+        </ng-template>
+
+        <!--
+          ⚠️ **Il segno esplicito sul delta**: `+3` e `−3` dicono da che parte
+          sta la differenza, e il colore lo accompagna senza esserne l'unico
+          portatore (`regole-gestionale`: mai un valore leggibile solo dal
+          colore).
+        -->
+        <ng-template appCell="delta" let-line>
+          @if (lineDelta(line); as delta) {
+            <span
+              class="tabular-nums"
+              [class.count-detail__delta--pos]="delta > 0"
+              [class.count-detail__delta--neg]="delta < 0"
+            >
+              {{ delta > 0 ? '+' + delta : delta }}
+            </span>
+          } @else {
+            —
+          }
+        </ng-template>
+      </app-data-table>
 
       @if (filteredLines().length === 0) {
         <p class="count-detail__empty-filter">Nessuna riga corrisponde ai filtri attuali.</p>

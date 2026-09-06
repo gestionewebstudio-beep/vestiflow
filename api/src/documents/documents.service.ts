@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -12,18 +13,29 @@ import {
   Prisma,
   ReservationStatus,
   SalesOrderFulfillmentStatus,
+  OrderCommercialState,
   SalesOrderSource,
-  SupplierOrderStatus,
   type Document,
   type DocumentLine,
   type DocumentPaymentInstallment,
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  assertCanViewDocumentType,
+  canManageDocumentType,
+  canViewDocumentType,
+  intersectViewableDocumentTypes,
+  viewableDocumentTypesFor,
+} from '../auth/document-permission.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import {
+  ISSUER_TENANT_SELECT,
+  resolveDocumentIssuer,
+  type DocumentIssuer,
+} from '../common/company/document-issuer.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { partyDisplayName } from '../common/party/party.util';
-import { applyStockSale } from '../inventory/inventory-movement.util';
 import {
   assertLocationInUserScope,
   assertLocationReadableInUserScope,
@@ -44,14 +56,35 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
+import {
+  documentLineEconomicTotals,
+  type DocumentLineWriteData,
+} from './document-line-economic-totals.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
-import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
+
+import { persistDocumentLinesByIdTx } from './document-line-upsert.util';
+import { preservedLineVat, type PersistedLineVat } from './document-line-vat-snapshot.util';
+import {
+  lineIdentitySnapshot,
+  type LineSourceSnapshot,
+  persistedLineIdentities,
+  persistedLineVariants,
+  variantLabelSnapshot,
+  type LineIdentitySnapshot,
+  type PersistedLineIdentity,
+  type PersistedLineVariant,
+} from './document-line-variant-snapshot.util';
+import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
 import {
   buildAdjustmentMovementReason,
   syncAdjustmentLineMovements,
 } from './document-stock-adjustment-sync.util';
+import {
+  buildUnloadMovementReason,
+  syncUnloadLineMovements,
+} from './document-stock-unload-sync.util';
 import {
   buildTransferMovementReason,
   syncTransferLineMovements,
@@ -74,7 +107,9 @@ import {
   buildDocumentNumberConflict,
   defaultCounterSeries,
   isDocumentNumberConflict,
+  lockDocumentCounter,
   nextDocumentNumber,
+  resolveEditedDocumentNumbering,
 } from './document-numbering.util';
 import { formatDocumentReference } from './document-totals.util';
 import {
@@ -91,12 +126,14 @@ import {
 } from './document-stock-transfer.util';
 import {
   buildRevisionSummary,
-  reconcileDocumentStockUnload,
   reverseDocumentStockLoad,
   reverseDocumentStockUnload,
 } from './document-stock-reconcile.util';
 import { loadStockLineVariantsOrThrow } from './document-line-variants.util';
-import { reverseSupplierOrderReceipt } from './document-supplier-order.util';
+import {
+  assertSupplierOrderLinkable,
+  reverseSupplierOrderReceipt,
+} from './document-supplier-order.util';
 import { findSupplierPriceDiffs } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
@@ -106,13 +143,19 @@ import {
   isInternalOnlyDocumentType,
 } from './document-defaults';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
+import {
+  isManualUnloadDisabled,
+  MANUAL_UNLOAD_DISABLED_MESSAGE,
+} from './manual-unload-feature.util';
 import type { ConvertDocumentDto } from './dto/convert-document.dto';
 import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-document.dto';
 import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
-import type { RegisterExternalDto } from './dto/register-external.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
+import { parseDocumentListSort } from './documents-sort.util';
+import { pageWindow } from '../common/dto/unpaged.util';
+import { assertDocumentMutable } from './document-mutation.util';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
 
@@ -235,11 +278,56 @@ const EMPTY_LINE_VAT_FIELDS = {
   nonDeductibleVatMinor: 0,
 } as const;
 
+/**
+ * L'identità dell'articolo su una riga SINTETICA — quella costruita in memoria
+ * per la riconciliazione dello stock, che non viene mai persistita.
+ *
+ * ⛔ Costante separata da `EMPTY_LINE_VAT_FIELDS` di proposito: quella dichiara
+ * i campi economici assenti, questa i campi di identità. Fonderle darebbe un
+ * nome che mente su metà del proprio contenuto, e il giorno in cui una delle due
+ * famiglie cambia non si saprebbe quali punti rileggere.
+ *
+ * ⚠️ `null` qui è la risposta GIUSTA, non un ripiego: una riga che non esiste
+ * nel documento non ha un codice articolo da fotografare. Il tipo la pretende
+ * esplicita (`DocumentLineWriteData`) proprio perché non se ne scriva una vera
+ * per sbaglio — la stessa ragione per cui `variantLabel` vale `''`.
+ */
+const EMPTY_LINE_IDENTITY_FIELDS = {
+  articleCode: null,
+  productName: null,
+  barcode: null,
+} as const;
+
 interface ComputedLine {
+  /**
+   * Id della riga già salvata, dichiarato dal client in modifica. `null` = riga
+   * nuova. Serve al solo salvataggio: preservarlo è ciò che tiene in piedi gli
+   * effetti agganciati alla riga (§`docs/09-specifica-movimenti-per-riga.md`).
+   */
+  id: string | null;
   lineNumber: number;
   variantId: string | null;
   sku: string | null;
   description: string;
+  /**
+   * Etichetta della VARIANTE, fotografata: «M / Rosso».
+   *
+   * ⛔ Su una riga esistente che porta ancora la stessa variante si conserva
+   * quella persistita — la regola sta in `document-line-variant-snapshot.util`
+   * e non qui, perché duplicarla nei quattro compositori di `document_lines`
+   * ricreerebbe il difetto che la colonna elimina.
+   */
+  variantLabel: string;
+  /**
+   * L'identità dell'ARTICOLO, fotografata (§5.2 di `docs/24`).
+   *
+   * ⛔ Non esistevano: la maschera li rileggeva dall'anagrafica corrente a
+   * ogni apertura, quindi rinominare un articolo riscriveva i documenti già
+   * emessi. `null` = riga senza articolo (spesa, servizio).
+   */
+  articleCode: string | null;
+  productName: string | null;
+  barcode: string | null;
   quantity: number;
   unitPriceMinor: number;
   discountPercent: number;
@@ -253,8 +341,30 @@ interface ComputedLine {
    * quello che si memorizza e' `lineTotalMinor`.
    */
   lineNetExactMinor: number;
+  /**
+   * Imposta della riga, PERSISTITA (§5.2 di `docs/24`: «totali determinati»).
+   *
+   * ⛔ Non c'era, ed è la causa radice misurata il 02/09/2026: l'imposta di
+   * riga veniva calcolata in `computeTotals`, sommata in testata e buttata.
+   * Siccome la persistenza è uno spread di questo tipo, ciò che non è
+   * dichiarato qui non arriva mai al database — e la colonna restava al
+   * proprio `@default(0)`.
+   */
+  lineVatTotalMinor: number;
+  /** Imponibile arrotondato + imposta: il valore che un riepilogo somma. */
+  lineGrossTotalMinor: number;
   vatCodeId: string | null;
   vatSnapshot: Prisma.InputJsonObject | null;
+  /**
+   * Fotografia dell'unità di misura: il documento la tiene per sé.
+   *
+   * ⚠️ **Tre stati, non due.** `undefined` = la maschera non l’ha mandata,
+   * quindi non la si tocca; `null` = svuotata dall’operatore; una stringa =
+   * il valore. Collassare i primi due su `null` era il difetto: un salvataggio
+   * da una maschera che non ha la colonna **cancellava** un valore che
+   * l’operatore non aveva eliminato.
+   */
+  unitOfMeasure: string | null | undefined;
   loadsStock: boolean;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
   isReference: boolean;
@@ -269,6 +379,27 @@ interface LineVatContext {
   readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
   readonly productDefaultByVariantId: ReadonlyMap<string, string | null>;
   readonly fallbackDefaultVatCodeId: string | null;
+  /**
+   * Le opzioni di ogni variante, per fotografare l'etichetta sulla riga.
+   *
+   * ⚠️ Il nome del contesto è storico — nasce per l'IVA — ma le varianti si
+   * caricano UNA volta sola: una seconda query sugli stessi record, solo per
+   * leggere un altro campo, sarebbe un costo senza ragione.
+   */
+  readonly optionValuesByVariantId: ReadonlyMap<string, unknown>;
+  /** L'identità dell'articolo da fotografare sulla riga (§5.2 di `docs/24`). */
+  readonly identityByVariantId: ReadonlyMap<string, LineIdentitySnapshot>;
+  /**
+   * Le righe SORGENTE dichiarate dal client, risolte per id — duplicazione
+   * e conversione (§5.2-bis di `docs/24`).
+   *
+   * ⛔ La chiave è l'id della riga sorgente, e la query filtra per
+   * `tenantId`: un id di un altro tenant non entra nella mappa, quindi la
+   * riga ricade sul caso «nuova» e prende l'anagrafica corrente. Non è un
+   * errore silenzioso da nascondere: è il rifiuto, e produce il
+   * comportamento più prudente invece di copiare dati altrui.
+   */
+  readonly sourceLineById: ReadonlyMap<string, LineSourceSnapshot>;
 }
 
 interface DocumentTotals {
@@ -282,6 +413,22 @@ interface DocumentTotals {
  * documento di carico (arrivo merce, carico manuale, carico iniziale) genera
  * carichi e movimenti.
  */
+/**
+ * La risposta del precompilato di conversione: il corpo di creazione **più il
+ * tipo dell'origine**.
+ *
+ * È un tipo a sé e non `CreateDocumentDto` per una ragione già pagata: il DTO
+ * di ingresso valida con `forbidNonWhitelisted`, e confondere «cosa il server
+ * manda» con «cosa il server accetta» è ciò che fece rispondere 400 al PATCH
+ * senza un messaggio da mostrare. Il client ha bisogno del tipo d'origine per
+ * comporre la riga di riferimento — non può dedurlo, perché una Fattura può
+ * nascere sia da una Proforma sia da un DDT — ma quel campo non deve mai
+ * diventare accettabile in ingresso.
+ */
+export type ConvertPrefillDto = CreateDocumentDto & {
+  readonly sourceDocumentType: DocumentType;
+};
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -292,6 +439,7 @@ export class DocumentsService {
     private readonly channelSync: ChannelSyncFacade,
     private readonly stockReservations: StockReservationService,
     private readonly priceModePreference: DocumentPriceModePreferenceService,
+    private readonly externalTypes: ExternalDocumentTypesService,
   ) {}
 
   async list(
@@ -301,6 +449,15 @@ export class DocumentsService {
   ): Promise<Paginated<DocumentListRow>> {
     const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
     if (locationScope === null) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
+    // Matrice permessi documenti (§sezioni+documenti): il registro restituisce
+    // solo i tipi delle famiglie che l'utente può consultare. Filtro nel where,
+    // in AND con l'eventuale filtro tipi richiesto dal client: non basta la UI.
+    // `user` assente = chiamata interna, nessuna restrizione.
+    const viewableTypes = user ? viewableDocumentTypesFor(user) : null;
+    if (viewableTypes !== null && viewableTypes.length === 0) {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
 
@@ -317,6 +474,9 @@ export class DocumentsService {
       andClauses.push({
         OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }],
       });
+    }
+    if (viewableTypes !== null) {
+      andClauses.push({ type: { in: [...viewableTypes] } });
     }
 
     const where: Prisma.DocumentWhereInput = {
@@ -352,18 +512,32 @@ export class DocumentsService {
         : query.settlement === 'settled'
           ? { outstandingMinor: { lte: 0 } }
           : {}),
-      ...(query.accountant ? { type: { in: [...ACCOUNTANT_DOCUMENT_TYPES] } } : {}),
+      // «DDT da fatturare»: quelli su cui l'operatore ha spuntato «Seguirà
+      // doc. di vendita» e che nessuna Fattura viva ha ancora consumato.
+      //
+      // ⚠️ Riscritto il 16/08/2026. Guardava `derivedDocuments`, cioè
+      // `sourceDocumentId`, e sbagliava due volte:
+      //
+      // 1. `sourceDocumentId` è la GENERAZIONE da un predecessore singolo,
+      //    mentre una Fattura ne INCLUDE molti: il legame giusto è
+      //    `InvoiceSalesDdtLink`, che è molti-a-uno e ha il suo indice
+      //    `(tenantId, salesDdtId)`;
+      // 2. `sourceDocumentId` non è mai stato scritto da nessuno, quindi il
+      //    filtro considerava «da fatturare» TUTTI i DDT confermati —
+      //    compresi quelli senza la spunta, che una fattura non la aspettano.
+      //
+      // Una Fattura annullata non consuma il DDT: il legame resta in tabella,
+      // ma il DDT torna da fatturare. Per questo si guarda lo stato della
+      // fattura collegata e non la sola esistenza del legame.
       ...(query.pendingInvoice
         ? {
             type: DocumentType.sales_ddt,
             status: {
               in: [DocumentStatus.confirmed, DocumentStatus.printed, DocumentStatus.sent],
             },
-            derivedDocuments: {
-              none: {
-                type: DocumentType.invoice_draft,
-                status: { not: DocumentStatus.cancelled },
-              },
+            followedBySalesDoc: true,
+            invoiceLinks: {
+              none: { invoice: { status: { not: DocumentStatus.cancelled } } },
             },
           }
         : {}),
@@ -394,9 +568,8 @@ export class DocumentsService {
             take: 1,
           },
         },
-        orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        orderBy: parseDocumentListSort(query.sort),
+        ...pageWindow(query),
       }),
       this.prisma.document.count({ where }),
     ]);
@@ -412,6 +585,9 @@ export class DocumentsService {
       }),
     );
 
+    // ⛔ Nessun tetto sulle righe (deciso il 21/08/2026): con `all` si
+    // consegna tutto il risultato del filtro, e a contenerlo è il PERIODO —
+    // l'elenco si apre sugli ultimi 30 giorni.
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
@@ -431,12 +607,21 @@ export class DocumentsService {
     if (locationScope === null) {
       return [];
     }
+    // Il filtro tipi arriva dal client: si interseca con le famiglie
+    // consultabili, altrimenti il filtro «Operatore» rivelerebbe chi firma
+    // documenti che l'utente non può vedere.
+    const allowedTypes = user
+      ? intersectViewableDocumentTypes(user, query.types)
+      : (query.types ?? null);
+    if (allowedTypes !== null && allowedTypes.length === 0) {
+      return [];
+    }
 
     const rows = await this.prisma.document.findMany({
       where: {
         tenantId,
         createdById: { not: null },
-        ...(query.types?.length ? { type: { in: query.types } } : {}),
+        ...(allowedTypes ? { type: { in: [...allowedTypes] } } : {}),
         ...(locationScope !== 'unrestricted'
           ? { OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }] }
           : {}),
@@ -470,15 +655,64 @@ export class DocumentsService {
   }
 
   /**
-   * Gate di SCRITTURA per le mutazioni di un documento legato a una sede:
+   * Matrice permessi documenti: le mutazioni richiedono «Gestisci» sulla
+   * famiglia del tipo. `user` assente (chiamate interne) passa: i flussi di
+   * sistema non sono azioni operatore.
+   */
+  private assertDocumentTypeManageable(user: UserProfileDto | undefined, type: DocumentType): void {
+    if (!user) {
+      return;
+    }
+    if (!canManageDocumentType(user, type)) {
+      throw new ForbiddenException('Non hai il permesso di gestire questo tipo di documento.');
+    }
+  }
+
+  /**
+   * Aggancio e sgancio degli Ordini cliente inclusi (`includedSalesOrderIds`):
+   * il corpo della richiesta sposta l'operazione sulla famiglia «ordine
+   * cliente», che né il gate di rotta («gestisci almeno una famiglia») né
+   * `assertDocumentTypeManageable` (la sola famiglia del documento salvato)
+   * coprono. Senza questa guardia chi gestisce i soli DDT vendita poteva
+   * agganciare l'ordine di un altro: alla conferma ne vengono CONSUMATI gli
+   * impegni di magazzino e l'ordine passa a evaso. E poteva fare il contrario
+   * mandando un elenco VUOTO su un DDT che ne aveva — l'ordine viene RIAPERTO
+   * e gli impegni ricreati — senza nemmeno conoscere un id.
+   * `user` assente = chiamata interna: l'autorizzazione l'ha già data chi ha
+   * avviato l'operazione.
+   */
+  private assertIncludedSalesOrdersManageable(
+    user: UserProfileDto | undefined,
+    requestedOrderIds: readonly string[] | undefined,
+    linkedOrderCount: number,
+  ): void {
+    if (!user || requestedOrderIds === undefined) {
+      return;
+    }
+    // Elenco vuoto su un documento che non ha ordini agganciati: il
+    // salvataggio non tocca alcun ordine, non c'è nulla da autorizzare.
+    if (requestedOrderIds.length === 0 && linkedOrderCount === 0) {
+      return;
+    }
+    // La famiglia `sales_order` ha `customer_order` come tipo documento.
+    if (!canManageDocumentType(user, DocumentType.customer_order)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di gestire gli ordini cliente: non puoi agganciarli o sganciarli da questo documento.',
+      );
+    }
+  }
+
+  /**
+   * Gate di SCRITTURA: origine immutabile e autorizzazione sulle sedi.
    * l'utente deve poter operare sulla sede del documento (e, per i
    * trasferimenti, la destinazione segue la regola 'transferDestination').
-   * Documenti senza locationId (fatture, corrispettivi, ecc.) passano sempre.
+   * I documenti senza sede non richiedono il controllo location.
    */
-  private assertDocumentLocationWritable(
+  private assertDocumentWritable(
     user: UserProfileDto | undefined,
-    doc: Pick<Document, 'locationId' | 'targetLocationId'>,
+    doc: Pick<Document, 'locationId' | 'targetLocationId' | 'cashSessionId'>,
   ): void {
+    assertDocumentMutable(doc);
     if (!user) {
       return;
     }
@@ -492,7 +726,10 @@ export class DocumentsService {
 
   /**
    * Gate riusabile dai controller (es. allegati): carica il documento con lo
-   * scope di lettura dell'utente e applica il gate di scrittura sulla sede.
+   * scope di lettura dell'utente e applica i due gate di scrittura — la
+   * famiglia del tipo e la sede. Senza il primo, chi gestisce una sola
+   * famiglia potrebbe caricare ed ELIMINARE gli allegati di ogni altra
+   * (il gate di rotta chiede solo «gestisce almeno una famiglia»).
    */
   async assertWritableById(
     tenantId: string,
@@ -500,7 +737,8 @@ export class DocumentsService {
     user: UserProfileDto | undefined,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentTypeManageable(user, doc.type);
+    this.assertDocumentWritable(user, doc);
     return doc;
   }
 
@@ -681,7 +919,15 @@ export class DocumentsService {
                 taxMinor: true,
                 totalMinor: true,
                 lines: {
-                  select: { lineTotalMinor: true, lineVatTotalMinor: true, vatSnapshot: true },
+                  // ⭐ `vatCodeId`: e' la chiave del raggruppamento delle quote
+                  // IVA dell'arrivo. Senza, il 22 ordinario e il 22 in
+                  // inversione contabile si sommerebbero in una quota sola.
+                  select: {
+                    lineTotalMinor: true,
+                    lineVatTotalMinor: true,
+                    vatSnapshot: true,
+                    vatCodeId: true,
+                  },
                 },
               },
             },
@@ -710,6 +956,11 @@ export class DocumentsService {
       throw new NotFoundException('Documento non trovato');
     }
     this.assertDocumentLocationReadable(user, doc.locationId);
+    // Matrice permessi documenti: la famiglia del tipo decide chi lo apre
+    // (`user` assente = chiamata interna, passa).
+    if (user && !canViewDocumentType(user, doc.type)) {
+      throw new ForbiddenException('Accesso negato al documento.');
+    }
     const {
       salesOrders = [],
       supplierOrder,
@@ -766,26 +1017,38 @@ export class DocumentsService {
     tenantId: string,
     type: DocumentType,
     series?: string | null,
+    locationId?: string | null,
+    documentDate?: Date,
+    user?: UserProfileDto,
   ): Promise<{ reference: string; previewNumber: number; series: string | null }> {
+    // Il tipo arriva dal client (query string), non da un documento salvato:
+    // senza guardia l'anteprima è una finestra sul numeratore di una famiglia
+    // che l'utente non può consultare.
+    assertCanViewDocumentType(user, type);
     const setting = await this.settings.getResolved(tenantId, type);
-    // Serie scelta in testata (se passata) o quella del contatore predefinito.
+    // Serie scelta in testata (se passata) o quella del contatore predefinito
+    // COMPATIBILE con la sede (§1-bis): l'anteprima deve dire la stessa cosa
+    // che dirà il salvataggio, o smette di essere un'anteprima.
     const resolvedSeries =
       series !== undefined
         ? (series ?? '').trim() || null
-        : await defaultCounterSeries(this.prisma, tenantId, type);
+        : await defaultCounterSeries(this.prisma, tenantId, type, locationId);
     // Stessa chiave (e stesso prefisso) usati dalla conferma: l'anteprima di
     // una Fattura accompagnatoria legge il progressivo condiviso della Fattura.
     const numberingType = documentNumberingType(type);
     const numberingSetting =
       numberingType === type ? setting : await this.settings.getResolved(tenantId, numberingType);
-    // Stesso criterio dell'assegnazione (massimo esistente + 1): l'anteprima
-    // mostra davvero il numero che il documento riceverà.
+    // Stesso criterio dell'assegnazione — primo libero sopra i documenti di
+    // data anteriore (§2) — e con la STESSA data: senza, l'anteprima direbbe il
+    // numero di oggi su un documento datato altrove, che è la divergenza
+    // testata/salvataggio già chiusa altrove il 13/08.
     const previewNumber = await nextDocumentNumber({
       tx: this.prisma,
       tenantId,
       type: numberingType,
       series: resolvedSeries,
       source: 'document',
+      documentDate,
     });
     const prefix = (numberingSetting.numberPrefix ?? 'DOC').trim() || 'DOC';
     return {
@@ -806,7 +1069,7 @@ export class DocumentsService {
   /**
    * Creazione documento generica (POST /documents), usata dal registro
    * documenti per i tipi non gestiti da un flusso dedicato. I tipi con un
-   * flusso dedicato (cassa negozio, arrivo merce/carico) sono bloccati qui:
+   * flusso dedicato (vendita al banco, arrivo merce/carico) sono bloccati qui:
    * usa `createDocumentRecord` internamente per i pochi casi legittimi di
    * creazione interna (es. bozza arrivo merce da ordine fornitore).
    */
@@ -815,6 +1078,10 @@ export class DocumentsService {
     dto: CreateDocumentDto,
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
+    this.assertDocumentTypeManageable(user, dto.type);
+    // Un documento nuovo non ha ordini agganciati: conta solo ciò che il corpo
+    // chiede di agganciare (il «Concludi ordine» arriva proprio da qui).
+    this.assertIncludedSalesOrdersManageable(user, dto.includedSalesOrderIds, 0);
     if (isInternalOnlyDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
         'Questo tipo documento è generato automaticamente dal sistema e non può essere creato manualmente.',
@@ -822,13 +1089,20 @@ export class DocumentsService {
     }
     if (isFlowOnlyDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
-        'Vendite e resi negozio si registrano dalla cassa (Vendita negozio), non dal registro documenti.',
+        'Vendite e resi si registrano dalla Vendita al banco, non dal registro documenti.',
       );
     }
     if (isDedicatedWorkflowDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
         'Arrivi merce e documenti di carico si registrano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
       );
+    }
+    // ⛔ Quarto rifiuto, e sta QUI e non in `assertDocumentTypeManageable`: quella
+    //   e’ chiamata anche da update, cancel, delete e dagli allegati, e il flag
+    //   non deve toccare lo storico. Sta anche PRIMA di `createDocumentRecord`,
+    //   che serve alle creazioni interne legittime.
+    if (isManualUnloadDisabled(user, dto.type)) {
+      throw new UnprocessableEntityException(MANUAL_UNLOAD_DISABLED_MESSAGE);
     }
     return this.createDocumentRecord(tenantId, dto, user);
   }
@@ -849,26 +1123,52 @@ export class DocumentsService {
 
     await this.assertCounterparties(tenantId, dto);
     if (dto.supplierOrderId) {
-      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId);
+      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId, user);
     }
 
     // Modalità prezzo del documento (netto/ivato): come l'operatore stava
     // guardando i prezzi, per ritrovare il documento come l'aveva compilato.
     // Non entra nei totali: le righe portano il netto, l'imposta si calcola.
-    const pricesIncludeVat = dto.pricesIncludeVat ?? setting.pricesIncludeVat;
+    // Ripiego: la convenzione AZIENDALE. Prima qui c’era un terzo livello
+    // (tenant × tipo) che nessun pannello esponeva e che questo `??` non
+    // raggiungeva mai, perché la maschera manda sempre un valore: una riga in
+    // tutto il database, per supplier_order, e diciotto ordini netti a
+    // smentirla. Ritirato il 17/08/2026, colonna compresa.
+    const pricesIncludeVat =
+      dto.pricesIncludeVat ??
+      (await this.priceModePreference.resolveCompanyDefault(tenantId, dto.type));
 
     const documentDate = new Date(dto.documentDate);
     const vatContext = await this.buildLineVatContext(tenantId, dto.supplierId, dto.lines ?? []);
-    const lines = this.computeLines(dto.lines ?? [], dto.type, vatContext);
+    const lines = this.computeLines(
+      dto.lines ?? [],
+      dto.type,
+      {
+        opzioniPerVariante: vatContext?.optionValuesByVariantId ?? new Map(),
+        // Creazione: nessuna riga persistita, l'etichetta si calcola sempre.
+        persistitePerRiga: new Map(),
+        identitaPerVariante: vatContext?.identityByVariantId ?? new Map(),
+        // Nessuna riga persistita: in creazione l'identità si fotografa…
+        identitaPerRiga: new Map(),
+        // …a meno che la riga DERIVI da una duplicazione o da una conversione,
+        // e allora la sorgente vince sull'anagrafica corrente (§5.2-bis).
+        sorgentePerRiga: vatContext?.sourceLineById ?? new Map(),
+      },
+      vatContext,
+    );
     const totals = this.computeTotals(lines, dto.documentDiscountPercent ?? 0);
 
     const supplierName = await this.snapshotSupplierName(tenantId, dto.supplierId);
     // Cliente da anagrafica (snapshot) oppure testo libero solo-stampa
-    // (prompt Scarico manuale): il testo libero NON crea record in anagrafica.
+    // (prompt Vendita manuale): il testo libero NON crea record in anagrafica.
     const customerName =
       (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
       (dto.customerName?.trim() || null);
-
+    // Chi emette, congelato adesso: la ristampa di domani deve dire quello che
+    // il documento diceva oggi. Porta anche l'IBAN di incasso, che precompila
+    // i dati pagamento della fattura senza che l'operatore debba conoscerlo —
+    // l'anagrafica azienda la legge solo il titolare.
+    const issuer = await this.loadIssuer(tenantId);
     // Nascita-confermato (Fase 3): il documento si crea e si conferma in
     // un'unica transazione. `syncTargets` raccoglie i push inventario a valle.
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
@@ -880,7 +1180,7 @@ export class DocumentsService {
         const series =
           dto.series !== undefined
             ? (dto.series ?? '').trim() || null
-            : await defaultCounterSeries(tx, tenantId, dto.type);
+            : await defaultCounterSeries(tx, tenantId, dto.type, dto.locationId ?? null);
         const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
         const numberingSetting =
           documentNumberingType(dto.type) === dto.type
@@ -909,8 +1209,6 @@ export class DocumentsService {
             locationId: dto.locationId ?? null,
             targetLocationId: dto.targetLocationId ?? null,
             adjustmentDirection: dto.adjustmentDirection ?? null,
-            externalDocNumber: dto.externalDocNumber ?? null,
-            externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
             sourceDocumentId: dto.sourceDocumentId ?? null,
             supplierOrderId: dto.supplierOrderId ?? null,
             billingCause: dto.billingCause?.trim() || null,
@@ -920,9 +1218,12 @@ export class DocumentsService {
             expectedDeliveryDate: dto.expectedDeliveryDate
               ? new Date(dto.expectedDeliveryDate)
               : null,
-            // Fattura: dati pagamento in testata.
+            issuerSnapshot: issuer as unknown as Prisma.InputJsonValue,
+            // Fattura: dati pagamento in testata. Senza IBAN digitato vale
+            // quello dei dati azienda: sulla fattura ci finisce comunque, e
+            // farlo scrivere a mano da chi non può leggerlo è un giro assurdo.
             paymentDueDate: dto.paymentDueDate ? new Date(dto.paymentDueDate) : null,
-            iban: dto.iban?.trim() || null,
+            iban: dto.iban?.trim() || issuer.iban,
             // DDT vendita: testata operativa (prompt DDT).
             followedBySalesDoc: dto.followedBySalesDoc ?? false,
             transportCausal: dto.transportCausal?.trim() || null,
@@ -948,11 +1249,24 @@ export class DocumentsService {
         });
 
         if (dto.linkedSalesDdtIds !== undefined) {
-          await this.syncLinkedSalesDdtsTx(tx, tenantId, created.id, dto.linkedSalesDdtIds);
+          await this.syncLinkedSalesDdtsTx(
+            tx,
+            tenantId,
+            created.id,
+            dto.linkedSalesDdtIds,
+            created.type,
+            user,
+          );
         }
 
         if (dto.includedSalesOrderIds !== undefined) {
-          await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
+          await this.syncIncludedSalesOrdersTx(
+            tx,
+            tenantId,
+            created,
+            dto.includedSalesOrderIds,
+            user,
+          );
         }
 
         // Conferma nella STESSA transazione: numero + effetti magazzino per tipo
@@ -961,8 +1275,18 @@ export class DocumentsService {
         return this.confirmDocumentTx(tx, tenantId, created.id, user, syncTargets, created);
       })
       .catch(async (error: unknown) => {
-        // Numero imposto già preso: 409 con il primo libero da proporre.
-        await this.throwNumberConflict(error, tenantId, dto.type, dto.series);
+        // Numero imposto già preso: 409 con il numero rifiutato e il primo
+        // libero. Senza numero in testata lo assegna la conferma d'ufficio, e
+        // il conflitto (se mai capita) riguarda quello.
+        await this.throwNumberConflict(
+          error,
+          tenantId,
+          dto.type,
+          dto.series,
+          dto.number ?? null,
+          documentDate,
+          dto.locationId ?? null,
+        );
         throw error;
       });
 
@@ -992,25 +1316,36 @@ export class DocumentsService {
   }
 
   /**
-   * Conflitto sul numero documento → 409 col primo numero libero della serie.
-   * Il vincolo unico del database resta l'unica verità: due operatori che
-   * salvano lo stesso numero non possono duplicarlo, uno dei due sceglie se
-   * prendere il numero proposto.
+   * Conflitto sul numero documento → 409 col numero rifiutato e il primo
+   * libero della serie. Il vincolo unico del database resta l'unica verità: due
+   * operatori che salvano lo stesso numero non possono duplicarlo, uno dei due
+   * si vede rifiutare il numero e lo corregge.
+   *
+   * `requestedNumber` è il numero che la scrittura ha tentato: è quello che
+   * l'operatore ha in testata, ed è l'unico che il messaggio può nominare senza
+   * mentire.
    */
   private async throwNumberConflict(
     error: unknown,
     tenantId: string,
     type: DocumentType,
     series: string | null | undefined,
+    requestedNumber: number | null,
+    documentDate: Date,
+    locationId?: string | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
+    // La serie va risolta ESATTAMENTE come nella scrittura, sede compresa: il
+    // «prossimo libero» che l'avviso propone si calcola su una partizione, e
+    // sbagliare partizione vuol dire proporre un numero che darà un secondo
+    // conflitto.
     const resolvedSeries =
       series !== undefined
         ? (series ?? '').trim() || null
-        : await defaultCounterSeries(this.prisma, tenantId, type);
+        : await defaultCounterSeries(this.prisma, tenantId, type, locationId);
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,
@@ -1019,6 +1354,12 @@ export class DocumentsService {
         series: resolvedSeries,
         source: 'document',
         prefix: setting.numberPrefix,
+        requestedNumber,
+        // La data governa il primo libero (§2): senza, l'avviso proporrebbe il
+        // numero giusto per OGGI e non per la data del documento — cioè scriverebbe
+        // in testata un numero calcolato con una regola diversa da quella che ha
+        // appena assegnato quello rifiutato.
+        documentDate,
       }),
     );
   }
@@ -1072,20 +1413,69 @@ export class DocumentsService {
     tenantId: string,
     invoiceId: string,
     ddtIds: readonly string[],
+    invoiceType: DocumentType,
+    user: UserProfileDto | undefined,
   ): Promise<void> {
+    // ⛔ **Solo la Fattura aggancia DDT**, ed è la fattura DIFFERITA: DDT
+    // durante il periodo, fattura che li riepiloga (riferimenti nell'XML
+    // FatturaPA e in stampa).
+    //
+    // ⛔ **L'accompagnatoria no** (`docs/12` §matrice, «mai DDT»): sostituisce
+    // il DDT nella stessa uscita, e agganciarne uno è la stessa contraddizione
+    // di una Fattura dentro un DDT.
+    //
+    // ⛔ **La Nota di credito nemmeno**, e non per un divieto testuale: la
+    // matrice dice che non usa «Includi documento» e che nasce da Fattura o
+    // Accompagnatoria — un DDT non è una sua sorgente. Verificato che non le
+    // serva: non genera XML FatturaPA, e in stampa i DDT che la riguardano
+    // sono quelli della fattura originaria. ⭐ Se un giorno servissero, si
+    // recuperano attraverso `sourceDocumentId`, non aprendo un ingresso
+    // DDT → Nota di credito.
+    //
+    // ⚠️ Fino al 22/08/2026 questo server li accettava senza guardare il tipo,
+    // e la maschera li offriva a tutta la famiglia: il codice permetteva ciò
+    // che la matrice non prevede. Cede il codice, non la matrice.
+    //
+    // ⭐ La guardia sta QUI e non nei due chiamanti (creazione e modifica): una
+    // regola scritta in due punti diverge al primo che ne dimentica uno.
+    if (invoiceType !== DocumentType.invoice && ddtIds.length > 0) {
+      throw new UnprocessableEntityException(
+        `Il tipo documento «${invoiceType}» non può agganciare un DDT vendita: l'aggancio esiste per la fattura differita.`,
+      );
+    }
+
     const uniqueIds = [...new Set(ddtIds)];
 
     if (uniqueIds.length > 0) {
+      // ⛔ **La sede PRIMA delle condizioni documentali.** Il tipo e
+      // l'annullamento stavano nella `where`: un DDT fuori ambito ma per il
+      // resto valido veniva **agganciato** senza che nessuno guardasse la sua
+      // sede. La lettura ora prende i documenti del tenant per quegli id e li
+      // filtra qui, così la sede si può confrontare per prima.
       const found = await tx.document.findMany({
-        where: {
-          id: { in: uniqueIds },
-          tenantId,
-          type: DocumentType.sales_ddt,
-          cancelledAt: null,
-        },
-        select: { id: true },
+        where: { id: { in: uniqueIds }, tenantId },
+        select: { id: true, locationId: true, type: true, cancelledAt: true },
       });
-      if (found.length !== uniqueIds.length) {
+
+      // ⛔ **Tutti, non il primo.** Un solo DDT fuori ambito in mezzo ad altri
+      // autorizzati rifiuta l’operazione intera: siamo dentro la transazione del
+      // salvataggio, quindi non resta niente a metà.
+      //
+      // ⚠️ Politica di LETTURA: la regola è «non si aggancia un DDT che non si
+      // potrebbe aprire». Che il selettore mostri solo DDT consentiti non è
+      // autorizzazione: gli id arrivano dall'API validati come soli UUID.
+      for (const ddt of found) {
+        assertLocationReadableInUserScope(
+          user,
+          ddt.locationId,
+          'Non sei autorizzato ad accedere a uno dei DDT indicati.',
+        );
+      }
+
+      const collegabili = found.filter(
+        (ddt) => ddt.type === DocumentType.sales_ddt && ddt.cancelledAt === null,
+      );
+      if (collegabili.length !== uniqueIds.length) {
         throw new UnprocessableEntityException(
           'Uno o più DDT indicati non esistono, non sono DDT vendita o sono annullati.',
         );
@@ -1105,6 +1495,7 @@ export class DocumentsService {
     tenantId: string,
     doc: Pick<Document, 'id' | 'type'>,
     orderIds: readonly string[],
+    user?: UserProfileDto,
   ): Promise<Array<{ variantId: string; locationId: string }>> {
     const uniqueIds = [...new Set(orderIds)];
     // DDT vendita e Fattura accompagnatoria concludono un ordine cliente
@@ -1124,7 +1515,7 @@ export class DocumentsService {
 
     const current = await tx.salesOrder.findMany({
       where: { tenantId, documentId: doc.id },
-      select: { id: true, orderNumber: true },
+      select: { id: true, orderNumber: true, locationId: true },
     });
     const currentIds = new Set(current.map((order) => order.id));
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
@@ -1142,9 +1533,25 @@ export class DocumentsService {
         source: true,
         cancelledAt: true,
         documentId: true,
+        locationId: true,
       },
     });
     const orderById = new Map(ordersToLink.map((order) => [order.id, order]));
+    const toUnlink = current.filter((order) => !uniqueIds.includes(order.id));
+
+    // Gli impegni di magazzino stanno sulla sede dell'ORDINE, non su quella del
+    // documento: agganciarlo li consuma là, sganciarlo li ricrea là. Senza
+    // questo controllo un operatore assegnato alla sola sede A muoveva le
+    // giacenze della sede B passando dal documento — la stessa porta che
+    // «Concludi ordine» (ManualSalesOrdersService) sbarra già. Gli ordini che
+    // restano agganciati non si toccano, quindi non si controllano.
+    if (user) {
+      for (const order of [...ordersToLink, ...toUnlink]) {
+        if (order.locationId) {
+          assertLocationInUserScope(user, order.locationId, 'write');
+        }
+      }
+    }
 
     const linkedDocumentIds = [
       ...new Set(
@@ -1190,7 +1597,7 @@ export class DocumentsService {
       await tx.salesOrder.update({ where: { id: order.id }, data: { documentId: doc.id } });
     }
 
-    for (const removed of current.filter((order) => !uniqueIds.includes(order.id))) {
+    for (const removed of toUnlink) {
       const reopenTargets = await this.reopenManualOrderRecordTx(
         tx,
         tenantId,
@@ -1211,10 +1618,23 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentTypeManageable(user, doc.type);
+    // Anche l'elenco VUOTO va autorizzato quando il documento ha già ordini
+    // agganciati: è quello il salvataggio che li sgancia e li riapre.
+    this.assertIncludedSalesOrdersManageable(
+      user,
+      dto.includedSalesOrderIds,
+      doc.linkedSalesOrders.length,
+    );
+    this.assertDocumentWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
+      // ⚠️ Il blocco resta, il MESSAGGIO no: diceva «non sono modificabili», e
+      // dopo la decisione A2 (`11`) è falso — Vendita e Reso al banco si
+      // riaprono e si correggono. Quello che non li modifica è QUESTO percorso:
+      // la maschera dedicata li salva con la propria riconciliazione, e passare
+      // di qui la scavalcherebbe.
       throw new ConflictException(
-        'Vendite e resi negozio non sono modificabili: registra un reso o una nuova vendita dalla cassa.',
+        'Vendite e resi al banco si modificano dalla loro maschera, non dal registro documenti.',
       );
     }
     // Percorso unico Arrivo merce: la famiglia carico si modifica SOLO con
@@ -1225,6 +1645,13 @@ export class DocumentsService {
       throw new ConflictException(
         'Gli arrivi merce si modificano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
       );
+    }
+    // ⚠️ A funzione spenta non si MODIFICA: aprire una Vendita manuale storica,
+    //   cambiarne le quantita’ e salvare produrrebbe lo stesso effetto sensibile
+    //   sulla giacenza di una creazione. E lo sblocco della maschera e’ solo
+    //   stato del client, quindi il blocco vero puo’ stare soltanto qui.
+    if (isManualUnloadDisabled(user, doc.type)) {
+      throw new ConflictException(MANUAL_UNLOAD_DISABLED_MESSAGE);
     }
     const isDraft = doc.status === DocumentStatus.draft;
     const isConfirmedEdit = CONFIRMED_EDITABLE_STATUSES.includes(doc.status);
@@ -1247,14 +1674,59 @@ export class DocumentsService {
       dto.supplierId !== undefined ? dto.supplierId : doc.supplierId;
     const lines =
       dto.lines !== undefined
-        ? this.computeLines(
-            dto.lines,
-            doc.type,
-            await this.buildLineVatContext(tenantId, effectiveSupplierIdForVat, dto.lines),
-          )
+        ? await (async () => {
+            const vatContext = await this.buildLineVatContext(
+              tenantId,
+              effectiveSupplierIdForVat,
+              dto.lines!,
+            );
+            return this.computeLines(
+              dto.lines!,
+              doc.type,
+              {
+                opzioniPerVariante: vatContext.optionValuesByVariantId,
+                // ⛔ Modifica: le righe già persistite portano l'etichetta di
+                // allora, e su una riga che non ha cambiato variante è quella
+                // che vince. Senza questa mappa, riaprire e salvare un
+                // documento ne riscriverebbe le varianti con l'anagrafica di
+                // oggi.
+                persistitePerRiga: persistedLineVariants(doc.lines),
+                identitaPerVariante: vatContext.identityByVariantId,
+                // ⛔ Stessa disciplina per codice articolo, nome e barcode: una
+                // riga che non ha cambiato variante conserva l'identità di
+                // allora. Senza questa mappa, rinominare un prodotto in
+                // anagrafica riscriverebbe il nome sul DDT di marzo al primo
+                // risalvataggio — «la riga di un documento è una fotografia»
+                // (`regole-gestionale`).
+                identitaPerRiga: persistedLineIdentities(doc.lines),
+                // In modifica una riga nuova può comunque derivare: si aggiunge
+                // una riga a un documento duplicando quella di un altro.
+                sorgentePerRiga: vatContext.sourceLineById,
+              },
+              vatContext,
+              new Map(
+                doc.lines.map((line) => [
+                  line.id,
+                  { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
+                ]),
+              ),
+            );
+          })()
         : null;
 
-    if (lines) {
+    // Guardia dei flussi dedicati: un documento che tiene movimenti per riga
+    // mantenuti ALTROVE (Trasferimento e Rettifica, che hanno il proprio
+    // endpoint di salvataggio) non si aggiorna col PATCH generico, o i suoi
+    // movimenti resterebbero indietro.
+    //
+    // ⚠️ Lo scarico di vendita è l'eccezione, e non è un'eccezione: i suoi
+    // movimenti per riga li mantiene QUESTO PATCH (`syncUnloadLineMovements`,
+    // più sotto). Senza questa distinzione un DDT si salverebbe una volta sola
+    // — il primo salvataggio crea i movimenti per riga, e dal secondo in poi
+    // la guardia rifiuterebbe il documento che essa stessa ha convertito.
+    const keepsOwnLineMovementsInPatch =
+      doc.type === DocumentType.sales_ddt || doc.type === DocumentType.invoice_accompanying;
+    if (lines && !keepsOwnLineMovementsInPatch) {
       const hasPerLineMovements =
         (await this.prisma.stockMovement.count({
           where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
@@ -1269,6 +1741,25 @@ export class DocumentsService {
     const newLocationId = dto.locationId !== undefined ? dto.locationId : doc.locationId;
     const newTargetLocationId =
       dto.targetLocationId !== undefined ? dto.targetLocationId : doc.targetLocationId;
+
+    // ⛔ **Si autorizza anche lo stato RISULTANTE, non solo quello persistito.**
+    //
+    // La guardia a `:1533` autorizza `doc`, cioè il documento com’era. Ma il DTO
+    // può cambiarne la sede, e da qui in poi è `newLocationId` a decidere dove
+    // vanno movimenti, giacenze e push ai canali. Senza questa seconda verifica,
+    // un operatore autorizzato sulla sede A apriva un proprio documento di A, lo
+    // salvava con sede B, e muoveva il magazzino di B — su cui non ha alcun
+    // diritto di scrittura. Le sedi in ingresso sono validate per esistenza e
+    // tenant (`assertReferences`), **non** per l’ambito dell’utente.
+    //
+    // ⭐ Riusa la politica esistente e non ne inventa una: `write` sulla sede,
+    // `transferDestination` sulla destinazione. Sta **prima** di qualunque
+    // scrittura — fra la guardia di riga 1533 e qui non si persiste nulla.
+    this.assertDocumentWritable(user, {
+      locationId: newLocationId,
+      targetLocationId: newTargetLocationId,
+      cashSessionId: doc.cashSessionId,
+    });
     const newAdjustmentDirection =
       dto.adjustmentDirection !== undefined ? dto.adjustmentDirection : doc.adjustmentDirection;
     const newInternalComment =
@@ -1287,11 +1778,15 @@ export class DocumentsService {
       lines:
         lines?.map((line, index) => ({
           ...line,
-          // Anteprima: la riga calcolata prende la forma della colonna.
+          // Anteprima: la riga calcolata prende la forma della colonna, che
+          // non conosce «non inviata» — qui `undefined` vale quanto `null`.
+          unitOfMeasure: line.unitOfMeasure ?? null,
           unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
           discountPercent: new Prisma.Decimal(line.discountPercent),
           id: `new-${index}`,
           documentId: doc.id,
+          // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+          returnedFromLineId: null,
           tenantId,
           isReference: line.isReference === true,
           linkedGoodsReceiptId: null,
@@ -1322,10 +1817,22 @@ export class DocumentsService {
       this.assertStockTransferDocument(mergedLinesForValidation(doc));
     }
 
-    const effectiveSeries =
-      dto.series !== undefined ? (dto.series ?? '').trim() || null : doc.series;
+    // Numero e serie in modifica: il contratto vive in UNA funzione comune
+    // (`resolveEditedDocumentNumbering`), estratta da qui il 21/08/2026 perché
+    // la Vendita e il Reso al banco dovevano applicare questo e non una copia.
+    const numberingType = documentNumberingType(doc.type);
+    const numberingSetting =
+      numberingType === doc.type
+        ? setting
+        : await this.settings.getResolved(tenantId, numberingType);
+    const numerazione = resolveEditedDocumentNumbering({
+      declaredSeries: dto.series,
+      declaredNumber: dto.number,
+      current: { series: doc.series, number: doc.number },
+      prefix: numberingSetting.numberPrefix,
+    });
     const data: Prisma.DocumentUncheckedUpdateInput = {
-      series: effectiveSeries,
+      series: numerazione.series,
       documentDate,
       year: documentDate.getFullYear(),
       supplierId: dto.supplierId !== undefined ? dto.supplierId : doc.supplierId,
@@ -1411,28 +1918,16 @@ export class DocumentsService {
       data.documentDiscountPercent = dto.documentDiscountPercent;
     }
 
-    // Numero imposto in testata: si riscrive solo quando cambia davvero, così
-    // un salvataggio che non tocca il numero non rischia il vincolo unico.
-    if (dto.number !== undefined && dto.number !== doc.number) {
-      const numberingType = documentNumberingType(doc.type);
-      const numberingSetting =
-        numberingType === doc.type
-          ? setting
-          : await this.settings.getResolved(tenantId, numberingType);
-      data.number = dto.number;
-      data.reference = this.formatReference(
-        numberingSetting.numberPrefix,
-        effectiveSeries,
-        dto.number,
-      );
+    if (numerazione.numberChanged) {
+      data.number = numerazione.number;
+    }
+    if (numerazione.reference !== null) {
+      data.reference = numerazione.reference;
     }
 
-    if (dto.externalDocNumber !== undefined) {
-      data.externalDocNumber = dto.externalDocNumber;
-    }
-    if (dto.externalDocDate !== undefined) {
-      data.externalDocDate = dto.externalDocDate ? new Date(dto.externalDocDate) : null;
-    }
+    // Il documento della controparte non passa più da qui (12/08/2026): questi
+    // endpoint servono i tipi che non ne hanno uno da citare. Arrivo merce e
+    // Registrazione fattura fornitore, che ce l'hanno, hanno endpoint propri.
 
     if (dto.supplierOrderId !== undefined) {
       if (!isDraft) {
@@ -1450,7 +1945,7 @@ export class DocumentsService {
           'Questo documento è già collegato a un altro ordine fornitore.',
         );
       }
-      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId);
+      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId, user);
       const order = await this.prisma.supplierOrder.findFirst({
         where: { id: dto.supplierOrderId, tenantId },
         select: { supplierId: true },
@@ -1475,7 +1970,9 @@ export class DocumentsService {
       data.subtotalMinor = totals.subtotalMinor;
       data.taxMinor = totals.taxMinor;
       data.totalMinor = totals.totalMinor;
-      data.lines = { create: lines.map((line) => this.toLineCreateData(line, tenantId)) };
+      // Le righe NON si riscrivono da qui: la persistenza per id vive in
+      // `persistDocumentLinesTx`, dentro la stessa transazione, subito prima
+      // dell'update della testata.
     } else if (dto.documentDiscountPercent !== undefined) {
       const totals = this.computeTotals(
         this.computeLines(
@@ -1488,6 +1985,7 @@ export class DocumentsService {
             discountPercent: Number(line.discountPercent),
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? undefined,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? undefined,
             lotCode: line.lotCode ?? undefined,
@@ -1495,6 +1993,16 @@ export class DocumentsService {
             serialNumbers: (line.serialNumbers as string[]) ?? [],
           })),
           doc.type,
+          {
+            // Solo ricalcolo dei TOTALI a fronte di uno sconto di testata:
+            // nessuna riga viene riscritta, quindi non c'è etichetta né
+            // identità da fotografare. Mappe vuote, e lo dice.
+            opzioniPerVariante: new Map(),
+            identitaPerVariante: new Map(),
+            identitaPerRiga: new Map(),
+            sorgentePerRiga: new Map(),
+            persistitePerRiga: new Map(),
+          },
         ),
         dto.documentDiscountPercent,
       );
@@ -1555,82 +2063,14 @@ export class DocumentsService {
           where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
         })) > 0;
 
-      // Il DDT collegato a Vendita online non ha movimenti propri (fase 2 §9):
-      // nessuna riconciliazione scarico in modifica.
-      if (
-        isConfirmedEdit &&
-        doc.type === DocumentType.sales_ddt &&
-        !doc.onlineSaleId &&
-        doc.locationId
-      ) {
-        const newLinesComputed =
-          lines ??
-          doc.lines.map((line) => ({
-            lineNumber: line.lineNumber,
-            variantId: line.variantId,
-            sku: line.sku,
-            description: line.description,
-            quantity: line.quantity,
-            unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
-            discountPercent: Number(line.discountPercent),
-            vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
-            lineTotalMinor: line.lineTotalMinor,
-            loadsStock: line.loadsStock,
-            // Riga tecnica per il ricalcolo movimenti: mai un riferimento.
-            isReference: false,
-            supplierOrderLineId: line.supplierOrderLineId ?? null,
-            lotCode: line.lotCode ?? null,
-            lotExpiryDate: line.lotExpiryDate ?? null,
-            serialNumbers: line.serialNumbers,
-          }));
-        const reconcile = await reconcileDocumentStockUnload(tx, {
-          tenantId,
-          documentId: id,
-          reference: doc.reference,
-          oldLocationId: doc.locationId,
-          newLocationId: newLocationId!,
-          oldLines: doc.lines,
-          newLines: newLinesComputed.map((line, index) => ({
-            id: `tmp-${index}`,
-            documentId: id,
-            tenantId,
-            lineNumber: line.lineNumber,
-            variantId: line.variantId,
-            sku: line.sku,
-            description: line.description,
-            quantity: line.quantity,
-            unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
-            discountPercent: new Prisma.Decimal(line.discountPercent),
-            vatRatePercent: line.vatRatePercent,
-            lineTotalMinor: line.lineTotalMinor,
-            loadsStock: line.loadsStock,
-            isReference: line.isReference === true,
-            supplierOrderLineId: line.supplierOrderLineId ?? null,
-            lotCode: line.lotCode ?? null,
-            lotExpiryDate: line.lotExpiryDate ?? null,
-            serialNumbers: line.serialNumbers,
-            linkedGoodsReceiptId: null,
-            ...EMPTY_LINE_VAT_FIELDS,
-            createdAt: doc.createdAt,
-            updatedAt: doc.updatedAt,
-          })),
-          actor,
-        });
-        stockDeltas = reconcile.deltas;
-        const variantIds = new Set([
-          ...doc.lines.map((l) => l.variantId).filter(Boolean),
-          ...newLinesComputed.map((l) => l.variantId).filter(Boolean),
-        ] as string[]);
-        for (const variantId of variantIds) {
-          syncTargets.push({ variantId, locationId: newLocationId! });
-          if (doc.locationId !== newLocationId) {
-            syncTargets.push({ variantId, locationId: doc.locationId });
-          }
-        }
-      }
+      // Lo scarico di vendita (DDT e Fattura accompagnatoria) NON si riconcilia
+      // qui: il suo sync per riga ha bisogno degli id definitivi delle righe,
+      // quindi gira dopo la persistenza — cerca `syncUnloadLineMovements` più
+      // sotto. Prima di questa correzione qui viveva `reconcileDocumentStockUnload`,
+      // che aggregava per variante e accodava «rettifica scarico».
 
       if (isConfirmedEdit && doc.type === DocumentType.manual_unload && doc.locationId) {
-        // Scarico manuale diretto: riconciliazione a delta SENZA movimenti
+        // Vendita manuale diretta: riconciliazione a delta SENZA movimenti
         // (deroga documentata in document-stock-manual-unload.util) — evita
         // la doppia sottrazione quando l'operatore risalva il documento.
         const newLinesComputed =
@@ -1640,12 +2080,18 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: Number(line.discountPercent),
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1660,17 +2106,25 @@ export class DocumentsService {
           newLines: newLinesComputed.map((line, index) => ({
             id: `tmp-${index}`,
             documentId: id,
+            // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+            returnedFromLineId: null,
             tenantId,
             lineNumber: line.lineNumber,
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: new Prisma.Decimal(line.discountPercent),
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1678,6 +2132,7 @@ export class DocumentsService {
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
             ...EMPTY_LINE_VAT_FIELDS,
+            ...EMPTY_LINE_IDENTITY_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1709,12 +2164,18 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: Number(line.discountPercent),
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1737,17 +2198,25 @@ export class DocumentsService {
           newLines: newLinesComputed.map((line, index) => ({
             id: `tmp-${index}`,
             documentId: id,
+            // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+            returnedFromLineId: null,
             tenantId,
             lineNumber: line.lineNumber,
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: new Prisma.Decimal(line.discountPercent),
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1755,6 +2224,7 @@ export class DocumentsService {
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
             ...EMPTY_LINE_VAT_FIELDS,
+            ...EMPTY_LINE_IDENTITY_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1791,12 +2261,18 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: Number(line.discountPercent),
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1816,17 +2292,25 @@ export class DocumentsService {
           newLines: newLinesComputed.map((line, index) => ({
             id: `tmp-${index}`,
             documentId: id,
+            // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+            returnedFromLineId: null,
             tenantId,
             lineNumber: line.lineNumber,
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: new Prisma.Decimal(line.discountPercent),
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1834,6 +2318,7 @@ export class DocumentsService {
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
             ...EMPTY_LINE_VAT_FIELDS,
+            ...EMPTY_LINE_IDENTITY_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -1853,7 +2338,14 @@ export class DocumentsService {
       }
 
       if (lines) {
-        await tx.documentLine.deleteMany({ where: { documentId: id } });
+        // Le righe si aggiornano per id, non si cancellano e ricreano: vedi
+        // `persistDocumentLinesTx`. `data.lines` resta quindi non impostato.
+        await this.persistDocumentLinesTx(tx, {
+          tenantId,
+          documentId: id,
+          existingLineIds: oldLineIds,
+          lines,
+        });
       }
 
       const saved = await tx.document.update({
@@ -1864,7 +2356,14 @@ export class DocumentsService {
 
       // Aggancio DDT della fattura: allineato a ogni salvataggio che lo dichiara.
       if (dto.linkedSalesDdtIds !== undefined) {
-        await this.syncLinkedSalesDdtsTx(tx, tenantId, saved.id, dto.linkedSalesDdtIds);
+        await this.syncLinkedSalesDdtsTx(
+          tx,
+          tenantId,
+          saved.id,
+          dto.linkedSalesDdtIds,
+          saved.type,
+          user,
+        );
       }
 
       // Aggancio ordini cliente inclusi (DDT vendita, prompt DDT §LOGICA
@@ -1875,6 +2374,7 @@ export class DocumentsService {
           tenantId,
           saved,
           dto.includedSalesOrderIds,
+          user,
         );
         syncTargets.push(...includeTargets);
         // Documento già confermato: i nuovi ordini agganciati vengono evasi
@@ -1886,9 +2386,41 @@ export class DocumentsService {
         }
       }
 
+      // ── Scarico di vendita: movimenti per riga ──────────────────────────
+      // Gira QUI, dopo `persistDocumentLinesTx` e dopo l'aggancio dei DDT,
+      // perché ha bisogno di due cose che prima non esistevano: gli id
+      // definitivi delle righe, e l'elenco DDT aggiornato (da cui dipende se
+      // un'accompagnatoria scarica). Copre entrambi i tipi che fanno uscire la
+      // merce dal percorso generico — il DDT collegato a una Vendita online no:
+      // la merce è già uscita col giro dell'ordine (fase 2 §9).
+      if (isConfirmedEdit && saved.locationId && !saved.onlineSaleId) {
+        const accompanyingUnloadsOnEdit =
+          saved.type === DocumentType.invoice_accompanying &&
+          invoiceAccompanyingUnloadsStock(
+            await tx.invoiceSalesDdtLink.count({ where: { tenantId, invoiceId: saved.id } }),
+          );
+        if (saved.type === DocumentType.sales_ddt || accompanyingUnloadsOnEdit) {
+          const unloadSync = await syncUnloadLineMovements(tx, {
+            tenantId,
+            documentId: saved.id,
+            documentType: saved.type,
+            locationId: saved.locationId,
+            reason: buildUnloadMovementReason({
+              documentType: saved.type,
+              reference: saved.reference,
+              fallbackLabel: saved.type,
+            }),
+            lines: saved.lines,
+            actor,
+          });
+          stockDeltas = unloadSync.deltas;
+          syncTargets.push(...unloadSync.syncTargets);
+        }
+      }
+
       if (isConfirmedEdit && lines && saved.lines.length > 0) {
-        // Solo DDT vendita: lo scarico manuale diretto non gestisce seriali
-        // (deroga prompt Scarico manuale — nessun movimento, nessun consumo).
+        // Solo DDT vendita: la vendita manuale diretta non gestisce seriali
+        // (deroga prompt Vendita manuale — nessun movimento, nessun consumo).
         if (saved.type === DocumentType.sales_ddt && saved.locationId) {
           await assertSerialNumbersForUnloadLines(tx, tenantId, saved.locationId, saved.lines);
           await consumeInventorySerialsFromDocumentLines(
@@ -1955,8 +2487,19 @@ export class DocumentsService {
     });
 
     const updated = await updateTx.catch(async (error: unknown) => {
-      // Numero imposto già preso: 409 con il primo libero da proporre.
-      await this.throwNumberConflict(error, tenantId, doc.type, dto.series ?? doc.series);
+      // Numero già preso: 409 con il numero rifiutato e il primo libero. In
+      // modifica il numero tentato è quello imposto dalla testata oppure, se la
+      // testata non lo tocca, quello che il documento ha già — un cambio di
+      // sola serie può bastare a farlo collidere nella serie nuova.
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        doc.type,
+        dto.series ?? doc.series,
+        dto.number ?? doc.number,
+        documentDate,
+        dto.locationId ?? doc.locationId,
+      );
       throw error;
     });
 
@@ -2023,11 +2566,11 @@ export class DocumentsService {
     if (!doc) {
       throw new NotFoundException('Documento non trovato');
     }
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
-      // Cassa negozio: creati già confermati con movimenti in transazione.
+      // Vendita al banco: creati già confermati con movimenti in transazione.
       throw new ConflictException(
-        'Le vendite e i resi negozio sono già registrati alla conclusione.',
+        'Le vendite e i resi al banco sono già registrati alla conclusione.',
       );
     }
     // Percorso unico Arrivo merce: la conferma dal registro generico
@@ -2041,9 +2584,21 @@ export class DocumentsService {
     if (doc.status !== DocumentStatus.draft) {
       throw new ConflictException('Solo i documenti in bozza possono essere confermati.');
     }
-    if (doc.lines.length === 0) {
-      throw new UnprocessableEntityException('Impossibile confermare un documento senza righe.');
-    }
+    // ⛔ Qui c'era il rifiuto di un documento senza righe («Impossibile
+    // confermare un documento senza righe»). Tolto il 25/08/2026, decisione del
+    // proprietario, chiesta per TUTTI i tipi:
+    //
+    //   «Se non ho fatto nulla nel documento e lo salvo, devo avere la
+    //    possibilità di crearlo vuoto e avrò un documento vuoto con numero,
+    //    eventuale serie e data. Ovunque deve essere così.»
+    //
+    // ⚠️ Non era più il controllo che sembrava. Nato quando la conferma era un
+    // passaggio esplicito su una bozza, con la nascita-confermato è finito sul
+    // percorso di CREAZIONE di ogni documento: rifiutava il documento vuoto
+    // ovunque, e cinque maschere lo ripetevano ognuna con parole proprie.
+    //
+    // ⭐ Un documento senza righe non muove niente, per costruzione. I controlli
+    // di magazzino qui sotto restano, e valgono sul documento che HA righe.
 
     if (doc.type === DocumentType.sales_ddt) {
       this.assertStockUnloadDocument(doc);
@@ -2070,7 +2625,7 @@ export class DocumentsService {
         tenantId,
         documentNumberingType(doc.type),
       );
-      number = await this.nextNumber(tx, tenantId, doc.type, doc.series);
+      number = await this.nextNumber(tx, tenantId, doc.type, doc.series, doc.documentDate);
       reference = this.formatReference(numberingSetting.numberPrefix, doc.series, number);
     }
 
@@ -2092,33 +2647,31 @@ export class DocumentsService {
     }
 
     if ((doc.type === DocumentType.sales_ddt && !doc.onlineSaleId) || accompanyingUnloads) {
-      const label =
-        doc.type === DocumentType.invoice_accompanying ? 'Fattura accompagnatoria' : 'DDT vendita';
-      const reason = reference ? `${label} ${reference}` : `${label} ${doc.type}`;
       await assertSerialNumbersForUnloadLines(tx, tenantId, doc.locationId!, doc.lines);
-      const variantsById = await loadStockLineVariantsOrThrow(tx, tenantId, doc.lines);
-      for (const line of doc.lines) {
-        if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
-          continue;
-        }
-        const variant = variantsById.get(line.variantId)!;
-        await applyStockSale(tx, {
-          tenantId,
-          variantId: variant.id,
-          sku: line.sku ?? variant.sku ?? '',
-          locationId: doc.locationId!,
-          quantity: line.quantity,
-          reason,
-          externalRef: doc.id,
-          actor: { createdById: actorId, createdByName: actorName },
-        });
-        syncTargets.push({ variantId: variant.id, locationId: doc.locationId! });
-      }
+      // Verifica che ogni riga a stock abbia la sua variante nel tenant.
+      await loadStockLineVariantsOrThrow(tx, tenantId, doc.lines);
+      // Movimenti per riga (mirror arrivo merce): un movimento per riga con
+      // sourceLineId, mai aggregato per variante — così la modifica successiva
+      // aggiorna QUEL movimento invece di accodare una rettifica.
+      const unloadSync = await syncUnloadLineMovements(tx, {
+        tenantId,
+        documentId: doc.id,
+        documentType: doc.type,
+        locationId: doc.locationId!,
+        reason: buildUnloadMovementReason({
+          documentType: doc.type,
+          reference,
+          fallbackLabel: doc.type,
+        }),
+        lines: doc.lines,
+        actor: { createdById: actorId, createdByName: actorName },
+      });
+      syncTargets.push(...unloadSync.syncTargets);
       await consumeInventorySerialsFromDocumentLines(tx, tenantId, doc.locationId!, doc.lines);
     }
 
     if (doc.type === DocumentType.manual_unload) {
-      // Scarico manuale diretto (prompt Scarico manuale): la giacenza viene
+      // Vendita manuale diretta (prompt Vendita manuale): la giacenza viene
       // sottratta SENZA creare movimenti né consumare seriali — deroga
       // documentata in document-stock-manual-unload.util. Quantità oltre la
       // giacenza ammesse: l'avviso non bloccante è responsabilità della UI.
@@ -2212,8 +2765,8 @@ export class DocumentsService {
   }
 
   /**
-   * Converte un documento vendita in un altro tipo (proforma → DDT/bozza
-   * fattura; DDT → bozza fattura/proforma): il form di destinazione si apre
+   * Converte un documento vendita in un altro tipo (proforma → DDT/fattura;
+   * DDT → fattura/proforma): il form di destinazione si apre
    * precompilato da questo prefill e crea il documento solo al salvataggio.
    */
   async convertPrefill(
@@ -2221,7 +2774,7 @@ export class DocumentsService {
     id: string,
     dto: ConvertDocumentDto,
     user?: UserProfileDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConvertPrefillDto> {
     return this.buildConversionDto(tenantId, id, dto, user);
   }
 
@@ -2230,9 +2783,9 @@ export class DocumentsService {
     id: string,
     dto: ConvertDocumentDto,
     user?: UserProfileDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConvertPrefillDto> {
     const source = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, source);
+    this.assertDocumentWritable(user, source);
     const isProformaSource = source.type === DocumentType.proforma;
     const isSalesDdtSource = source.type === DocumentType.sales_ddt;
     if (!isProformaSource && !isSalesDdtSource) {
@@ -2245,7 +2798,7 @@ export class DocumentsService {
     }
     if (isSalesDdtSource && !isSalesDdtConvertTarget(dto.targetType)) {
       throw new UnprocessableEntityException(
-        'Dal DDT vendita si possono generare solo Bozza fattura o Proforma.',
+        'Dal DDT vendita si possono generare solo Fattura o Proforma.',
       );
     }
     if (source.status === DocumentStatus.cancelled) {
@@ -2272,8 +2825,10 @@ export class DocumentsService {
       }
     }
 
-    const createDto: CreateDocumentDto = {
+    const createDto: ConvertPrefillDto = {
       type: dto.targetType,
+      // Il client non puo dedurlo: una Fattura nasce sia da Proforma sia da DDT.
+      sourceDocumentType: source.type,
       documentDate: source.documentDate.toISOString(),
       customerId: source.customerId ?? undefined,
       locationId,
@@ -2294,13 +2849,27 @@ export class DocumentsService {
       recipientAddress: (source.recipientAddress as DocumentAddressDto | null) ?? undefined,
       destinationAddress: (source.destinationAddress as DocumentAddressDto | null) ?? undefined,
       lines: source.lines.map((line) => ({
+        // ⭐ **Da quale riga nasce**, e non i suoi valori: il server risalirà a
+        //    questa riga e ne copierà gli snapshot dal database (§5.2-bis di
+        //    `docs/24`). Prima il documento convertito rifotografava
+        //    l'anagrafica di OGGI, quindi una fattura emessa a settembre da un
+        //    DDT di marzo portava il nome che l'articolo ha adesso.
+        sourceDocumentLineId: line.id,
         variantId: line.variantId ?? undefined,
         sku: line.sku ?? undefined,
         description: line.description,
+        // L'unità di misura è uno snapshot come gli altri, e va nel prefill
+        // perché la maschera la mostri: se non ci fosse, il client la
+        // rimanderebbe vuota e sarebbe uno svuotamento esplicito.
+        unitOfMeasure: line.unitOfMeasure ?? undefined,
         quantity: line.quantity,
         unitPriceMinor: Number(line.unitPriceMinor),
         discountPercent: Number(line.discountPercent),
         vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
+        // Le righe di riferimento dell'origine viaggiano come tutte le altre.
+        // Senza questo perdono la loro natura per strada e nel documento
+        // convertito tornano righe ordinarie (`07` §12).
+        isReference: line.isReference,
         loadsStock: dto.targetType === DocumentType.sales_ddt,
       })),
     };
@@ -2308,56 +2877,26 @@ export class DocumentsService {
     return createDto;
   }
 
-  /**
-   * «Inviata al commercialista»: unica azione di ciclo di vita fiscale, esposta
-   * dall'interfaccia su Fattura, Fattura accompagnatoria e Proforma. Gli stati
-   * stampato/inviato non sono più raggiungibili ma restano accettati in ingresso
-   * per i documenti storici che li hanno già.
-   */
-  async registerExternal(
-    tenantId: string,
-    id: string,
-    dto: RegisterExternalDto,
-    user?: UserProfileDto,
-  ): Promise<DocumentWithLines> {
-    const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
-    if (
-      doc.status !== DocumentStatus.confirmed &&
-      doc.status !== DocumentStatus.printed &&
-      doc.status !== DocumentStatus.sent
-    ) {
-      throw new ConflictException(
-        'Solo documenti confermati, stampati o inviati possono essere registrati esternamente.',
-      );
-    }
-    return this.prisma.document.update({
-      where: { id },
-      data: {
-        status: DocumentStatus.externally_registered,
-        registrationDate: new Date(),
-        externalDocNumber: dto.externalDocNumber ?? doc.externalDocNumber,
-        externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : doc.externalDocDate,
-        externalRef: dto.note ?? doc.externalRef,
-      },
-      include: { lines: { orderBy: { lineNumber: 'asc' } } },
-    });
-  }
-
   async cancel(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentTypeManageable(user, doc.type);
+    this.assertDocumentWritable(user, doc);
+    // Annullare un documento con ordini agganciati li RIAPRE e ne ricrea gli
+    // impegni di magazzino: è un'azione sulla famiglia «ordine cliente», non
+    // solo su questo documento. Senza, il permesso sui DDT bastava a rimettere
+    // in gioco ordini che l'operatore non può nemmeno consultare.
+    this.assertIncludedSalesOrdersManageable(user, [], doc.linkedSalesOrders.length);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
-        'Le vendite negozio non si annullano: registra un Reso vendita negozio per il rientro della merce.',
+        'Una Vendita al banco non si annulla: registra un Reso vendita al banco per il rientro della merce.',
       );
     }
-    // Scarico manuale diretto (prompt Scarico manuale): niente annullamento —
+    // Vendita manuale diretta (prompt Vendita manuale): niente annullamento —
     // il documento si elimina dall'elenco e le giacenze già scalate NON
     // vengono ripristinate (scelta esplicita, deroga documentata).
     if (doc.type === DocumentType.manual_unload) {
       throw new ConflictException(
-        "Gli scarichi manuali non si annullano: elimina il documento dall'elenco. Le giacenze già scalate non vengono ripristinate.",
+        "Gli vendite manuali non si annullano: elimina il documento dall'elenco. Le giacenze già scalate non vengono ripristinate.",
       );
     }
     if (doc.status === DocumentStatus.cancelled) {
@@ -2401,6 +2940,27 @@ export class DocumentsService {
       documentTypeLoadsStockOnConfirm(doc.type);
 
     await this.prisma.$transaction(async (tx) => {
+      // ⛔ Si RIVENDICA il documento PRIMA di toccare le giacenze.
+      //
+      // La guardia «già annullato» qui sopra legge fuori dalla transazione, e da
+      // quella stessa lettura escono i flag di storno (`wasStockLoaded` e
+      // fratelli). Due richieste che leggono entrambe `confirmed` passavano
+      // entrambe, e la merce rientrava DUE VOLTE: la scrittura finale portava
+      // `where: { id }` e basta, quindi niente la fermava.
+      //
+      // ⚠️ La condizione sta nel `where`, non in un `if`: è il database a
+      // decidere chi vince. In READ COMMITTED la seconda transazione aspetta il
+      // lock di riga della prima, poi rivaluta il predicato sul valore appena
+      // confermato, non trova nulla da aggiornare e si ferma qui — prima di
+      // aver stornato alcunché.
+      const claimed = await tx.document.updateMany({
+        where: { id, tenantId, status: { not: DocumentStatus.cancelled } },
+        data: { status: DocumentStatus.cancelled, cancelledAt: new Date() },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException('Il documento è già annullato.');
+      }
+
       let stockDeltas: readonly { sku: string; delta: number }[] = [];
       if (wasStockLoaded) {
         const hasLineMovements =
@@ -2442,14 +3002,33 @@ export class DocumentsService {
       }
 
       if (wasStockUnloaded) {
-        const reversed = await reverseDocumentStockUnload(tx, {
-          tenantId,
-          documentId: id,
-          reference: doc.reference,
-          locationId: doc.locationId!,
-          lines: doc.lines,
-          actor,
-        });
+        // Mirror arrivo merce: se il documento ha movimenti per riga, la
+        // rimozione passa dal sync con righe vuote — che storna anche gli
+        // eventuali movimenti legacy aggregati — invece del reverse «una
+        // tantum». Un documento mai passato dal sync conserva il comportamento
+        // storico: uno storno accodato.
+        const hasLineMovements =
+          (await tx.stockMovement.count({
+            where: { tenantId, sourceDocumentId: id, sourceLineId: { not: null } },
+          })) > 0;
+        const reversed = hasLineMovements
+          ? await syncUnloadLineMovements(tx, {
+              tenantId,
+              documentId: id,
+              documentType: doc.type,
+              locationId: doc.locationId!,
+              reason: '',
+              lines: [],
+              actor,
+            })
+          : await reverseDocumentStockUnload(tx, {
+              tenantId,
+              documentId: id,
+              reference: doc.reference,
+              locationId: doc.locationId!,
+              lines: doc.lines,
+              actor,
+            });
         stockDeltas = reversed.deltas;
         for (const line of doc.lines) {
           if (line.variantId && line.loadsStock) {
@@ -2606,10 +3185,8 @@ export class DocumentsService {
         );
       }
 
-      await tx.document.update({
-        where: { id },
-        data: { status: DocumentStatus.cancelled, cancelledAt: new Date() },
-      });
+      // Lo stato è già stato scritto in testa alla transazione, rivendicando il
+      // documento: qui non resta niente da aggiornare.
     });
 
     for (const entry of syncTargets) {
@@ -2626,12 +3203,20 @@ export class DocumentsService {
 
   async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
     const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
-    if (isFlowOnlyDocumentType(doc.type)) {
-      throw new ConflictException(
-        'Le vendite e i resi negozio non si eliminano: fanno parte dello storico movimenti.',
-      );
-    }
+    this.assertDocumentTypeManageable(user, doc.type);
+    this.assertDocumentWritable(user, doc);
+    // ⭐ Vendita e Reso al banco SI ELIMINANO (`11` A2, passo 14): il documento
+    // è l'unica evidenza dell'operazione, e per questo l'annullamento non
+    // esiste — «si elimina, non si annulla». L'eliminazione neutralizza gli
+    // effetti PROPRI: i movimenti collegati alle sue righe e le giacenze che ne
+    // discendono.
+    //
+    // ⛔ Qui c'era un blocco secco («non si eliminano: fanno parte dello storico
+    // movimenti»), ed era il PRIMO dei tre cancelli misurati: gli altri due sono
+    // il gate di stato — un documento del banco nasce `confirmed`, quindi
+    // cadeva anche lì — e l'assenza dai tipi che stornano, che lo lasciava
+    // uscire senza restituire la merce.
+    const isDeletableStoreDocument = isFlowOnlyDocumentType(doc.type);
     const isFinalized =
       doc.status !== DocumentStatus.draft && doc.status !== DocumentStatus.cancelled;
 
@@ -2640,7 +3225,7 @@ export class DocumentsService {
     const isDeletableReceipt =
       documentTypeLoadsStockOnConfirm(doc.type) || doc.type === DocumentType.supplier_invoice;
 
-    // Scarico manuale diretto (prompt Scarico manuale): il documento resta in
+    // Vendita manuale diretta (prompt Vendita manuale): il documento resta in
     // elenco finché l'operatore non lo elimina; l'eliminazione è definitiva
     // SOLO sul documento — le giacenze già scalate NON vengono ripristinate.
     const isDeletableManualUnload = doc.type === DocumentType.manual_unload;
@@ -2650,7 +3235,13 @@ export class DocumentsService {
     // quindi l'eliminazione è sicura e non ripristina nulla.
     const isDeletableQuote = doc.type === DocumentType.quote;
 
-    if (isFinalized && !isDeletableReceipt && !isDeletableManualUnload && !isDeletableQuote) {
+    if (
+      isFinalized &&
+      !isDeletableReceipt &&
+      !isDeletableManualUnload &&
+      !isDeletableQuote &&
+      !isDeletableStoreDocument
+    ) {
       throw new ConflictException(
         'Solo i documenti in bozza o annullati possono essere eliminati.',
       );
@@ -2687,6 +3278,52 @@ export class DocumentsService {
           doc.lines.map((line) => line.id),
         );
       }
+      // Il banco: il verso decide il motore, ed entrambi con `lines: []`
+      // tolgono i movimenti e restituiscono la merce riga per riga.
+      //
+      // ⚠️ La Vendita ha SCARICATO, quindi si ricarica; il Reso ha CARICATO,
+      // quindi si scarica. Usare un motore solo qui rimetterebbe in casa la
+      // merce di un reso eliminato, cioè il doppio della merce.
+      if (isDeletableStoreDocument) {
+        const sync =
+          doc.type === DocumentType.store_return
+            ? await syncGoodsReceiptLineMovements(tx, {
+                tenantId,
+                documentId: id,
+                documentType: doc.type,
+                locationId: doc.locationId,
+                reason: '',
+                lines: [],
+                actor,
+              })
+            : await syncUnloadLineMovements(tx, {
+                tenantId,
+                documentId: id,
+                documentType: doc.type,
+                locationId: doc.locationId,
+                reason: '',
+                lines: [],
+                actor,
+              });
+        syncTargets.push(...sync.syncTargets);
+      }
+
+      /**
+       * ⛔ **`delete` converge sulla stessa primitive di `cancel`, e prima non
+       * lo faceva.** L'eliminazione si affidava all'`ON DELETE SET NULL` della
+       * FK: il collegamento spariva, ma lo stato restava «Concluso». L'ordine
+       * finiva `link-stale` — concluso senza nulla a cui esserlo — e il vecchio
+       * filtro su `documentId IS NULL` lo rimetteva perfino fra gli includibili.
+       *
+       * ⭐ Sta PRIMA della `delete` della riga, perché la primitive ritrova gli
+       * ordini proprio dal `documentId` che sta per essere azzerato.
+       *
+       * ⚠️ Non è «manca il link, quindi riapri»: è un'operazione documentale
+       * esplicita che ricalcola lo stato (`12` §0.4-bis).
+       */
+      const reopenTargets = await this.reopenLinkedManualOrderTx(tx, tenantId, id);
+      syncTargets.push(...reopenTargets);
+
       await tx.document.delete({ where: { id } });
     });
 
@@ -2728,6 +3365,16 @@ export class DocumentsService {
 
   private assertStockTransferDocument(doc: Document & { lines: DocumentLine[] }): void {
     const stockLines = doc.lines.filter((line) => line.loadsStock && line.quantity > 0);
+    // ⭐ Documento SENZA RIGHE: ammesso, e non è questo il controllo che lo
+    // riguarda (vedi `confirmDocumentTx`). Un documento vuoto non muove
+    // giacenza per costruzione, e si compila riaprendolo.
+    //
+    // ⚠️ Righe che ci sono ma non muovono NIENTE restano un errore: lì
+    // l'operatore ha scritto qualcosa e si aspetta un effetto, e il silenzio
+    // sarebbe peggio del rifiuto.
+    if (doc.lines.length === 0) {
+      return;
+    }
     if (stockLines.length === 0) {
       throw new UnprocessableEntityException(
         'Aggiungi almeno una riga con variante e quantità maggiore di zero.',
@@ -2783,6 +3430,16 @@ export class DocumentsService {
 
   private assertStockManualUnloadDocument(doc: Document & { lines: DocumentLine[] }): void {
     const stockLines = doc.lines.filter((line) => line.loadsStock && line.quantity > 0);
+    // ⭐ Documento SENZA RIGHE: ammesso, e non è questo il controllo che lo
+    // riguarda (vedi `confirmDocumentTx`). Un documento vuoto non muove
+    // giacenza per costruzione, e si compila riaprendolo.
+    //
+    // ⚠️ Righe che ci sono ma non muovono NIENTE restano un errore: lì
+    // l'operatore ha scritto qualcosa e si aspetta un effetto, e il silenzio
+    // sarebbe peggio del rifiuto.
+    if (doc.lines.length === 0) {
+      return;
+    }
     if (stockLines.length === 0) {
       throw new UnprocessableEntityException(
         'Aggiungi almeno una riga con variante e quantità maggiore di zero.',
@@ -2793,8 +3450,8 @@ export class DocumentsService {
         'Seleziona la location di origine prima di confermare lo scarico.',
       );
     }
-    // Niente motivo obbligatorio: la maschera tipo DDT (prompt Scarico
-    // manuale) non prevede il commento interno come campo richiesto.
+    // Niente motivo obbligatorio: la maschera tipo DDT della Vendita manuale
+    // non prevede il commento interno come campo richiesto.
     for (const line of stockLines) {
       if (!line.variantId) {
         throw new UnprocessableEntityException(
@@ -2806,6 +3463,16 @@ export class DocumentsService {
 
   private assertStockAdjustmentDocument(doc: Document & { lines: DocumentLine[] }): void {
     const stockLines = doc.lines.filter((line) => line.loadsStock && line.quantity > 0);
+    // ⭐ Documento SENZA RIGHE: ammesso, e non è questo il controllo che lo
+    // riguarda (vedi `confirmDocumentTx`). Un documento vuoto non muove
+    // giacenza per costruzione, e si compila riaprendolo.
+    //
+    // ⚠️ Righe che ci sono ma non muovono NIENTE restano un errore: lì
+    // l'operatore ha scritto qualcosa e si aspetta un effetto, e il silenzio
+    // sarebbe peggio del rifiuto.
+    if (doc.lines.length === 0) {
+      return;
+    }
     if (stockLines.length === 0) {
       throw new UnprocessableEntityException(
         'Aggiungi almeno una riga con variante e quantità maggiore di zero.',
@@ -2843,7 +3510,7 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
     const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentLocationWritable(user, doc);
+    this.assertDocumentWritable(user, doc);
     if (!allowedFrom.includes(doc.status)) {
       throw new ConflictException('Transizione di stato non consentita per questo documento.');
     }
@@ -2855,19 +3522,39 @@ export class DocumentsService {
   }
 
   /**
-   * Prossimo numero progressivo (atomico via upsert) per serie/anno/tipo.
+   * Primo numero libero del contatore (massimo esistente + 1), assegnato dentro
+   * la transazione che scrive il documento.
    *
-   * La chiave usa `documentNumberingType`, non il tipo grezzo: le fatture di
-   * vendita (Fattura e Fattura accompagnatoria) condividono un unico
-   * progressivo, quindi incrementano la stessa riga di DocumentSequence.
+   * Il lock precede la lettura del massimo, e questo è tutto il punto: due
+   * salvataggi contemporanei in READ COMMITTED leggerebbero lo stesso massimo e
+   * sceglierebbero lo stesso numero, lasciando al vincolo unico il compito di
+   * bocciarne uno — un errore a lavoro finito per una collisione che il sistema
+   * può evitare da sé. Con il lock il secondo aspetta il commit del primo,
+   * rilegge un massimo aggiornato e prende il numero successivo in silenzio.
+   *
+   * Il lock si rilascia al commit o al rollback: un salvataggio fallito non
+   * lascia numeri bruciati né lock appesi.
+   *
+   * La chiave — del lock come del massimo — usa `documentNumberingType`, non il
+   * tipo grezzo: Fattura e Fattura accompagnatoria condividono un solo
+   * progressivo e devono quindi aspettarsi a vicenda.
+   *
+   * Solo per il numero AUTOMATICO: un numero imposto dalla testata non legge
+   * alcun massimo, e il conflitto sul vincolo unico resta lì l'informazione
+   * utile da mostrare all'operatore.
    */
   private async nextNumber(
     tx: Prisma.TransactionClient,
     tenantId: string,
     type: DocumentType,
     series: string | null,
+    // La data del documento è il perno della regola del §2: la proposta è il
+    // primo libero dopo i documenti di data ANTERIORE. Senza, si tornerebbe a
+    // «massimo + 1» e un documento datato avanti brucerebbe i numeri di oggi.
+    documentDate?: Date,
   ): Promise<number> {
-    return nextDocumentNumber({ tx, tenantId, type, series, source: 'document' });
+    await lockDocumentCounter(tx, { tenantId, type, series });
+    return nextDocumentNumber({ tx, tenantId, type, series, source: 'document', documentDate });
   }
 
   private formatReference(prefix: string, series: string | null, number: number): string {
@@ -2973,18 +3660,30 @@ export class DocumentsService {
         }
       }
 
+      /**
+       * ⛔ **Qui c'era una scrittura di `partially_fulfilled` a copertura
+       * ridotta.** «Parzialmente concluso» è abolito (`18` §2.3): una
+       * destinazione che copre parte delle quantità **conclude comunque**
+       * l'ordine, non ne apre uno stato intermedio né lascia un residuo.
+       *
+       * ⭐ Lo stato ora si SCRIVE in `commercialState`. `fulfilledAt` resta
+       * valorizzato perché è la data dell'evento — il Registro corrispettivi la
+       * legge come `occurredAt` — ma non è più ciò che DECIDE lo stato.
+       *
+       * ⚠️ `fullyCovered` non decide più lo stato: resta perché alimenta
+       * l'avviso non bloccante in maschera, che è un'altra cosa.
+       */
       await tx.salesOrder.update({
         where: { id: order.id },
-        data: fullyCovered
-          ? {
-              fulfilledAt: new Date(),
-              fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
-            }
-          : { fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled },
+        data: {
+          commercialState: OrderCommercialState.concluded,
+          fulfilledAt: new Date(),
+          fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
+        },
       });
       this.logger.log(
-        `Ordine cliente ${order.orderNumber} ${
-          fullyCovered ? 'concluso' : 'parzialmente concluso'
+        `Ordine cliente ${order.orderNumber} concluso${
+          fullyCovered ? '' : ' (copertura parziale: nessun residuo)'
         } (${tenantId})`,
       );
     }
@@ -3001,16 +3700,15 @@ export class DocumentsService {
     tenantId: string,
     documentId: string,
   ): Promise<Array<{ variantId: string; locationId: string }>> {
+    // ⭐ Si riaprono gli ordini CONCLUSI da questo documento, letti dallo stato.
+    //    Qui c'era un `OR` su `fulfilledAt`/`partially_fulfilled`: due campi del
+    //    canale usati per dedurre una cosa nostra.
     const orders = await tx.salesOrder.findMany({
       where: {
         tenantId,
         documentId,
         source: SalesOrderSource.manual,
-        cancelledAt: null,
-        OR: [
-          { fulfilledAt: { not: null } },
-          { fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled },
-        ],
+        commercialState: OrderCommercialState.concluded,
       },
       select: { id: true },
     });
@@ -3045,16 +3743,22 @@ export class DocumentsService {
     if (!order || !order.locationId) {
       return [];
     }
-    const wasFulfilled =
-      order.fulfilledAt != null ||
-      order.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
-    if (!wasFulfilled) {
+    // ⭐ **La primitive di riapertura, e ora è UNA sola** (`12` §0.4-bis):
+    //    `cancel` e `delete` del documento conclusivo convergono qui. Prima
+    //    `delete` si limitava all'`ON DELETE SET NULL` della FK, lasciando
+    //    l'ordine «Concluso» senza collegamento — un `link-stale` invisibile,
+    //    che il vecchio filtro su `documentId IS NULL` rendeva perfino di nuovo
+    //    includibile.
+    if (order.commercialState !== OrderCommercialState.concluded) {
       return [];
     }
 
     await tx.salesOrder.update({
       where: { id: order.id },
       data: {
+        commercialState: OrderCommercialState.confirmed,
+        // I campi del canale tornano al valore neutro: restano dati accanto
+        // allo stato, non più il modo in cui lo si deduce.
         fulfilledAt: null,
         fulfillmentStatus: SalesOrderFulfillmentStatus.unfulfilled,
       },
@@ -3126,13 +3830,64 @@ export class DocumentsService {
   private computeLines(
     input: readonly DocumentLineInputDto[],
     documentType: DocumentType,
+    /**
+     * Ciò che serve a fotografare l'etichetta della variante.
+     *
+     * ⛔ **Obbligatorio, e senza valore di ripiego**: un percorso che persiste
+     * righe e non lo passasse scriverebbe l'etichetta vuota in silenzio, che è
+     * esattamente il difetto contro cui esiste la colonna. Chi calcola solo i
+     * totali — senza scrivere niente — passa mappe vuote, e così lo dichiara.
+     *
+     * ⚠️ Sta PRIMA degli opzionali apposta: un parametro obbligatorio in coda
+     * non si può dichiarare, e renderlo opzionale toglierebbe al compilatore la
+     * possibilità di segnalare chi se lo dimentica.
+     */
+    varianti: {
+      readonly opzioniPerVariante: ReadonlyMap<string, unknown>;
+      readonly persistitePerRiga: ReadonlyMap<string, PersistedLineVariant>;
+      /** L'identità corrente delle varianti, letta dal server. */
+      readonly identitaPerVariante: ReadonlyMap<string, LineIdentitySnapshot>;
+      /**
+       * Le righe SORGENTE risolte dal server, per id (§5.2-bis).
+       *
+       * ⚠️ Vuota su ogni percorso che non duplica né converte: il caso
+       * «derivata» non scatta, e la riga nuova prende l'anagrafica corrente
+       * come ha sempre fatto.
+       */
+      readonly sorgentePerRiga: ReadonlyMap<string, LineSourceSnapshot>;
+      /** L'identità già persistita sulle righe esistenti. */
+      readonly identitaPerRiga: ReadonlyMap<string, PersistedLineIdentity>;
+    },
     vatContext?: LineVatContext,
+    /**
+     * Righe gia' persistite, per id. Serve a una regola sola, ma di dominio:
+     * **una riga esistente conserva il proprio snapshot IVA** finche' il client
+     * non dichiara una modifica esplicita.
+     */
+    persistedLinesById?: ReadonlyMap<string, PersistedLineVat>,
   ): ComputedLine[] {
     const defaultLoadsStock = documentTypeDefaultLoadsStock(documentType);
     return input.map((line, index) => {
-      const quantity = line.quantity;
-      const unitPriceMinor = line.unitPriceMinor ?? 0;
-      const discountPercent = line.discountPercent ?? 0;
+      // ── Riga di RIFERIMENTO (`07` §12) ──────────────────────────────────
+      //
+      // Descrittiva: non economica e non fisica. La protezione è QUESTA, non
+      // il fatto che oggi porti quantità e prezzo a zero — uno zero regge
+      // finché nessuno scrive, e non dichiara niente a chi legge il codice.
+      //
+      // Resta una riga a tutti gli effetti: conserva id, posizione e viene
+      // contata fra le voci. Cambia solo che non partecipa ai conti e non
+      // muove magazzino.
+      // ⭐ La riga da cui QUESTA deriva, già risolta dal server per id e con
+      //    tenant verificato. `undefined` = riga non derivata, o riferimento
+      //    che non ha trovato nulla — e in quel caso la riga è nuova, che è la
+      //    risposta prudente.
+      const sorgenteDiRiga = line.sourceDocumentLineId
+        ? varianti.sorgentePerRiga.get(line.sourceDocumentLineId)
+        : undefined;
+      const isReference = line.isReference === true;
+      const quantity = isReference ? 0 : line.quantity;
+      const unitPriceMinor = isReference ? 0 : (line.unitPriceMinor ?? 0);
+      const discountPercent = isReference ? 0 : (line.discountPercent ?? 0);
       const lineNetExactMinor = (quantity * unitPriceMinor * (100 - discountPercent)) / 100;
       const lineTotalMinor = Math.round(lineNetExactMinor);
 
@@ -3144,7 +3899,25 @@ export class DocumentsService {
       let vatCodeId: string | null = null;
       let vatSnapshot: Prisma.InputJsonObject | null = null;
       let vatRatePercent = line.vatRatePercent ?? null;
-      if (vatContext) {
+
+      // ⛔ Riga GIA' ESISTENTE senza `vatCodeId` nel payload: lo snapshot NON si
+      // rifotografa. E' una regola di dominio, non una scorciatoia — lo snapshot
+      // e' il fatto fiscale di quel documento, e rileggerlo dall'anagrafica a
+      // ogni salvataggio significherebbe che modificare l'aliquota di un Codice
+      // IVA ri-prezza i documenti gia' emessi: basta riaprirne uno e correggere
+      // una nota.
+      //
+      // Il contratto e' BINARIO e sta sul client: la chiave arriva solo quando
+      // l'assegnazione IVA e' davvero cambiata (`document-line-vat-payload.util`
+      // lato frontend). Assente = non modificata; presente = scelta nuova, e
+      // allora si risolve il codice e si scrive uno snapshot nuovo.
+      const preservato = preservedLineVat(line.id, line.vatCodeId, persistedLinesById);
+
+      if (preservato) {
+        vatCodeId = preservato.vatCodeId;
+        vatSnapshot = preservato.vatSnapshot;
+        vatRatePercent = vatSnapshotRatePercent(preservato.vatSnapshot) ?? vatRatePercent;
+      } else if (vatContext) {
         const explicitId = line.vatCodeId ?? null;
         const productDefaultId = line.variantId
           ? (vatContext.productDefaultByVariantId.get(line.variantId) ?? null)
@@ -3159,6 +3932,9 @@ export class DocumentsService {
       }
 
       return {
+        // Dichiarato dal client per le righe già salvate; la verifica che
+        // appartenga davvero a QUESTO documento sta in `persistDocumentLinesTx`.
+        id: line.id ?? null,
         lineNumber: index + 1,
         variantId: line.variantId ?? null,
         sku: line.sku ?? null,
@@ -3169,9 +3945,58 @@ export class DocumentsService {
         vatRatePercent,
         lineTotalMinor,
         lineNetExactMinor,
+        // I TOTALI DETERMINATI della riga (§5.2). Si calcolano qui, dove la
+        // riga si compone e l'aliquota è appena stata risolta, e da qui si
+        // persistono: `computeTotals` li SOMMA invece di rifare il calcolo,
+        // come prescrive «il riepilogo SOMMA, non ricalcola».
+        ...documentLineEconomicTotals({
+          netExactMinor: lineNetExactMinor,
+          totalMinor: lineTotalMinor,
+          ratePercent: vatRatePercent,
+        }),
         vatCodeId,
         vatSnapshot,
-        loadsStock: line.loadsStock ?? defaultLoadsStock,
+        // ⛔ SNAPSHOT: su una riga esistente che porta ancora la stessa
+        // variante si conserva quella persistita. La regola sta in un punto
+        // solo — duplicarla nei quattro compositori di `document_lines`
+        // ricreerebbe il difetto che la colonna elimina, e rinominare un
+        // valore d'opzione riscriverebbe i documenti già emessi.
+        variantLabel: variantLabelSnapshot({
+          lineId: line.id,
+          variantId: line.variantId ?? null,
+          optionValues: line.variantId ? varianti.opzioniPerVariante.get(line.variantId) : null,
+          persisted: varianti.persistitePerRiga,
+          sorgente: sorgenteDiRiga,
+        }),
+        // ⭐ SNAPSHOT IDENTITÀ (§5.2): stessa disciplina dell'etichetta, e per
+        // la stessa ragione — un articolo rinominato non riscrive i documenti
+        // già emessi. Composto dal SERVER, mai dal payload del client.
+        ...lineIdentitySnapshot({
+          lineId: line.id,
+          variantId: line.variantId ?? null,
+          corrente: line.variantId ? varianti.identitaPerVariante.get(line.variantId) : undefined,
+          persisted: varianti.identitaPerRiga,
+          sorgente: sorgenteDiRiga,
+        }),
+        // `undefined` resta `undefined`: chi non manda il campo non lo tocca.
+        // Una stringa vuota resta uno svuotamento esplicito.
+        //
+        // ⭐ Su una riga DERIVATA, il campo non dichiarato prende quello della
+        //    sorgente invece dell'anagrafica: è uno snapshot come gli altri, e
+        //    un duplicato che perde l'unità di misura è un duplicato diverso
+        //    dall'originale.
+        //
+        // ⚠️ Se il client LO dichiara, vince il client: quel campo è
+        //    editabile nella maschera, e sovrascriverlo sempre impedirebbe di
+        //    cambiarlo su un duplicato.
+        unitOfMeasure:
+          line.unitOfMeasure === undefined
+            ? (sorgenteDiRiga?.unitOfMeasure ?? undefined)
+            : line.unitOfMeasure.trim() || null,
+        // Una reference non muove merce, qualunque cosa arrivi dal client e
+        // qualunque sia il default del tipo. Finora reggeva solo perché una
+        // riga senza variante non entra in `isStockLine`: coincidenza, non regola.
+        loadsStock: isReference ? false : (line.loadsStock ?? defaultLoadsStock),
         isReference: line.isReference === true,
         supplierOrderLineId: line.supplierOrderLineId ?? null,
         lotCode: line.lotCode?.trim() || null,
@@ -3195,12 +4020,24 @@ export class DocumentsService {
     const variantIds = [
       ...new Set(lines.map((line) => line.variantId).filter((id): id is string => !!id)),
     ];
+    // Le righe da cui il client dichiara di derivare: duplicazione, conversione.
+    const sourceLineIds = [
+      ...new Set(lines.map((line) => line.sourceDocumentLineId).filter((id): id is string => !!id)),
+    ];
 
-    const [variants, supplier, tenantSettings] = await Promise.all([
+    const [variants, supplier, tenantSettings, sourceLines] = await Promise.all([
       variantIds.length > 0
         ? this.prisma.productVariant.findMany({
             where: { tenantId, id: { in: variantIds } },
-            select: { id: true, product: { select: { defaultVatCodeId: true } } },
+            select: {
+              id: true,
+              optionValues: true,
+              // ⭐ L'identità da fotografare sulla riga (§5.2 di `docs/24`): la
+              // legge il SERVER dalla variante scelta, non il client dal
+              // proprio payload — così non dipende da dati parziali o alterati.
+              barcode: true,
+              product: { select: { defaultVatCodeId: true, articleCode: true, name: true } },
+            },
           })
         : Promise.resolve([]),
       supplierId
@@ -3213,7 +4050,61 @@ export class DocumentsService {
         where: { tenantId },
         select: { defaultVatCodeId: true },
       }),
+      // ⭐ Le righe SORGENTE, lette dal DATABASE e non dal payload: è così
+      //    che una duplicazione conserva l'identità dell'originale senza che
+      //    il client possa comporla (decisione del 03/09/2026).
+      //
+      // ⛔ `tenantId` nella `where`: un id di un altro tenant non torna, e
+      //    la riga ricade sul caso «nuova». Senza questo filtro un id
+      //    indovinato copierebbe il nome di un articolo di un'altra azienda.
+      sourceLineIds.length > 0
+        ? this.prisma.documentLine.findMany({
+            where: { tenantId, id: { in: sourceLineIds } },
+            select: {
+              id: true,
+              variantId: true,
+              articleCode: true,
+              productName: true,
+              barcode: true,
+              variantLabel: true,
+              unitOfMeasure: true,
+            },
+          })
+        : Promise.resolve([]),
     ]);
+
+    // ⛔ **Un riferimento che non si risolve RIFIUTA il salvataggio.**
+    //
+    //    Qui si ricadeva sul caso «riga nuova», e sembrava la scelta
+    //    prudente: nessun dato altrui copiato, nessun errore in faccia
+    //    all'operatore. Non lo era. La riga veniva rifotografata
+    //    dall'anagrafica CORRENTE e salvata — un documento plausibile, con
+    //    dentro il nome che l'articolo ha oggi invece di quello che aveva.
+    //    È il difetto che questa tranche chiude, ricomparso dalla porta di
+    //    servizio: e siccome il risultato sembra giusto, nessuno lo va a
+    //    controllare.
+    //
+    // ⚠️ **Il messaggio non dice PERCHÉ.** «Non esiste» e «esiste, ma in
+    //    un'altra azienda» devono essere indistinguibili: distinguerli
+    //    trasformerebbe questo campo in un modo per scoprire se un id di
+    //    riga esiste altrove.
+    if (sourceLines.length !== sourceLineIds.length) {
+      throw new UnprocessableEntityException('Una o più righe di origine non sono valide.');
+    }
+
+    const sourceLineById = new Map<string, LineSourceSnapshot>(
+      sourceLines.map((riga) => [
+        riga.id,
+        {
+          variantId: riga.variantId,
+          articleCode: riga.articleCode,
+          productName: riga.productName,
+          barcode: riga.barcode,
+          variantLabel: riga.variantLabel,
+          unitOfMeasure: riga.unitOfMeasure,
+        },
+      ]),
+    );
 
     const productDefaultByVariantId = new Map<string, string | null>(
       variants.map((variant) => [variant.id, variant.product.defaultVatCodeId]),
@@ -3249,39 +4140,138 @@ export class DocumentsService {
       }
     }
 
-    return { vatCodesById, productDefaultByVariantId, fallbackDefaultVatCodeId };
+    return {
+      vatCodesById,
+      productDefaultByVariantId,
+      fallbackDefaultVatCodeId,
+      optionValuesByVariantId: new Map(
+        variants.map((variante) => [variante.id, variante.optionValues]),
+      ),
+      identityByVariantId: new Map(
+        variants.map((variante) => [
+          variante.id,
+          {
+            articleCode: variante.product.articleCode,
+            productName: variante.product.name,
+            barcode: variante.barcode,
+          },
+        ]),
+      ),
+      sourceLineById,
+    };
   }
 
   /** Converte una riga calcolata in dati Prisma: null JS su vatSnapshot deve
-   * scrivere NULL SQL, non il letterale JSON "null" (Prisma.DbNull). vatRatePercent
-   * è solo un valore calcolato interno (calcolo IVA totali): non esiste più come
-   * colonna persistita, va escluso dal payload di scrittura. */
-  private toLineCreateData(line: ComputedLine, tenantId: string) {
-    const { vatRatePercent: _vatRatePercent, ...rest } = line;
-    return { ...rest, tenantId, vatSnapshot: line.vatSnapshot ?? Prisma.DbNull };
+   * scrivere NULL SQL, non il letterale JSON "null" (Prisma.DbNull).
+   *
+   * I campi di appoggio del calcolo (vatRatePercent, lineNetExactMinor) NON
+   * sono colonne: vanno tolti qui, o Prisma rifiuta l'intera scrittura con
+   * «Unknown argument» e il salvataggio del documento fallisce con un 500.
+   * Il tipo di ritorno è esplicito apposta: senza, `...rest` fa passare in
+   * silenzio ogni campo di comodo aggiunto a ComputedLine. */
+  /**
+   * Persiste le righe di un documento in modifica **conservandone l'identità**.
+   *
+   * Prima cancellava tutto e ricreava (`deleteMany` + `lines: { create }`): le
+   * righe rinascevano con id nuovi a ogni salvataggio, e con loro si staccava
+   * tutto ciò che a una riga si aggancia — il movimento di magazzino via
+   * `sourceLineId` e il seriale via `InventorySerial.documentLineId`, che ha
+   * `onDelete: SetNull`. È la causa radice misurata in
+   * `docs/09-specifica-movimenti-per-riga.md` §3, ed è lo stesso motivo per cui
+   * l'Arrivo merce fa già l'upsert per id (`goods-receipt-workflow.service.ts`).
+   *
+   * Regole, deterministiche e nell'ordine:
+   * 1. riga con `id` noto  → **update**, stesso id, posizione aggiornata;
+   * 2. riga senza `id`     → **create**, id nuovo dal database;
+   * 3. riga non più inviata → **delete** della sola riga sparita;
+   * 4. `id` sconosciuto o ripetuto → **422**, mai una creazione silenziosa.
+   *
+   * Due righe dello stesso articolo restano due entità distinte: l'identità è
+   * la riga, non la variante. Le righe descrittive, di servizio e di
+   * riferimento (`isReference`) seguono la stessa strada — sono righe come le
+   * altre, e conservano l'id come tutte.
+   */
+  private async persistDocumentLinesTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      readonly tenantId: string;
+      readonly documentId: string;
+      /** Id delle righe attualmente sul documento, letti nella stessa transazione. */
+      readonly existingLineIds: readonly string[];
+      readonly lines: readonly ComputedLine[];
+    },
+  ): Promise<void> {
+    await persistDocumentLinesByIdTx(tx, {
+      ...params,
+      toData: (line) => this.toLineCreateData(line, params.tenantId),
+    });
   }
 
+  /**
+   * Le colonne che una riga documento porta al database, DICHIARATE UNA PER UNA.
+   *
+   * ⛔ Prima era uno spread di `ComputedLine` (`...rest`), e da lì nasceva il
+   * difetto misurato il 02/09/2026: ciò che non era dichiarato nel tipo non
+   * arrivava mai al database, e `lineVatTotalMinor`/`lineGrossTotalMinor`
+   * restavano al proprio `@default(0)` su ogni documento del percorso generico.
+   * Uno spread scrive quello che c'è; un elenco dice quello che ci deve essere.
+   *
+   * Il tipo di ritorno `DocumentLineWriteData` rende OBBLIGATORIE le colonne
+   * economiche: dimenticarne una non compila. È la guardia, e sta nel
+   * compilatore — non in uno script che cerca un nome nel testo del file.
+   *
+   * ⚠️ Tre campi di `ComputedLine` non sono colonne e non si scrivono:
+   * `id` (una creazione riceve sempre un id nuovo dal database; quello in
+   * ingresso serve solo a ritrovare una riga esistente), `vatRatePercent` e
+   * `lineNetExactMinor`, che sono valori di sola elaborazione — verificato:
+   * `DocumentLine` non ha una colonna per nessuno dei due.
+   */
+  private toLineCreateData(line: ComputedLine, tenantId: string): DocumentLineWriteData {
+    return {
+      tenantId,
+      lineNumber: line.lineNumber,
+      variantId: line.variantId,
+      sku: line.sku,
+      description: line.description,
+      variantLabel: line.variantLabel,
+      // L'identità fotografata: `null` su una riga senza articolo.
+      articleCode: line.articleCode,
+      productName: line.productName,
+      barcode: line.barcode,
+      quantity: line.quantity,
+      unitPriceMinor: line.unitPriceMinor,
+      discountPercent: line.discountPercent,
+      lineTotalMinor: line.lineTotalMinor,
+      lineVatTotalMinor: line.lineVatTotalMinor,
+      lineGrossTotalMinor: line.lineGrossTotalMinor,
+      vatCodeId: line.vatCodeId,
+      vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+      // `undefined` resta `undefined`: chi non manda il campo non lo tocca
+      // (§tre stati dell'unità di misura, dichiarati su `ComputedLine`).
+      unitOfMeasure: line.unitOfMeasure,
+      loadsStock: line.loadsStock,
+      isReference: line.isReference,
+      supplierOrderLineId: line.supplierOrderLineId,
+      lotCode: line.lotCode,
+      lotExpiryDate: line.lotExpiryDate,
+      serialNumbers: line.serialNumbers,
+    };
+  }
+
+  /**
+   * ⭐ Delega al punto comune: stato **e** sede dell’ordine agganciato.
+   *
+   * ⛔ Qui c'era una risoluzione propria che selezionava il solo `status`, piu’
+   * un parametro `status?` che nessun chiamante ha mai passato. Il controllo di
+   * sede mancava, e mancava anche nel gemello di `goods-receipt-workflow`:
+   * adesso i tre ingressi passano dalla stessa funzione.
+   */
   private async assertSupplierOrderReceivable(
     tenantId: string,
     supplierOrderId: string,
-    status?: SupplierOrderStatus,
+    user: UserProfileDto | undefined,
   ): Promise<void> {
-    let resolvedStatus = status;
-    if (resolvedStatus == null) {
-      const order = await this.prisma.supplierOrder.findFirst({
-        where: { id: supplierOrderId, tenantId },
-        select: { status: true },
-      });
-      if (!order) {
-        throw new NotFoundException('Ordine fornitore non trovato');
-      }
-      resolvedStatus = order.status;
-    }
-    if (resolvedStatus !== SupplierOrderStatus.confirmed) {
-      throw new ConflictException(
-        'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
-      );
-    }
+    await assertSupplierOrderLinkable(this.prisma, tenantId, supplierOrderId, user);
   }
 
   /**
@@ -3300,14 +4290,18 @@ export class DocumentsService {
     const discountedLineSum = lineSum - docDiscountAmount;
 
     const taxMinor = lines.reduce((sum, line) => {
+      // ⭐ Senza sconto documento la testata SOMMA il valore già determinato
+      // sulla riga, invece di rifare il calcolo: è lo stesso numero di prima —
+      // `documentLineEconomicTotals` usa la stessa `lineVatFromNetExact` — ma
+      // letto anziché ricostruito, come prescrive «il riepilogo SOMMA, non
+      // ricalcola». Ed è ciò che rende vera l'uguaglianza «testata IVA = somma
+      // delle IVA di riga», che prima non si poteva nemmeno verificare perché
+      // il valore di riga non veniva persistito.
+      if (docDiscount === 0) {
+        return sum + line.lineVatTotalMinor;
+      }
       if (line.vatRatePercent == null || line.vatRatePercent === 0 || lineSum === 0) {
         return sum;
-      }
-      // Senza sconto documento l'imponibile di riga e' quello esatto: l'imposta
-      // nasce da li', ed e' cosi' che il totale torna al prezzo ivato digitato
-      // (§sei decimali). Su un imponibile intero il risultato non cambia.
-      if (docDiscount === 0) {
-        return sum + lineVatFromNetExact(line.lineNetExactMinor, line.vatRatePercent);
       }
       // Lo sconto extra documento si spalma sulle righe in proporzione, così la
       // somma delle imposte di riga coincide con l'imposta del documento. Qui
@@ -3357,6 +4351,18 @@ export class DocumentsService {
     }
   }
 
+  /**
+   * L'azienda che emette il documento: l'anagrafica del titolare se l'ha
+   * compilata, altrimenti i dati di attivazione (vedi `document-issuer.util`).
+   */
+  private async loadIssuer(tenantId: string): Promise<DocumentIssuer> {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: ISSUER_TENANT_SELECT,
+    });
+    return resolveDocumentIssuer(tenant);
+  }
+
   private async snapshotSupplierName(
     tenantId: string,
     supplierId?: string,
@@ -3385,8 +4391,8 @@ export class DocumentsService {
 
   /**
    * Nome cliente al PATCH: con customerId lo snapshot anagrafica vince sempre;
-   * senza customerId vale il testo libero solo-stampa (prompt Scarico
-   * manuale) — `customerName: null` lo svuota, assente lo lascia invariato.
+   * senza customerId vale il testo libero solo-stampa della Vendita manuale
+   * — `customerName: null` lo svuota, assente lo lascia invariato.
    */
   private async resolveUpdatedCustomerName(
     tenantId: string,

@@ -3,9 +3,8 @@ import { expect, test } from '@playwright/test';
 import {
   buildPendingInvoiceDocumentsPath,
   expectPendingInvoiceDocumentsView,
-  waitForAccountantRegisterReady,
   waitForDocumentsListReady,
-} from './helpers/accountant-register';
+} from './helpers/documents-list';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -38,12 +37,19 @@ test.describe('CI smoke (mock auth)', () => {
       'aria-selected',
       'true',
     );
-    await expect(page.getByText('Definisci le opzioni che generano le varianti')).toBeVisible();
+    // La frase attesa prima — «Definisci le opzioni che generano le
+    // varianti» — non esiste piu': quel testo vive ora nel passo OPZIONI. Il
+    // passo VARIANTI ha la sua introduzione, ed e' quella che prova che il
+    // tab ha reso il proprio contenuto.
+    await expect(page.getByText('Completa i dati di ogni variante')).toBeVisible();
   });
 
   test('lista prodotti degrada senza errore bloccante se API non disponibile', async ({ page }) => {
     await page.goto('/app/products');
-    await expect(page.locator('h1.product-list__title')).toHaveText('Prodotti', {
+    // Il titolo lo rende il telaio condiviso (`app-list-page`), non piu' la
+    // pagina: `product-list__title` non esiste in `src/`. L'`h1` c'e', ed e'
+    // la stessa asserzione su una classe diversa.
+    await expect(page.locator('h1.list-page__title')).toHaveText('Prodotti', {
       timeout: 30_000,
     });
 
@@ -58,20 +64,6 @@ test.describe('CI smoke (mock auth)', () => {
   test('lista documenti DDT da fatturare — filtri URL, banner e checkbox', async ({ page }) => {
     const today = todayIsoDate();
     await page.goto(buildPendingInvoiceDocumentsPath(today, today));
-    await waitForDocumentsListReady(page);
-    await expectPendingInvoiceDocumentsView(page);
-  });
-
-  test('registro commercialista → DDT da fatturare apre filtri corretti', async ({ page }) => {
-    await waitForAccountantRegisterReady(page);
-
-    const error = page.locator('app-error-state');
-    if (await error.isVisible()) {
-      test.skip(true, 'API registro commercialista non disponibile con auth mock');
-    }
-
-    await expect(page.getByRole('link', { name: 'DDT da fatturare →' })).toBeVisible();
-    await page.getByRole('link', { name: 'DDT da fatturare →' }).click();
     await waitForDocumentsListReady(page);
     await expectPendingInvoiceDocumentsView(page);
   });

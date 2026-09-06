@@ -1,0 +1,23 @@
+// L'host del corpo deve SPARIRE dal layout.
+//
+// ⛔ **Il guscio dispone i campi su due colonne** (`.doc-line-card__grid`,
+// `grid-template-columns: 1fr 1fr`), e i gruppi e i campi proiettati qui dentro
+// devono essere **grid item di quella griglia** — non figli di un box
+// intermedio. Senza questa riga l'host e' UN solo grid item, tutto il corpo si
+// impila in una colonna sola, e i `grid-column: 1 / -1` dichiarati da
+// `document-line-card-group` e `document-line-card-field` diventano inerti:
+// si riferiscono a una griglia di cui i loro host non fanno piu' parte.
+//
+// ⚠️ **E' la regressione dell'estrazione del 24/08/2026.** Prima il corpo era
+// proiettato con `<ng-container cardBody>`, che non crea elemento: i campi
+// erano gia' figli diretti della griglia. Sostituirlo con un componente ha
+// introdotto il box che qui viene tolto. Nessun test se n'e' accorto — la
+// geometria di CSS Grid non rompe ne' la build ne' le prove di comportamento.
+//
+// ⭐ E' lo stesso contratto del gemello `document-line-card-strip`, che lo
+// dichiara per la griglia `auto 1fr auto` della striscia: non e' una soluzione
+// inventata per una maschera, e' come si comporta un componente che proietta
+// contenuto dentro la griglia di chi lo ospita.
+:host {
+  display: contents;
+}

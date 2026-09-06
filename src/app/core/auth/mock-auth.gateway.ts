@@ -41,6 +41,7 @@ const MOCK_USERS: readonly MockCredential[] = [
       isActive: true,
       isPlatformAdmin: false,
       tenantChannelProfile: TenantChannelProfile.Shopify,
+      manualUnloadEnabled: true,
       tenantName: 'Negozio Demo',
       hasAllLocationsAccess: true,
       assignedLocationIds: [],
@@ -65,6 +66,7 @@ const MOCK_USERS: readonly MockCredential[] = [
       isActive: true,
       isPlatformAdmin: false,
       tenantChannelProfile: TenantChannelProfile.Shopify,
+      manualUnloadEnabled: true,
       tenantName: 'Negozio Demo',
       hasAllLocationsAccess: false,
       assignedLocationIds: ['loc-milano'],
@@ -89,6 +91,7 @@ const MOCK_USERS: readonly MockCredential[] = [
       isActive: true,
       isPlatformAdmin: false,
       tenantChannelProfile: TenantChannelProfile.Shopify,
+      manualUnloadEnabled: true,
       tenantName: 'Negozio Demo',
       hasAllLocationsAccess: false,
       assignedLocationIds: ['loc-napoli'],
@@ -164,7 +167,7 @@ export class MockAuthGateway implements AuthGateway {
     return of(undefined).pipe(delay(SHORT_LATENCY_MS));
   }
 
-  updatePassword(_newPassword: string): Observable<void> {
+  updatePassword(_newPassword: string, _keepSession = false): Observable<void> {
     return of(undefined).pipe(delay(SHORT_LATENCY_MS));
   }
 

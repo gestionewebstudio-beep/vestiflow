@@ -1,0 +1,250 @@
+@use 'breakpoints' as bp;
+@use 'list-page' as lp;
+
+@include lp.list-page('settings-users');
+
+// ── Regole specifiche della pagina (non coperte dal mixin) ─────────────────
+
+.settings-users__success {
+  margin: 0;
+  color: var(--color-ok);
+  font-size: var(--text-sm);
+}
+
+.settings-users__alert {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+.settings-users__field-error {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+}
+
+// Il bordo colorato accompagna il messaggio: chi scorre il form con lo sguardo
+// trova il campo, chi lo legge trova il motivo.
+.settings-users__input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.settings-users__note,
+.settings-users__muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.settings-users__table-wrap {
+  overflow: visible;
+}
+
+@include bp.media-down('md') {
+  .settings-users__table-wrap {
+    overflow-x: auto;
+    padding-block-end: var(--space-2);
+  }
+}
+
+.settings-users__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+
+  th,
+  td {
+    padding: var(--space-2);
+    border-bottom: var(--border-width) solid var(--color-border);
+    text-align: start;
+    vertical-align: middle;
+  }
+
+  th {
+    text-transform: uppercase;
+    font-weight: var(--font-weight-semibold);
+    background-color: var(--color-table-header-bg);
+    color: var(--color-text-subtle);
+  }
+}
+
+.settings-users__row--inactive td {
+  color: var(--color-text-subtle);
+}
+
+.settings-users__cell-select {
+  position: relative;
+  overflow: visible;
+  min-inline-size: var(--select-menu-width);
+  --select-menu-max-width: 100%;
+}
+
+.settings-users__cell-locations {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.settings-users__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+// Cella con un salvataggio in volo: il contenuto è già `inert` nel template,
+// qui si vede anche che in questo momento non accetta comandi.
+.settings-users__cell--busy {
+  opacity: var(--opacity-disabled);
+}
+
+.settings-users__row-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.settings-users__permissions-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-interactive);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.settings-users__permissions-row td {
+  padding-block: var(--space-3);
+  background: var(--color-surface-soft);
+}
+
+.settings-users__cell-actions {
+  inline-size: var(--btn-min-height);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.settings-users__delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
+  padding: 0;
+  color: var(--color-text);
+  cursor: pointer;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+
+  i {
+    font-size: var(--text-sm);
+  }
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-surface-hover);
+    color: var(--color-danger);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: var(--opacity-disabled);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.settings-users__create-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition-slow) ease;
+}
+
+.settings-users__create-panel--open {
+  grid-template-rows: 1fr;
+}
+
+.settings-users__create-panel-inner {
+  overflow: hidden;
+  min-block-size: 0;
+}
+
+.settings-users__create-panel:not(.settings-users__create-panel--open)
+  .settings-users__create-panel-inner {
+  visibility: hidden;
+}
+
+.settings-users__create-panel--open .settings-users__create-panel-inner {
+  visibility: visible;
+}
+
+.settings-users__create-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: visible;
+}
+
+.settings-users__create-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-users__create-fields {
+  display: grid;
+  gap: var(--space-3);
+  max-inline-size: var(--content-narrow);
+  overflow: visible;
+  --select-menu-width: 100%;
+}
+
+.settings-users__create-permissions {
+  margin-block-start: var(--space-1);
+}
+
+.settings-users__create-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-users__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow: visible;
+}
+
+.settings-users__label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.settings-users__field-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.settings-users__input {
+  block-size: var(--btn-min-height);
+  padding-inline: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+}

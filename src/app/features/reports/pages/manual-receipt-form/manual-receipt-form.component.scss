@@ -1,0 +1,91 @@
+@use 'breakpoints' as bp;
+
+/*
+  ⚠️ `styles/_document-form.scss` dà `display: block` a una LISTA CHIUSA di
+  selettori, e questo non c'è: senza la riga qui sotto l'host resterebbe
+  `display: inline` e la maschera si affloscerebbe. Si dichiara qui invece di
+  allungare quella lista, perché questa NON è una maschera documento — riusa la
+  sua anatomia visiva, non il suo modello.
+*/
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+/*
+  A cosa serve la maschera, sopra la testata: senza questa riga si confonde con
+  una vendita, ed è l'equivoco che porta qualcuno a cercarci gli articoli.
+*/
+/*
+  Una riga, non un paragrafo: dice il criterio e si toglie di mezzo. Il testo
+  lungo che stava qui rubava tre righe di schermo a una maschera che ne ha
+  poche.
+*/
+.mr-form__intro {
+  margin: 0 0 var(--space-2);
+  max-inline-size: var(--content-narrow);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.mr-form__number {
+  margin-inline-start: var(--space-2);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.mr-form__meta {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
+}
+
+/*
+  Le larghezze di colonna stanno sui `<th>`, come in ogni altra maschera:
+  `.doc-form__table` è già `table-layout: fixed` e le legge da lì. Qui c'erano
+  regole `nth-child` — un modo mio, non del progetto: si rompono al primo
+  riordino di colonna e non si trovano guardando il markup.
+*/
+
+/*
+  Su mobile e tablet le azioni stanno in fondo al documento e scorrono col
+  contenuto: nessuna barra fissa che sottrae spazio (regole-stile-ui §5).
+  La barra sticky resta il comportamento desktop.
+*/
+@include bp.media-down('lg') {
+  .mr-form__actions {
+    position: static;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+}
+
+/*
+  ── Vista stretta: il contenuto vale più dell'aria ─────────────────────────
+  Su uno schermo da 375px la testata a celle piene diventa quattro riquadri
+  alti, e quattro campi occupano tutta la schermata (regole-stile-ui §7:
+  «cinque campi devono stare in una schermata, non in uno scroll»).
+
+  Non si adotta `.doc-form--m-ref` per ottenerlo: quella vista porta con sé il
+  dock fisso e il suo `padding-block-end`, e questa maschera un dock non ce
+  l'ha — resterebbe una fascia vuota in fondo.
+*/
+@include bp.media-down('md') {
+  .mr-form .doc-form__header .doc-form__field {
+    padding-block: var(--space-1);
+  }
+
+  .mr-form .doc-form__header .doc-form__label {
+    margin-block-end: 0;
+  }
+
+  // La riga d'aiuto sta su una riga sola: sotto md il suo posto lo prende la
+  // testata, e il criterio resta leggibile in guida.
+  .mr-form__intro {
+    margin-block-end: var(--space-1);
+  }
+
+  .mr-form__meta {
+    margin-block-end: var(--space-1);
+  }
+}

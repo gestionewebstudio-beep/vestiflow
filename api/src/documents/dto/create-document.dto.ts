@@ -22,6 +22,50 @@ import { DocumentAddressDto, DocumentTransportFieldsDto } from './document-trans
 
 /** Riga documento in input. La testata calcola i totali server-side. */
 export class DocumentLineInputDto {
+  /**
+   * Id della riga già salvata, presente solo in modifica: è ciò che consente al
+   * salvataggio di AGGIORNARE la riga esistente invece di cancellarla e
+   * ricrearla con un id nuovo. Assente = riga nuova.
+   *
+   * L'identità della riga non è un dettaglio di persistenza: è l'ancora a cui
+   * si appendono gli effetti collegati (movimento di magazzino via
+   * `sourceLineId`, seriali via `InventorySerial.documentLineId`). Ricreare le
+   * righe a ogni salvataggio li stacca tutti — vedi
+   * `docs/09-specifica-movimenti-per-riga.md` §3. Stesso campo, stesso ruolo
+   * che ha già sull'Arrivo merce (`SaveGoodsReceiptLineDto.id`).
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  /**
+   * La riga di documento da cui QUESTA riga deriva: duplicazione o conversione.
+   *
+   * ⭐ **È un riferimento, non dei valori.** Il server risale a quella riga e
+   * ne copia gli snapshot — codice articolo, nome, barcode, etichetta variante,
+   * unità di misura — **dal database**, ignorando qualunque valore storico il
+   * client mandasse per conto proprio. È la forma che rispetta insieme le due
+   * regole: «duplicare conserva l'identità dell'origine» e «la fotografia la
+   * compone il server, non l'interfaccia».
+   *
+   * ⛔ **Assente = riga davvero nuova**, inserita dal catalogo: lì valgono i
+   * valori correnti dell'anagrafica. È un contratto binario, come per il
+   * Codice IVA: la presenza della chiave È l'informazione, e senza di essa
+   * non si potrebbe distinguere «duplicata da una riga che non aveva codice»
+   * da «appena creata».
+   *
+   * ⚠️ **Non si persiste**: serve solo a comporre la riga nuova. Dal
+   * salvataggio successivo la riga ha un `id` proprio, e a vincere è il
+   * valore persistito su di lei.
+   *
+   * ⚠️ Se l'operatore cambia articolo o variante dopo il prefill, la riga non
+   * deriva più dalla sorgente: il client smette di mandare il riferimento e
+   * gli snapshot si riacquisiscono dalla nuova scelta.
+   */
+  @IsOptional()
+  @IsUUID()
+  sourceDocumentLineId?: string;
+
   @IsOptional()
   @IsUUID()
   variantId?: string;
@@ -30,6 +74,15 @@ export class DocumentLineInputDto {
   @IsString()
   @MaxLength(120)
   sku?: string;
+
+  /**
+   * Unità di misura della riga, fotografata all'inserimento. Testo libero: la
+   * tabella delle unità suggerisce, non obbliga (specifica §4.3-ter).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
 
   @IsString()
   @Length(1, 300)
@@ -133,7 +186,7 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   customerId?: string;
 
   /**
-   * Cliente a testo libero (prompt Scarico manuale): usato SOLO quando
+   * Cliente a testo libero (prompt Vendita manuale): usato SOLO quando
    * customerId è assente — snapshot per la stampa, mai salvato in anagrafica.
    */
   @IsOptional()
@@ -168,15 +221,6 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @IsString()
   @MaxLength(2000)
   internalComment?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  externalDocNumber?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  externalDocDate?: string;
 
   @IsOptional()
   @IsUUID()
@@ -285,4 +329,11 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentLineInputDto)
   lines?: DocumentLineInputDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

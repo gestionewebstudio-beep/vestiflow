@@ -60,8 +60,13 @@
           maxlength="6"
           formControlName="code"
           placeholder="000000"
-          [attr.aria-invalid]="verifyForm.controls.code.invalid && verifyForm.controls.code.touched"
+          [attr.aria-invalid]="showError('code')"
         />
+        @if (showError('code')) {
+          <span class="mfa-settings__field-error">
+            Il codice è di 6 cifre, senza spazi: copialo dall’app di autenticazione.
+          </span>
+        }
       </label>
 
       <div class="mfa-settings__actions">

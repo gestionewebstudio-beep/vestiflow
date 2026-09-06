@@ -44,7 +44,7 @@
   inline-size: var(--space-8);
   block-size: var(--space-8);
   color: var(--color-link);
-  background-color: var(--co-brand-soft, var(--color-surface-soft));
+  background-color: var(--color-surface-soft);
   border-radius: var(--radius-sm);
 }
 
@@ -176,71 +176,23 @@
     display: flex;
   }
 
-  // Apertura/chiusura animata (≤200ms) invece dello stacco netto; visibility
-  // toglie i campi dal tab order quando la testata è chiusa.
-  .co-form .co-form__header-details {
-    display: block;
-    overflow: hidden;
-    max-block-size: 0;
-    opacity: 0;
-    visibility: hidden;
-    border-block-start: 0;
-    transition:
-      max-block-size 200ms var(--ease-standard),
-      opacity 160ms var(--ease-standard),
-      visibility 0s linear 200ms;
-  }
+  // ⛔ **Qui c’era la macchina che commutava le due vesti col CSS**: la
+  //   fascia di scrivania collassata a `max-block-size: 0` + `visibility:
+  //   hidden`, la sua riapertura, e la vestizione touch dei campi
+  //   `doc-form__field` / `doc-form__input` dentro la testata.
+  //
+  //   Non serve piu’ dal 26/08/2026: le due vesti sono ESCLUSIVE, le rende
+  //   `app-document-header` con un `@if`, e sotto `lg` i campi portano
+  //   `doc-panel__*` — quelle regole non avevano piu’ nessun bersaglio.
+  //
+  // ⭐ Ed e’ il guadagno vero della migrazione, oltre al markup: con una
+  //   sola vesta viva non serve piu’ nascondere l’altra, e non serve piu’
+  //   toglierla dal giro del fuoco a mano.
 
-  .co-form .co-form__header--open .co-form__header-details {
-    max-block-size: 34rem;
-    opacity: 1;
-    visibility: visible;
-    border-block-start: var(--border-width) solid var(--color-border);
-    transition:
-      max-block-size 200ms var(--ease-standard),
-      opacity 160ms var(--ease-standard),
-      visibility 0s;
-  }
-
-  .co-form .co-form__header-row,
-  .co-form .doc-form__header-row--secondary {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .co-form .doc-form__header .doc-form__field {
-    padding: var(--space-2);
-    --field-height: var(--control-h-touch);
-  }
-
-  .co-form .doc-form__header .doc-form__input {
-    block-size: var(--control-h-touch);
-    min-block-size: var(--control-h-touch);
-    font-size: var(--text-lg);
-    border-radius: var(--radius-sm);
-  }
-
-  // Strumenti righe: titolo sopra, bottoni a griglia sotto.
-  .co-form .doc-form__lines-head {
-  }
-
-  .co-form .doc-form__lines-tools {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-    --field-height: var(--co-tool-h);
-  }
-
-  .co-form .doc-form__lines-tools {
-    --button-font-size: var(--text-sm);
-
-    app-button {
-      inline-size: 100%;
-    }
-  }
-
-  .co-form .doc-form__lines-tools > app-button:last-child {
-    --button-grid-column: 1 / -1;
-  }
+  // ⛔ Qui c'erano quattro regole locali sulla barra strumenti righe. Sono
+  // salite in `_document-form.scss`, dove valgono per tutte e sette le
+  // maschere: erano già la forma giusta, mancava solo che la vedesse qualcun
+  // altro.
 
   // Finestra «Colonne»: a tutta larghezza, una colonna sola e
   // bottoni di riordino grandi abbastanza per il dito (mockup responsive).
@@ -267,14 +219,10 @@
 
 // Schermi stretti: una colonna sola e Salva su tutta la riga.
 @include bp.media-down('sm') {
-  .co-form .co-form__header-row,
-  .co-form .doc-form__header-row--secondary {
-    grid-template-columns: 1fr;
-  }
-
-  .co-form .doc-form__header .doc-form__field {
-    border-inline-end: 0;
-  }
+  // ⛔ Qui c’erano le due colonne (e la colonna singola sotto `sm`) delle
+  //   fasce di testata, su `.co-form__header-row` e
+  //   `.doc-form__header-row--secondary`: classi che dal 26/08/2026 il
+  //   template non emette piu’.
 
   .co-form__header-summary-edit {
     display: none;

@@ -11,6 +11,7 @@ function variant(id: string, sku = `SKU-${id}`): VariantSummary {
     articleCode: `A-${id}`,
     productName: `Prodotto ${id}`,
     title: `Prodotto ${id} — ${sku}`,
+    variantLabel: '',
     sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
   };
 }

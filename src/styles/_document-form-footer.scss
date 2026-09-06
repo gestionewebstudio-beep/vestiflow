@@ -35,7 +35,13 @@
     // alla card che la precede.
     margin-block-start: var(--space-4);
     padding: 0;
-    background-color: color-mix(in srgb, var(--color-bg) 88%, transparent);
+    // OPACA, non velata. La banda è sticky: su un documento più corto della
+    // finestra resta incollata in basso e passa sopra il piede della tabella.
+    // A 88% il testo sotto («0 righe valide · Imponibile righe») traspariva e
+    // si leggeva sovrapposto all'etichetta delle note — sembrava un difetto di
+    // impaginazione, ed era la trasparenza. Coperto è coperto: torna visibile
+    // scorrendo, che è il mestiere di una banda appiccicata.
+    background-color: var(--color-bg);
     backdrop-filter: blur(var(--blur-bar));
     border: 0;
     border-radius: 0;
@@ -46,8 +52,13 @@
     flex: 0.55 1 15rem;
     min-inline-size: 0;
     align-content: start;
-    // Nella banda sticky i campi note si affiancano per contenere l'altezza
-    // (Arrivo merce ne ha due: note + commento interno; l'ordine cliente uno).
+    // Nella banda sticky i campi note si affiancano per contenere l'altezza.
+    //
+    // ⛔ Qui c'era «Arrivo merce ne ha due: note + commento interno; l'ordine
+    // cliente uno». **Misurato il 02/09/2026: le hanno tutte e sei** — arrivo
+    // merce, registrazione fattura, fatture, movimento, trasferimento e ordine
+    // cliente passano tutte `internalId`. Il ramo a un campo solo non lo
+    // percorre più nessuno.
     grid-template-columns: repeat(auto-fit, minmax(var(--space-24), 1fr));
     gap: var(--space-2) var(--space-3);
   }
@@ -62,11 +73,18 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  // Una spunta in coda alle note occupa la riga intera, non una colonnina.
-  .doc-form__footer-notes > .doc-form__check {
-    grid-column: 1 / -1;
-    align-items: center;
-  }
+  // ⛔ Qui c'era `.doc-form__footer-notes > .doc-form__check { grid-column: 1 / -1 }`
+  // — «una spunta in coda alle note occupa la riga intera». **Non agganciava
+  // niente**, ed è il difetto muto che questo progetto combatte: le uniche due
+  // spunte del piede (Arrivo merce, costo e prezzi in anagrafica) erano proiettate
+  // DENTRO `app-document-notes`, quindi non figlie dirette. `display: contents`
+  // le faceva partecipare alla GRIGLIA ma non le rendeva raggiungibili dal `>`:
+  // finivano in una colonnina, col testo a capo su quattro righe.
+  //
+  // Il 02/09/2026 sono salite in testata e nessun `.doc-form__check` è più figlio
+  // di questa griglia — misurato su tutte e sei le maschere documentali. Se una
+  // spunta dovesse tornare qui, va rimessa la regola E va verificata a schermo:
+  // se è proiettata, non basta.
 
   // Le caselle riempiono la riga della griglia: con label di altezza diversa
   // (la coda del «commento interno») i fondi restano comunque allineati.
@@ -74,14 +92,24 @@
     flex: 1 1 auto;
   }
 
-  // Con più campi le caselle sono GEMELLE: stessa altezza (più generosa del
-  // tetto standard) e ancorate al fondo della riga — con label di altezza
-  // diversa si allineano sia i bordi superiori che quelli inferiori, e il
-  // pannello cresce quanto serve.
+  // Le caselle sono GEMELLE: stessa altezza e ancorate al fondo della riga —
+  // con label di altezza diversa si allineano sia i bordi superiori che quelli
+  // inferiori.
+  //
+  // ⛔ **Erano 96px (`--space-24`), «più generose del tetto standard».** Due
+  // difetti in una riga, corretti il 02/09/2026:
+  //
+  // 1. `regole-stile-ui` §7 dichiara «textarea min-height ~44px, **max ~90px**»:
+  //    96 sforava il tetto della regola, e nessun controllo lo vedeva.
+  // 2. La stessa textarea ha già `min-height: calc(var(--space-8) * 2)` (64px)
+  //    in `_document-form.scss`: due altezze per lo stesso elemento, e quella
+  //    che vinceva era la più alta. Ora è una sola.
+  //
+  // ⭐ Il piede scende di 32px e li prende il contenitore righe, che è dove
+  //    l'operatore lavora — richiesta del proprietario, 02/09/2026.
   .doc-form__footer-notes:has(> .doc-form__field:nth-of-type(2)) .doc-form__textarea {
     flex: 0 0 auto;
     margin-block-start: auto;
-    min-block-size: var(--space-24);
     max-block-size: none;
   }
 
@@ -90,7 +118,9 @@
     min-inline-size: 0;
     max-inline-size: 100%;
     flex-direction: column;
-    align-items: stretch;
+    // A destra, non stirato: la banda può essere larga quanto vuole, il
+    // riepilogo dentro resta della sua misura (vedi le celle qui sotto).
+    align-items: flex-end;
     padding-block-start: 0;
   }
 
@@ -115,14 +145,28 @@
     box-shadow: var(--shadow-xs);
   }
 
+  // «Caselle dimensionate sul contenuto, non stirate» (regole-stile-ui §7).
+  //
+  // Con `flex: 1 1 0` le celle si spartivano la banda in parti uguali, quindi la
+  // stessa casella era larga il doppio in un documento con tre voci e la metà in
+  // uno con otto — e nell'Ordine fornitore, che accanto non ha la fascia note,
+  // il riepilogo si stirava per 1320px con tre numeri dentro.
+  //
+  // `flex: 0 1 auto` le dimensiona sul contenuto e le lascia rimpicciolire solo
+  // quando lo spazio manca davvero; il gruppo si appoggia a destra, dove la
+  // banda lo porta già.
   .doc-form__totals-bar .doc-form__totals:not(.doc-form__vat-summary) .doc-form__totals-row {
     display: flex;
-    flex: 1 1 0;
+    flex: 0 1 auto;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
     gap: 0;
-    min-inline-size: 0;
+    // `0` lasciava la cella stringersi SOTTO il suo contenuto: il pulsante
+    // «+ Aggiungi sconto» usciva dal riquadro e finiva sopra la casella accanto.
+    // `min-content` non basta — su un pulsante che non va a capo il minimo è la
+    // parola più lunga, non il pulsante intero. Il minimo è il contenuto.
+    min-inline-size: max-content;
     inline-size: auto;
     max-inline-size: none;
     margin-inline-start: 0;

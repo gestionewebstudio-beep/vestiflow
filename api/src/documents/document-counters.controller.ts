@@ -14,7 +14,10 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { DOCUMENTS_VIEW_PERMISSIONS, TenantPermission } from '../auth/tenant-permission.constants';
+import {
+  DOCUMENTS_CONFIGURE_READ_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
 import {
   RequireAnyPermissions,
   RequirePermissions,
@@ -31,23 +34,28 @@ export class DocumentCountersController {
   constructor(private readonly counters: DocumentCountersService) {}
 
   @Get()
-  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(DOCUMENTS_CONFIGURE_READ_PERMISSIONS)
   list(@CurrentTenant() tenantId: string): Promise<DocumentCounterView[]> {
     return this.counters.list(tenantId);
   }
 
   /** Contatori proponibili in testata per (tipo, sede) + quale proporre. */
   @Get('available')
-  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(DOCUMENTS_CONFIGURE_READ_PERMISSIONS)
   available(
     @CurrentTenant() tenantId: string,
     @Query() query: AvailableCountersQueryDto,
   ): Promise<{ counters: DocumentCounterView[]; proposedCounterId: string | null }> {
-    return this.counters.available(tenantId, query.type, query.locationId ?? null);
+    return this.counters.available(
+      tenantId,
+      query.type,
+      query.locationId ?? null,
+      query.documentDate ? new Date(query.documentDate) : undefined,
+    );
   }
 
   @Post()
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   create(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateDocumentCounterDto,
@@ -61,7 +69,7 @@ export class DocumentCountersController {
   }
 
   @Patch(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -76,7 +84,7 @@ export class DocumentCountersController {
   }
 
   @Delete(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
     @CurrentTenant() tenantId: string,

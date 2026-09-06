@@ -8,6 +8,7 @@ import { DocumentCountersController } from './document-counters.controller';
 import { DocumentCountersService } from './document-counters.service';
 import { DocumentPdfService } from './document-pdf.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
+import { DocumentChronologyService } from './document-chronology.service';
 import { DocumentXmlService } from './document-xml.service';
 import { DocumentSettingsController } from './document-settings.controller';
 import { DocumentSettingsService } from './document-settings.service';
@@ -41,13 +42,18 @@ import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflo
     GoodsReceiptWorkflowService,
     TransferAdjustmentWorkflowService,
     DocumentPriceModePreferenceService,
+    DocumentChronologyService,
   ],
   exports: [
     DocumentsService,
     DocumentSettingsService,
+    // Ordine cliente e Ordine fornitore scrivono anche loro il tipo documento
+    // della controparte: il risolutore id + snapshot e' uno solo, sta qui.
+    ExternalDocumentTypesService,
     GoodsReceiptWorkflowService,
     TransferAdjustmentWorkflowService,
     DocumentPriceModePreferenceService,
+    DocumentChronologyService,
   ],
 })
 export class DocumentsModule {}

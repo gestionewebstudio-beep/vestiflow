@@ -1,3 +1,8 @@
+import {
+  parseDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+
 import type { ParamMap } from '@angular/router';
 
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
@@ -13,12 +18,46 @@ export interface SupplierOrderListQuery {
   readonly search?: string;
   readonly status?: SupplierOrderStatus;
   readonly supplierId?: string;
+  /** Periodo sulla data ordine, estremi inclusivi (`YYYY-MM-DD`). */
+  readonly dateFrom?: string;
+  readonly dateTo?: string;
+  /** Ordinamento nella grammatica del motore (`14` §H15). */
+  readonly sort?: readonly DataTableSort[];
+  /**
+   * Chiede **tutto il risultato del filtro** invece di una pagina
+   * (`14` §H14-bis: i riepiloghi non impaginano). L'API consegna tutto il filtrato,
+   * ⛔ **Nessun tetto sulle righe**: a contenere l'insieme è il PERIODO — la
+   * lista si apre sugli ultimi 30 giorni — non un numero di righe.
+   */
+  readonly all?: boolean;
 }
 
+/**
+ * ⛔ **Qui c'era `/^d{4}-d{2}-d{2}$/`, senza le barre rovesciate.**
+ *
+ * Quel regex accettava **solo la stringa letterale `dddd-dd-dd`**:
+ *
+ * ```text
+ * /^d{4}-d{2}-d{2}$/.test('2026-08-31')  →  false
+ * /^d{4}-d{2}-d{2}$/.test('dddd-dd-dd')  →  true
+ * ```
+ *
+ * Ogni `dateFrom`/`dateTo` letto dall'URL veniva scartato: l'operatore
+ * impostava un periodo, ricaricava la pagina o condivideva il link, e **il
+ * periodo spariva** — senza errore e senza test rosso.
+ *
+ * ⚠️ **È la barra mangiata dallo strumento di scrittura**, la stessa che oggi ha
+ * colpito quattro volte gli script di lavoro. Qui era finita in produzione e ci
+ * stava da allora: una regex che non aggancia mai non fallisce, si limita a
+ * rifiutare tutto.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const STATUS_VALUES = new Set<string>(Object.values(SupplierOrderStatus));
 
 /** Parsing difensivo dei query param URL (URL = fonte di verita' della lista). */
 export function parseSupplierOrderListQuery(params: ParamMap): SupplierOrderListQuery {
+  const dateFrom = params.get('dateFrom') ?? '';
+  const dateTo = params.get('dateTo') ?? '';
   const page = Number(params.get('page'));
   const pageSize = Number(params.get('pageSize'));
   const search = params.get('search')?.trim();
@@ -32,5 +71,8 @@ export function parseSupplierOrderListQuery(params: ParamMap): SupplierOrderList
         : DEFAULT_SUPPLIER_ORDER_PAGE_SIZE,
     search: search || undefined,
     status: STATUS_VALUES.has(status) ? (status as SupplierOrderStatus) : undefined,
+    sort: parseDataTableSort(params.get('sort')),
+    dateFrom: ISO_DATE.test(dateFrom) ? dateFrom : undefined,
+    dateTo: ISO_DATE.test(dateTo) ? dateTo : undefined,
   };
 }

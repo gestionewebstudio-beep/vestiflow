@@ -1,33 +1,78 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { mkdir, readFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import unzipper from 'unzipper';
 
-import type { User } from '@prisma/client';
+import { Prisma, type User } from '@prisma/client';
+import { AuthProfileCacheService } from '../../auth/auth-profile-cache.service';
 import { SupabaseService } from '../../auth/supabase.service';
+import { PlatformAdminService } from '../../common/platform-admin/platform-admin.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  TENANT_BACKUP_ATTACHMENTS_DIR,
-  TENANT_BACKUP_DATA_DIR,
-  TENANT_BACKUP_DELETE_ORDER,
-  TENANT_BACKUP_ENTITY_FILES,
-  TENANT_BACKUP_FORMAT_VERSION,
+  TENANT_BACKUP_DEFERRED_FIELDS,
   TENANT_BACKUP_IMPORT_ORDER,
-  TENANT_BACKUP_MANIFEST_FILE,
   type TenantBackupEntityFile,
 } from './tenant-backup.constants';
-import type { TenantBackupImportResult, TenantBackupManifest } from './tenant-backup-manifest.model';
-import { parseBackupRows } from './tenant-backup-serialize.util';
+import type {
+  TenantBackupImportResult,
+  TenantBackupManifest,
+} from './tenant-backup-manifest.model';
+import {
+  assertHistoricalReferenceTenants,
+  backupDelegate,
+  backupModel,
+  purgeTenantBackupData,
+  validateBackupReferences,
+  type BackupData,
+  type BackupRow,
+} from './tenant-backup-entities.util';
+import { readTenantBackupArchive } from './tenant-backup-archive.util';
+import { backupAttachmentRefs } from './tenant-backup-storage.util';
 
 type PrismaTx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
+
+/**
+ * Costi CANONICI: quelli che dal 22/08/2026 sono `NOT NULL DEFAULT 0`.
+ *
+ * ⚠️ L'elenco è per NOME di campo ed è deliberatamente stretto. I costi
+ * opzionali della riga documento — `enteredUnitCost`, `unitCostNet`,
+ * `unitCostGross`, `unitVatAmount` — non sono qui: restano nullable, perché su
+ * una struttura condivisa da documenti che il costo non lo gestiscono affatto
+ * l'assenza della proprietà ha un significato tecnico proprio.
+ */
+const COSTI_CANONICI = [
+  'purchasePriceMinor',
+  'lastPurchasePriceMinor',
+  'unitCostMinor',
+  'totalCostMinor',
+] as const;
+
+/**
+ * Un backup **prodotto prima** della migration dei costi canonici porta `null`
+ * dove oggi la colonna è `NOT NULL`: reinserirlo così com'è farebbe fallire il
+ * ripristino con violazione di vincolo, e il cliente perderebbe l'unica strada
+ * per rimettere in piedi i propri dati.
+ *
+ * ⛔ Non è una conversione di comodo: è la stessa regola di dominio applicata al
+ * passato — un costo non valorizzato **vale zero** (`regole-gestionale`).
+ *
+ * Una chiave assente resta assente: la colonna ha il proprio `DEFAULT 0` e non
+ * c'è ragione di inventarla nella riga.
+ */
+export function normalizzaCostiCanonici(row: Record<string, unknown>): Record<string, unknown> {
+  let normalizzata: Record<string, unknown> | null = null;
+  for (const campo of COSTI_CANONICI) {
+    if (campo in row && row[campo] === null) {
+      normalizzata ??= { ...row };
+      normalizzata[campo] = 0;
+    }
+  }
+  return normalizzata ?? row;
+}
 
 @Injectable()
 export class TenantBackupImportService {
@@ -37,6 +82,8 @@ export class TenantBackupImportService {
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
     private readonly config: ConfigService,
+    private readonly platformAdmin: PlatformAdminService,
+    private readonly profileCache: AuthProfileCacheService,
   ) {}
 
   async importFromZipBuffer(
@@ -44,246 +91,154 @@ export class TenantBackupImportService {
     currentUserId: string,
     zipBuffer: Buffer,
   ): Promise<TenantBackupImportResult> {
-    const tempDir = join(tmpdir(), `vestiflow-tenant-import-${randomUUID()}`);
-    await mkdir(tempDir, { recursive: true });
-
+    const { manifest, data, attachments } = await readTenantBackupArchive(zipBuffer, tenantId);
+    this.assertNoPlatformAdminEmails(data.users ?? []);
+    validateBackupReferences(data, tenantId, currentUserId);
+    const currentDbUser = await this.prisma.user.findFirstOrThrow({
+      where: { id: currentUserId, tenantId },
+    });
+    const refs = backupAttachmentRefs(data, tenantId, this.config);
+    const paths = new Set(refs.map((ref) => ref.zipPath));
+    if (paths.size !== attachments.size || [...paths].some((path) => !attachments.has(path))) {
+      throw new BadRequestException('Allegati mancanti o non referenziati nel backup.');
+    }
+    const client = this.supabase.getStorageClient();
+    if (paths.size && !client)
+      throw new ServiceUnavailableException('Storage non disponibile: ripristino annullato.');
+    const uploaded: { bucket: string; path: string }[] = [];
+    const stagedPaths = new Map<string, string>();
+    const restoreId = randomUUID();
+    const entityCounts: TenantBackupImportResult['entityCounts'] = {};
     try {
-      await this.extractZip(zipBuffer, tempDir);
-      const manifest = await this.readManifest(tempDir);
-      this.assertManifestCompatible(manifest, tenantId);
-
-      const entityData = await this.readEntityFiles(tempDir);
-      const entityCounts: Partial<Record<TenantBackupEntityFile, number>> = {};
-
-      const currentDbUser = await this.prisma.user.findFirstOrThrow({
-        where: { id: currentUserId, tenantId },
-      });
-
+      // Nuovi oggetti immutabili: i file in uso non vengono sovrascritti. Il DB
+      // pubblica i nuovi riferimenti soltanto quando tutti gli upload sono riusciti.
+      for (const ref of refs) {
+        let path = stagedPaths.get(ref.zipPath);
+        if (!path) {
+          path =
+            tenantId +
+            '/restore/' +
+            restoreId +
+            '/' +
+            randomUUID() +
+            '-' +
+            ref.storagePath.split('/').at(-1)!;
+          const bytes = await attachments.get(ref.zipPath)!.buffer();
+          // Anche una risposta persa può seguire un upload riuscito: il path
+          // appartiene a questo tentativo e va ripulito comunque nel catch.
+          uploaded.push({ bucket: ref.bucket, path });
+          const { error } = await client!.storage.from(ref.bucket).upload(path, bytes, {
+            upsert: false,
+            contentType: this.guessContentType(ref.storagePath),
+          });
+          if (error)
+            throw new ServiceUnavailableException('Upload allegato fallito: ripristino annullato.');
+          stagedPaths.set(ref.zipPath, path);
+        }
+        ref.row[ref.pathField] = path;
+        if (ref.urlField)
+          ref.row[ref.urlField] = client!.storage
+            .from(ref.bucket)
+            .getPublicUrl(path).data.publicUrl;
+      }
       await this.prisma.$transaction(
         async (tx) => {
-          await this.purgeTenantData(tx, tenantId, currentUserId);
-          await this.importTenantProfile(tx, tenantId, entityData.tenant);
-          await this.importUsers(tx, tenantId, currentDbUser, entityData.users ?? []);
-
+          await this.resolveGlobalReferences(tx, data, manifest);
+          await assertHistoricalReferenceTenants(tx, data, tenantId);
+          await purgeTenantBackupData(tx, tenantId, currentUserId);
+          await this.importTenantProfile(tx, tenantId, data.tenant);
+          const deferred: { key: TenantBackupEntityFile; id: unknown; values: BackupRow }[] = [];
           for (const key of TENANT_BACKUP_IMPORT_ORDER) {
-            if (key === 'users') {
-              continue;
-            }
-            const rows = entityData[key] ?? [];
+            const rows = data[key] ?? [];
             entityCounts[key] = rows.length;
-            if (rows.length === 0) {
+            if (key === 'users') {
+              await this.importUsers(tx, tenantId, currentDbUser, rows);
               continue;
             }
-            await this.createEntityRows(tx, key, rows);
+            if (!rows.length) continue;
+            const prepared = rows.map((row) => {
+              const values: BackupRow = {};
+              const copy = { ...row };
+              for (const field of TENANT_BACKUP_DEFERRED_FIELDS[key] ?? []) {
+                if (copy[field] !== null && copy[field] !== undefined) {
+                  values[field] = copy[field];
+                  copy[field] = null;
+                }
+              }
+              if (Object.keys(values).length) {
+                if (row['updatedAt'] !== undefined) values['updatedAt'] = row['updatedAt'];
+                deferred.push({ key, id: row['id'], values });
+              }
+              return copy;
+            });
+            await this.createEntityRows(tx, key, prepared, tenantId);
+          }
+          for (const row of deferred) {
+            await backupDelegate(tx, row.key).updateMany({
+              where: { id: row.id },
+              data: row.values,
+            });
           }
         },
-        { timeout: 300_000, maxWait: 30_000 },
+        { timeout: 300_000, maxWait: 30_000, isolationLevel: 'Serializable' },
       );
-
-      const attachmentFilesUploaded = await this.restoreAttachments(tempDir, tenantId);
-
+      this.profileCache.invalidateTenant(tenantId);
       return {
         tenantId,
         importedAt: new Date().toISOString(),
-        entityCounts,
-        attachmentFilesUploaded,
+        entityCounts: { ...entityCounts, tenant: 1 },
+        attachmentFilesUploaded: uploaded.length,
       };
-    } finally {
-      await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
-    }
-  }
-
-  private async extractZip(buffer: Buffer, targetDir: string): Promise<void> {
-    const directory = await unzipper.Open.buffer(buffer);
-    await directory.extract({ path: targetDir });
-  }
-
-  private async readManifest(tempDir: string): Promise<TenantBackupManifest> {
-    const raw = await readFile(join(tempDir, TENANT_BACKUP_MANIFEST_FILE), 'utf8');
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) {
-      throw new BadRequestException('Manifest backup non valido.');
-    }
-    return parsed as TenantBackupManifest;
-  }
-
-  private assertManifestCompatible(manifest: TenantBackupManifest, tenantId: string): void {
-    if (manifest.formatVersion !== TENANT_BACKUP_FORMAT_VERSION) {
-      throw new BadRequestException(
-        `Versione backup non supportata (${manifest.formatVersion}). Aggiorna VestiFlow.`,
-      );
-    }
-    if (manifest.tenantId !== tenantId) {
-      throw new ConflictException(
-        'Il backup appartiene a un altro negozio. Importa solo pacchetti del tenant corrente.',
-      );
-    }
-  }
-
-  private async readEntityFiles(
-    tempDir: string,
-  ): Promise<Partial<Record<TenantBackupEntityFile, Record<string, unknown>[]>>> {
-    const result: Partial<Record<TenantBackupEntityFile, Record<string, unknown>[]>> = {};
-
-    for (const key of TENANT_BACKUP_ENTITY_FILES) {
-      const filePath = join(tempDir, TENANT_BACKUP_DATA_DIR, `${key}.json`);
-      try {
-        const raw = await readFile(filePath, 'utf8');
-        result[key] = parseBackupRows<Record<string, unknown>>(raw);
-      } catch {
-        result[key] = [];
+    } catch (error) {
+      for (const file of uploaded) {
+        const removed = await client!.storage
+          .from(file.bucket)
+          .remove([file.path])
+          .catch(() => null);
+        if (!removed || removed.error)
+          this.logger.error(
+            'Pulizia allegato di restore fallito non riuscita: oggetto non referenziato.',
+          );
       }
-    }
-
-    return result;
-  }
-
-  private async purgeTenantData(tx: PrismaTx, tenantId: string, preserveUserId: string): Promise<void> {
-    await tx.shopifyOAuthState.deleteMany({ where: { tenantId } });
-    await tx.tikTokOAuthState.deleteMany({ where: { tenantId } });
-
-    for (const key of TENANT_BACKUP_DELETE_ORDER) {
-      if (key === 'users') {
-        await tx.user.deleteMany({ where: { tenantId, id: { not: preserveUserId } } });
-        continue;
-      }
-      await this.deleteEntityRows(tx, key, tenantId);
+      throw error;
     }
   }
 
-  private async deleteEntityRows(tx: PrismaTx, key: TenantBackupEntityFile, tenantId: string): Promise<void> {
-    switch (key) {
-      case 'userStores':
-        await tx.userStore.deleteMany({ where: { user: { tenantId } } });
-        return;
-      case 'inventoryCountLines':
-        await tx.inventoryCountLine.deleteMany({ where: { session: { tenantId } } });
-        return;
-      case 'supplierOrderLines':
-        await tx.supplierOrderLine.deleteMany({ where: { order: { tenantId } } });
-        return;
-      case 'salesOrderLines':
-        await tx.salesOrderLine.deleteMany({ where: { order: { tenantId } } });
-        return;
-      case 'documentLines':
-        await tx.documentLine.deleteMany({ where: { document: { tenantId } } });
-        return;
-      case 'tenantFeatureSettings':
-        await tx.tenantFeatureSettings.deleteMany({ where: { tenantId } });
-        return;
-      case 'shopifyConnections':
-        await tx.shopifyConnection.deleteMany({ where: { tenantId } });
-        return;
-      case 'shopifyCredentials':
-        await tx.shopifyCredential.deleteMany({ where: { tenantId } });
-        return;
-      case 'tiktokConnections':
-        await tx.tikTokConnection.deleteMany({ where: { tenantId } });
-        return;
-      case 'tiktokCredentials':
-        await tx.tikTokCredential.deleteMany({ where: { tenantId } });
-        return;
-      default:
-        await this.deleteByTenantId(tx, key, tenantId);
-    }
-  }
-
-  private async deleteByTenantId(
+  private async resolveGlobalReferences(
     tx: PrismaTx,
-    key: TenantBackupEntityFile,
-    tenantId: string,
+    data: BackupData,
+    manifest: TenantBackupManifest,
   ): Promise<void> {
-    switch (key) {
-      case 'stores':
-        await tx.store.deleteMany({ where: { tenantId } });
-        return;
-      case 'locations':
-        await tx.location.deleteMany({ where: { tenantId } });
-        return;
-      case 'documentTypeSettings':
-        await tx.documentTypeSetting.deleteMany({ where: { tenantId } });
-        return;
-      case 'vatCodes':
-        await tx.vatCode.deleteMany({ where: { tenantId } });
-        return;
-      case 'documentSequences':
-        await tx.documentSequence.deleteMany({ where: { tenantId } });
-        return;
-      case 'paymentOptions':
-        await tx.paymentOption.deleteMany({ where: { tenantId } });
-        return;
-      case 'parties':
-        await tx.party.deleteMany({ where: { tenantId } });
-        return;
-      case 'suppliers':
-        await tx.supplier.deleteMany({ where: { tenantId } });
-        return;
-      case 'customers':
-        await tx.customer.deleteMany({ where: { tenantId } });
-        return;
-      case 'products':
-        await tx.product.deleteMany({ where: { tenantId } });
-        return;
-      case 'productVariants':
-        await tx.productVariant.deleteMany({ where: { tenantId } });
-        return;
-      case 'productImages':
-        await tx.productImage.deleteMany({ where: { tenantId } });
-        return;
-      case 'supplierVariantLinks':
-        await tx.supplierVariantLink.deleteMany({ where: { tenantId } });
-        return;
-      case 'inventoryLevels':
-        await tx.inventoryLevel.deleteMany({ where: { tenantId } });
-        return;
-      case 'inventoryLots':
-        await tx.inventoryLot.deleteMany({ where: { tenantId } });
-        return;
-      case 'inventorySerials':
-        await tx.inventorySerial.deleteMany({ where: { tenantId } });
-        return;
-      case 'stockMovements':
-        await tx.stockMovement.deleteMany({ where: { tenantId } });
-        return;
-      case 'inventoryCountSessions':
-        await tx.inventoryCountSession.deleteMany({ where: { tenantId } });
-        return;
-      case 'supplierOrders':
-        await tx.supplierOrder.deleteMany({ where: { tenantId } });
-        return;
-      case 'salesOrders':
-        await tx.salesOrder.deleteMany({ where: { tenantId } });
-        return;
-      case 'stockReservations':
-        await tx.stockReservation.deleteMany({ where: { tenantId } });
-        return;
-      case 'stockReservationEvents':
-        await tx.stockReservationEvent.deleteMany({ where: { tenantId } });
-        return;
-      case 'onlineOrderEvents':
-        await tx.onlineOrderEvent.deleteMany({ where: { tenantId } });
-        return;
-      case 'corrispettiviDeliveries':
-        await tx.corrispettiviDelivery.deleteMany({ where: { tenantId } });
-        return;
-      case 'documents':
-        await tx.document.deleteMany({ where: { tenantId } });
-        return;
-      case 'documentRevisions':
-        await tx.documentRevision.deleteMany({ where: { tenantId } });
-        return;
-      case 'documentAttachments':
-        await tx.documentAttachment.deleteMany({ where: { tenantId } });
-        return;
-      case 'supplierAttachments':
-        await tx.supplierAttachment.deleteMany({ where: { tenantId } });
-        return;
-      case 'userTableViewPreferences':
-        await tx.userTableViewPreference.deleteMany({ where: { tenantId } });
-        return;
-      default:
-        return;
-    }
+    const groups = [
+      {
+        rows: data.vatCodes ?? [],
+        field: 'natureId',
+        catalog: await tx.vatNature.findMany(),
+        references: manifest.globalReferences?.vatNatures,
+        key: 'key',
+      },
+      {
+        rows: data.paymentOptions ?? [],
+        field: 'methodCodeId',
+        catalog: await tx.paymentMethodCode.findMany(),
+        references: manifest.globalReferences?.paymentMethodCodes,
+        key: 'code',
+      },
+    ];
+    for (const group of groups)
+      for (const row of group.rows) {
+        const id = row[group.field];
+        if (id === null || id === undefined) continue;
+        const reference = group.references?.find((item) => item.id === id) as BackupRow | undefined;
+        const target = group.catalog.find((item) =>
+          reference
+            ? (item as unknown as BackupRow)[group.key] === reference[group.key]
+            : item.id === id,
+        );
+        if (!target || (manifest.formatVersion >= 4 && !reference))
+          throw new BadRequestException('Riferimento al catalogo globale non valido nel backup.');
+        row[group.field] = target.id;
+      }
   }
 
   private async importTenantProfile(
@@ -295,10 +250,36 @@ export class TenantBackupImportService {
     if (!row) {
       return;
     }
-    const { id: _id, createdAt: _c, ...rest } = row;
+    // Anagrafica e preferenze sì; NON i termini di contratto
+    // (`licensedLocationCount`, i flag di sblocco sedi): quelli li decide
+    // l'admin di piattaforma, e un file caricato dal cliente non li tocca.
+    const allowed = [
+      'name',
+      'channelProfile',
+      'legalName',
+      'vatNumber',
+      'fiscalCode',
+      'phone',
+      'pec',
+      'sdiCode',
+      'iban',
+      'addressLine1',
+      'addressLine2',
+      'city',
+      'province',
+      'postalCode',
+      'countryCode',
+      'updatedAt',
+    ] as const;
+    const data: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (row[key] !== undefined) {
+        data[key] = row[key];
+      }
+    }
     await tx.tenant.update({
       where: { id: tenantId },
-      data: rest as never,
+      data: data as never,
     });
   }
 
@@ -308,6 +289,10 @@ export class TenantBackupImportService {
     currentUser: User,
     rows: Record<string, unknown>[],
   ): Promise<void> {
+    // Il file arriva dal cliente e può essere modificato prima di essere
+    // ricaricato: nessun campo passa senza essere stato nominato qui (§sicurezza).
+    this.assertNoPlatformAdminEmails(rows);
+
     const backupSelf = rows.find(
       (row) =>
         typeof row['authUserId'] === 'string' &&
@@ -323,16 +308,77 @@ export class TenantBackupImportService {
 
     if (others.length > 0) {
       await tx.user.createMany({
-        data: others.map((row) => ({ ...row, tenantId })) as never[],
+        data: others.map((row) => ({
+          ...this.pickUserColumns(row),
+          ...(typeof row['id'] === 'string' ? { id: row['id'] } : {}),
+          ...(typeof row['authUserId'] === 'string' ? { authUserId: row['authUserId'] } : {}),
+          ...(typeof row['email'] === 'string' ? { email: row['email'] } : {}),
+          tenantId,
+        })) as never[],
       });
     }
 
     if (backupSelf) {
-      const { id: _id, ...rest } = backupSelf;
+      // Identità di chi importa: MAI dal file. `email` decide l'admin di
+      // piattaforma (jwt-auth.guard) e `authUserId` lega il profilo a Supabase:
+      // riscriverli dal backup permetterebbe a un titolare di elevarsi.
       await tx.user.update({
         where: { id: currentUser.id },
-        data: { ...rest, tenantId, id: currentUser.id } as never,
+        data: {
+          ...this.pickUserColumns(backupSelf),
+          tenantId,
+          id: currentUser.id,
+          email: currentUser.email,
+          authUserId: currentUser.authUserId,
+        } as never,
       });
+    }
+  }
+
+  /**
+   * Campi di `User` ripristinabili da backup. L'elenco è esplicito per
+   * costruzione: `id`, `tenantId`, `email` e `authUserId` non compaiono perché
+   * sono identità, non dati di negozio, e vengono decisi dal chiamante.
+   */
+  private pickUserColumns(row: Record<string, unknown>): Record<string, unknown> {
+    const allowed = [
+      'displayName',
+      'role',
+      'avatarUrl',
+      'avatarStoragePath',
+      'isActive',
+      'hasAllLocationsAccess',
+      'defaultLocationId',
+      'permissions',
+      'mustChangePassword',
+      'createdAt',
+      'updatedAt',
+    ] as const;
+    const picked: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (row[key] !== undefined) {
+        picked[key] = row[key];
+      }
+    }
+    return picked;
+  }
+
+  /**
+   * Un'email della lista PLATFORM_ADMIN_EMAILS in un backup di tenant è sempre
+   * un tentativo di scalata: l'admin di piattaforma si riconosce dall'email del
+   * profilo, e nessun cliente ha motivo di avere quella riga nei propri dati.
+   */
+  private assertNoPlatformAdminEmails(rows: Record<string, unknown>[]): void {
+    const offending = rows.some(
+      (row) => typeof row['email'] === 'string' && this.platformAdmin.isPlatformAdmin(row['email']),
+    );
+    if (offending) {
+      this.logger.error(
+        'Import backup rifiutato: il file contiene un utente con email di amministratore piattaforma.',
+      );
+      throw new BadRequestException(
+        'Il backup contiene un utente non valido per questo negozio. Import annullato.',
+      );
     }
   }
 
@@ -340,201 +386,24 @@ export class TenantBackupImportService {
     tx: PrismaTx,
     key: TenantBackupEntityFile,
     rows: Record<string, unknown>[],
+    tenantId: string,
   ): Promise<void> {
-    const data = rows as never[];
-    switch (key) {
-      case 'stores':
-        await tx.store.createMany({ data });
-        return;
-      case 'locations':
-        await tx.location.createMany({ data });
-        return;
-      case 'userStores':
-        await tx.userStore.createMany({ data });
-        return;
-      case 'documentTypeSettings':
-        await tx.documentTypeSetting.createMany({ data });
-        return;
-      case 'vatCodes':
-        await tx.vatCode.createMany({ data });
-        return;
-      case 'tenantFeatureSettings':
-        await tx.tenantFeatureSettings.createMany({ data });
-        return;
-      case 'documentSequences':
-        await tx.documentSequence.createMany({ data });
-        return;
-      case 'paymentOptions':
-        await tx.paymentOption.createMany({ data });
-        return;
-      case 'parties':
-        await tx.party.createMany({ data });
-        return;
-      case 'suppliers':
-        await tx.supplier.createMany({ data });
-        return;
-      case 'customers':
-        await tx.customer.createMany({ data });
-        return;
-      case 'products':
-        await tx.product.createMany({ data: withBackfilledArticleCodes(data) });
-        return;
-      case 'productVariants':
-        await tx.productVariant.createMany({ data });
-        return;
-      case 'productImages':
-        await tx.productImage.createMany({ data });
-        return;
-      case 'supplierVariantLinks':
-        await tx.supplierVariantLink.createMany({ data });
-        return;
-      case 'inventoryLevels':
-        await tx.inventoryLevel.createMany({ data });
-        return;
-      case 'inventoryLots':
-        await tx.inventoryLot.createMany({ data });
-        return;
-      case 'inventorySerials':
-        await tx.inventorySerial.createMany({ data });
-        return;
-      case 'stockMovements':
-        await tx.stockMovement.createMany({ data });
-        return;
-      case 'inventoryCountSessions':
-        await tx.inventoryCountSession.createMany({ data });
-        return;
-      case 'inventoryCountLines':
-        await tx.inventoryCountLine.createMany({ data });
-        return;
-      case 'supplierOrders':
-        await tx.supplierOrder.createMany({ data });
-        return;
-      case 'supplierOrderLines':
-        await tx.supplierOrderLine.createMany({ data });
-        return;
-      case 'salesOrders':
-        await tx.salesOrder.createMany({ data });
-        return;
-      case 'salesOrderLines':
-        await tx.salesOrderLine.createMany({ data });
-        return;
-      case 'stockReservations':
-        await tx.stockReservation.createMany({ data });
-        return;
-      case 'stockReservationEvents':
-        await tx.stockReservationEvent.createMany({ data });
-        return;
-      case 'onlineOrderEvents':
-        await tx.onlineOrderEvent.createMany({ data });
-        return;
-      case 'corrispettiviDeliveries':
-        await tx.corrispettiviDelivery.createMany({ data });
-        return;
-      case 'documents':
-        await tx.document.createMany({ data });
-        return;
-      case 'documentLines':
-        await tx.documentLine.createMany({ data });
-        return;
-      case 'documentRevisions':
-        await tx.documentRevision.createMany({ data });
-        return;
-      case 'documentAttachments':
-        await tx.documentAttachment.createMany({ data });
-        return;
-      case 'supplierAttachments':
-        await tx.supplierAttachment.createMany({ data });
-        return;
-      case 'shopifyConnections':
-        await tx.shopifyConnection.createMany({ data });
-        return;
-      case 'shopifyCredentials':
-        await tx.shopifyCredential.createMany({ data });
-        return;
-      case 'tiktokConnections':
-        await tx.tikTokConnection.createMany({ data });
-        return;
-      case 'tiktokCredentials':
-        await tx.tikTokCredential.createMany({ data });
-        return;
-      case 'userTableViewPreferences':
-        await tx.userTableViewPreference.createMany({ data });
-        return;
-      default:
-        return;
-    }
-  }
-
-  private async restoreAttachments(tempDir: string, _tenantId: string): Promise<number> {
-    const client = this.supabase.getStorageClient();
-    if (!client) {
-      return 0;
-    }
-
-    const attachmentsRoot = join(tempDir, TENANT_BACKUP_ATTACHMENTS_DIR);
-    let uploaded = 0;
-
-    const buckets = [
-      this.config.get<string>('SUPABASE_PRODUCT_MEDIA_BUCKET') ?? 'product-media',
-      this.config.get<string>('SUPABASE_DOCUMENT_ATTACHMENTS_BUCKET') ?? 'document-attachments',
-      this.config.get<string>('SUPABASE_SUPPLIER_ATTACHMENTS_BUCKET') ?? 'supplier-attachments',
-      this.config.get<string>('SUPABASE_USER_AVATARS_BUCKET') ?? 'user-avatars',
-    ];
-
-    for (const bucket of buckets) {
-      const bucketDir = join(attachmentsRoot, bucket);
-      try {
-        uploaded += await this.uploadAttachmentTree(client, bucket, bucketDir, bucketDir);
-      } catch (error) {
-        this.logger.warn(`Restore storage ${bucket}: ${error instanceof Error ? error.message : error}`);
+    const model = backupModel(key);
+    const hasTenant = model.fields.some((field) => field.name === 'tenantId');
+    const data = rows.map((row) => {
+      const copy: BackupRow = {
+        ...normalizzaCostiCanonici(row),
+        ...(hasTenant ? { tenantId } : {}),
+      };
+      for (const field of model.fields) {
+        if (field.kind === 'scalar' && field.type === 'Json' && copy[field.name] === null)
+          copy[field.name] = Prisma.DbNull;
       }
-    }
-
-    return uploaded;
-  }
-
-  private async uploadAttachmentTree(
-    client: NonNullable<ReturnType<SupabaseService['getStorageClient']>>,
-    bucket: string,
-    bucketRootDir: string,
-    currentDir: string,
-  ): Promise<number> {
-    const { readdir, stat, readFile } = await import('node:fs/promises');
-    let count = 0;
-
-    let entries: string[];
-    try {
-      entries = await readdir(currentDir);
-    } catch {
-      return 0;
-    }
-
-    for (const entry of entries) {
-      const fullPath = join(currentDir, entry);
-      const info = await stat(fullPath);
-      if (info.isDirectory()) {
-        count += await this.uploadAttachmentTree(client, bucket, bucketRootDir, fullPath);
-        continue;
-      }
-
-      const objectPath = fullPath
-        .slice(bucketRootDir.length + 1)
-        .split(/[/\\]/)
-        .join('/');
-
-      const buffer = await readFile(fullPath);
-      const { error } = await client.storage.from(bucket).upload(objectPath, buffer, {
-        upsert: true,
-        contentType: this.guessContentType(objectPath),
-      });
-      if (error) {
-        this.logger.warn(`Upload ${bucket}/${objectPath}: ${error.message}`);
-        continue;
-      }
-      count += 1;
-    }
-
-    return count;
+      return copy;
+    });
+    await backupDelegate(tx, key).createMany({
+      data: key === 'products' ? withBackfilledArticleCodes(data) : data,
+    });
   }
 
   private guessContentType(path: string): string {

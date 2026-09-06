@@ -4,12 +4,14 @@ import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 const STATUS_LABELS: Record<SupplierOrderStatus, string> = {
+  [SupplierOrderStatus.ToConfirm]: 'Da confermare',
   [SupplierOrderStatus.Confirmed]: 'Confermato',
   [SupplierOrderStatus.Concluded]: 'Concluso',
   [SupplierOrderStatus.Cancelled]: 'Annullato',
 };
 
 const STATUS_TONES: Record<SupplierOrderStatus, BadgeTone> = {
+  [SupplierOrderStatus.ToConfirm]: 'warning',
   [SupplierOrderStatus.Confirmed]: 'info',
   [SupplierOrderStatus.Concluded]: 'success',
   [SupplierOrderStatus.Cancelled]: 'error',

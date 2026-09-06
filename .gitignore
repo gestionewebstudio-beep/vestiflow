@@ -48,6 +48,10 @@ __screenshots__/
 .env.local
 .env.*.local
 .env.production
+# Ambiente TEST locale: contiene DATABASE_URL_TEST. Non e un segreto (il
+# database e in un container su localhost) ma un file .env non si committa.
+.env.test
+.env.test.local
 *.key
 *.pem
 *.p12
@@ -63,6 +67,12 @@ serviceAccountKey.json
 
 # Script di collaudo usa-e-getta generati dall'agente di test (rigenerati a ogni giro)
 /e2e-collaudo
+/e2e-local
+
+# Screenshot di collaudo: sono l'evidenza di UN giro di test, invecchiano con la UI
+# e pesano decine di MB. Restano in locale finche' servono; nel repo resta il report,
+# che descrive i difetti a parole e cita il codice per file e riga.
+/docs/test-results/screenshots-local
 
 # System files
 .DS_Store
@@ -71,3 +81,15 @@ Thumbs.db
 # Claude Code local state
 .claude/settings.local.json
 .claude/worktrees/
+
+# Trascrizioni delle chat di progettazione: materiale di lavoro, non documenti
+# del progetto. Le decisioni che ne escono vivono in docs/*.md — la chat serve a
+# ricostruire il perche', si tiene sul disco e non nel repo.
+# (Ci e' gia' finita per sbaglio una volta, con un `git add docs`.)
+docs/*.txt
+
+# Eccezione: NON e` una trascrizione, e` la struttura del database estratta da
+# `npm run schema:export`. Va versionata apposta — serve a leggere lo schema
+# senza aprire una connessione, e a vedere nel diff quando cambia. Sola
+# struttura: nessuna riga di dati, nessuna credenziale.
+!docs/schema-supabase.txt

@@ -10,12 +10,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, forkJoin, of } from 'rxjs';
 
+import { AuthService } from '@core/auth';
+import { canManageSettingsCompany } from '@core/permissions/tenant-permissions.util';
 import { ToastService } from '@core/services/toast.service';
 import { VatCodeService, type UpsertVatCodeBody } from '@core/services/vat-code.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -72,7 +74,7 @@ const CALCULATION_MODE_OPTIONS: readonly {
     BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
-    ConfirmDialogComponent,
+    DeleteConfirmComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     SlidePanelComponent,
@@ -86,6 +88,16 @@ export class VatCodesPageComponent {
   private readonly toast = inject(ToastService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * Chi non lo ha vede l'elenco e la scheda di un Codice IVA, ma non i comandi
+   * che ne creano, duplicano, salvano o eliminano uno: la sezione Impostazioni
+   * apre questa pagina, le scritture restano al permesso «Impostazioni azienda».
+   */
+  protected readonly puoGestireImpostazioniAzienda = computed(() =>
+    canManageSettingsCompany(this.auth.currentUser()),
+  );
 
   protected readonly usageScopeOptions = USAGE_SCOPE_OPTIONS;
   protected readonly calculationModeOptions = CALCULATION_MODE_OPTIONS;
@@ -189,7 +201,27 @@ export class VatCodesPageComponent {
       this.activeFilter() !== 'all',
   );
 
+  protected readonly emptyStateDescription = computed(() => {
+    if (this.hasFilters()) {
+      return 'Nessuna voce corrisponde ai filtri correnti.';
+    }
+    return this.puoGestireImpostazioniAzienda()
+      ? 'Crea il primo Codice IVA per usarlo su articoli e documenti.'
+      : 'Il negozio non ha ancora Codici IVA configurati.';
+  });
+
+  /** Vuota = nessuna CTA: a chi non può creare non si propone di creare. */
+  protected readonly emptyStateCtaLabel = computed(() => {
+    if (this.hasFilters()) {
+      return 'Azzera filtri';
+    }
+    return this.puoGestireImpostazioniAzienda() ? 'Nuovo Codice IVA' : '';
+  });
+
   protected readonly panelTitle = computed(() => {
+    if (!this.puoGestireImpostazioniAzienda()) {
+      return 'Dettaglio Codice IVA';
+    }
     switch (this.panelMode()) {
       case 'create':
         return 'Nuovo Codice IVA';
@@ -206,6 +238,11 @@ export class VatCodesPageComponent {
   });
 
   constructor() {
+    if (!this.puoGestireImpostazioniAzienda()) {
+      // La scheda resta consultabile: i campi mostrano i valori salvati, ma non
+      // accettano modifiche che il server rifiuterebbe comunque.
+      this.form.disable();
+    }
     this.reload();
   }
 

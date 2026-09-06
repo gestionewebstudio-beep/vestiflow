@@ -26,6 +26,7 @@ describe('ShopifyInventoryPushService', () => {
         sku: 'SKU-1',
         shopifyInventoryItemId: 'gid://shopify/InventoryItem/1',
         shopifyVariantId: 'gid://shopify/ProductVariant/1',
+        product: { shopifySyncEnabled: true },
       },
       location = { shopifyLocationId: 'gid://shopify/Location/1', name: 'Napoli' },
       level = { onHand: 10, committed: 3 },
@@ -161,5 +162,26 @@ describe('ShopifyInventoryPushService', () => {
     const result = await service.pushLevel('tenant-1', 'var-1', 'loc-1');
 
     expect(result).toEqual({ pushed: false, reason: 'shopify_error' });
+  });
+  /*
+    ⛔ «Sincronizza con Shopify» spento ferma TUTTI i flussi, inventario
+    compreso (docs/24 §1.8). Prima il flag non veniva letto qui: il catalogo
+    si congelava e lo stock continuava a partire.
+  */
+  it('pushLevel NON parte se «Sincronizza con Shopify» è spento sul prodotto', async () => {
+    const { service, shopifyAdmin } = createService({
+      variant: {
+        id: 'var-1',
+        sku: 'SKU-1',
+        shopifyInventoryItemId: 'gid://shopify/InventoryItem/1',
+        shopifyVariantId: 'gid://shopify/ProductVariant/1',
+        product: { shopifySyncEnabled: false },
+      },
+    });
+
+    const result = await service.pushLevel('tenant-1', 'var-1', 'loc-1');
+
+    expect(result).toEqual({ pushed: false, reason: 'sync_disabled' });
+    expect(shopifyAdmin.setInventoryAvailable).not.toHaveBeenCalled();
   });
 });

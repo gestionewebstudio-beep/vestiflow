@@ -1,4 +1,5 @@
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -30,4 +31,16 @@ export class ListInventorySituationQueryDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(200)
   search?: string;
+
+  /**
+   * `all=1` — tutte le righe del filtro invece di una pagina (30/08/2026).
+   *
+   * ⚠️ Qui la finestra è in MEMORIA: le righe sono già tutte caricate e aggregate
+   * per variante, quindi l'impaginazione non risparmiava una query — tagliava
+   * soltanto la risposta.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === '1' || value === 'true' || value === true)
+  @IsBoolean()
+  all?: boolean;
 }

@@ -317,7 +317,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 2. Se profilo **Shopify**: verifica anche **Vendite** e **Clienti** (e opz. **Registro commercialista**).
 3. Clicca ogni voce visibile una alla volta.
 
-**Risultato atteso:** ogni voce apre la pagina corretta. Titolo pagina e URL coerenti (`/app/dashboard`, `/app/products`, `/app/suppliers`, `/app/documents`, `/app/sales/register`, ecc.). Voci assenti per profilo/permesso non devono comparire.
+**Risultato atteso:** ogni voce apre la pagina corretta. Titolo pagina e URL coerenti (`/app/dashboard`, `/app/products`, `/app/suppliers`, `/app/documents`, `/app/vendita-al-banco`, ecc.). Voci assenti per profilo/permesso non devono comparire.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -615,6 +615,8 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Risultato atteso:** badge **Connesso**. Dominio shop visibile. Banner verde di conferma.
 
+**Se la registrazione delle notifiche non parte, deve restare scritto perché.** Dall'agosto 2026 la connessione non si interrompe più per un problema sui webhook — il negozio è collegato, è solo l'automatismo che non è partito — ma non deve nemmeno sparire in silenzio: sul pannello compare un avviso che ne dà il motivo (indirizzo non configurato, oppure indirizzo a cui Shopify non può consegnare). **Connesso e zero notifiche senza nessuna traccia del perché è KO**: era il difetto 2.2-bis.
+
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
 | ☐ OK ☐ KO ☐ N/A |        |      |      |
@@ -653,7 +655,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 | **Ruolo**    | Titolare o Admin      |
 | **Device**   | Desktop               |
 
-**Prerequisiti:** Shopify connesso, location sincronizzate.
+**Prerequisiti:** Shopify connesso, location sincronizzate. **Da eseguire dall'ambiente pubblicato**: da un computer locale la registrazione è rifiutata di proposito, perché creerebbe notifiche verso un indirizzo a cui Shopify non può consegnare (registro difetti 1.7).
 
 **Passaggi:**
 
@@ -661,6 +663,73 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 2. Attendi completamento.
 
 **Risultato atteso:** setup status webhook = Attivo (o Parziale con spiegazione). Pulsante diventa **Disattiva aggiornamenti automatici**.
+
+**Da un ambiente locale:** l'operazione viene **rifiutata con un messaggio che nomina l'indirizzo**. Non è un guasto: è la guardia. Un rifiuto silenzioso, o peggio una registrazione riuscita, sono entrambi KO.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-033-bis — La verità sullo stato delle notifiche
+
+|              |                       |
+| ------------ | --------------------- |
+| **Priorità** | P1 · **Obbligatorio** |
+| **Ruolo**    | Titolare o Admin      |
+| **Device**   | Desktop               |
+
+**Perché esiste.** Fino ad agosto 2026 il pannello diceva «7 canali attivi»: un numero esatto che descriveva un insieme che nessuno conosceva. È il motivo per cui un topic è rimasto non registrato per un mese senza che nulla lo segnalasse. Questo caso verifica che la schermata dica cosa sa **e cosa non sa**.
+
+**Prerequisiti:** Shopify connesso, aggiornamenti automatici attivi.
+
+**Passaggi:**
+
+1. Apri **Impostazioni → Shopify** su una connessione **mai verificata**.
+2. Leggi il blocco dei fatti: _Ultimo evento ricevuto · Notifiche registrate · Indirizzo di consegna · Ultima verifica_.
+3. Clicca **Verifica ora**.
+4. Rileggi lo stesso blocco.
+
+**Risultato atteso:**
+
+**Al passo 2 — lo stato «non lo sappiamo».** «Notifiche registrate» dice **Non verificate**, non «0»; «Ultima verifica» dice **Mai**; la riga di stato invita a premere «Verifica ora». **È KO se compare un numero**: zero e «non l'abbiamo guardato» sono cose diverse, e confonderle è il difetto che questo caso esiste per intercettare.
+
+**Al passo 4 — i fatti.** «Ultima verifica» porta data e ora. «Notifiche registrate» mostra il conteggio **e i nomi dei mancanti** («7 su 8 — manca orders/cancelled»): un conteggio da solo manda a cercare, un nome dice cosa. Se ci sono più problemi veri insieme (indirizzo diverso **e** notifiche mancanti) devono comparire **entrambi**: uno che nasconde l'altro è KO.
+
+**La data dell'ultimo evento è dichiarativa.** Riporta quando è arrivato l'ultimo evento accolto, oppure «Nessun evento ricevuto finora». Non deve dare giudizi né allarmi sul tempo passato: un negozio può stare giorni senza eventi in modo legittimo.
+
+**Da un ambiente locale** l'indirizzo mostra **«confronto non possibile da questo ambiente»**. Non deve comparire nessun allarme rosso sull'indirizzo: le notifiche sono giuste, è il termine di paragone locale a non esserlo. Un rosso qui è KO.
+
+| Esito           | Tester | Data | Note |
+| --------------- | ------ | ---- | ---- |
+| ☐ OK ☐ KO ☐ N/A |        |      |      |
+
+---
+
+### T-033-ter — Registra le notifiche mancanti
+
+|              |                  |
+| ------------ | ---------------- |
+| **Priorità** | P2               |
+| **Ruolo**    | Titolare o Admin |
+| **Device**   | Desktop          |
+
+**Prerequisiti:** T-033-bis eseguito, con almeno una notifica mancante nominata. **Dall'ambiente pubblicato.**
+
+**Passaggi:**
+
+1. Verifica che accanto a **Verifica ora** compaia **Registra le notifiche mancanti**.
+2. Cliccalo e attendi l'esito.
+
+**Risultato atteso:** il messaggio riporta l'esito **rimisurato**, non quello dichiarato dalla registrazione — cioè quello che risulta su Shopify dopo, non quello che l'operazione crede di aver fatto. Il blocco dei fatti si aggiorna con la nuova ora di verifica e senza i mancanti appena registrati. Nessuna notifica esistente viene rimossa: l'operazione aggiunge soltanto.
+
+**Il pulsante può mancare per due motivi diversi, e vanno distinti:**
+
+- **non c'è niente da registrare** — nessun mancante, quindi niente da riparare;
+- **l'ambiente da cui guardi non è raggiungibile da Shopify** — tipicamente da un computer locale. In questo caso i mancanti sono comunque **nominati** nel blocco dei fatti, e l'indirizzo riporta «confronto non possibile da questo ambiente»: è lì che si legge il perché.
+
+Se il pulsante manca e la schermata **non lascia capire quale dei due casi sia**, è KO: sarebbe una schermata che non spiega sé stessa, cioè il difetto di partenza in un'altra forma.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -977,7 +1046,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 1. **Prodotti → Aggiungi prodotto** (`/app/products/new`).
 2. Verifica che il toggle mostri **Inserimento rapido** attivo (predefinito).
-3. Compila solo **Nome** (es. `TEST-A-Maglietta`) e **Prezzo vendita** (es. 29,90 €).
+3. Compila solo **Nome** (es. `TEST-A-Maglietta`) e **Prezzo di vendita** (es. 29,90 €).
 4. Verifica che lo **SKU** si generi automaticamente dal nome.
 5. Opzionale: clicca **Genera** accanto a **EAN** e verifica che compaia un codice.
 6. Clicca **Crea prodotto**.
@@ -1375,7 +1444,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
-### T-072 — Sincronizza giacenze da Shopify
+### T-072 — Riallinea le giacenze su Shopify
 
 |              |                |
 | ------------ | -------------- |
@@ -1385,10 +1454,13 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. Giacenze → **Sincronizza giacenze da Shopify**.
+1. Giacenze → **Riallinea le giacenze su Shopify**.
 2. Attendi completamento.
 
-**Risultato atteso:** messaggio esito. Quantità aggiornate rispetto a Shopify.
+**Risultato atteso:** messaggio esito che nomina la direzione. **Le giacenze di VestiFlow non
+cambiano**: l'operazione legge Shopify e, dove trova una differenza, riporta il negozio online al
+valore del gestionale. Chi si aspetta di veder cambiare le quantità in VestiFlow sta verificando la
+cosa sbagliata.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -1943,7 +2015,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 3. **Aggiungi riga**: variante, quantità ordinata, prezzo acquisto.
 4. Salva ordine.
 
-**Risultato atteso:** ordine in bozza o stato iniziale corretto. Dettaglio con righe e totali in EUR.
+**Risultato atteso:** ordine **Confermato**, lo stato con cui nasce (`17` §2.4). Dettaglio con righe e totali in EUR.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -1951,7 +2023,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
-### T-122 — Invia ordine
+### T-122 — Cambiare lo stato di un Ordine fornitore
 
 |              |          |
 | ------------ | -------- |
@@ -1959,11 +2031,22 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 | **Ruolo**    | Manager+ |
 | **Device**   | Desktop  |
 
+⛔ **Qui c’era «T-122 — Invia ordine»**, che partiva «dal dettaglio ordine in bozza» e premeva
+**Invia ordine**. Né lo stato «bozza» né quel pulsante sono mai esistiti: la prova non era
+eseguibile. Riscritta il 28/08/2026 sul modello deciso (`17` §2.1, §2.6).
+
 **Passaggi:**
 
-1. Dal dettaglio ordine in bozza clicca **Invia ordine**.
+1. Apri un Ordine fornitore e cambia lo stato dal selettore in testata.
+2. Prova **ogni** direzione fra Da confermare, Confermato e Annullato, in entrambi i versi.
+3. Verifica in elenco che lo stato mostrato sia quello scelto.
 
-**Risultato atteso:** stato aggiornato (inviato/in attesa). Pulsante non più disponibile se non applicabile.
+**Risultato atteso:** ogni transizione fra i tre stati liberi riesce, **Annullato compreso in
+uscita**. L’ordine resta apribile, modificabile e stampabile in ogni stato. Nessun effetto su
+giacenza, impegnata o quantità in arrivo.
+
+⚠️ **Non eseguibile finché il codice non è allineato:** oggi mancano lo stato «Da confermare»
+e il selettore, e l’annullamento è un comando a senso unico (`17` §2.6).
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -1979,14 +2062,14 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 | **Ruolo**    | Qualsiasi (anche Commesso) |
 | **Device**   | Desktop                    |
 
-**Prerequisiti:** ordine fornitore **Inviato** (T-122).
+**Prerequisiti:** ordine fornitore **Confermato** — l’unico eleggibile in «Includi» (`17` §4).
 
 **Passaggi:**
 
 1. Apri dettaglio ordine inviato/in arrivo.
 2. Clicca **Registra arrivo merce**.
 3. Verifica apertura form **Arrivo merce** con ordine collegato, righe precompilate e colonne **Ordinato / Già ricevuto / Residuo**.
-4. Inserisci quantità ricevute (parziale o totale) e **Conferma e carica magazzino**.
+4. Inserisci quantità ricevute (parziale o totale) e **Salva documento**: il carico si applica al salvataggio.
 
 **Risultato atteso:** documento **Confermato** con numero progressivo. Giacenze incrementate sulla sede destinazione. Movimenti **Carico** in storico. Colonna **In arrivo** aggiornata. Stato ordine **Parzialmente ricevuto** o **Completato**. Nessuna ricezione «silenziosa» senza documento.
 
@@ -2083,7 +2166,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 3. Aggiungi riga: cerca variante per **nome, SKU o barcode**, quantità 5, costo unitario.
 4. Apri menu **Colonne** sulle righe: cambia preset, ridimensiona colonna, poi **Ripristina colonne**.
 5. Se attivi in T-045: compila lotto/scadenza/seriali su una riga.
-6. Salva bozza (giacenza **non** cambia), poi **Conferma e carica magazzino**.
+6. Salva il documento e verifica l’effetto a magazzino dichiarato dal suo tipo.
 
 **Risultato atteso:** stato **Confermato**. Giacenza +5 sulla sede. Movimento **Carico** in storico. Numero progressivo assegnato alla conferma. Documento protetto da modifiche distruttive dopo conferma.
 
@@ -2101,7 +2184,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 | **Ruolo**    | Manager+ |
 | **Device**   | Desktop  |
 
-**Prerequisiti:** ordine fornitore **Inviato** (T-122).
+**Prerequisiti:** ordine fornitore **Confermato** — l’unico eleggibile in «Includi» (`17` §4).
 
 **Passaggi:**
 
@@ -2152,7 +2235,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 **Passaggi:**
 
 1. Crea **Arrivo merce** con costo unitario **diverso** dal prezzo fornitore salvato.
-2. **Conferma e carica magazzino**.
+2. **Salva documento** — il carico si applica qui, non in un secondo passo.
 3. Se compare dialog prezzi: verifica elenco differenze; prova **Applica** e ripeti con **Ignora** (secondo documento).
 
 **Risultato atteso:** dialog mostra SKU e prezzo vecchio/nuovo. Con «Applica», prezzo fornitore aggiornato in anagrafica. Con «Ignora», conferma documento senza aggiornare listino.
@@ -2209,7 +2292,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
-### T-140 — Scarico manuale e rettifica con motivo
+### T-140 — Vendita manuale e rettifica con motivo
 
 |              |          |
 | ------------ | -------- |
@@ -2219,7 +2302,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. **Documenti → Scarico manuale**: scarica 1 pezzo con conferma.
+1. **Documenti → Vendita manuale**: scarica 1 pezzo con conferma.
 2. **Documenti → Rettifica inventario**: imposta quantità diversa da sistema; **motivo obbligatorio** (es. «Conteggio errato»).
 3. Conferma entrambi.
 
@@ -2241,11 +2324,11 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. **Documenti → Nuova proforma**: aggiungi righe, cliente, salva bozza.
+1. **Documenti → Nuova proforma**: aggiungi righe, cliente, salva.
 2. Verifica disclaimer fiscale in anteprima/stampa.
 3. **Documenti → Nuova bozza fattura**: compila e salva.
 
-**Risultato atteso:** documenti in stato **Bozza**. Nessun impatto giacenze.
+**Risultato atteso:** documenti **Confermati** — nascita-confermato. Proforma e Fattura non muovono giacenze per **tipo**, non per stato.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2309,7 +2392,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. Su documento in bozza, carica allegato PDF o immagine (≤ limite size).
+1. Su un documento salvato, carica allegato PDF o immagine (≤ limite size).
 2. Salva e ricarica dettaglio.
 3. Scarica/visualizza allegato.
 
@@ -2380,7 +2463,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. Apri **Registra vendita** (`/app/sales/register`).
+1. Apri **Vendite al banco** (`/app/vendita-al-banco`), poi **Nuova vendita al banco**.
 2. Verifica sede operativa in topbar (deve essere quella corretta).
 3. Scansiona barcode o inserisci SKU manualmente.
 4. Conferma **Registra vendita** (qty 1 per scan).
@@ -3387,11 +3470,11 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. Da smartphone apri bozza **Arrivo merce** con almeno 2 righe.
+1. Da smartphone apri un **Arrivo merce** con almeno 2 righe.
 2. Verifica layout **card** per riga (etichette campo + valori).
-3. Modifica quantità su una riga e salva bozza.
+3. Modifica quantità su una riga e salva.
 
-**Risultato atteso:** nessun overflow orizzontale. Touch target sufficienti. Salvataggio bozza OK.
+**Risultato atteso:** nessun overflow orizzontale. Touch target sufficienti. Salvataggio OK.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |

@@ -1,0 +1,6 @@
+// Come `app-button`: l'host non sta nel flusso, ci stanno i due bottoni. La
+// coppia vive in un pannello nella testata e nuda dentro la barra azioni, e la
+// cornice e' sempre del contenitore.
+:host {
+  display: contents;
+}

@@ -11,8 +11,10 @@ export class TenantFeatureSettingsDto {
   allowNegativeInventory!: boolean;
   warnNegativeInventory!: boolean;
   blockNegativeInventory!: boolean;
-  defaultUnitOfMeasure!: string;
+  manualUnloadEnabled!: boolean;
   defaultVatCodeId!: string | null;
+  /** Convenzione aziendale sui prezzi di vendita: `true` = ivati. */
+  salesPricesIncludeVat!: boolean;
   // ── Listini aggiuntivi (§B): tre posizioni fisse, rinominabili e attivabili.
   // Il nome null significa "usa l'etichetta di default" (Listino 1/2/3): così
   // un tenant che non li ha mai configurati vede comunque nomi sensati.
@@ -65,14 +67,31 @@ export class UpdateTenantFeatureSettingsDto {
   @IsBoolean()
   blockNegativeInventory?: boolean;
 
+  /**
+   * ⚠️ Senza questa dichiarazione il `ValidationPipe` globale
+   * (`forbidNonWhitelisted: true`) RIFIUTA il PATCH invece di ignorare il
+   * campo: il difetto si presenta come un salvataggio che fallisce, non come
+   * un interruttore che non si muove.
+   */
   @IsOptional()
-  @IsString()
-  @MaxLength(16)
-  defaultUnitOfMeasure?: string;
+  @IsBoolean()
+  manualUnloadEnabled?: boolean;
 
   @IsOptional()
   @IsUUID()
   defaultVatCodeId?: string;
+
+  /**
+   * Convenzione aziendale sui prezzi di vendita: `true` = ivati.
+   *
+   * ⚠️ Cambiarla AZZERA le memorie netto/ivato degli operatori sui tipi di
+   * vendita: senza, il titolare imposterebbe «netto» e ognuno continuerebbe
+   * a creare ivato per una memoria precedente — l'impostazione sembrerebbe
+   * rotta. Vedi `TenantFeatureSettingsService.update`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  salesPricesIncludeVat?: boolean;
 
   // ── Listini aggiuntivi (§B) ───────────────────────────────────────────────
   // Tre posizioni fisse, rinominabili. Il nome `null` non è un nome vuoto: è

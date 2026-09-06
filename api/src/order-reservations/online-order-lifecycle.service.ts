@@ -42,12 +42,12 @@ export type OnlineOrderEventOutcome = 'applied' | 'duplicate';
  * Ciclo di vita canonico degli ordini online (fase 1 §4–§9 + fase 2):
  * - created/updated → impegni allineati alle righe (Giacenza INVARIATA);
  * - cancelled → impegni rilasciati (nessun movimento fisico);
- * - fulfilled → Vendita online + movimenti `online_sale` + consumo impegni
- *   + Corrispettivo, in UN'UNICA transazione (fase 2 §2–§4);
+ * - fulfilled → Vendita online + movimenti `online_sale` + consumo impegni,
+ *   in UN'UNICA transazione (fase 2 §2–§4);
  * - partially_fulfilled → ordine marcato "richiede verifica", NESSUNA
  *   Vendita online definitiva (fase 2 §10);
- * - refunded → stato economico + rettifica Corrispettivo, MAI carico
- *   automatico (fase 2 §7);
+ * - refunded → stato economico + rettifica in `sales_order_refunds`, MAI
+ *   carico automatico (fase 2 §7);
  * - restocked → carico reale collegato alla Vendita online (fase 2 §8).
  *
  * Idempotenza: ogni evento viene registrato in `online_order_events` con
@@ -185,8 +185,8 @@ export class OnlineOrderLifecycleService {
 
   /**
    * Evasione completa: registra stato/data/id sull'ordine e crea — nella
-   * stessa transazione — la Vendita online con scarico, consumo impegni e
-   * Corrispettivo (fase 2 §2–§4). Se una parte fallisce, l'intera
+   * stessa transazione — la Vendita online con scarico e consumo impegni
+   * (fase 2 §2–§4). Se una parte fallisce, l'intera
    * transazione (evento incluso) viene annullata: nessun saldo parziale.
    */
   private async applyFulfilledTx(

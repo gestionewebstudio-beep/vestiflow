@@ -34,8 +34,16 @@ export interface AuthGateway {
   /** Invia email di recupero password (Supabase resetPasswordForEmail). */
   requestPasswordReset(email: string): Observable<void>;
 
-  /** Imposta una nuova password dopo il link ricevuto via email. */
-  updatePassword(newPassword: string): Observable<void>;
+  /**
+   * Imposta una nuova password.
+   *
+   * `keepSession` distingue i due flussi, e la differenza non è un dettaglio:
+   * dal link ricevuto via email la sessione va chiusa e si rientra con la
+   * password nuova, mentre al primo accesso l'operatore deve proseguire verso
+   * la dashboard — e prima ancora serve il token per dire all'API che il
+   * promemoria non gli va più mostrato.
+   */
+  updatePassword(newPassword: string, keepSession?: boolean): Observable<void>;
 }
 
 /** DI token per il provider auth (sostituibile per ambiente). */

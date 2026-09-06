@@ -31,6 +31,17 @@ export class ListInventoryLevelsQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   lowStockOnly?: boolean;
+
+  /**
+   * `all=1` — tutte le giacenze del filtro invece di una pagina (30/08/2026).
+   *
+   * ⚠️ **Resta opzionale**: la scheda prodotto chiede le giacenze di UNA
+   * variante, e non ha bisogno di questo.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === '1' || value === 'true' || value === true)
+  @IsBoolean()
+  all?: boolean;
 }
 
 export class ListMovementsQueryDto extends PaginationQueryDto {

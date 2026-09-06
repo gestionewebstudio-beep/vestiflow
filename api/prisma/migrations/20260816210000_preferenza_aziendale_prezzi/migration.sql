@@ -1,0 +1,32 @@
+-- Convenzione aziendale sui prezzi di vendita: netti o ivati.
+--
+-- PERCHÉ NASCE
+-- La modalità netto/ivato di un documento nuovo era decisa da due meccanismi, e
+-- nessuno dei due era una scelta di chi comanda:
+--
+--   1. `user_document_price_mode_preferences` — l'ultima scelta dell'OPERATORE
+--      per quel tipo. Invisibile, scritta da sola, diversa da persona a persona.
+--   2. `document_type_settings.prices_include_vat` — un default per tipo che
+--      nessun pannello espone. UNA riga in tutto il database, per supplier_order,
+--      e tutti e diciotto gli ordini che governa sono netti: non ha mai deciso
+--      niente, perché la maschera manda sempre un valore e il `??` non scatta.
+--
+-- Sotto entrambi c'era una costante nel codice: vendita → ivato, acquisto →
+-- netto (`PRICE_MODE_VAT_INCLUDED_DEFAULT_TYPES`). Questa colonna è quella
+-- costante, resa visibile e modificabile. Il default `true` la riproduce
+-- esattamente: nessun tenant cambia comportamento applicando la migration.
+--
+-- NON È SOLO UN DEFAULT DI CREAZIONE
+-- È la convenzione economica dell'azienda: al dettaglio si ragiona ivato,
+-- all'ingrosso netto. Governa quindi anche le viste che non nascono da un
+-- documento — anagrafica e listini oggi, i report quando ci arriveremo.
+--
+-- PERCHÉ NON C'È LA GEMELLA PER I COSTI
+-- I costi partono sempre netti. Per un'azienda che detrae l'IVA il costo *è* il
+-- netto; l'inserimento ivato resta una comodità del singolo documento, dove il
+-- selettore rimane. Un interruttore aziendale che dicesse «costi ivati» quando
+-- ogni documento di acquisto nasce comunque netto sarebbe un comando che non
+-- comanda — e ne abbiamo appena tolti due così.
+
+ALTER TABLE "tenant_feature_settings"
+  ADD COLUMN "sales_prices_include_vat" boolean NOT NULL DEFAULT true;

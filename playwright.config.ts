@@ -8,13 +8,28 @@ loadEnvFile(resolve(__dirname, '.env'));
 
 const authFile = 'e2e/.auth/user.json';
 const mockAuthFile = 'e2e/.auth/mock-user.json';
-const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:4200';
-const apiURL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const useE2eFrontend = process.env.E2E_USE_MOCK_AUTH === '1' || Boolean(process.env.CI);
+const baseURL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
+const apiURL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
+const useE2eFrontend = process.env['E2E_USE_MOCK_AUTH'] === '1' || Boolean(process.env['CI']);
+
+/*
+  ⛔ **La porta NON e` piu` cablata nel comando.**
+
+  Qui c_era `--port 4200` fisso, mentre `E2E_BASE_URL` cambiava solo
+  l_indirizzo che Playwright aspetta: puntando la suite altrove, il server
+  partiva comunque sulla 4200 e l_attesa non finiva mai. E con un `ng serve`
+  gia` in ascolto la` sopra, `reuseExistingServer` riusava QUELLO — che non e`
+  la build `e2e` e non contiene l_auth finta.
+
+  ⭐ Ora la porta si deduce dall_URL: `E2E_BASE_URL=http://localhost:4310`
+  avvia il frontend sulla 4310 e ci punta, senza toccare nulla di quello che
+  gira gia`.
+*/
+const frontendPort = Number(new URL(baseURL).port || 4200);
 
 const frontendStartCommand = useE2eFrontend
-  ? 'npm run start -- --host 127.0.0.1 --port 4200 --configuration e2e'
-  : 'npm run start -- --host 127.0.0.1 --port 4200';
+  ? `npm run start -- --host 127.0.0.1 --port ${frontendPort} --configuration e2e`
+  : `npm run start -- --host 127.0.0.1 --port ${frontendPort}`;
 
 const authenticatedProjects = hasE2eCredentials()
   ? [
@@ -52,10 +67,10 @@ const authenticatedProjects = hasE2eCredentials()
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
-  forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 1,
+  forbidOnly: Boolean(process.env['CI']),
+  retries: process.env['CI'] ? 2 : 1,
   workers: 1,
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html']],
+  reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html']],
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
@@ -81,24 +96,36 @@ export default defineConfig({
         storageState: mockAuthFile,
       },
       dependencies: ['mock-setup'],
-      testMatch: /ci-smoke\.spec\.ts$/,
+      /*
+        ⭐ **`filtri-colonna` sta qui perché è una prova di RESA**: misura il
+        riquadro di una tendina aperta dentro una tabella, cioè l'unica cosa che
+        nessuna prova di componente può vedere — jsdom non dipinge.
+      */
+      /*
+        ⭐ **E `cassa` per la stessa ragione**: la Vendita tiene ricerca,
+        carrello e incasso visibili INSIEME su scrivania, ed è una griglia —
+        `toBeInViewport()` è una domanda che solo un motore di layout può
+        rispondere. Le sue risposte arrivano da un'intercettazione, quindi non
+        chiede nulla al database.
+      */
+      testMatch: /(ci-smoke|filtri-colonna|cassa|cassa-mobile|cassa-render-window)\.spec\.ts$/,
     },
     ...authenticatedProjects,
   ],
-  webServer: process.env.E2E_SKIP_WEBSERVER
+  webServer: process.env['E2E_SKIP_WEBSERVER']
     ? undefined
     : [
         {
           command: 'npm run start:api',
           url: `${apiURL}/api/v1/health`,
-          reuseExistingServer: !process.env.CI,
+          reuseExistingServer: !process.env['CI'],
           timeout: 120_000,
           cwd: '.',
         },
         {
           command: frontendStartCommand,
           url: baseURL,
-          reuseExistingServer: !process.env.CI,
+          reuseExistingServer: !process.env['CI'],
           timeout: 120_000,
           cwd: '.',
         },

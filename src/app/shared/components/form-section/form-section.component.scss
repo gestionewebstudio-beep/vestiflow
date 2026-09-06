@@ -1,0 +1,83 @@
+// Componenti Angular: display inline per default. Senza questo, l'host non
+// partecipa al flusso — è flex/grid item nullo nel contenitore che lo ospita.
+:host {
+  display: block;
+}
+
+/*
+  ⚠️ **`<fieldset>` porta bordo, padding e min-inline-size di default dal
+  browser** — un riquadro grigio incassato, largo quanto il contenuto più
+  largo dentro. Si azzera tutto e si ridichiara da zero coi token del
+  progetto: è la stessa forma che `--card-pad-md` + `--radius-lg` danno alla
+  card (`regole-stile-ui` §5).
+*/
+/*
+  ⚠️ **Padding e taglia del titolo sono REGOLABILI dal contenitore**
+  (`regole-stile-ui` §5, «Come si configura un componente condiviso»): una
+  pagina di impostazioni respira, un'anagrafica da compilare in fretta no. Il
+  default è quello di `company-page`, da cui il pattern nasce; chi vuole la
+  versione densa imposta `--form-section-pad` su di sé.
+*/
+.form-section {
+  margin: 0;
+  padding: var(--form-section-pad, var(--card-pad-md));
+  min-inline-size: 0;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/*
+  ⚠️ **`<legend>` per default sta A CAVALLO del bordo superiore** — la
+  didascalia skeuomorfica di un vecchio pannello HTML. Qui deve leggersi come
+  un titolo di sezione dentro il riquadro, non come l'etichetta del riquadro
+  stesso: si resetta a blocco e si allinea al testo che segue, esattamente
+  come `company-page__panel-title`, il precedente da cui il pattern nasce.
+*/
+.form-section__title {
+  display: block;
+  padding: 0;
+  margin: 0 0 var(--form-section-title-gap, var(--space-3));
+  font-size: var(--form-section-title-size, var(--text-lg));
+  font-weight: var(--font-weight-bold);
+  /*
+    ⚠️ **La tinta è un punto di regolazione, non una scelta di questo
+    componente**: le anagrafiche la portano al brand per distinguere le sezioni
+    senza barrette (`_anagrafica.scss`), le altre pagine restano al testo.
+  */
+  color: var(--form-section-title-color, var(--color-text));
+}
+
+/*
+  ⭐ **La variante piatta**: niente scatola, il titolo porta un filo sotto di
+  sé. Il contenuto cade sulla stessa colonna del titolo di pagina, che è la
+  ragione per cui esiste (vedi il commento sull'`input` nel `.ts`).
+*/
+.form-section--flat {
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/*
+  ⭐ **Il filo sotto il titolo**, con la tinta regolabile dal contenitore —
+  proprietario, 01/09/2026: «magari utilizzare qualche riga col verde per
+  rendere la pagina elegante e intuitiva».
+
+  ⛔ **Qui c'era anche una BARRETTA VERTICALE, respinta lo stesso giorno**:
+  «questi blocchetti neri poco eleganti, non è stata una buona idea».
+  `--color-primary` è `#25343b`, e in un filo da quattro pixel quel grigio-blu
+  legge nero: una tinta si riconosce su una superficie, non su una tacca.
+
+  ⚠️ **La tinta è il BRAND, non i token della sidebar.** `regole-stile-ui` §2
+  riserva `--color-nav-*` alla navigazione — «non è un secondo brand» — e usarli
+  qui li trasformerebbe in un colore d'accento generico.
+*/
+.form-section--flat .form-section__title {
+  inline-size: 100%;
+  padding-block-end: var(--space-1);
+  border-block-end: var(--border-width) solid var(--form-section-rule, var(--color-border));
+}

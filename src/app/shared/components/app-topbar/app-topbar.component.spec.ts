@@ -22,7 +22,7 @@ const roma: Location = {
 };
 
 describe('AppTopbarComponent', () => {
-  it('mostra etichetta fissa con una sola sede disponibile', async () => {
+  it('con una sola sede niente selettore: la sede sta nel bottone profilo', async () => {
     await render(AppTopbarComponent, {
       componentInputs: {
         locations: [napoli],
@@ -30,7 +30,8 @@ describe('AppTopbarComponent', () => {
       },
     });
 
-    expect(screen.getByText('Napoli')).toBeVisible();
+    // Il blocco profilo è solo avatar: la sede vive nel nome accessibile.
+    expect(screen.getByRole('button', { name: /Profilo e impostazioni.*Napoli/ })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Location attiva' })).not.toBeInTheDocument();
   });
 
@@ -47,7 +48,7 @@ describe('AppTopbarComponent', () => {
     expect(screen.queryByText('Napoli')).not.toBeInTheDocument();
   });
 
-  it('mostra etichetta fissa quando la sede è bloccata', async () => {
+  it('con la sede bloccata niente selettore: la sede sta nel bottone profilo', async () => {
     await render(AppTopbarComponent, {
       componentInputs: {
         locations: [napoli, roma],
@@ -56,7 +57,7 @@ describe('AppTopbarComponent', () => {
       },
     });
 
-    expect(screen.getByText('Roma')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Profilo e impostazioni.*Roma/ })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Location attiva' })).not.toBeInTheDocument();
   });
 });

@@ -40,7 +40,7 @@ describe('document-stock-manual-unload.util (scarico diretto senza movimenti)', 
       ],
     });
 
-    // Deroga prompt Scarico manuale: giacenza modificata direttamente,
+    // Deroga prompt Vendita manuale: giacenza modificata direttamente,
     // NESSUNA riga nel log movimenti magazzino.
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
     expect(tx.inventoryLevel.updateMany).toHaveBeenCalledTimes(1);

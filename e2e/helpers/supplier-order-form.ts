@@ -34,7 +34,7 @@ export async function fillSupplierOrderForm(page: Page): Promise<void> {
 
 /** Salva l'ordine (nasce Confermato) e ritorna il riferimento dal dettaglio. */
 export async function saveSupplierOrder(page: Page): Promise<string> {
-  await page.getByRole('button', { name: 'Salva ordine' }).click();
+  await page.getByRole('button', { name: 'Salva documento' }).click();
   await expect(page).toHaveURL(/\/app\/orders\/(?!new(?:\/|$))[^/]+$/, { timeout: 30_000 });
 
   await expect(page.locator('h1.po-detail__title')).toBeVisible({ timeout: 30_000 });

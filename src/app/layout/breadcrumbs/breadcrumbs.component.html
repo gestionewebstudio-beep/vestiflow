@@ -1,4 +1,16 @@
-@if (crumbs().length > 0) {
+<!--
+  ⛔ **UNA VOCE SOLA NON È UN PERCORSO** — proprietario, 01/09/2026: «esiste
+  ancora una doppia riga inutile».
+
+  Su una pagina di primo livello il percorso è «Fornitori» e il titolo è
+  «Fornitori»: la stessa parola due volte, una sopra l'altra, per una riga di
+  altezza che su un elenco si paga in righe di dati.
+
+  ⚠️ **Da due voci in su resta**, perché lì dice qualcosa che il titolo non
+  dice: «Documenti › Ordini fornitori» racconta dove ci si trova, «Fornitori»
+  sopra «Fornitori» no.
+-->
+@if (crumbs().length > 1) {
   <nav
     class="breadcrumbs"
     [class.breadcrumbs--hide-mobile]="hideOnOrderForm()"

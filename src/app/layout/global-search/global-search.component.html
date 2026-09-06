@@ -1,18 +1,28 @@
 @if (open()) {
   <div class="gsearch__backdrop" aria-hidden="true" (click)="requestClose()"></div>
 
-  <div class="gsearch" role="dialog" aria-modal="true" aria-label="Ricerca globale">
+  <div
+    #dialog
+    class="gsearch"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Ricerca globale"
+    (keydown)="onKeydown($event)"
+  >
     <div class="gsearch__box">
       <i class="pi pi-search gsearch__icon" aria-hidden="true"></i>
       <input
         #searchInput
         class="gsearch__input"
         type="text"
-        placeholder="Cerca prodotti, clienti, documenti o vai a una pagina…"
+        placeholder="Cerca prodotti, clienti, fornitori, ordini, documenti o vai a una pagina…"
         autocomplete="off"
+        role="combobox"
+        aria-expanded="true"
+        aria-controls="gsearch-results"
+        [attr.aria-activedescendant]="'gsearch-option-' + activeIndex()"
         [value]="query()"
         (input)="onQueryInput($any($event.target).value)"
-        (keydown)="onKeydown($event)"
       />
       <button
         type="button"
@@ -25,7 +35,13 @@
       </button>
     </div>
 
-    <div class="gsearch__results" role="listbox" aria-label="Risultati ricerca">
+    <div
+      #resultsList
+      id="gsearch-results"
+      class="gsearch__results"
+      role="listbox"
+      aria-label="Risultati ricerca"
+    >
       @if (searching()) {
         <p class="gsearch__status" role="status">
           <app-inline-spinner />
@@ -34,14 +50,15 @@
       }
 
       @for (group of groups(); track group.name) {
-        <p class="gsearch__group-title">{{ group.name }}</p>
-        <ul class="gsearch__group">
+        <p class="gsearch__group-title" aria-hidden="true">{{ group.name }}</p>
+        <ul class="gsearch__group" role="presentation">
           @for (item of group.items; track item.route + item.label) {
-            <li>
+            <li role="presentation">
               <button
                 type="button"
                 class="gsearch__item"
                 role="option"
+                [id]="'gsearch-option-' + flatIndexOf(item)"
                 [class.gsearch__item--active]="flatIndexOf(item) === activeIndex()"
                 [attr.aria-selected]="flatIndexOf(item) === activeIndex()"
                 (mouseenter)="activeIndex.set(flatIndexOf(item))"

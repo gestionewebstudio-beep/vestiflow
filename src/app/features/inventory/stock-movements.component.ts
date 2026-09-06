@@ -8,6 +8,41 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
+import {
+  FILTERED_SCOPE_NOT_AVAILABLE,
+  type ListAction,
+  type ListActionTarget,
+} from '@shared/models/list-selection.model';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
+import { downloadBlob } from '@shared/utils/download-blob.util';
+import {
+  buildListCsv,
+  buildListPrintHtml,
+  listExportFileName,
+} from '@shared/utils/list-export.util';
+import { MOVEMENT_LIST_EXPORT } from './utils/movement-list-export.util';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableSection,
+  DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+import { sortByKeys } from '@shared/utils/sort-values.util';
+import type { SortKey } from '@shared/utils/sort-values.util';
+import {
+  formatMovementQuantity,
+  isMovementSortColumn,
+  MOVEMENT_SORT_KINDS,
+  movementSignedQuantity,
+} from './utils/movement-sort.util';
 import { Router } from '@angular/router';
 import {
   catchError,
@@ -16,7 +51,6 @@ import {
   forkJoin,
   map,
   of,
-  skip,
   startWith,
   switchMap,
 } from 'rxjs';
@@ -33,19 +67,12 @@ import type { AppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
-import { AdjustmentDirection } from '@core/models/stock-movement.model';
-import { formatDateTime } from '@core/utils/date.util';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { formatDate, formatDateTime } from '@core/utils/date.util';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -53,23 +80,29 @@ import { CustomerService } from '@domain/customers/services/customer.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
-import { MovementTableComponent } from './components/movement-table/movement-table.component';
-import { movementActorLabel, movementOriginLabel } from './models/inventory-labels.util';
+
+import {
+  movementActorLabel,
+  movementOriginLabel,
+  movementTypeLabel,
+  movementTypeTone,
+} from './models/inventory-labels.util';
 import type { StockMovementRow } from './models/inventory-view.model';
 import {
   STOCK_MOVEMENT_COLUMN_DEFS,
   STOCK_MOVEMENT_COLUMN_PRESETS,
 } from './models/stock-movements-table-columns.config';
-import {
-  DEFAULT_INVENTORY_PAGE_SIZE,
-  INVENTORY_PAGE_SIZE_OPTIONS,
-} from '@domain/inventory/models/inventory-list-query.model';
 import type { StockMovementsListQuery } from '@domain/inventory/models/inventory-list-query.model';
 import {
+  DEFAULT_MOVEMENT_PERIOD,
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { raggruppaPerGiorno } from '@shared/models/list-grouping.util';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
 
 interface MovementsData {
   readonly movements: readonly StockMovement[];
@@ -82,31 +115,43 @@ type MovementsState =
   | { readonly status: 'success'; readonly data: MovementsData }
   | { readonly status: 'error'; readonly error: AppError };
 
+/**
+ * ⚠️ `meta` sopravvive alla paginazione, e non per inerzia: `total` è rimasta
+ * l'unica misura di quante righe ha il periodo — la leggono lo stato vuoto e il
+ * conteggio a schermo. `page` e `pageSize` restano solo per la forma del
+ * contratto: non decidono più niente.
+ */
 const EMPTY_META: PageMeta = {
   page: 1,
-  pageSize: DEFAULT_INVENTORY_PAGE_SIZE,
+  pageSize: 0,
   total: 0,
   totalPages: 1,
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** Storico movimenti di magazzino (smart): filtri e paginazione server-side. */
+/**
+ * Storico movimenti di magazzino (smart).
+ *
+ * ⛔ **Non pagina.** A delimitare è il PERIODO, non la pagina: si entra sugli
+ * ultimi trenta giorni e «Tutti» è una scelta esplicita. Un registro che ne
+ * mostra una parte senza dirlo è peggio di uno che chiede di restringere le date.
+ */
 @Component({
   selector: 'app-stock-movements',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
-    ButtonComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
+    GroupByMenuComponent,
+    ListPageComponent,
+
+    ListActionsBarComponent,
     SelectMenuComponent,
     DateInputComponent,
-    PaginationComponent,
     InventoryTabsComponent,
-    MovementTableComponent,
-    TableColumnPickerComponent,
+    BadgeComponent,
+    DataTableCellDirective,
+    DataTableRowCardDirective,
+    DataTableComponent,
   ],
   templateUrl: './stock-movements.component.html',
   styleUrl: './stock-movements.component.scss',
@@ -120,13 +165,41 @@ export class StockMovementsComponent {
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+
+  // ── Selezione e azioni (`14` §5) ───────────────────────────────────────────
+  private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly selectionCount = this.selection.count;
   private readonly columnPreferences = inject(TableColumnPreferenceService);
 
   protected readonly tableViewId = TableViewId.StockMovements;
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 8;
-  protected readonly pageSizeOptions = INVENTORY_PAGE_SIZE_OPTIONS;
+
+  /**
+   * L'ordinamento scelto dall'operatore, oppure `null` = quello del server
+   * (data decrescente).
+   *
+   * ⭐ È un ELENCO: premere una seconda colonna non cancella la prima, la
+   * scavalca. Ordinare per Prodotto e poi per Data lascia le righe di ogni
+   * prodotto in ordine cronologico invece che a caso.
+   *
+   * ⛔ **Non si conserva** (`14` §G1): alla riapertura si torna al predefinito.
+   * Ordinare per costo una volta è un gesto del momento, ritrovarlo la
+   * settimana dopo è rumore.
+   */
+  protected readonly sortState = signal<readonly DataTableSort[]>([]);
 
   protected readonly movementTypeOptions: readonly SelectMenuOption[] = [
     { value: StockMovementType.Load, label: 'Carico' },
@@ -166,12 +239,19 @@ export class StockMovementsComponent {
   );
 
   /** Scelte rapide periodo; il valore vuoto (placeholder «Tutti») non filtra. */
+  /**
+   * ⭐ «Tutti» è una voce come le altre, non l'assenza di scelta: il registro si
+   * apre delimitato, e l'intera storia si chiede **esplicitamente**.
+   */
   protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
     { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
     { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
     { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
     { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
     { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+    { value: MovementPeriodPreset.All, label: 'Tutti' },
   ];
 
   /** Controparti (fornitori + clienti) per il dropdown con ricerca. */
@@ -204,17 +284,15 @@ export class StockMovementsComponent {
     { type: StockMovementType.Transfer, label: 'Trasferimento', icon: 'pi-arrow-right-arrow-left' },
   ] as const;
 
-  protected readonly emptyStateCtaLabel = computed(() =>
-    this.canManageInventory() ? 'Registra carico' : undefined,
-  );
-
   private readonly refreshTick = signal(0);
-  protected readonly page = signal(1);
-  protected readonly pageSize = signal(DEFAULT_INVENTORY_PAGE_SIZE);
 
   protected readonly typeFilter = signal('');
   protected readonly originFilter = signal('');
-  protected readonly periodFilter = signal<MovementPeriodPreset>(MovementPeriodPreset.All);
+  /**
+   * ⛔ Il registro NON si apre su tutta la storia del tenant. Il periodo
+   * predefinito è delimitato; «Tutti» resta a un clic di distanza.
+   */
+  protected readonly periodFilter = signal<MovementPeriodPreset>(DEFAULT_MOVEMENT_PERIOD);
   // Dal/Al: usati solo con periodo «Personalizzato».
   protected readonly fromFilter = signal('');
   protected readonly toFilter = signal('');
@@ -258,10 +336,6 @@ export class StockMovementsComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.search.set(value));
-
-    toObservable(this.filters)
-      .pipe(skip(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.page.set(1));
   }
 
   private readonly filters = computed(() => ({
@@ -287,8 +361,6 @@ export class StockMovementsComponent {
     const locationId = this.locationFilter();
     const range = this.dateRange();
     return {
-      page: this.page(),
-      pageSize: this.pageSize(),
       type: type ? (type as StockMovementType) : undefined,
       origin: origin ? (origin as MovementOrigin) : undefined,
       locationId: locationId || undefined,
@@ -365,12 +437,13 @@ export class StockMovementsComponent {
 
     const profile = this.authService.currentUser()?.tenantChannelProfile;
 
-    return current.data.movements.map((movement): StockMovementRow => ({
+    const righe = current.data.movements.map((movement): StockMovementRow => ({
       id: movement.id,
       type: movement.type,
       sku: movement.sku,
       articleCode: movement.articleCode ?? '',
-      signedQuantity: this.signedQuantity(movement),
+      signedQuantity: formatMovementQuantity(movement),
+      signedQuantityValue: movementSignedQuantity(movement),
       locationLabel:
         movement.type === StockMovementType.Transfer && movement.targetLocationId
           ? `${nameOf(movement.locationId)} → ${nameOf(movement.targetLocationId)}`
@@ -378,32 +451,106 @@ export class StockMovementsComponent {
       direction: movement.direction,
       reason: movement.reason,
       createdAtLabel: formatDateTime(movement.createdAt),
+      createdAt: movement.createdAt,
       createdByName: movement.createdByName,
       origin: movement.origin,
       originLabel: movementOriginLabel(movement.origin, profile),
       productTitle: movement.productTitle,
       documentReference: movement.documentReference,
     }));
+
+    return this.ordina(righe, current.data.movements);
   });
+
+  /**
+   * Applica l'ordinamento scelto, **sui valori canonici**.
+   *
+   * ⭐ Ordina l’INTERO risultato del filtro, perché è tutto qui: il registro non
+   * pagina. Ordinare una pagina darebbe un risultato che sembra giusto e non lo è.
+   */
+  private ordina(
+    righe: readonly StockMovementRow[],
+    movimenti: readonly StockMovement[],
+  ): readonly StockMovementRow[] {
+    /*
+      ⛔ **Col raggruppamento acceso l'ordinamento manuale non esiste**, ed è la
+      stessa scelta del Registro Corrispettivi (`10` §20): il raggruppamento per
+      giornata **è già** una forma di ordinamento strutturato, e pretendere anche
+      quello per colonna richiederebbe un «prima il giorno, poi la colonna» che
+      spezza i gruppi e i loro subtotali.
+    */
+    const chiavi = this.raggruppaPerGiornata()
+      ? []
+      : this.sortState().filter((sort) => isMovementSortColumn(sort.columnId));
+    if (chiavi.length === 0) {
+      return righe;
+    }
+    // Riga e movimento viaggiano appaiati: la prima porta le etichette già
+    // composte, il secondo i valori grezzi. Il confronto pesca da entrambi.
+    interface Coppia {
+      readonly row: StockMovementRow;
+      readonly movement: StockMovement;
+    }
+    const coppie: readonly Coppia[] = righe.map((row, indice) => ({
+      row,
+      movement: movimenti[indice]!,
+    }));
+    const chiaviDiOrdinamento: readonly SortKey<Coppia>[] = chiavi.map((sort) => {
+      const colonna = sort.columnId as keyof typeof MOVEMENT_SORT_KINDS;
+      return {
+        read: (coppia: Coppia) => this.valoreCanonico(coppia.row, coppia.movement, colonna),
+        kind: MOVEMENT_SORT_KINDS[colonna],
+        direction: sort.direction,
+      };
+    });
+    return sortByKeys(coppie, chiaviDiOrdinamento, 'EUR').map((coppia) => coppia.row);
+  }
+
+  /**
+   * Il valore su cui si confronta una colonna.
+   *
+   * ⛔ **Data e quantità arrivano dal movimento grezzo**, non dalla riga: lì sono
+   * già una stampa — «17 ago 2026» e «−2» col meno tipografico — e ordinarle
+   * darebbe un ordine alfabetico travestito da cronologia.
+   *
+   * ⚠️ Tipo, Origine e Location arrivano invece dalla RIGA, cioè dall’etichetta:
+   * è la decisione dichiarata in `movement-sort.util`, non una svista.
+   */
+  private valoreCanonico(
+    row: StockMovementRow,
+    movement: StockMovement,
+    colonna: keyof typeof MOVEMENT_SORT_KINDS,
+  ): string | number {
+    switch (colonna) {
+      case 'createdAt':
+        return movement.createdAt;
+      case 'signedQuantity':
+        return movementSignedQuantity(movement);
+      case 'type':
+        return movementTypeLabel(row.type);
+      case 'origin':
+        return row.originLabel ?? '';
+      case 'articleCode':
+        return row.articleCode;
+      case 'sku':
+        return row.sku;
+      case 'product':
+        return row.productTitle ?? '';
+      case 'locationLabel':
+        return row.locationLabel;
+      case 'documentRef':
+        return row.documentReference ?? '';
+      case 'reason':
+        return row.reason ?? '';
+      case 'createdByName':
+        return movementActorLabel(row.createdByName);
+    }
+  }
 
   protected readonly isEmpty = computed(() => {
     const current = this.state();
     return current.status === 'success' && current.data.meta.total === 0;
   });
-
-  protected readonly hasActiveFilters = computed(() =>
-    Boolean(
-      this.typeFilter() ||
-      this.originFilter() ||
-      this.periodFilter() ||
-      this.fromFilter() ||
-      this.toFilter() ||
-      this.locationFilter() ||
-      this.search().trim() ||
-      this.partyFilter() ||
-      this.operatorFilter(),
-    ),
-  );
 
   protected onTypeFilterChange(value: string | null): void {
     this.typeFilter.set(value ?? '');
@@ -418,7 +565,10 @@ export class StockMovementsComponent {
   }
 
   protected onPeriodFilterChange(value: string | null): void {
-    const preset = (value ?? MovementPeriodPreset.All) as MovementPeriodPreset;
+    // ⚠️ `null` non è «Tutti»: da quando «Tutti» è una voce esplicita, un valore
+    // assente è un'anomalia e deve ricadere sul predefinito delimitato — non
+    // aprire in silenzio l'intera storia del tenant.
+    const preset = (value ?? DEFAULT_MOVEMENT_PERIOD) as MovementPeriodPreset;
     this.periodFilter.set(preset);
     // Le date custom valgono solo con «Personalizzato»: altrove vanno azzerate.
     if (preset !== MovementPeriodPreset.Custom) {
@@ -447,26 +597,21 @@ export class StockMovementsComponent {
     this.toFilter.set(value);
   }
 
+  /*
+    ⚠️ **Ricerca e Periodo restano fuori** (`14` §0.2, ribadito dal proprietario
+    il 31/08/2026): hanno il proprio controllo sempre a vista in barra e non
+    seguono il pulsante «Filtri». Qui il periodo è la terna
+    `periodFilter`/`fromFilter`/`toFilter`.
+
+    ⛔ Era l'elenco che ne azzerava di più — periodo compreso — quindi spegnere
+    «Filtri» riportava le date al predefinito senza che nessuno lo chiedesse.
+  */
   protected resetFilters(): void {
     this.typeFilter.set('');
     this.originFilter.set('');
-    this.periodFilter.set(MovementPeriodPreset.All);
-    this.fromFilter.set('');
-    this.toFilter.set('');
     this.locationFilter.set('');
     this.partyFilter.set('');
     this.operatorFilter.set('');
-    this.searchDraft.set('');
-    this.search.set('');
-  }
-
-  protected goToPage(page: number): void {
-    this.page.set(page);
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
   }
 
   protected reload(): void {
@@ -477,33 +622,240 @@ export class StockMovementsComponent {
     void this.router.navigate(['/app/inventory/movements/new'], { queryParams: { type } });
   }
 
-  protected onEmptyStateAction(): void {
-    this.newMovement(StockMovementType.Load);
-  }
-
-  /** '+' per ingressi, '−' per uscite, nuda per i trasferimenti (neutri). */
-  private signedQuantity(movement: StockMovement): string {
-    switch (movement.type) {
-      case StockMovementType.Load:
-      case StockMovementType.Return:
-        return `+${movement.quantity}`;
-      case StockMovementType.Unload:
-      case StockMovementType.Sale:
-      case StockMovementType.OnlineSale:
-        return `\u2212${movement.quantity}`;
-      case StockMovementType.Adjustment:
-        return movement.direction === AdjustmentDirection.Decrease
-          ? `\u2212${movement.quantity}`
-          : `+${movement.quantity}`;
-      case StockMovementType.Transfer:
-        return `${movement.quantity}`;
-    }
-  }
-
   private toAppError(err: unknown): AppError {
     if (isAppError(err)) {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+  }
+
+  // ── Le azioni del registro ────────────────────────────────────────────────
+
+  protected readonly selectedMovements = computed(() =>
+    this.rows().filter((row) => this.selectedIds().has(row.id)),
+  );
+
+  /**
+   * ⚠️ Stampa ed Esporta valgono sulla SELEZIONE: il registro è paginato lato
+   * server, e servirle dalle righe caricate darebbe una pagina su N senza
+   * dirlo (`14` §5.3). Diventeranno `none` quando ci sarà un export che
+   * conosce il filtro.
+   */
+  protected readonly listActions = computed<readonly ListAction[]>(() => [
+    // ⭐ **I quattro «registra» stanno QUI, non in testata** — decisione del
+    //    proprietario, 30/08/2026: tutti i comandi in una riga in basso.
+    //
+    // ⚠️ Sono QUATTRO azioni, non una: carico, scarico, rettifica e
+    //    trasferimento aprono la stessa maschera su tipi diversi, e il tipo si
+    //    sceglie prima, non dentro. Restano dichiarate una volta sola in
+    //    `movementActions`.
+    ...(this.canManageInventory()
+      ? this.movementActions.map((azione): ListAction => ({
+          id: 'new-' + azione.type,
+          label: azione.label,
+          icon: azione.icon,
+          requires: 'none',
+          ariaLabel: 'Registra ' + azione.label.toLowerCase(),
+          run: () => this.newMovement(azione.type),
+        }))
+      : []),
+    comando('print', {
+      disabled: this.selectionCount() === 0,
+      disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+      ariaLabel: 'Stampa i movimenti selezionati',
+      run: (bersaglio) => this.printSelection(bersaglio),
+    }),
+    comando('export', {
+      disabled: this.selectionCount() === 0,
+      disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+      items: [voceEsporta('csv', (bersaglio) => this.exportCsv(bersaglio))],
+    }),
+  ]);
+
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    /*
+      ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+      pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+      successivo senza che nessuno l'abbia chiesto.
+    */
+    this.raggruppa.set(value);
+    if (value === 'day') {
+      this.sortState.set([]);
+    }
+  }
+
+  /**
+   * ⭐ **Una sezione sola quando non si raggruppa**; una per giornata quando sì,
+   * col subtotale della giornata nel piede.
+   *
+   * ⚠️ **Il subtotale SOMMA le righe caricate**, e qui è corretto: il registro
+   * non impagina più, quindi l'insieme che ha in mano **è** il risultato del
+   * filtro. È la stessa aritmetica della riga totali qui sotto, un livello più in
+   * basso — non un secondo motore economico.
+   *
+   * ⛔ **Sui Corrispettivi non sarebbe corretto**, ed è la ragione per cui quel
+   * registro costruisce le sezioni per conto proprio: i suoi subtotali arrivano
+   * dall'API, perché il suo risultato è più grande di quello che ha a schermo.
+   */
+  protected readonly sezioni = computed<readonly DataTableSection<StockMovementRow>[]>(() => {
+    const righe = this.righeFiltrate();
+    if (!this.raggruppaPerGiornata()) {
+      return [{ id: 'movimenti', rows: righe }];
+    }
+    return raggruppaPerGiorno(righe, {
+      giornoDi: (row) => row.createdAt,
+      etichetta: (giorno) => (giorno ? formatDate(giorno) : 'Senza data'),
+      columns: this.tableColumns(),
+      emphasis: 'signedQuantity',
+      campi: {
+        signedQuantity: {
+          valore: (row) => row.signedQuantityValue,
+          formato: (n) => (n > 0 ? `+${n}` : String(n)),
+        },
+      },
+    });
+  });
+
+  /*
+    ⭐ **La riga totali dei movimenti somma la quantità COL SEGNO**, ed è l'unico
+    numero che ha senso sommare qui: dice quanto è entrato al netto di quanto è
+    uscito nel periodo filtrato.
+
+    ⛔ **Sommare `quantity` senza segno darebbe il TRAFFICO, non il saldo**: dieci
+    caricati e dieci scaricati farebbero venti, che non è una giacenza né una
+    variazione — è un numero che non risponde a nessuna domanda.
+  */
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2).
+
+    ⚠️ **La quantità col SEGNO è l'estrattore giusto**: «da −5 in giù» cerca gli
+    scarichi grossi, e sul valore assoluto quella domanda non si può porre.
+
+    ⚠️ La data si legge in ISO da `createdAt`, non da `createdAtLabel`, che è il
+    testo mostrato.
+  */
+  protected readonly righeFiltrate = createColumnFilters({
+    viewId: () => this.tableViewId,
+    righe: this.rows,
+    cellText: (row, columnId) => this.cellText(row, columnId),
+    numeroDi: (row, columnId) => (columnId === 'signedQuantity' ? row.signedQuantityValue : null),
+    dataDi: (row, columnId) => (columnId === 'createdAt' ? row.createdAt : null),
+  });
+
+  protected readonly totals = computed<DataTableTotals>(() =>
+    totaliDiElenco(this.righeFiltrate(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.tableColumns(),
+      campi: {
+        signedQuantity: {
+          valore: (row) => row.signedQuantityValue,
+          formato: (n) => (n > 0 ? `+${n}` : String(n)),
+        },
+      },
+    }),
+  );
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return colonnaVisibile(this.tableColumns(), columnId);
+  }
+
+  protected readonly rowId = (row: StockMovementRow): string => row.id;
+  protected readonly selectionLabel = (row: StockMovementRow): string =>
+    `Seleziona movimento ${row.sku}`;
+
+  /**
+   * Il testo delle celle che sono testo — cioè undici colonne su dodici.
+   *
+   * ⚠️ I trattini non sono decorazione: una cella vuota in una tabella densa si
+   * legge come un errore di caricamento, non come «non c'è».
+   */
+  protected readonly cellText = (row: StockMovementRow, columnId: string): string => {
+    switch (columnId) {
+      case 'createdAt':
+        return row.createdAtLabel;
+      case 'articleCode':
+        return row.articleCode || '—';
+      case 'sku':
+        return row.sku;
+      case 'product':
+        return row.productTitle ?? '—';
+      case 'signedQuantity':
+        return row.signedQuantity;
+      case 'locationLabel':
+        return row.locationLabel;
+      case 'documentRef':
+        return row.documentReference ?? '—';
+      case 'reason':
+        return row.reason ?? '—';
+      case 'origin':
+        return row.originLabel ?? '—';
+      case 'createdByName':
+        return movementActorLabel(row.createdByName);
+      default:
+        return '';
+    }
+  };
+
+  protected readonly typeLabel = movementTypeLabel;
+  protected readonly typeTone = movementTypeTone;
+
+  protected onToggleSelection(event: DataTableSelectionEvent<StockMovementRow>): void {
+    this.selection.toggle(event.row.id, event.selected);
+  }
+
+  /** La checkbox di testata agisce sulle righe CARICATE (`14` §4.1). */
+  protected onToggleSelectAll(checked: boolean): void {
+    this.selection.setAll(
+      this.rows().map((row) => row.id),
+      checked,
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+
+  private movimentiDelBersaglio(bersaglio: ListActionTarget): readonly StockMovementRow[] {
+    return bersaglio.scope === 'selection' ? this.selectedMovements() : this.rows();
+  }
+
+  private printSelection(bersaglio: ListActionTarget): void {
+    const righe = this.movimentiDelBersaglio(bersaglio);
+    if (righe.length === 0) {
+      return;
+    }
+    const finestra = window.open('', '_blank');
+    if (!finestra) {
+      return;
+    }
+    finestra.document.write(buildListPrintHtml(righe, MOVEMENT_LIST_EXPORT));
+    finestra.document.close();
+    finestra.focus();
+    finestra.print();
+  }
+
+  private exportCsv(bersaglio: ListActionTarget): void {
+    const righe = this.movimentiDelBersaglio(bersaglio);
+    if (righe.length === 0) {
+      return;
+    }
+    downloadBlob(
+      new Blob([buildListCsv(righe, MOVEMENT_LIST_EXPORT)], { type: 'text/csv;charset=utf-8' }),
+      listExportFileName(MOVEMENT_LIST_EXPORT, 'csv'),
+    );
   }
 }

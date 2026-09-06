@@ -1,0 +1,120 @@
+// Gestione delle unità di misura del tenant.
+//
+// Stessa anatomia del pannello dei tipi documento — suggerimento in cima,
+// riga di aggiunta, elenco con le azioni a destra — perché è lo stesso gesto e
+// deve somigliarsi. I due fogli restano separati: un componente condiviso che
+// li fonda avrebbe senso solo insieme agli altri gestori di elenco (mappa §6.3),
+// e quello è un lavoro suo, non un effetto collaterale di questo.
+
+.uom-manager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.uom-manager__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.uom-manager__input {
+  inline-size: 100%;
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-input-border);
+  border-radius: var(--radius-md);
+
+  &:focus-visible {
+    border-color: var(--color-interactive);
+    outline: none;
+    box-shadow: var(--field-focus-ring);
+  }
+
+  &:disabled {
+    opacity: var(--opacity-disabled);
+  }
+}
+
+.uom-manager__new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+
+  .uom-manager__input {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}
+
+.uom-manager__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.uom-manager__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.uom-manager__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.uom-manager__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.uom-manager__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text);
+    background-color: var(--color-surface);
+  }
+
+  &:disabled {
+    opacity: var(--opacity-disabled);
+    cursor: default;
+  }
+
+  &--danger:hover:not(:disabled) {
+    color: var(--color-danger);
+  }
+}
+
+.uom-manager__empty {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

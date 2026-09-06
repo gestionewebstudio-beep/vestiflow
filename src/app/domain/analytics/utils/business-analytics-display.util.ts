@@ -40,14 +40,25 @@ export function formatMarginPercentSuffix(summary: BusinessAnalyticsSummary): st
   return formatPercentSuffix(summary.margin.grossPercent);
 }
 
+/**
+ * ⛔ Qui c'erano tre messaggi costruiti su `costCoveragePercent` — «Compila i
+ * costi d'acquisto…», «Margine stimato su X% del fatturato (costo noto)» e
+ * «…con costo d'acquisto noto». Dicevano quanta parte del fatturato avesse un
+ * costo NOTO, distinzione che esisteva solo perché il costo poteva essere NULL.
+ * Un costo non valorizzato vale zero, quindi ogni vendita ha un costo e la
+ * copertura è sempre totale: raccontarla sarebbe raccontare un modello che il
+ * database non ha più.
+ *
+ * ⚠️ `grossMinor === null` ha ancora DUE cause, e vanno dette diversamente:
+ * il mascheramento per permessi, e un periodo senza vendite.
+ */
 export function marginHint(summary: BusinessAnalyticsSummary): string {
-  if (summary.margin.costCoveragePercent <= 0) {
-    return "Compila i costi d'acquisto in catalogo per calcolare il margine";
+  if (summary.margin.grossMinor === null) {
+    return summary.revenue.totalMinor > 0
+      ? 'Margine non visibile con i tuoi permessi'
+      : 'Nessuna vendita nel periodo';
   }
-  if (summary.margin.costCoveragePercent < 100) {
-    return `Margine stimato su ${summary.margin.costCoveragePercent.toLocaleString('it-IT', { maximumFractionDigits: 1 })}% del fatturato (costo noto)`;
-  }
-  return "Margine lordo sul fatturato con costo d'acquisto noto";
+  return 'Margine lordo sul fatturato';
 }
 
 export function forecastHint(summary: BusinessAnalyticsSummary): string {

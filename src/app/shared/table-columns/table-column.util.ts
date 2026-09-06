@@ -89,14 +89,32 @@ export function resolveVisibleColumns(
   defs: readonly TableColumnDef[],
   state: TableViewState,
 ): readonly ResolvedTableColumn[] {
-  const defById = new Map(defs.map((def) => [def.id, def]));
   const hidden = new Set(state.hiddenColumnIds);
   const pinned = new Set(state.pinnedColumnIds);
-  const ordered = state.columnOrder.filter((id) => defById.has(id) && !hidden.has(id));
-  const resolved = ordered.map((id) => {
-    const def = defById.get(id)!;
-    return { ...def, pinned: pinned.has(id) };
-  });
+  /*
+    ⭐ **L'ORDINE È QUELLO DICHIARATO, sempre** — deciso dal proprietario il
+    01/09/2026: «lasciamo solo default e personalizzata, e queste incidono solo
+    su quali sono attive e quali no».
+
+    ⛔ **Qui si leggeva `state.columnOrder`, e produceva DUE sequenze per la
+    stessa schermata**: finché si stava su un preset valeva l'ordine del preset,
+    al primo tocco su una spunta la vista diventava «Personalizzata» e l'ordine
+    saltava a quello delle definizioni. «Nel momento in cui spunto o deseleziono
+    una colonna cambia tutto, anche l'ordinamento» — ed era esatto.
+
+    ⚠️ **Le frecce di riordino sono state tolte insieme a questa riga**, e non
+    era una funzione sacrificata: spostavano la colonna nella TABELLA mentre le
+    righe del pannello restano in ordine di definizione, quindi si premeva senza
+    vedere niente muoversi. E poiché `columnOrder` contiene anche le colonne
+    NASCOSTE, una pressione su due scambiava con una colonna invisibile e non
+    accadeva nulla nemmeno dietro.
+
+    ⭐ Il blocco a sinistra (`pinned`) resta e continua a precedere le altre:
+    quello è un ordine che l'operatore vede mentre lo decide.
+  */
+  const resolved = defs
+    .filter((def) => !hidden.has(def.id))
+    .map((def) => ({ ...def, pinned: pinned.has(def.id) }));
   const pinnedCols = resolved.filter((col) => col.pinned);
   const rest = resolved.filter((col) => !col.pinned);
   return [...pinnedCols, ...rest];

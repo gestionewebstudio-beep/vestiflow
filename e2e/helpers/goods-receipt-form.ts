@@ -26,7 +26,7 @@ export async function searchAndPickLineVariant(
   }
 
   await listbox.getByRole('option').first().click();
-  await expect(page.locator('.gr-product-cell--linked').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.doc-product-cell--linked').first()).toBeVisible({ timeout: 15_000 });
   return true;
 }
 

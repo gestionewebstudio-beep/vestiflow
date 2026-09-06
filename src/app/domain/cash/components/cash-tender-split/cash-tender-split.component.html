@@ -1,0 +1,101 @@
+<section class="tender" aria-labelledby="tender-titolo">
+  <h2 id="tender-titolo" class="tender__title">Incasso</h2>
+
+  <dl class="tender__totals">
+    <div class="tender__total">
+      <dt>Totale</dt>
+      <dd>{{ soldi(totalMinor()) }}</dd>
+    </div>
+    <div class="tender__total" [class.tender__total--pending]="residuo() !== 0">
+      <dt>{{ residuo() >= 0 ? 'Da incassare' : 'In eccesso' }}</dt>
+      <dd>{{ soldi(residuo() >= 0 ? residuo() : -residuo()) }}</dd>
+    </div>
+    @if (resto() > 0) {
+      <div class="tender__total tender__total--change">
+        <dt>Resto</dt>
+        <dd>{{ soldi(resto()) }}</dd>
+      </div>
+    }
+  </dl>
+
+  @if (quotas().length === 0) {
+    <p class="tender__hint">Scegli come il cliente paga. Si possono usare più modalità insieme.</p>
+  }
+
+  <ul class="tender__quotas">
+    @for (quota of quotas(); track quota.paymentOptionId) {
+      <li class="tender__quota">
+        <div class="tender__quota-head">
+          <span class="tender__quota-name">{{ nomeDi(quota) }}</span>
+          <app-button
+            variant="ghost"
+            [disabled]="disabled()"
+            [ariaLabel]="'Togli ' + nomeDi(quota)"
+            (click)="rimuovi(quota.paymentOptionId)"
+          >
+            Togli
+          </app-button>
+        </div>
+
+        <div class="tender__quota-fields">
+          <label class="tender__field" [for]="'quota-imp-' + quota.paymentOptionId">
+            <span class="tender__label">Importo</span>
+            <app-money-input
+              [inputId]="'quota-imp-' + quota.paymentOptionId"
+              [value]="quota.amountMinor"
+              [disabled]="disabled()"
+              [ariaLabel]="'Importo ' + nomeDi(quota)"
+              (valueChange)="cambiaImporto(quota.paymentOptionId, $event)"
+            />
+          </label>
+
+          @if (classeDi(quota) === 'cash') {
+            <label class="tender__field" [for]="'quota-ric-' + quota.paymentOptionId">
+              <span class="tender__label">Ricevuto</span>
+              <app-money-input
+                [inputId]="'quota-ric-' + quota.paymentOptionId"
+                [value]="quota.tenderedMinor"
+                [disabled]="disabled()"
+                [ariaLabel]="'Contante ricevuto per ' + nomeDi(quota)"
+                (valueChange)="cambiaConsegnato(quota.paymentOptionId, $event)"
+              />
+            </label>
+          }
+
+          @if (classeDi(quota) === 'electronic') {
+            <label class="tender__confirm">
+              <input
+                type="checkbox"
+                [checked]="quota.confirmed"
+                [disabled]="disabled()"
+                (change)="cambiaConferma(quota.paymentOptionId, $any($event.target).checked)"
+              />
+              <!-- ⛔ VestiFlow non parla col terminale: la conferma è dell'operatore. -->
+              <span>Esito confermato sul terminale</span>
+            </label>
+          }
+        </div>
+      </li>
+    }
+  </ul>
+
+  <div class="tender__options">
+    @for (opzione of usabili(); track opzione.id) {
+      <app-button
+        variant="secondary"
+        [disabled]="disabled()"
+        [softDisabled]="!!quotas().length && !!findQuota(opzione.id)"
+        (click)="aggiungi(opzione.id)"
+      >
+        {{ opzione.name }}
+      </app-button>
+    }
+  </div>
+
+  @if (nonClassificati().length > 0) {
+    <p class="tender__unclassified">
+      Non utilizzabili in cassa finché non hanno una classe di incasso:
+      {{ nomiNonClassificati() }}. Si imposta in Impostazioni → Tipi pagamento.
+    </p>
+  }
+</section>

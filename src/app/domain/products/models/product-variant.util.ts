@@ -19,9 +19,31 @@ export function axisValues(axes: readonly OptionAxisDraft[], name: string): read
   return axes.find((axis) => axis.name === name)?.values ?? [];
 }
 
-/** Titolo leggibile della variante: valori uniti con " / " (stile Shopify). */
-export function variantTitle(values: readonly SelectedOption[]): string {
-  return values.map((option) => option.value).join(' / ');
+/**
+ * **L'etichetta della variante: i soli valori, uniti da « / ».**
+ *
+ * ⚠️ **Gemella di `api/src/common/variant-label.util.ts`**, come
+ * `document-vat.util` ↔ `vat-line-calculation.util`: due alberi, due
+ * `package.json`, nessun pacchetto condiviso. Le due devono dare lo STESSO
+ * risultato sugli stessi ingressi, e i test lo inchiodano da entrambe le parti.
+ *
+ * ⛔ Si chiamava `variantTitle`, ma il titolo è un'altra cosa — è quello
+ * dell'ARTICOLO, uno solo e uguale ovunque. Questa è l'etichetta della variante,
+ * e il nome ora lo dice (23/08/2026).
+ */
+export function variantLabel(values: readonly SelectedOption[]): string {
+  // ⛔ Il sentinella di Shopify: un prodotto SENZA opzioni là ha comunque una
+  // variante, con opzione `Title` e valore `Default Title`. Non è una variante
+  // che si chiama così — è l'assenza di varianti, e l'admin di Shopify non la
+  // mostra. Senza il filtro comparirebbe su ogni riga di ogni articolo
+  // importato senza opzioni.
+  if (values.length === 1 && values[0]!.name === 'Title' && values[0]!.value === 'Default Title') {
+    return '';
+  }
+  return values
+    .map((option) => option.value.trim())
+    .filter((value) => value.length > 0)
+    .join(' / ');
 }
 
 /**

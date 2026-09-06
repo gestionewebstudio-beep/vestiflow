@@ -1,0 +1,10 @@
+// ⛔ `display: contents` spezzava la catena delle altezze: l'host non
+//    partecipava al flex, quindi il contenitore delle righe restava alto
+//    quanto le righe e la riga totali non si ancorava in fondo.
+//    Stessa forma di `product-list.component.scss` (regole-stile-ui §6).
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}

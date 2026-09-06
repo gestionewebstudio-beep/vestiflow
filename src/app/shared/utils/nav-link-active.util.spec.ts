@@ -18,6 +18,10 @@ describe('isNavItemActive', () => {
     activeRoutePrefix: '/app/inventory',
   };
 
+  // ⚠️ Voci SINTETICHE: descrivono il meccanismo, non la navigazione reale.
+  // Nessuna voce dell'app usa `activeRouteExclude` — l'unico caso che l'aveva
+  // motivata (la cassa dentro /app/sales) e' uscito da li' il 19/08/2026.
+  // Il test resta perche' la capacita' resta, e va provata.
   const salesListItem: NavItem = {
     label: 'Vendite',
     icon: 'pi-shopping-cart',
@@ -27,7 +31,7 @@ describe('isNavItemActive', () => {
   };
 
   const salesRegisterItem: NavItem = {
-    label: 'Registra vendita',
+    label: 'Voce annidata',
     icon: 'pi-shopping-bag',
     route: '/app/sales/register',
     activeRoutePrefix: '/app/sales/register',
@@ -77,7 +81,7 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive(router, inventoryItem)).toBe(false);
   });
 
-  it('evidenzia Vendite ma non su registra vendita', async () => {
+  it('una voce non si evidenzia sulle route che ha escluso', async () => {
     const routerList = await navigate('/app/sales');
     expect(isNavItemActive(routerList, salesListItem)).toBe(true);
 

@@ -10,6 +10,9 @@ import {
   shopifyHasProductReadScope,
   shopifyInventoryReadScopeError,
   shopifyOrdersReadScopeError,
+  shopifyHasPublicationsScopes,
+  shopifyMissingPublicationsScopes,
+  shopifyPublicationsScopeError,
 } from './shopify-scopes.util';
 
 describe('shopify-scopes.util', () => {
@@ -73,6 +76,44 @@ describe('shopify-scopes.util', () => {
       const diagnostics = buildShopifyScopeDiagnostics(['write_products'], ['write_products']);
       expect(diagnostics.catalogImportBlockedReason).toBe('not_requested');
       expect(shopifyCatalogImportBlockMessage(diagnostics)).toContain('SHOPIFY_SCOPES');
+    });
+  });
+
+  /*
+    Canali di vendita (Tranche 2A). ⛔ Il caso che conta è il negozio GIÀ
+    COLLEGATO: il suo token è stato emesso prima che questi ambiti esistessero,
+    e deve risultare «da riautorizzare» invece di fallire alla prima chiamata.
+  */
+  describe('ambiti publication', () => {
+    const CONCESSI_VECCHI = ['read_products', 'write_products', 'read_inventory'];
+    const RICHIESTI_OGGI = [...CONCESSI_VECCHI, 'read_publications', 'write_publications'];
+
+    it('negozio già collegato: mancano entrambi → da RIAUTORIZZARE', () => {
+      const d = buildShopifyScopeDiagnostics(RICHIESTI_OGGI, CONCESSI_VECCHI);
+
+      expect(d.missingForPublications).toEqual(['read_publications', 'write_publications']);
+      // `not_granted` = il server li chiede, il token no: si riconnette il negozio.
+      expect(d.publicationsBlockedReason).toBe('not_granted');
+      expect(shopifyPublicationsScopeError(CONCESSI_VECCHI)).toContain('riconnetti');
+    });
+
+    it('server che non li richiede: la correzione è sulla configurazione', () => {
+      const d = buildShopifyScopeDiagnostics(CONCESSI_VECCHI, CONCESSI_VECCHI);
+      expect(d.publicationsBlockedReason).toBe('not_requested');
+    });
+
+    it('token completo: nessun blocco e nessun messaggio', () => {
+      const d = buildShopifyScopeDiagnostics(RICHIESTI_OGGI, RICHIESTI_OGGI);
+      expect(d.missingForPublications).toEqual([]);
+      expect(d.publicationsBlockedReason).toBe('none');
+      expect(shopifyPublicationsScopeError(RICHIESTI_OGGI)).toBeNull();
+    });
+
+    it('mancante uno solo dei due: resta bloccato, e lo nomina', () => {
+      const parziale = [...CONCESSI_VECCHI, 'read_publications'];
+      expect(shopifyMissingPublicationsScopes(parziale)).toEqual(['write_publications']);
+      expect(shopifyHasPublicationsScopes(parziale)).toBe(false);
+      expect(shopifyPublicationsScopeError(parziale)).toContain('write_publications');
     });
   });
 

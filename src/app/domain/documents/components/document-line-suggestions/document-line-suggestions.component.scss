@@ -2,26 +2,54 @@
 // `position: relative`, il pannello si stende in assoluto sotto (o sopra).
 // L'host è `display: contents` così è la <ul> a stare nel flusso del padre,
 // come per app-button (regole-stile-ui §5).
+@use 'breakpoints' as bp;
+
 :host {
   display: contents;
 }
 
 .doc-suggestions {
   position: absolute;
-  inset-inline: 0;
+  // Il pannello aperto è largo quanto le VOCI, non quanto la cella.
+  //
+  // Con `inset-inline: 0` prendeva esattamente la larghezza del campo, e le
+  // celle codice di una riga documento sono larghe una manciata di caratteri:
+  // dentro ci finiva «Maglietta / M / Rosso» spezzato su tre righe, o troncato.
+  // Allargare la cella per far leggere la tendina è il rimedio sbagliato — la
+  // cella deve restare della misura del dato che ospita (regole-stile-ui §4).
+  //
+  // Stessa regola che `select-menu` applica al suo pannello: mai meno del
+  // campo, quanto serve alle voci, mai oltre il tetto. Il lato d'ancoraggio è
+  // regolabile dal contenitore, perché sull'ultima colonna un pannello ancorato
+  // a sinistra uscirebbe dallo schermo.
+  inset-inline: var(--doc-suggestions-inset, 0 auto);
+  inline-size: max-content;
+  min-inline-size: 100%;
+  // ⚠️ **Un tetto c'è sempre.** Il token era senza valore predefinito, quindi
+  // dove nessuno lo impostava il pannello cresceva quanto la descrizione più
+  // lunga: su una colonna IVA larga settanta pixel arrivava a coprire
+  // Imponibile e Imposta. Oltre il tetto è l'ellissi della descrizione a
+  // lavorare — il valore resta sempre leggibile per intero.
+  max-inline-size: var(--doc-suggestions-max-width, calc(var(--space-8) * 9));
   inset-block-start: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
   z-index: var(--doc-suggestions-z, var(--z-dropdown));
-  margin: 0;
   padding: var(--space-1);
-  list-style: none;
-  max-block-size: var(--doc-suggestions-max-h, calc(var(--space-8) * 8));
-  overflow-y: auto;
-  overscroll-behavior: contain;
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   // --shadow-lg è l'ombra dei menu/dropdown (--shadow-menu, regole-stile-ui §4).
   box-shadow: var(--shadow-lg);
+}
+
+// Il tetto e lo scorrimento stanno sull'ELENCO, non sulla scatola: così la
+// voce-comando in coda resta ferma in fondo mentre le voci scorrono sopra.
+.doc-suggestions__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-block-size: var(--doc-suggestions-max-h, calc(var(--space-8) * 8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 // Apre verso l'alto quando sotto il campo non c'è spazio.
@@ -30,16 +58,38 @@
   inset-block-end: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
 }
 
+/*
+  ⚠️ **Una voce sta su UNA riga: valore, poi descrizione** (17/08/2026).
+
+      22 — Imponibile 22%          PZ — Pezzi
+
+  Stavano incolonnate, e il conto era doppio: ogni voce alta due righe, quindi
+  metà dei risultati visibili prima di dover scorrere, e il pannello largo
+  quanto la descrizione più lunga — su una colonna IVA larga settanta pixel
+  significava coprire Imponibile e Imposta per dire «Imponibile 22%».
+
+  **Il vincolo che rende la forma sicura per tutti e otto i consumer** — codice
+  articolo, nome prodotto, IVA, unità di misura — è che a stringersi sia sempre
+  e solo la descrizione: il valore principale non si accorcia mai, perché è
+  quello che si sta scegliendo. Un elenco che tronca la chiave non è un elenco.
+*/
 .doc-suggestions__item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  flex-direction: row;
+  /*
+    ⚠️ **Era `baseline`, ed era giusto finché la voce era UNA riga.** Con tre
+    zone di altezze diverse — miniatura, due righe di testo, due numeri — la
+    linea di base allinea la prima riga di ognuna e lascia il resto sfalsato.
+    È la trappola di `regole-stile-ui` §5: una proprietà scritta per una forma
+    sopravvive al cambio di forma e smette di fare quel che diceva.
+  */
+  align-items: center;
+  gap: var(--space-2);
   // Default touch fisso (non --btn-min-height): le card view che ospitano il
   // pannello restano attive fino a lg, dove il token responsive tornerebbe
   // alla densità desktop e il target scenderebbe sotto il minimo tappabile.
   min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-touch));
-  padding: var(--space-1) var(--space-2);
+  padding: var(--doc-suggestions-item-pad, var(--space-1) var(--space-2));
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--transition-fast) var(--ease-standard);
@@ -57,21 +107,200 @@
   }
 }
 
-.doc-suggestions__title {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
+/*
+  ⛔ **`__title` è uscito dal markup il 02/09/2026**: il nome sta ora in
+  `__name`, dentro la zona delle parole, insieme alla variante. Lo stile se n'è
+  andato con lui — un foglio che veste una classe che nessuno scrive non
+  fallisce e non arrossa un test.
+*/
 
+/*
+  La descrizione: è lei a cedere. Prende lo spazio che resta e, quando non
+  basta, si tronca — `min-inline-size: 0` è ciò che glielo permette dentro un
+  flex, che altrimenti non stringe un figlio sotto la larghezza minima del suo
+  contenuto. Senza quella riga l'ellissi non scatterebbe mai e il pannello
+  tornerebbe largo quanto la descrizione più lunga.
+
+  Il trattino sta qui e non nel markup: è punteggiatura fra due dati, non un
+  testo da tradurre, e nel DOM aggiungerebbe fra i due `<span>` un nodo che gli
+  screen reader leggerebbero.
+*/
 .doc-suggestions__detail {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--text-xs);
   font-variant-numeric: var(--numeric-tabular);
   color: var(--color-text-muted);
 }
 
-// Messaggio «nessun risultato»: compare solo se il chiamante passa emptyText.
-.doc-suggestions__empty {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
+/*
+  ⛔ **Qui c'era `content: '— '`**, e separava titolo e dettaglio quando
+  stavano sulla stessa riga. Ora il dettaglio va a capo sotto il nome: un
+  trattino a inizio riga non separa niente, indica un elenco puntato che non
+  c'è.
+*/
+
+// La coda si stacca dalle voci con un filo: è un comando, non un valore, e a
+// occhio la differenza deve vedersi prima di leggerla.
+.doc-suggestions__tail {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-touch));
+  margin-block-start: var(--space-1);
+  padding: var(--doc-suggestions-item-pad, var(--space-1) var(--space-2));
+  font-family: inherit;
+  font-size: var(--doc-suggestions-title-size, var(--text-sm));
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-link);
+  text-align: start;
+  background: none;
+  border: none;
+  border-top: var(--border-width) solid var(--color-border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+
+  &:hover,
+  &:active {
+    background-color: var(--color-surface-soft);
+  }
+
+  // Stessa tinta della voce attiva dell'elenco: la coda è una fermata della
+  // navigazione come le altre, e da tastiera deve vedersi dove si è.
+  &--active,
+  &:focus-visible {
+    background-color: var(--color-interactive-subtle);
+  }
+}
+
+/*
+  ⚠️ **Su desktop la voce si stringe, e più risultati stanno a schermo.**
+
+  `--control-h-touch` è il minimo TAPPABILE, e sotto `lg` va lasciato: lì il
+  pannello vive dentro le card e il dito è il puntatore. Su desktop però quel
+  minimo è la ragione per cui, anche a voce su una riga sola, se ne vedevano
+  cinque prima di dover scorrere: 44 px per una riga di testo alta la metà.
+
+  Il tetto dell'elenco resta quello di prima — cambia quanto ci sta dentro.
+*/
+@include bp.media-up('lg') {
+  .doc-suggestions__item {
+    min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-button));
+  }
+}
+
+/*
+  ⭐ **LE TRE ZONE DELLA VOCE** — rifatte il 02/09/2026: «poco intuitivo»,
+  proprietario, guardando i suggerimenti della cella «Nome prodotto».
+
+  ⛔ Prima era una riga sola con tutto allo stesso peso, e il prezzo — che sta in
+  fondo — veniva tagliato dai puntini proprio perché stava in fondo.
+
+  ```text
+  [img]  nome + variante          Disp. 4
+         codici, smorzati          25,00 €
+  ```
+
+  ⚠️ **Le zone facoltative non esistono se il dato non c'è**: la cella a scelta
+  (Codice IVA, U.M.) passa solo titolo e dettaglio, e la sua voce resta quella
+  di prima. Nessun flag: campi che mancano.
+*/
+
+/* La miniatura ha misura fissa anche quando manca, o l'elenco balla. */
+.doc-suggestions__thumb {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-8);
+  block-size: var(--space-8);
+  overflow: hidden;
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface-soft);
+  border-radius: var(--radius-sm);
+
+  img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+}
+
+/* La zona delle parole: cede lei quando lo spazio manca. */
+.doc-suggestions__info {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+.doc-suggestions__name {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  overflow: hidden;
+  font-size: var(--doc-suggestions-title-size, var(--text-sm));
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ⭐ **La variante è una pastiglia, non una coda del nome.** Scorrendo dieci
+  suggerimenti dello stesso articolo, la taglia è l'unica cosa che cambia: era
+  sepolta in fondo a «maglietta — XXL — SHOPIFY-517…».
+*/
+.doc-suggestions__variante {
+  flex: 0 0 auto;
+  padding: 0 var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-soft);
+  border-radius: var(--radius-sm);
+}
+
+/*
+  ⚠️ **I numeri stanno a destra e incolonnati**: scorrendo l'elenco l'occhio
+  cerca sempre nello stesso punto «quanti ne ho» e «quanto costa».
+*/
+.doc-suggestions__numeri {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-05);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.doc-suggestions__disp {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-ok);
+}
+
+/* Zero è «finito» e si vede; sotto zero è un'anomalia e si vede di più. */
+.doc-suggestions__disp--zero {
+  color: var(--color-text-muted);
+}
+
+.doc-suggestions__disp--negativa {
+  color: var(--color-danger);
+}
+
+.doc-suggestions__prezzo {
+  font-size: var(--text-2xs);
+  color: var(--color-text);
+}
+
+.doc-suggestions__costo {
+  font-size: var(--text-3xs);
   color: var(--color-text-muted);
 }

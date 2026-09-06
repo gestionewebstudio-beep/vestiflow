@@ -18,6 +18,7 @@ const user = {
   isActive: true,
   isPlatformAdmin: false,
   tenantChannelProfile: 'shopify' as const,
+  manualUnloadEnabled: true,
   tenantName: 'Cliente test',
   hasAllLocationsAccess: true,
   assignedLocationIds: [],
@@ -93,5 +94,31 @@ describe('AuthService', () => {
 
     expect(service.isAuthenticated()).toBe(false);
     expect(service.currentUser()).toBeNull();
+  });
+
+  // Il primo accesso chiude con una chiamata autenticata che spegne il
+  // promemoria «cambia la password». Chiudendo la sessione durante il cambio,
+  // quella chiamata rispondeva 401 e il promemoria restava acceso: l'operatore
+  // rientrava e si ritrovava la stessa schermata, all'infinito.
+  it('al primo accesso chiede di tenere aperta la sessione', async () => {
+    gateway.updatePassword.mockReturnValue(of(undefined));
+    const service = TestBed.inject(AuthService);
+
+    await new Promise<void>((resolve) => {
+      service.updatePassword('nuova-password', true).subscribe(() => resolve());
+    });
+
+    expect(gateway.updatePassword).toHaveBeenCalledWith('nuova-password', true);
+  });
+
+  it('dal link ricevuto via email la sessione si chiude, come prima', async () => {
+    gateway.updatePassword.mockReturnValue(of(undefined));
+    const service = TestBed.inject(AuthService);
+
+    await new Promise<void>((resolve) => {
+      service.updatePassword('nuova-password').subscribe(() => resolve());
+    });
+
+    expect(gateway.updatePassword).toHaveBeenCalledWith('nuova-password', false);
   });
 });

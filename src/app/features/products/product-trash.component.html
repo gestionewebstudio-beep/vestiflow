@@ -1,0 +1,32 @@
+<app-list-page
+  class="product-trash"
+  pageTitle="Cestino prodotti"
+  [loading]="loading()"
+  [error]="error()"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="productListView"
+  emptyTitle="Il cestino è vuoto"
+  emptyDescription="Nessun prodotto è stato spostato nel cestino."
+  emptyIcon="pi-trash"
+  (retry)="reload()"
+>
+  <div warnings>
+    <!--
+      Sola lettura, e lo dice: chi arriva qui cerca «Ripristina», che non c'è
+      ancora. Meglio una riga che lo dichiara di un comando che manca in silenzio.
+    -->
+    <app-inline-banner
+      tone="info"
+      message="Vista in sola lettura: i prodotti nel cestino restano fuori dall'elenco e dalle selezioni, con giacenze e storico intatti. Ripristino ed eliminazione definitiva arrivano con la prossima tranche."
+    />
+  </div>
+
+  <app-product-table
+    data
+    [products]="products()"
+    [columns]="tableColumns()"
+    [viewId]="productListView"
+    (rowClick)="openProduct($event)"
+  />
+</app-list-page>

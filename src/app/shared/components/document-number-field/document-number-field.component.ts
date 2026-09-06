@@ -20,12 +20,27 @@ import type { SelectMenuOption } from '../select-menu/select-menu.model';
   styleUrl: './document-number-field.component.scss',
 })
 export class DocumentNumberFieldComponent {
-  /** Etichetta del numero: «Numero» (categoria A) o «Protocollo» (categoria B). */
+  /**
+   * Etichetta del numero. **Sempre «Numero»**: dal 12/08/2026 la Categoria B non
+   * dice più «Protocollo» (specifica numerazione §5) — sotto c'è lo stesso
+   * contatore, e due parole facevano credere a due meccanismi.
+   */
   readonly numberLabel = input<string>('Numero');
   readonly numberInputId = input.required<string>();
   readonly hint = input<string>('');
 
   readonly number = input<number | null>(null);
+  /**
+   * Il numero mostrato e' una PROPOSTA (il primo libero), non un'assegnazione:
+   * finche' nessuno lo tocca puo' cambiare, perche' lo prende chi salva per
+   * primo. Il campo lo dice invece di far sembrare il numero gia' acquisito —
+   * un operatore che lo trascrive su un documento cartaceo prima di salvare
+   * scriverebbe altrimenti un numero che non sara' suo.
+   *
+   * Passare `false` sui documenti gia' salvati e appena l'operatore lo modifica:
+   * li' il numero e' una scelta, e va difesa (vedi il conflitto sul numero).
+   */
+  readonly isProposal = input<boolean>(false);
   readonly series = input<string>('');
   readonly seriesOptions = input<readonly SelectMenuOption[]>([]);
   readonly disabled = input<boolean>(false);

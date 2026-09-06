@@ -53,6 +53,8 @@ describe('InventoryController', () => {
 
 
 
+  const stockReservations = { listActiveForLevel: vi.fn().mockResolvedValue([]) };
+
   const controller = new InventoryController(
     inventory as unknown as InventoryService,
     inventoryCount as unknown as InventoryCountService,
@@ -61,8 +63,53 @@ describe('InventoryController', () => {
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
+    stockReservations as never,
   );
+
+  /**
+   * ⛔ **La rotta deve PROPAGARE l’utente al servizio.**
+   *
+   * Misurato il 28/08/2026: la guardia di sede viveva nel servizio, era
+   * coperta da cinque prove verdi, e questa rotta — il suo unico chiamante
+   * di produzione — non le passava l’utente. La porta era aperta e la suite
+   * verde, perché nessun test guardava il LIVELLO in cui il difetto stava.
+   *
+   * ⚠️ Il tipo obbliga a passare un argomento, ma `undefined` compila lo
+   * stesso: senza questa prova, chi «sistema» l’errore del compilatore
+   * scrivendo `undefined` riapre il buco e non se ne accorge nessuno.
+   */
+  it('listReservations propaga l’utente al servizio impegni', async () => {
+    await controller.listReservations(tenantId, user, {
+      variantId: 'var-1',
+      locationId: 'loc-altrui',
+    } as never);
+
+    expect(stockReservations.listActiveForLevel).toHaveBeenCalledWith(
+      tenantId,
+      'var-1',
+      'loc-altrui',
+      user,
+    );
+  });
+
+  /**
+   * ⛔ **Anche l’anteprima import deve propagare l’utente.**
+   *
+   * È la terza rotta di questo controller su cui vale la stessa regola, e la
+   * quarta volta nel backend: un test di servizio verde non dimostra che la
+   * rotta sia protetta. Qui l’anteprima restituisce la Disponibile per riga.
+   */
+  it('previewLevelsImport propaga l’utente al servizio import', async () => {
+    const file = { buffer: Buffer.from('SKU,Location,Disponibile'), mimetype: 'text/csv' };
+  
+    await controller.previewLevelsImport(tenantId, user, file as never);
+  
+    expect(inventoryImport.previewCsv).toHaveBeenCalledWith(
+      tenantId,
+      expect.any(String),
+      user,
+    );
+  });
 
 
 
@@ -180,7 +227,7 @@ describe('InventoryController', () => {
 
   it('previewLevelsImport rifiuta file CSV mancante', () => {
 
-    expect(() => controller.previewLevelsImport(tenantId, undefined as never)).toThrow(
+    expect(() => controller.previewLevelsImport(tenantId, user, undefined as never)).toThrow(
 
       'File CSV mancante o vuoto.',
 

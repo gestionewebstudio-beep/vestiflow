@@ -1,0 +1,60 @@
+// La riga di riferimento su schermo compatto non è una card di merce: è una
+// banda bassa che separa il gruppo incluso. Stesse tinte del ramo desktop della
+// riga comune (`--color-doc-ref-*`): è lo stesso oggetto visto da vicino.
+//
+// ⭐ Questo foglio è la fusione di due copie identiche —
+// `sd-form__mobile-source-*` e `co-form__mobile-source-*` — che vestivano lo
+// stesso markup con due prefissi diversi.
+:host {
+  display: block;
+}
+
+.doc-line-card-reference {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--color-doc-ref-bg);
+  border: var(--border-width) solid var(--color-doc-ref-line);
+  border-inline-start: var(--space-1) solid var(--color-doc-ref-accent);
+  border-radius: var(--radius-lg);
+}
+
+.doc-line-card-reference__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: var(--color-doc-ref-chip-fg);
+  background-color: var(--color-doc-ref-chip-bg);
+  border-radius: var(--radius-sm);
+}
+
+.doc-line-card-reference__copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.doc-line-card-reference__copy small {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-head);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-doc-ref-muted);
+}
+
+.doc-line-card-reference .doc-form__source-title {
+  block-size: var(--space-6);
+  font-size: var(--text-xs);
+}
+
+// ⚠️ Il cestino resta tappabile: sotto `lg` il minimo è 44px, e l'altezza densa
+// del desktop lo lascerebbe sotto soglia.
+.doc-line-card-reference .doc-form__line-remove {
+  flex: 0 0 auto;
+  min-inline-size: var(--btn-min-height);
+  min-block-size: var(--btn-min-height);
+}

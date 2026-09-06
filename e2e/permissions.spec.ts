@@ -124,7 +124,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
         timeout: 30_000,
       });
 
-      await expectButtonAbsent(page, 'Sincronizza giacenze da Shopify');
+      await expectButtonAbsent(page, 'Riallinea le giacenze su Shopify');
       await expectButtonAbsent(page, 'Esporta CSV');
       await expectButtonAbsent(page, 'Importa CSV');
     });
@@ -209,18 +209,39 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
   });
 
   test.describe('Vendite al banco', () => {
-    test('registra vendita in sidebar se permesso retail.register', async ({ page }) => {
+    test('la sidebar apre la CREAZIONE se permesso retail.register', async ({ page }) => {
       await page.goto('/app/dashboard');
       await expect(page.locator('h1.dashboard__title')).toHaveText('Dashboard', {
         timeout: 30_000,
       });
 
+      // ⛔ Questa prova è stata INERTE dalla sua scrittura fino al 19/08/2026.
+      // Cercava un link chiamato «Registra vendita»; la sidebar lo chiama
+      // «Vendita al banco» (`shell-layout.component.ts`). Il locator non
+      // trovava nulla, `isVisible()` era falso, il test prendeva sempre il ramo
+      // `else`, scriveva un'annotazione e passava — e l'unica asserzione vera,
+      // quella sull'URL, non veniva MAI eseguita.
+      //
+      // ⛔ E l'asserzione, appena tornata viva, era comunque SBAGLIATA: attendeva
+      // `/app/sales/register`, un indirizzo che non esiste più (`11` A2), mentre
+      // la voce di sidebar portava all'ELENCO. Nessuno se n'era accorto perché
+      // `pre-push` esegue `test:everything` e `build`, non l'e2e.
+      //
+      // ⛔ Corretta il 20/08/2026 con la decisione che la **sidebar è la
+      // scorciatoia alla CREAZIONE** e l'elenco vive in Documenti (`11` A2).
+      // Questa prova è oggi l'unica guardia di quel contratto: se qualcuno
+      // riportasse la voce di menu sull'elenco, deve arrossare qui.
+      //
+      // ⚠️ Il ramo `else` resta legittimo: il preset del commesso può non avere
+      // `retail.register`. Ma ora ci si finisce solo quando è davvero così.
       const registerLink = page
         .locator('nav.app-sidebar')
-        .getByRole('link', { name: 'Registra vendita', exact: true });
+        .getByRole('link', { name: 'Nuova vendita al banco', exact: true });
       if (await registerLink.isVisible()) {
         await registerLink.click();
-        await expect(page).toHaveURL(/\/app\/sales\/register/, { timeout: 15_000 });
+        await expect(page).toHaveURL(/\/app\/vendita-al-banco\/nuova-vendita-al-banco/, {
+          timeout: 15_000,
+        });
       } else {
         test.info().annotations.push({
           type: 'note',
@@ -254,7 +275,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       });
 
       const syncVisible = await page
-        .getByRole('button', { name: 'Sincronizza giacenze da Shopify' })
+        .getByRole('button', { name: 'Riallinea le giacenze su Shopify' })
         .isVisible();
       const exportVisible = await page.getByRole('button', { name: 'Esporta CSV' }).isVisible();
       const importVisible = await page.getByRole('button', { name: 'Importa CSV' }).isVisible();

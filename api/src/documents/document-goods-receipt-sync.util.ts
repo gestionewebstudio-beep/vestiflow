@@ -7,8 +7,9 @@ import {
   type StockMovement,
 } from '@prisma/client';
 
-import { sameNullableAmountAtCent } from '../common/money.util';
+import { sameAmountAtCent, sameUnitAmountAtContract, toStorableMinor } from '../common/money.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
+import { frozenTotalCostMinor } from '../inventory/movement-cost.util';
 import type { StockMovementActor } from '../inventory/inventory-movement.util';
 
 /**
@@ -49,6 +50,30 @@ interface SyncParams {
    * Null = lascia la data movimento invariata.
    */
   readonly movementDate?: Date | null;
+  /**
+   * Tipo dei movimenti creati. Assente = `load`, il carico documentale. Il Reso
+   * al banco passa `return`: la merce rientra, ma non e' un carico da fornitore
+   * e i report distinguono le due cose.
+   */
+  readonly movementType?: StockMovementType;
+  /**
+   * Origine dei movimenti creati. Assente = `manual`, il comportamento storico
+   * del carico documentale. La cassa passa `vestiflow_pos`.
+   */
+  readonly origin?: MovementOrigin;
+  /**
+   * Costo unitario da congelare su un movimento NUOVO.
+   *
+   * ⛔ Assente = il costo si DERIVA dalla riga, ed e' giusto per l'Arrivo merce:
+   * li' il prezzo di riga E' il costo d'acquisto. ⚠️ Sul RESO non lo e' — il
+   * prezzo di riga e' il prezzo di VENDITA, e derivarlo sovrascriverebbe il
+   * costo d'acquisto col ricavo, che e' il numero da cui si calcola il margine.
+   *
+   * Quando c'e', vale la disciplina della fotografia (`regole-gestionale`): la
+   * riga NUOVA congela il costo di adesso, la riga GIA' ESISTENTE mantiene il
+   * proprio costo unitario e si rifa' solo il TOTALE sulla quantita' nuova.
+   */
+  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number;
   /** Righe documento SALVATE (id definitivi). Vuoto = rimuovi tutti i movimenti. */
   readonly lines: readonly DocumentLine[];
   readonly actor: StockMovementActor;
@@ -58,9 +83,36 @@ function isStockLine(line: DocumentLine): line is DocumentLine & { variantId: st
   return line.loadsStock && line.quantity > 0 && line.variantId != null;
 }
 
-/** Costo unitario effettivo riga (netto sconto), in unità minori. */
+/**
+ * Costo unitario effettivo della riga (al netto dello sconto), in unità minori.
+ *
+ * ⛔ **Qui c'era `Math.round(...)`, e la coda del costo moriva esattamente in
+ * questa riga.** Misurato su dati reali il 22/08/2026: la riga documento
+ * portava 84,4262 e il movimento riceveva **84**.
+ *
+ * Quell'arrotondamento esisteva per una ragione sola —
+ * `stock_movements.unit_cost_minor` era `Int` — e il compilatore non poteva
+ * segnalarlo: arrotondare un `number` resta legale anche dopo la migration.
+ * È la categoria di difetto che il dry-run dei tipi non vede.
+ *
+ * ⭐ **Il calcolo resta in `Decimal` fino alla fine.** Entrambi gli operandi lo
+ * sono già — `unitPriceMinor` è `Decimal(16,6)`, `discountPercent` è
+ * `Decimal(7,4)` — e passare per `Number()` prima di moltiplicare
+ * sostituirebbe un arrotondamento prematuro con un calcolo economico in
+ * virgola mobile: non un guadagno.
+ *
+ * `toStorableMinor` chiude riducendo alle 4 cifre di centesimo del contratto,
+ * perché uno sconto percentuale può produrre code più lunghe di quelle che la
+ * colonna memorizza:
+ *
+ *     84,4262 sconto 0%  →  84,4262
+ *     84,4262 sconto 7%  →  78,5164
+ */
 function effectiveUnitCostMinor(line: DocumentLine): number {
-  return Math.round((Number(line.unitPriceMinor) * (100 - Number(line.discountPercent))) / 100);
+  const scontato = new Prisma.Decimal(line.unitPriceMinor)
+    .times(new Prisma.Decimal(100).minus(line.discountPercent))
+    .dividedBy(100);
+  return toStorableMinor(scontato.toNumber());
 }
 
 /**
@@ -142,7 +194,12 @@ export async function syncGoodsReceiptLineMovements(
       continue;
     }
     const sku = line.sku ?? '';
-    const unitCostMinor = effectiveUnitCostMinor(line);
+    // Il costo arriva dal chiamante quando il prezzo di riga NON e' un costo
+    // (Reso al banco); altrimenti si deriva dalla riga, come per il carico.
+    const costoEsterno = params.unitCostForNewLine != null;
+    const unitCostMinor = costoEsterno
+      ? params.unitCostForNewLine!(line)
+      : effectiveUnitCostMinor(line);
     const movement = byLineId.get(line.id);
 
     if (!movement) {
@@ -151,8 +208,8 @@ export async function syncGoodsReceiptLineMovements(
       await tx.stockMovement.create({
         data: {
           tenantId: params.tenantId,
-          type: StockMovementType.load,
-          origin: MovementOrigin.manual,
+          type: params.movementType ?? StockMovementType.load,
+          origin: params.origin ?? MovementOrigin.manual,
           variantId: line.variantId,
           sku,
           locationId,
@@ -163,7 +220,9 @@ export async function syncGoodsReceiptLineMovements(
           sourceDocumentId: params.documentId,
           sourceLineId: line.id,
           unitCostMinor,
-          totalCostMinor: line.lineTotalMinor,
+          totalCostMinor: costoEsterno
+            ? frozenTotalCostMinor(unitCostMinor, line.quantity)
+            : line.lineTotalMinor,
           ...(params.movementDate ? { createdAt: params.movementDate } : {}),
           createdById: params.actor.createdById ?? null,
           createdByName: params.actor.createdByName,
@@ -203,6 +262,11 @@ export async function syncGoodsReceiptLineMovements(
       deltas.push({ sku, delta: quantityDelta });
     }
 
+    // Col costo esterno il costo UNITARIO congelato non si tocca: e' quello di
+    // quando la merce si e' mossa. Si rifa' solo il totale, o una riga portata
+    // da 2 a 1 continuerebbe a pesare per due nel margine.
+    const totaleCostoAggiornato = frozenTotalCostMinor(movement.unitCostMinor, line.quantity);
+
     const movementDateChanged =
       params.movementDate != null && movement.createdAt.getTime() !== params.movementDate.getTime();
 
@@ -211,10 +275,13 @@ export async function syncGoodsReceiptLineMovements(
       quantityDelta !== 0 ||
       movement.sku !== sku ||
       movement.reason !== params.reason ||
-      // Costi al centesimo: una coda decimale diversa (§sei decimali) non è un
-      // costo nuovo e non deve far riscrivere il movimento.
-      !sameNullableAmountAtCent(movement.unitCostMinor, unitCostMinor) ||
-      !sameNullableAmountAtCent(movement.totalCostMinor, line.lineTotalMinor) ||
+      // ⭐ **Due metri diversi, e la differenza è voluta**: il costo UNITARIO si
+      // confronta alla precisione del contratto (la coda ne fa parte), il
+      // TOTALE al centesimo (è un importo monetario finale).
+      (costoEsterno
+        ? !sameAmountAtCent(movement.totalCostMinor, totaleCostoAggiornato)
+        : !sameUnitAmountAtContract(Number(movement.unitCostMinor), unitCostMinor) ||
+          !sameAmountAtCent(movement.totalCostMinor, line.lineTotalMinor)) ||
       movementDateChanged;
 
     if (needsUpdate) {
@@ -226,8 +293,9 @@ export async function syncGoodsReceiptLineMovements(
           locationId,
           quantity: line.quantity,
           reason: params.reason,
-          unitCostMinor,
-          totalCostMinor: line.lineTotalMinor,
+          ...(costoEsterno
+            ? { totalCostMinor: totaleCostoAggiornato }
+            : { unitCostMinor, totalCostMinor: line.lineTotalMinor }),
           // Stesso ID movimento: cambiare la data registrazione non crea
           // nuovi movimenti e non tocca quantità o giacenze (§2).
           ...(params.movementDate ? { createdAt: params.movementDate } : {}),

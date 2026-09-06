@@ -7,7 +7,7 @@ import {
 } from './document-stock-manual-unload.util';
 
 /**
- * Lo scarico manuale è una DEROGA esplicita alla regola «ogni modifica
+ * La vendita manuale è una DEROGA esplicita alla regola «ogni modifica
  * inventariale produce un movimento tracciabile»: agisce direttamente sulla
  * giacenza e non crea `StockMovement`.
  *

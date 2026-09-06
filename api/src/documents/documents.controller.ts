@@ -12,7 +12,6 @@ import {
   Post,
   Query,
   StreamableFile,
-  UnprocessableEntityException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -23,12 +22,14 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
+  DOCUMENTS_MANAGE_PERMISSIONS,
+  docManagePermission,
   DOCUMENTS_VIEW_PERMISSIONS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
-  RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { attachmentDownloadFilename } from '../common/attachments/attachment-rules.util';
@@ -43,7 +44,6 @@ import { CreateDocumentDto } from './dto/create-document.dto';
 import { ConvertDocumentDto } from './dto/convert-document.dto';
 import { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
-import { RegisterExternalDto } from './dto/register-external.dto';
 import { PreviewDocumentNumberQueryDto } from './dto/preview-document-number.query.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import {
@@ -52,6 +52,10 @@ import {
   type DocumentListRow,
   type DocumentWithLines,
 } from './documents.service';
+import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
+
+import type { Serialized } from '../common/serialized.type';
+import type { ConvertPrefillDto } from './documents.service';
 import { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
 import { SaveTransferDto } from './dto/save-transfer.dto';
@@ -63,10 +67,14 @@ import {
 } from './goods-receipt-workflow.service';
 import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflow.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
-import { DocumentType } from '@prisma/client';
+import { DocumentChronologyService } from './document-chronology.service';
+import { ChronologyCheckQueryDto } from './dto/chronology-check.query.dto';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
+// Porta della sezione: vale per OGNI rotta del registro, in aggiunta al gate
+// di famiglia del singolo handler (§sezioni+documenti).
+@RequireAllPermissionGroups([[TenantPermission.SectionDocuments]])
 export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
@@ -76,6 +84,7 @@ export class DocumentsController {
     private readonly goodsReceiptWorkflow: GoodsReceiptWorkflowService,
     private readonly transferAdjustmentWorkflow: TransferAdjustmentWorkflowService,
     private readonly priceModePreference: DocumentPriceModePreferenceService,
+    private readonly chronology: DocumentChronologyService,
   ) {}
 
   @Get()
@@ -86,29 +95,6 @@ export class DocumentsController {
     @Query() query: ListDocumentsQueryDto,
   ): Promise<Paginated<DocumentListRow>> {
     return this.documents.list(tenantId, query, user);
-  }
-
-  /**
-   * Modalità prezzo (netto/ivato) da proporre alla creazione di un documento
-   * del tipo indicato: preferenza ricordata dell'operatore ?? primo utilizzo
-   * (vendita ivato, acquisto netto).
-   */
-  @Get('price-mode-preference/:type')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  async getPriceModePreference(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('type') type: string,
-  ): Promise<{ pricesIncludeVat: boolean }> {
-    if (!(Object.values(DocumentType) as string[]).includes(type)) {
-      throw new UnprocessableEntityException('Tipo documento non valido.');
-    }
-    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
-      tenantId,
-      user.id,
-      type as DocumentType,
-    );
-    return { pricesIncludeVat };
   }
 
   /** Operatori che hanno creato documenti dei tipi indicati (filtro elenco). */
@@ -127,12 +113,14 @@ export class DocumentsController {
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   listLinkableGoodsReceipts(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListLinkableGoodsReceiptsQueryDto,
   ) {
     return this.goodsReceiptWorkflow.listLinkableGoodsReceipts(
       tenantId,
       query.supplierId,
       query.excludeInvoiceId,
+      user,
     );
   }
 
@@ -141,23 +129,23 @@ export class DocumentsController {
    * movimenti per riga + giacenze in un'unica operazione idempotente.
    */
   @Post('goods-receipt/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('goods_receipt')])
   async saveGoodsReceipt(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveGoodsReceiptDto,
   ): Promise<{
-    document: DocumentDetail;
+    document: Serialized<DocumentDetail>;
     warnings: string[];
     createdProducts: readonly GoodsReceiptCreatedProduct[];
   }> {
     const saved = await this.goodsReceiptWorkflow.saveGoodsReceipt(tenantId, dto, user);
-    const document = await this.documents.getById(tenantId, saved.document.id, user);
+    const document = normalizeDecimals(await this.documents.getById(tenantId, saved.document.id, user));
     const warnings: string[] = [];
     if (document.linkStatus === 'linked') {
       warnings.push(
-        'Totali da verificare: l\'arrivo merce è collegato a una fattura registrata. ' +
-          'Controlla l\'allineamento dei totali sulla registrazione fattura.',
+        "Totali da verificare: l'arrivo merce è collegato a una fattura registrata. " +
+          "Controlla l'allineamento dei totali sulla registrazione fattura.",
       );
     }
     return { document, warnings, createdProducts: saved.createdProducts };
@@ -165,18 +153,18 @@ export class DocumentsController {
 
   /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */
   @Post('purchase-invoice/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('purchase_invoice')])
   async savePurchaseInvoice(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SavePurchaseInvoiceDto,
   ): Promise<{
-    document: DocumentDetail;
+    document: Serialized<DocumentDetail>;
     receiptsTotalMinor: number;
     totalsMatch: boolean;
   }> {
     const result = await this.goodsReceiptWorkflow.savePurchaseInvoice(tenantId, dto, user);
-    const document = await this.documents.getById(tenantId, result.document.id, user);
+    const document = normalizeDecimals(await this.documents.getById(tenantId, result.document.id, user));
     return {
       document,
       receiptsTotalMinor: result.receiptsTotalMinor,
@@ -191,14 +179,14 @@ export class DocumentsController {
    * (POST /documents + POST /documents/:id/confirm).
    */
   @Post('transfer/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('transfer')])
   async saveTransfer(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveTransferDto,
-  ): Promise<DocumentDetail> {
+  ): Promise<Serialized<DocumentDetail>> {
     const saved = await this.transferAdjustmentWorkflow.saveTransfer(tenantId, dto, user);
-    return this.documents.getById(tenantId, saved.id, user);
+    return normalizeDecimals(await this.documents.getById(tenantId, saved.id, user));
   }
 
   /**
@@ -208,23 +196,68 @@ export class DocumentsController {
    * (POST /documents + POST /documents/:id/confirm).
    */
   @Post('adjustment/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('adjustment')])
   async saveAdjustment(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveAdjustmentDto,
-  ): Promise<DocumentDetail> {
+  ): Promise<Serialized<DocumentDetail>> {
     const saved = await this.transferAdjustmentWorkflow.saveAdjustment(tenantId, dto, user);
-    return this.documents.getById(tenantId, saved.id, user);
+    return normalizeDecimals(await this.documents.getById(tenantId, saved.id, user));
   }
 
   @Get('preview-number')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   previewNumber(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: PreviewDocumentNumberQueryDto,
   ) {
-    return this.documents.previewNextReference(tenantId, query.type, query.series);
+    return this.documents.previewNextReference(
+      tenantId,
+      query.type,
+      query.series,
+      query.locationId,
+      query.documentDate ? new Date(query.documentDate) : undefined,
+      user,
+    );
+  }
+
+  /**
+   * Controllo cronologico del contatore (§4): l'elenco dei documenti fuori
+   * posto, più se l'operatore ha spento l'avviso per questo tipo.
+   *
+   * Prima di `:id/...`: una rotta con segmento fisso va dichiarata prima di
+   * quella con parametro, o «chronology» finirebbe interpretato come un id.
+   */
+  @Get('chronology')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  chronologyCheck(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ChronologyCheckQueryDto,
+  ) {
+    return this.chronology.check({
+      tenantId,
+      user,
+      type: query.type,
+      series: query.series ?? null,
+      number: query.number,
+      documentDate: new Date(query.documentDate),
+      excludeId: query.excludeId ?? null,
+    });
+  }
+
+  /** Spegne l'avviso cronologico per (tenant, utente, tipo). Non si riaccende. */
+  @Post('chronology/dismiss')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @HttpCode(204)
+  async dismissChronologyWarning(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ChronologyCheckQueryDto,
+  ): Promise<void> {
+    await this.chronology.dismiss(tenantId, user, query.type);
   }
 
   @Get(':id/revisions')
@@ -279,7 +312,7 @@ export class DocumentsController {
   }
 
   @Post(':id/attachments')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   @UseInterceptors(FileInterceptor('file', documentAttachmentUploadMulterOptions))
   async uploadAttachment(
     @CurrentTenant() tenantId: string,
@@ -294,7 +327,7 @@ export class DocumentsController {
 
   /** Rinomina allegato: cambia solo il nome mostrato, i byte restano dove sono. */
   @Patch(':id/attachments/:attachmentId')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   async renameAttachment(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -307,7 +340,7 @@ export class DocumentsController {
   }
 
   @Delete(':id/attachments/:attachmentId')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAttachment(
     @CurrentTenant() tenantId: string,
@@ -336,6 +369,26 @@ export class DocumentsController {
     });
   }
 
+  /**
+   * L'intestazione emittente che questo documento stamperà, già composta.
+   * La usa l'anteprima a schermo per mostrare la stessa testata del PDF: non
+   * legge l'anagrafica corrente, perché su un documento già emesso vince lo
+   * snapshot congelato all'emissione.
+   *
+   * Stesso gate dell'export PDF: chi può vedere il documento può vederne la
+   * testata, e `getById` applica comunque il filtro di famiglia.
+   */
+  @Get(':id/print-header')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  async printHeader(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ legalName: string; lines: readonly string[]; footer: string | null }> {
+    const document = await this.documents.getById(tenantId, id, user);
+    return this.documentPdf.issuerHeader(tenantId, document);
+  }
+
   @Get(':id/export/xml')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   @Header('Content-Type', 'application/xml')
@@ -353,7 +406,7 @@ export class DocumentsController {
   }
 
   @Get(':id/supplier-price-diffs')
-  @RequirePermissions(TenantPermission.DocumentsView)
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   listSupplierPriceDiffs(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -364,16 +417,16 @@ export class DocumentsController {
 
   @Get(':id')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
-  getById(
+  async getById(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DocumentDetail> {
-    return this.documents.getById(tenantId, id, user);
+  ): Promise<Serialized<DocumentDetail>> {
+    return normalizeDecimals(await this.documents.getById(tenantId, id, user));
   }
 
   @Post()
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   create(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -383,53 +436,40 @@ export class DocumentsController {
   }
 
   @Patch(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  update(
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
+  async update(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDocumentDto,
-  ): Promise<DocumentDetail> {
-    return this.documents.update(tenantId, id, dto, user);
+  ): Promise<Serialized<DocumentDetail>> {
+    return normalizeDecimals(await this.documents.update(tenantId, id, dto, user));
   }
-
 
   /** Prefill di conversione (form di destinazione): non crea nulla. */
   @Post(':id/convert-prefill')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   convertPrefill(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ConvertDocumentDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConvertPrefillDto> {
     return this.documents.convertPrefill(tenantId, id, dto, user);
   }
 
-  /** «Inviata al commercialista»: unica azione di ciclo di vita fiscale. */
-  @Post(':id/register-external')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  registerExternal(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: RegisterExternalDto,
-  ): Promise<DocumentWithLines> {
-    return this.documents.registerExternal(tenantId, id, dto, user);
-  }
-
   @Post(':id/cancel')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  cancel(
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
+  async cancel(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DocumentDetail> {
-    return this.documents.cancel(tenantId, id, user);
+  ): Promise<Serialized<DocumentDetail>> {
+    return normalizeDecimals(await this.documents.cancel(tenantId, id, user));
   }
 
   @Delete(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   delete(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,

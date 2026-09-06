@@ -1,5 +1,11 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
+import {
+  ISSUER_TENANT_SELECT,
+  readIssuerSnapshot,
+  resolveDocumentIssuer,
+  type DocumentIssuer,
+} from '../common/company/document-issuer.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import {
@@ -38,17 +44,17 @@ export class DocumentXmlService {
       );
     }
 
-    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    const issuer = await this.loadIssuer(tenantId, document);
 
     const cedente: FatturaPaParty = {
-      legalName: tenant.legalName ?? tenant.name,
-      vatNumber: tenant.vatNumber,
-      fiscalCode: tenant.fiscalCode,
-      address: tenant.addressLine1,
-      zip: tenant.postalCode,
-      city: tenant.city,
-      province: tenant.province,
-      countryCode: tenant.countryCode,
+      legalName: issuer.legalName,
+      vatNumber: issuer.vatNumber,
+      fiscalCode: issuer.fiscalCode,
+      address: issuer.addressLine1,
+      zip: issuer.postalCode,
+      city: issuer.city,
+      province: issuer.province,
+      countryCode: issuer.countryCode,
     };
 
     const customer = document.customerId
@@ -95,14 +101,31 @@ export class DocumentXmlService {
 
     return {
       xml: buildFatturaPaXml({
-        // VestiFlow non gestisce ancora le note di credito di vendita:
-        // ogni fattura esportata è TD01.
+        // ⏸️ **Gap registrato, non una scelta**: la Fattura elettronica della
+        // Nota di credito è PREVISTA, con tipo fiscale `TD04`, e sta nel blocco
+        // dedicato Famiglia Fattura / FE (`docs/DA-FARE.md` §Blocco C). Oggi
+        // ogni fattura esportata è TD01 perché quel lavoro non è ancora fatto.
+        //
+        // ⚠️ Quando arriverà, i riferimenti che l'XML richiede si prenderanno
+        // **attraverso la fattura di origine** (`sourceDocumentId`) — NON
+        // riaprendo l'aggancio DDT sulla NC, che è chiuso dal 22/08/2026
+        // (`docs/07` §5-bis): la NC non include DDT.
         documentTypeCode: 'TD01',
         number: document.reference ?? String(document.number ?? ''),
         documentDate: document.documentDate,
         currency: document.currency,
         totalMinor: document.totalMinor,
         cedente,
+        issuerDetails: {
+          taxRegime: issuer.taxRegime,
+          reaOffice: issuer.reaOffice,
+          reaNumber: issuer.reaNumber,
+          shareCapitalMinor: issuer.shareCapitalMinor,
+          soleShareholder: issuer.soleShareholder,
+          inLiquidation: issuer.inLiquidation,
+          phone: issuer.phone,
+          email: issuer.email,
+        },
         cessionario,
         sdiCode: party?.sdiCode,
         pec: party?.pec,
@@ -115,10 +138,28 @@ export class DocumentXmlService {
         notes: document.notes,
       }),
       filename: fatturaPaFileName(
-        tenant.vatNumber,
+        issuer.vatNumber,
         document.reference ?? String(document.number ?? 'fattura'),
       ),
     };
+  }
+
+  /**
+   * Il cedente è l'azienda gestita. Su una fattura già emessa vince lo
+   * snapshot: il file trasmesso e quello riscaricato mesi dopo devono dire la
+   * stessa cosa, anche se l'anagrafica nel frattempo è cambiata.
+   */
+  private async loadIssuer(tenantId: string, document: DocumentDetail): Promise<DocumentIssuer> {
+    const snapshot = readIssuerSnapshot(document.issuerSnapshot);
+    if (snapshot) {
+      return snapshot;
+    }
+
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: ISSUER_TENANT_SELECT,
+    });
+    return resolveDocumentIssuer(tenant);
   }
 }
 

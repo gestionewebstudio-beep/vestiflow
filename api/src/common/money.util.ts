@@ -17,6 +17,54 @@ export function roundToMinor(amountMinor: number): number {
   return Math.round(amountMinor);
 }
 
+/** Ripartisce un totale già arrotondato: rapporto esatto fra interi, arrotondamento half-up. */
+export function proportionalMinor(amountMinor: number, part: number, whole: number): number {
+  if (
+    ![amountMinor, part, whole].every(Number.isSafeInteger) ||
+    amountMinor < 0 ||
+    part < 0 ||
+    whole <= 0 ||
+    part > whole
+  ) {
+    throw new RangeError('La ripartizione richiede un totale e una frazione interi non negativi.');
+  }
+  // I prodotti di due colonne Int possono superare la precisione degli interi Number.
+  const denominator = BigInt(whole);
+  return Number((2n * BigInt(amountMinor) * BigInt(part) + denominator) / (2n * denominator));
+}
+
+/**
+ * Cifre di centesimo che il CONTRATTO conserva: quattro, cioè **6 decimali di
+ * euro**.
+ *
+ *     1,234567 EUR  =  123,4567 centesimi
+ *
+ * ⚠️ **Non è la capacità della colonna**, ed è la confusione che questo
+ * commento induceva: `NUMERIC(16,6)` di decimali ne memorizza **sei** — sei di
+ * centesimo, cioè otto di euro. Ne usiamo quattro, e le due cifre di margine
+ * restano libere.
+ *
+ * Oltre le quattro non c'è precisione: c'è il rumore del float (`25 / 1.22` in
+ * binario non finisce mai).
+ */
+const MINOR_TAIL_DECIMALS = 4;
+
+/**
+ * Riduce la coda decimale a quello che la colonna sa tenere: 4 cifre di
+ * centesimo, cioè 6 decimali di euro. NON è l'arrotondamento d'uscita — è la
+ * forma memorizzabile del valore esatto. Oltre quelle cifre non c'è precisione,
+ * c'è il rumore del float (`25 / 1.22` in binario non finisce mai), e il
+ * database rifiuterebbe la scala.
+ *
+ * Gemella di `toStorableMinor` del frontend (`core/utils/money.util.ts`): le due
+ * sponde devono ridurre la coda allo stesso modo, altrimenti lo stesso importo
+ * salvato dalle due parti differisce nell'ultima cifra.
+ */
+export function toStorableMinor(amountMinor: number): number {
+  const factor = 10 ** MINOR_TAIL_DECIMALS;
+  return Math.round(amountMinor * factor) / factor;
+}
+
 /** Stesso importo *per l'operatore*: confronto al centesimo. */
 export function sameAmountAtCent(a: number, b: number): boolean {
   return Math.round(a) === Math.round(b);
@@ -31,6 +79,37 @@ export function sameNullableAmountAtCent(a: number | null, b: number | null): bo
     return a === b;
   }
   return sameAmountAtCent(a, b);
+}
+
+/**
+ * **«È cambiato?» per un valore UNITARIO canonico**: si chiede alla precisione
+ * del contratto — 4 cifre di centesimo, cioè 6 decimali di euro — non al
+ * centesimo.
+ *
+ * ⛔ **Non è un doppione di `sameAmountAtCent`, ed è la distinzione che conta.**
+ * Quella risponde «è lo stesso importo *per l'operatore*», e sui TOTALI è
+ * giusta: una coda diversa non è una modifica che qualcuno vede. Ma un costo
+ * unitario la coda la CONSERVA per contratto, e chiederglielo al centesimo
+ * significa non accorgersi di un cambio reale:
+ *
+ *     84,0000 → 84,4262     al centesimo: «uguali»  ⛔     al contratto: diversi ✅
+ *
+ * Misurato il 22/08/2026: con quel metro, un Arrivo merce a 1,03 € ivati al 22%
+ * avrebbe lasciato in anagrafica il vecchio 84 invece di scrivere 84,4262 —
+ * cioè avrebbe vanificato la migration che serviva a conservarlo.
+ *
+ * ⭐ **Normalizza entrambi i valori prima di confrontarli**, con la stessa
+ * funzione che li prepara alla persistenza: due valori grezzi diversi che
+ * diventano identici una volta memorizzabili SONO lo stesso valore, e non
+ * devono far scattare una riscrittura.
+ *
+ * `null` resta distinto da qualunque numero, zero compreso.
+ */
+export function sameUnitAmountAtContract(a: number | null, b: number | null): boolean {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return toStorableMinor(a) === toStorableMinor(b);
 }
 
 /**

@@ -61,7 +61,6 @@ export function toCreateProductBody(dto: CreateProductDto): Record<string, unkno
     listino3Price: toApiListino(dto.listino3Price),
     // Modalità di compilazione: memoria personale dell'operatore, non un campo
     // dell'articolo (il backend la ricorda solo alla creazione).
-    listinoPricesIncludeVat: dto.listinoPricesIncludeVat,
     description: dto.description,
     brand: dto.brand,
     category: dto.category,

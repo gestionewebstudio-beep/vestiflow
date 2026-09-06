@@ -11,8 +11,17 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate": "node scripts/prisma-migrate-guard.mjs",
     "prisma:deploy": "prisma migrate deploy",
+    "db:test:up": "docker compose -f ../docker-compose.test.yml up -d --wait",
+    "db:test:down": "docker compose -f ../docker-compose.test.yml down",
+    "db:test:reset": "docker compose -f ../docker-compose.test.yml down -v && npm run db:test:up && npm run prisma:deploy:test",
+    "prisma:deploy:test": "node scripts/prisma-deploy-test.mjs",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:migration:cassa": "vitest run --config vitest.cassa-migrations.config.ts",
+    "test:browser:cassa": "vitest run --config vitest.cassa-browser.config.ts",
+    "test:shopify:contract": "vitest run --config vitest.contract.config.ts",
+    "test:migration": "vitest run --config vitest.integration.config.ts --exclude '**/node_modules/**' src/test/integration/stati-ordini-backfill.integration-spec.ts",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
     "backfill:catalog-origin": "node scripts/backfill-catalog-origin.mjs",
@@ -21,8 +30,10 @@
     "backfill:shopify-order-documents:apply": "npm run build && node scripts/backfill-shopify-order-documents.mjs --apply",
     "provision:e2e-users": "node scripts/provision-e2e-permission-users.mjs",
     "verify:pdf-export": "npm run build && node scripts/verify-pdf-export.mjs",
+    "verify:pdf-all": "npm run build && node scripts/verify-pdf-all-types.mjs",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "typecheck:test": "tsc --noEmit -p tsconfig.spec.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -68,7 +79,8 @@
     "vitest": "^4.0.8"
   },
   "overrides": {
-    "multer": "2.2.0"
+    "multer": "2.2.0",
+    "deepmerge-ts": "^8.0.2"
   },
   "volta": {
     "node": "22.13.1"

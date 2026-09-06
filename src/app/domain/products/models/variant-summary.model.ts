@@ -15,6 +15,12 @@ export interface VariantSummary {
   readonly productName: string;
   /** Display completo (es. 'T-shirt Basic — M / Bianco'). */
   readonly title: string;
+  /**
+   * L'etichetta della sola VARIANTE: «M / Rosso». Vuota se l'articolo non ha
+   * opzioni. La compone il server con la funzione unica: qui non si ricava
+   * per differenza dal titolo.
+   */
+  readonly variantLabel: string;
   readonly barcode?: string;
   readonly sellingPrice: Money;
   /**
@@ -23,6 +29,11 @@ export interface VariantSummary {
    * non c'è ripiego: il documento mette la riga a zero e lo dice.
    */
   readonly listinoPrices?: Readonly<Record<1 | 2 | 3, Money | null>>;
+  /**
+   * Prezzo del canale Shopify della variante: **distinto** dal prezzo al
+   * pubblico e mai sincronizzato con esso oltre alla politica dell'anagrafica.
+   */
+  readonly shopifyPrice?: Money;
   readonly purchasePrice?: Money;
   readonly compareAtPrice?: Money | null;
   readonly supplierSku?: string;

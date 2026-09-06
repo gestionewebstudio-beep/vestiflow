@@ -1,0 +1,630 @@
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento (Ordine cliente)
+     promossa in styles/_document-form-mobile.scss. -->
+<section class="doc-form doc-form--m-ref">
+  @if (saveError(); as errore) {
+    <app-inline-banner
+      tone="error"
+      [message]="errore"
+      dismissLabel="Ho capito"
+      (dismissed)="dismissSaveError()"
+    />
+  }
+
+  <div class="doc-form__head-row">
+    <app-back-button />
+    <h1 class="doc-form__title">{{ pageTitle() }}</h1>
+  </div>
+
+  <p class="doc-form__disclaimer" role="note">{{ descriptor.subtitle }}</p>
+
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+  
+         ⛔ Qui c'erano tre rami scritti a mano — scheletro, errore,
+         non modificabile — identici nell'ORDINE in sette maschere su
+         sette, ma con tre descrizioni d'errore diverse e uno scheletro
+         da cinque righe invece di sei.
+  
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui: dipende
+         dal documento, e il livello comune non deve conoscerlo. -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <!-- Il tipo lo dice la rotta: un documento di tipo diverso non si apre qui,
+         o si finirebbe a correggere un reso su una maschera che dice vendita. -->
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non disponibile"
+        description="Questo indirizzo non corrisponde al documento richiesto."
+        ctaLabel="Torna alle vendite al banco"
+        (ctaClick)="goToList()"
+      />
+    </app-document-page-state>
+  } @else {
+    <form class="doc-form__form" [formGroup]="form">
+      <fieldset class="doc-form__fieldset">
+        <!-- ⭐ **La testata si dichiara UNA VOLTA.** Qui c'erano 149 righe: 76
+             nel pannello mobile e 64 nella griglia desktop, con gli stessi
+             quattro campi, le stesse opzioni e gli stessi gestori — cambiavano
+             l'identificativo (`ssf-m-*` contro `ssf-*`) e la formula
+             dell'aria-label («Cliente del documento» contro «Cliente»). Non
+             erano due viste: era la stessa vista scritta due volte, e ogni
+             correzione ne raggiungeva una sola. -->
+        <app-document-header
+          class="doc-form__header"
+          [title]="mobilePanelTitle()"
+          [summaryParts]="mobilePanelSummaryParts()"
+          [icon]="descriptor.icon"
+          [statusText]="mobilePanelStatus()"
+          [statusReady]="mobileHeaderReady()"
+          sectionTitle="Dati principali"
+          [dense]="true"
+        >
+          <!-- ⭐ Cliente PRIMA della Sede, come sull'Ordine cliente: chi usa
+               VestiFlow trova i campi dove l'abitudine glieli mette, e l'ordine
+               non si inverte da un documento all'altro. Che il cliente sia
+               facoltativo non cambia dove sta. -->
+          <app-document-header-field label="Cliente (facoltativo)">
+            <app-select-menu
+              [options]="customerOptions()"
+              [value]="form.controls.customerId.value"
+              ariaLabel="Cliente"
+              placeholder="Nessun cliente"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca cliente…"
+              searchAriaLabel="Cerca cliente"
+              (valueChange)="onCustomerChange($event)"
+            />
+          </app-document-header-field>
+
+          <!-- Controllo comune anche con una sola sede disponibile: il default
+               precompila, ma il campo resta quello (`11` A13).
+               Il «campo in attesa» stava solo sulla griglia desktop: ora è
+               dichiarato una volta e vale per tutte e due le vesti. Sotto `lg`
+               il foglio condiviso del pannello ridichiara `--field-border-color`
+               con specificità maggiore, quindi lì la resa resta quella di prima:
+               è una scelta del foglio comune, non di questa maschera. -->
+          <app-document-header-field
+            label="Sede"
+            [waiting]="locationWaiting()"
+            [invalid]="locationInvalid()"
+            errorId="ssf-location-error"
+          >
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Sede"
+              placeholder="Seleziona sede…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="locationInvalid()"
+              describedBy="ssf-location-error"
+              (valueChange)="onLocationChange($event)"
+            />
+          </app-document-header-field>
+
+          <app-document-header-field label="Data documento">
+            <!-- `compact` era solo sulla griglia desktop, dove l'altezza esatta
+                 fa combaciare la data col campo numerazione. Tenuto: il token
+                 `--field-height` che legge vale 44px dentro il pannello mobile,
+                 quindi la stessa dichiarazione va bene in tutte e due le vesti. -->
+            <app-date-input
+              inputId="ssf-date"
+              formControlName="documentDate"
+              ariaLabel="Data documento"
+              [compact]="true"
+              [fullWidth]="true"
+            />
+          </app-document-header-field>
+
+          <!-- Numero e serie: il campo comune, con la proposta del primo libero.
+               ⭐ Modificabili anche in modifica, come su ogni altro documento. -->
+          <app-document-number-field
+            numberInputId="ssf-number"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="numberIsProposal()"
+            [series]="form.controls.series.value"
+            [seriesOptions]="numbering.seriesOptions()"
+            [canManageSeries]="canManageSeries()"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
+            (manageSeries)="seriesDialogOpen.set(true)"
+          />
+        </app-document-header>
+
+        <section class="doc-form__lines" aria-labelledby="ssf-lines-title">
+          <div class="doc-form__lines-head">
+            <h2 id="ssf-lines-title" class="doc-form__subtitle">Righe</h2>
+            <!-- Il selettore Colonne è quello comune: la lista è propria del
+                 banco, e non dichiara il costo — quindi non c'è da spegnere.
+
+                 ⛔ **Qui c'era `@if (!compactView())`**, col commento «su mobile
+                 non compare: le card non hanno colonne, e le mostrano già
+                 tutte». Era vero, e non lo è più: il corpo della card è guidato
+                 dal catalogo, quindi il selettore governa anche la vista
+                 compatta. Un comando si spegne per **configurazione**, non per
+                 larghezza dello schermo. -->
+            <div class="doc-form__lines-tools">
+              <app-table-column-picker [viewId]="lineColumnsView" />
+            </div>
+          </div>
+
+          @if (!headerGateActive()) {
+            <!-- ⭐ La porta d'ingresso è la RIGA in fondo alla tabella, come su
+                 ogni altra maschera documentale (`11` A15).
+
+                 ⚠️ In vista CARD la tabella non esiste, quindi lì la porta resta
+                 un campo sopra l'elenco: stessa etichetta, stesso comportamento.
+                 ⛔ Una riga vuota non è una riga di documento: nasce quando un
+                 articolo è davvero risolto (A14). -->
+            @if (compactView()) {
+              <div class="store-sale-form__scan">
+                <input
+                  id="ssf-scan-compact"
+                  class="doc-form__input store-sale-form__scan-input"
+                  type="text"
+                  autocomplete="off"
+                  aria-label="Scansiona o cerca un articolo"
+                  placeholder="Scansiona EAN, inserisci codice/SKU o cerca articolo…"
+                  [value]="searchDraft()"
+                  [disabled]="searchPending()"
+                  (input)="searchDraft.set($any($event.target).value)"
+                  (keydown.enter)="commitScan(searchDraft()); $event.preventDefault()"
+                />
+              </div>
+            }
+
+            <!-- I comandi che il banco ha in più: ricerca assistita e fotocamera. -->
+            <div class="store-sale-form__scan">
+              <app-button type="button" variant="secondary" (click)="openProductSearch()">
+                <i class="pi pi-search" aria-hidden="true"></i>
+                Cerca articolo
+              </app-button>
+              @if (barcodeScannerEnabled()) {
+                <!-- Fotocamera: scansione CONTINUA, l'articolo riconosciuto resta
+                     a video con lo stepper, e lo stesso codice incrementa. È
+                     l'overlay comune, non una copia del banco. -->
+                <app-button type="button" variant="secondary" (click)="openScanOverlay()">
+                  <i class="pi pi-camera" aria-hidden="true"></i>
+                  Scansiona
+                </app-button>
+              }
+              <!-- ⭐ Il SECONDO modo di acquisizione, e mancava (24/08/2026).
+                   Ricerca e scanner, trovando la stessa variante, INCREMENTANO la
+                   riga che c'è; «Aggiungi riga» ne apre una NUOVA anche se poi ci
+                   si mette lo stesso articolo. Sono due gesti diversi, e senza
+                   questo al banco ne esisteva uno solo. -->
+              <app-button type="button" (click)="addLine()">
+                <i class="pi pi-plus" aria-hidden="true"></i>
+                Aggiungi riga
+              </app-button>
+            </div>
+
+            @if (searchMessage(); as messaggio) {
+              <!-- Codice non trovato: nessuna riga, nessun popup — il messaggio
+                   resta qui e il campo è già pronto (A14). Le AZIONI sotto le
+                   sceglie l'operatore: A14 vieta l'automatismo, non la scelta. -->
+              @if (compactView()) {
+                <!-- In tabella il messaggio lo porta già la riga di inserimento:
+                     qui servirebbe solo a dirlo due volte. -->
+                <p class="doc-form__hint" role="status">{{ messaggio }}</p>
+              }
+              @if (unresolvedCode(); as codice) {
+                <div
+                  class="store-sale-form__notfound"
+                  role="group"
+                  aria-label="Articolo non trovato: azioni"
+                >
+                  <button
+                    type="button"
+                    class="doc-form__ghost-button"
+                    (click)="openProductSearch()"
+                  >
+                    Cerca articolo
+                  </button>
+                  @if (puoGestireCatalogo()) {
+                    <button
+                      type="button"
+                      class="doc-form__ghost-button"
+                      (click)="openProductCreate(codice)"
+                    >
+                      Crea prodotto
+                    </button>
+                  } @else {
+                    <span class="doc-form__hint">
+                      Non è ancora a catalogo: chiedi a un responsabile di inserirlo.
+                    </span>
+                  }
+                </div>
+              }
+            }
+          }
+
+          <!-- ⛔ A testata incompleta le righe NON si mostrano: al loro posto uno
+               stato vuoto che dice cosa manca (regole-stile-ui §7). Non una
+               tabella spenta a metà tinta: se una cosa non è utilizzabile, non
+               c'è.
+
+               ⭐ A testata COMPLETA la tabella c'è anche senza righe, come sul
+               riferimento (Ordine cliente, `11` A15): le intestazioni dicono
+               che cosa si sta per compilare, e il selettore Colonne ha un
+               senso. Lo stato vuoto sta DENTRO, non al posto della tabella. -->
+          @if (headerGateActive()) {
+            <app-empty-state
+              icon="pi-shop"
+              [title]="linesEmptyTitle()"
+              [description]="linesEmptyDescription()"
+            />
+          } @else {
+            @if (availabilityWarningCount() > 0) {
+              <!-- Avviso, mai blocco (`11` A18): la conclusione resta possibile e
+                   Giacenza/Disponibile possono andare negative. -->
+              <app-inline-banner
+                tone="warning"
+                [message]="
+                  availabilityWarningCount() +
+                  ' riga/e supera la disponibilità. Si può concludere comunque: la giacenza potrà andare in negativo.'
+                "
+              />
+            }
+
+            <!-- ⛔ Le due viste sono ALTERNATIVE, non entrambe vive: sotto la
+                 soglia comune la tabella non c'è, e al suo posto ci sono le
+                 card. Il criterio è quello dell'Ordine cliente, che è il
+                 riferimento mobile della maschera (`11` A12). -->
+            @if (compactView()) {
+              @if (!cardsVisible()) {
+                <!-- Le card non hanno intestazioni da mostrare: qui lo stato
+                     vuoto resta al posto dell'elenco.
+
+                     ⭐ La condizione è `cardsVisible()`, non `hasLines()`: dal
+                     24/08/2026 il form nasce con una riga vuota come le altre
+                     maschere, ma su telefono quella riga NON diventa una card.
+                     Una card «Riga senza prodotto» con Qtà 1 e totale 0 fa
+                     credere che ci sia già qualcosa, e non è compilabile finché
+                     non le si dà un articolo. È la scelta dell'Ordine cliente,
+                     che qui è il riferimento. -->
+                <app-empty-state
+                  icon="pi-shop"
+                  [title]="linesEmptyTitle()"
+                  [description]="linesEmptyDescription()"
+                />
+              }
+              <!-- ⭐ La card è la COMPONENTE COMUNE — guscio, striscia e corpo — la
+                   stessa che monta l'Ordine cliente (`11` A15). Il corpo deduce i
+                   campi dal CATALOGO COLONNE, come la riga di scrivania: il
+                   selettore Colonne arriva anche qui.
+
+                   ⛔ Qui c'era `app-store-sale-line-card`, un involucro di feature
+                   che scriveva a mano i campi del corpo — al mobile era quello che
+                   le `<td>` scritte a mano erano al desktop. Portava tre difetti
+                   che spariscono con lui: il cestino della testata non era legato
+                   a niente e non eliminava, prezzo e sconto emettevano su
+                   `change` (il totale si muoveva solo uscendo dal campo), e SKU,
+                   EAN e nome prodotto non erano celle comuni.
+
+                   ⚠️ Il `formArrayName` serve al `formGroupName` della riga, come
+                   nel `<tbody>` del desktop: senza, la card non sta in nessun
+                   contesto di form. -->
+              @if (cardsVisible()) {
+                <div class="store-sale-form__cards" formArrayName="lines">
+                  @for (group of lineControls.controls; track group; let i = $index) {
+                    <app-document-line-card
+                      [formGroupName]="i"
+                      [lineIndex]="i"
+                      [open]="isLineCardOpen(i)"
+                      [complete]="lineCardHead(i).complete"
+                      [title]="lineCardHead(i).title"
+                      [variantLabel]="lineCardHead(i).variantLabel"
+                      [meta]="lineCardHead(i).meta"
+                      [alert]="lineCardHead(i).alert"
+                      (toggled)="toggleLineCard(i)"
+                      (removeRequested)="removeLine(i)"
+                      (removed)="removeLine(i)"
+                    >
+                      <app-document-line-card-strip
+                        cardControls
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        [view]="lineRowView(i)"
+                        [priceLabel]="priceRowLabel()"
+                        [quantityMin]="1"
+                      />
+                      <app-document-line-card-body
+                        cardBody
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        idPrefix="ssf"
+                        [view]="lineRowView(i)"
+                        [stockToggleLabel]="stockToggleLabel()"
+                        [priceLabel]="priceRowLabel()"
+                        (productNameChanged)="onDescriptionChange(i, $event)"
+                        (productSearchOpened)="openLineProductSearch(i)"
+                        (vatSelected)="onVatChange(i, $event)"
+                        (stockToggled)="onStockToggle(i, $event.value)"
+                      />
+                    </app-document-line-card>
+                  }
+                </div>
+              }
+            } @else {
+              <div class="doc-form__table-wrap">
+                <table class="doc-form__table">
+                  <thead>
+                    <!-- ⭐ L'intestazione è la COMPONENTE COMUNE, come la riga: stesse
+                         colonne, stesse classi di gruppo, stesse larghezze. ⛔ Qui era
+                         scritta a mano, e aveva ZERO classi di gruppo contro le 13 del
+                         corpo: testata e celle dicevano due cose diverse. -->
+                    <tr
+                      app-document-line-head
+                      [indexColumnWidth]="lineIndexColumnWidth()"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      [columnWidth]="lineColumnWidthFn"
+                      [columnMinWidth]="lineColumnMinWidthFn"
+                      [stockToggleLabel]="stockToggleLabel()"
+                      [stockToggleTooltip]="stockToggleTooltip()"
+                      [priceLabel]="priceRowLabel()"
+                      [pricesIncludeVat]="pricesIncludeVat()"
+                      [priceMenuOpen]="priceModeMenuOpen()"
+                      (priceMenuToggled)="togglePriceModeMenu()"
+                      (priceModeChanged)="setPriceMode($event)"
+                      (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
+                      (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
+                    ></tr>
+                  </thead>
+                  <tbody formArrayName="lines">
+                    @if (!hasLines()) {
+                      <tr>
+                        <td [attr.colspan]="99" class="store-sale-form__empty-cell">
+                          <app-empty-state
+                            icon="pi-shop"
+                            [title]="linesEmptyTitle()"
+                            [description]="linesEmptyDescription()"
+                          />
+                        </td>
+                      </tr>
+                    }
+                    <!-- ⭐ La riga è la COMPONENTE COMUNE, la stessa dell'Ordine
+                         cliente (`11` A15). Il banco non ne ha una propria: mostra
+                         meno colonne, e aggiunge la spunta Scarica/Carica giacenze.
+                         ⛔ Qui c'era una seconda <tr> scritta a mano — 139 righe con
+                         una sola cella condivisa — ed è il difetto che questa
+                         estrazione chiude. -->
+                    @for (group of lineControls.controls; track group; let i = $index) {
+                      <tr
+                        app-document-line-row
+                        class="doc-form__table-row"
+                        [class.doc-form__row--warning]="lineExceedsAvailability(lineModel(i))"
+                        [formGroupName]="i"
+                        [group]="group"
+                        [lineIndex]="i"
+                        [quantityMin]="1"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        idPrefix="ssf"
+                        [view]="lineRowView(i)"
+                        [stockToggleLabel]="stockToggleLabel()"
+                        (vatSelected)="onVatChange(i, $event)"
+                        (productSearchOpened)="openLineProductSearch(i)"
+                        (removeRequested)="removeLine(i)"
+                      ></tr>
+                    }
+                    <!-- ⭐ La riga di inserimento è la COMPONENTE COMUNE, in fondo
+                         alla griglia come su ogni altra maschera. ⛔ Una riga vuota
+                         non è una riga di documento: nasce quando un articolo è
+                         davvero risolto (`11` A14). -->
+                    <tr
+                      app-document-line-quick-row
+                      #quickRow
+                      inputId="ssf-scan"
+                      [value]="searchDraft()"
+                      [disabled]="searchPending()"
+                      placeholder="Scansiona EAN, inserisci codice/SKU o cerca articolo…"
+                      [message]="searchMessage()"
+                      (valueChanged)="searchDraft.set($event)"
+                      (committed)="commitScan(searchDraft())"
+                    ></tr>
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        </section>
+
+        <!-- ── Il piede: totali, note, causale, azioni (`11` A17) ──────────
+             Stessa banda degli altri documenti. ⛔ Lo Sconto extra NON c'è:
+             è percentuale e importo (`11` A16), l'importo manca al contratto
+             comune e le sue regole sono D1, aperta — una sezione con la sola
+             percentuale consoliderebbe una forma già nota come incompleta. -->
+        <div class="doc-form__footer-grid">
+          <aside class="doc-form__totals-bar" aria-label="Totali documento">
+            <app-document-totals [rows]="totalsRows()" />
+          </aside>
+
+          <!-- Note e causale nella banda comune del piede: stesse classi delle
+               altre maschere, nessuno stile proprio. -->
+          <div class="doc-form__footer-notes">
+            @if (descriptor.mode === 'return') {
+              <!-- Causale del Reso: facoltativa (`11` A11), e sta qui coi dati
+                   documentali secondari — la testata resta quella che serve
+                   per iniziare a lavorare. -->
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="ssf-causale">Causale (facoltativa)</label>
+                <input
+                  id="ssf-causale"
+                  class="doc-form__input"
+                  type="text"
+                  maxlength="500"
+                  [value]="preserved().causale"
+                  (input)="onCausaleInput($any($event.target).value)"
+                />
+              </div>
+            }
+
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="ssf-notes">Note</label>
+              <textarea
+                id="ssf-notes"
+                class="doc-form__textarea"
+                rows="2"
+                maxlength="2000"
+                [value]="preserved().notes"
+                (input)="onNotesInput($any($event.target).value)"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+        @if (lastResult(); as esito) {
+          <!-- Conferma dell'operazione conclusa, col suo riferimento: la
+               compilazione qui sopra è già quella del cliente successivo. -->
+          <app-inline-banner
+            tone="success"
+            [message]="descriptor.concludedMessage + ' ' + esito.reference + '.'"
+            dismissLabel="Ho capito"
+            (dismissed)="dismissLastResult()"
+          />
+        }
+
+        <!-- Azioni: desktop in barra, mobile in coda al documento
+             (`regole-stile-ui` §5). Le etichette sono quelle decise in A17. -->
+        <!-- Azioni: barra su desktop, coppia in fondo al documento su mobile
+             (`regole-stile-ui` §5). ⛔ Una sola vista è viva, come per le
+             righe: due copie dello stesso comando verrebbero annunciate due
+             volte da chi ascolta. -->
+        <!-- ⭐ **Il Banco aveva gia' risolto la doppia dichiarazione a modo suo**:
+             `@if (compactView()) { … } @else { … }`, una sola viva alla volta —
+             «due copie dello stesso comando verrebbero annunciate due volte da
+             chi ascolta». Era la maschera piu' avanti delle otto.
+
+             ⭐ Ora il condizionale non serve piu': la veste la sceglie il
+             componente, e la dichiarazione e' una in ogni caso. -->
+        <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+             ⚠️ `saveDisabled`: al banco il salvataggio resta spento finche'
+             manca la SEDE (`canConclude()`). Non e' un flag di dominio — la
+             barra non sa perche', sa solo che non si salva.
+
+             ⭐ E `saveLabel` porta il nome dell'operazione: «Concludi
+             ⚠️ NON è «l’eccezione prevista da `regole-stile-ui` §5»: quella regola
+             esenta chi NON sta in `documents`, e il Banco ci sta. È una decisione di
+             prodotto specifica di questo tipo, presa a parte — e cambiarla richiede
+             una decisione nuova, non l’applicazione del criterio di §5.
+             non per il dialogo d'uscita, che nomina il rischio. -->
+        <app-document-actions
+          saveType="button"
+          [saveLabel]="confirmLabel()"
+          [saveDisabled]="!canConclude()"
+          [saving]="savePending()"
+          (closeRequested)="close()"
+          (saveRequested)="save()"
+        >
+          <p class="doc-form__actions-note" documentActionsNote>
+            <i class="pi pi-info-circle" aria-hidden="true"></i>
+            <strong class="tabular-nums">
+              {{ lines().length }} {{ lines().length === 1 ? 'riga' : 'righe' }}
+            </strong>
+            <span class="doc-form__actions-note-sep">·</span>
+            {{ descriptor.stockEffectNote }}
+          </p>
+        </app-document-actions>
+      </fieldset>
+    </form>
+
+    @if (exitDialogOpen()) {
+      <!-- Modifiche non salvate: si chiede, invece di perdere il lavoro
+           (`11` A2). Vale anche passando fra le due creazioni.
+
+           ⛔ Qui il dialogo parlava una lingua sua — «Documento non concluso»,
+           «Esci senza concludere», «Resta qui» — perche' al banco l'azione si
+           chiama «Concludi vendita». Allineato al contratto comune il
+           25/08/2026: il pulsante di SALVATAGGIO puo' chiamare l'operazione
+           col suo nome, ma il dialogo d'uscita nomina il RISCHIO, e il rischio
+           e' identico su tredici maschere. -->
+      <app-confirm-dialog
+        [(open)]="exitDialogOpen"
+        title="Modifiche non salvate"
+        message="Le righe inserite non sono state concluse: uscendo si perdono."
+        cancelLabel="Annulla"
+        confirmLabel="Esci senza salvare"
+        emphasis="cancel"
+        (confirmed)="confirmExitWithoutSaving()"
+        (dismissed)="cancelExit()"
+      />
+    }
+
+    @if (scanOverlayOpen()) {
+      <!-- Overlay comune: metà fotocamera, metà articolo riconosciuto. La
+           riga la costruisce questa maschera — al banco lo stesso EAN
+           incrementa (`11` A14). -->
+      <app-document-scan-overlay
+        [locationId]="form.controls.locationId.value || null"
+        [canCreateProducts]="puoGestireCatalogo()"
+        idleHint="Inquadra un codice per aggiungerlo."
+        (lineAdded)="onScanLineAdded($event)"
+        (quickAddRequested)="onScanQuickAdd($event)"
+        (createFullRequested)="openProductCreate($event)"
+        (closed)="closeScanOverlay()"
+      />
+    }
+
+    <!-- Anagrafica prodotto al volo: lo stesso pannello di Arrivo merce e
+         Ordine cliente, aperto SOLO da un'azione esplicita. -->
+    <app-slide-panel
+      [open]="productPanelOpen()"
+      title="Anagrafica prodotto"
+      (closed)="closeProductPanel()"
+    >
+      @if (productPanelOpen()) {
+        <app-product-form
+          [embeddedPanel]="true"
+          [embeddedPrefill]="productPanelPrefill()"
+          (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
+          (productSavedWithoutAttach)="onProductSavedWithoutAttach()"
+          (panelDismissed)="closeProductPanel()"
+        />
+      }
+    </app-slide-panel>
+
+    <!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il
+         documento NON è salvato; il messaggio nomina il numero rifiutato e il
+         primo libero, e la testata riceve quest'ultimo. -->
+    <app-confirm-dialog
+      [(open)]="conflictDialogOpen"
+      title="Numero già usato"
+      [message]="conflictMessage()"
+      confirmLabel="OK"
+      [acknowledge]="true"
+      (confirmed)="acknowledgeConflictNumber()"
+      (dismissed)="acknowledgeConflictNumber()"
+    />
+
+    <!-- Gestione numerazioni del tipo corrente, dall'ingranaggio del campo
+         Serie: lo stesso pannello delle Impostazioni, filtrato sul tipo. -->
+    <app-document-series-manager-dialog
+      [type]="descriptor.documentType"
+      [open]="seriesDialogOpen()"
+      (closed)="onSeriesManagerClosed()"
+    />
+
+    <!-- Ricerca articolo: il pannello condiviso con gli altri documenti. -->
+    <app-slide-panel
+      [open]="lineSearchPanel.isOpen()"
+      title="Cerca articolo"
+      size="narrow"
+      (closed)="closeProductSearch()"
+    >
+      @if (lineSearchPanel.isOpen()) {
+        <app-document-product-search-panel
+          [launchTerm]="lineSearchPanel.launchTerm()"
+          [launchSeq]="lineSearchPanel.launchSeq()"
+          [locationId]="form.controls.locationId.value || null"
+          (variantSelected)="onProductSearchPick($event.variantId)"
+          (dismissed)="closeProductSearch()"
+        />
+      }
+    </app-slide-panel>
+  }
+</section>

@@ -98,3 +98,65 @@
   gap: var(--space-2);
   margin-block-start: var(--space-5);
 }
+
+/*
+  ⭐ **Le mancavano esattamente DUE contratti**, non un wrapper.
+
+  Misurato il 29/08/2026: questa pagina prendeva già tutta la grammatica
+  visiva comune (`data-table-desktop`, `data-table-mobile-cards`,
+  `data-table-mobile-title`). Mancavano la catena di altezze e la regione di
+  scorrimento — e sono quelle che tengono il paginatore in fondo invece di
+  spingerlo fuori dal viewport.
+
+  ⛔ **Non le è stato aggiunto un contenitore per somiglianza** (`14` §0): la
+  sua intestazione `sticky` funzionava già ancorandosi a `.shell__content`, e
+  deformarla per farla assomigliare alle altre sarebbe stato il difetto
+  peggiore. Cambia solo chi le dà l’altezza.
+*/
+@include lp.list-page-fills-viewport('inventory-situation', 'app-situation-table');
+
+
+/* ── telaio ─────────────────────────────────────────────────────────────
+  ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.
+
+  ⚠️ La tabella proiettata deve riempire l'area dati, e lo dice QUESTA pagina:
+  le regole del telaio portano il proprio attributo di incapsulamento e non
+  raggiungono il contenuto proiettato. Una regola come `.list-page__data > *`
+  non lo tocca — e non fallisce: non fa niente.
+  ──────────────────────────────────────────────────────────────────────── */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+
+app-situation-table {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/*
+  ⚠️ I gruppi proiettati non sono scatole: sono contenuto. `display: contents`
+  li toglie e lascia i figli partecipare alla riga del telaio — le regole del
+  telaio non raggiungono il contenuto proiettato (incapsulamento).
+*/
+[pageActions],
+[filters],
+[warnings],
+[listActions] {
+  display: contents;
+}
+
+/*
+  ⭐ La riga funzioni permanente: ci sta «Nuovo ordine fornitore», che **non si
+  nasconde** quando non c'è selezione (decisione del proprietario, 29/08/2026).
+
+  Sta a sinistra come nel riferimento Danea: è un comando dell'elenco, non
+  un'azione di conferma da mettere in fondo a destra.
+*/
+.inventory-situation__list-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

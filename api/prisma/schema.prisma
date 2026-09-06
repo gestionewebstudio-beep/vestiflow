@@ -31,6 +31,26 @@ enum TenantChannelProfile {
 
 /// Tipo di voce pagamento gestibile: modalità (Contanti, Bonifico…) o
 /// condizioni (Vista fattura, 30 gg d.f.…). Due elenchi separati, come Danea.
+/// Come un Tipo pagamento si incassa AL BANCO (tranche C2B, `docs/25` §7).
+///
+/// ⭐ E' una classificazione **operativa**, non fiscale: risponde alla domanda
+/// «questo Tipo si puo' incassare alla Cassa, e come si comporta la maschera?».
+///
+/// ⛔ NON e' `PaymentMethodCode`, che e' il catalogo normativo globale
+/// (MP01-MP23); NON e' un codice MP; NON e' un valore del protocollo di un
+/// registratore telematico; e NON rappresenta il **non riscosso**, che e'
+/// fiscale, vive nel blocco 4.1 dello schema AdE per aliquota IVA, ed e' C5.
+///
+/// ⚠️ `voucher` e' modellato ma NON selezionabile nella prima versione del
+/// checkout: un buono porta un CONTEGGIO oltre all'importo e ha regole di resto
+/// proprie. Modellarlo ora costa una riga; aggiungerlo dopo costerebbe una
+/// migration sull'enum.
+enum PaymentTenderKind {
+  cash
+  electronic
+  voucher
+}
+
 enum PaymentOptionKind {
   method
   terms
@@ -40,6 +60,15 @@ enum ProductStatus {
   draft
   active
   archived
+}
+
+/// Stato LOCALE della variante, indipendente da Shopify (docs/24 §3.3):
+/// «Attiva» / «Non attiva». Non si deduce dal canale, dalla quantità né da
+/// `inventoryPolicy`. È un asse diverso dal cestino (`deletedAt`) e dalla
+/// pubblicazione Shopify: una variante attiva può essere non pubblicata.
+enum VariantLifecycleStatus {
+  active
+  inactive
 }
 
 /// Tipo prodotto (§Ordine cliente manuale): proprietà interna VestiFlow,
@@ -125,6 +154,23 @@ enum TikTokSyncStatus {
 /// creazione (nessun effetto su giacenze/disponibilità); Concluso scatta
 /// quando l'ordine viene incluso/agganciato a un Arrivo merce.
 enum SupplierOrderStatus {
+  /// Salvato ma non ancora un impegno d'acquisto: NON eleggibile in Includi.
+  /// Aggiunto il 28/08/2026 in modo additivo — nessun ordine storico lo assume,
+  /// e `confirmed` resta il default applicativo alla creazione (`17` §2.3).
+  to_confirm
+  confirmed
+  concluded
+  cancelled
+}
+
+/// I quattro stati del ciclo commerciale, comuni ai due Ordini.
+///
+/// ⚠️ L'Ordine fornitore NON usa questo tipo: ha il proprio enum, esteso in modo
+/// additivo. L'autorità comune è `api/src/common/order-state.util.ts`, non il
+/// tipo PostgreSQL — l'unificazione fisica dei due tipi è un refactor futuro
+/// separato e dichiarato (`18` §2.4-bis).
+enum OrderCommercialState {
+  to_confirm
   confirmed
   concluded
   cancelled
@@ -178,15 +224,11 @@ enum SalesOrderSource {
   shopify_online
   shopify_pos
   manual
-}
-
-/// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
-enum SalesOrderFiscalStatus {
-  pending_registration
-  delivered_to_accountant
-  externally_registered
-  excluded_pos_register
-  invoiced
+  /// Vendita al banco: la cassa di VestiFlow. Il database lo conosce dal 06/08 (ramo
+  /// cassa) e ci sono gia' righe che lo usano; dichiararlo qui allinea il client a cio'
+  /// che il database e' — nessuna migration. Un corrispettivo con questo canale non ha
+  /// vendita online ne' ordine cliente, ed e' normale che sia cosi'. Registro 1.8.
+  store
 }
 
 /// Stato magazzino della Vendita online (fase 2 §3): scarico completo,
@@ -196,15 +238,6 @@ enum OnlineSaleInventoryStatus {
   unloaded
   partially_unloaded
   not_applied
-}
-
-/// Stato del Corrispettivo interno collegato alla Vendita online (fase 2 §4).
-enum CorrispettivoStatus {
-  to_verify
-  included
-  excluded_invoiced
-  adjusted
-  refunded
 }
 
 /// Stato di una sessione di inventario fisico (conteggio annuale/spot).
@@ -234,18 +267,46 @@ enum DocumentType {
   adjustment // Rettifica
   inventory // Inventario fisico
   proforma // Proforma (non fiscale)
-  invoice_draft // Fattura (fiscale, da trasmettere al commercialista)
+  /// Fattura di vendita (fiscale, da trasmettere al commercialista).
+  ///
+  /// ⚠️ Si chiamava `invoice` fino al 26/08/2026. Non significava piu'
+  /// «bozza» da tempo — questo stesso commento lo diceva — ma il nome tecnico
+  /// restava, e chi scrive codice lo leggeva ogni giorno.
+  invoice
   /// Fattura accompagnatoria: stessa fattura fiscale con trasporto merce
-  /// incluso. Condivide numeratore e form con invoice_draft (vedi
+  /// incluso. Condivide numeratore e form con invoice (vedi
   /// `documentNumberingType`), si differenzia per sezioni trasporto e
   /// destinazione e per lo scarico di magazzino quando non aggancia un DDT.
   invoice_accompanying
+  /// Nota di credito di vendita (TD04): terzo tipo della famiglia Fattura.
+  /// Condivide registro, maschera, permessi e — soprattutto — UN SOLO
+  /// progressivo con gli altri due (`documentNumberingType`, e il CASE
+  /// dell'indice unico che ne è la seconda faccia). Quantità e importi restano
+  /// POSITIVI: il verso economico negativo lo dà il tipo, mai il segno nella
+  /// quantità. Il magazzino lo muove solo se l'operatore spunta «Carica
+  /// magazzino» sulle righe movimentabili, e la spunta nasce spenta.
+  credit_note
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
-  corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
   customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)
   store_sale // Vendita in negozio (cassa interna non fiscale, fase 3 §7)
   store_return // Reso vendita negozio (rientro fisico documentato, fase 3 §9)
   quote // Preventivo cliente (numerazione PRE dedicata, mai effetti magazzino)
+  /// ⚠️ CHIAVE TECNICA DEL NUMERATORE, non un tipo documento.
+  ///
+  /// Il Corrispettivo manuale (`ManualReceipt`, specifica `10` §12) non ha e non
+  /// avrà mai una riga in `documents`: è una registrazione ECONOMICA che vive in
+  /// tabella propria. Il valore sta qui SOLO perché il motore di numerazione
+  /// comune è tipizzato su questo enum a ogni livello — la firma di
+  /// `nextDocumentNumber`, `lockDocumentCounter`, `document_counters.type`.
+  ///
+  /// È la stessa convenzione di `customer_order` e `supplier_order`, che pure
+  /// vivono in tabelle proprie: questo enum è **le chiavi dei numeratori**, non
+  /// «l'elenco dei documenti».
+  ///
+  /// Nelle mappe esaustive riceve il minimo per compilare: **niente prefisso,
+  /// non stampabile, fuori dai contatori configurabili, mai creabile come
+  /// documento**. Non deve comparire in nessuna UI documentale.
+  manual_receipt
 }
 
 /// Ambito di utilizzo di un Codice IVA: acquisti, vendite o entrambi.
@@ -282,7 +343,10 @@ enum DocumentStatus {
   confirmed // Confermato: numero assegnato, movimenti generati
   printed // Stampato
   sent // Inviato
-  externally_registered // Registrato esternamente (fattura/commercialista)
+  /// ⚠️ `externally_registered` sta nel tipo PostgreSQL e non qui: l'azione
+  /// «Inviata al commercialista» è stata rimossa il 16/08/2026 e i due arrivi
+  /// merce che lo portavano sono tornati `confirmed`. Stesso motivo dell'enum
+  /// SalesOrderFiscalStatus: il valore fisico resta, il client non lo espone.
   cancelled // Annullato
 }
 
@@ -329,92 +393,157 @@ model Tenant {
   createdAt                      DateTime             @default(now()) @map("created_at")
   updatedAt                      DateTime             @updatedAt @map("updated_at")
 
-  users                   User[]
-  stores                  Store[]
-  locations               Location[]
-  products                Product[]
-  productImages           ProductImage[]
-  catalogCategories       CatalogCategory[]
-  variants                ProductVariant[]
-  inventoryLevels         InventoryLevel[]
-  stockMovements          StockMovement[]
-  inventoryCounts         InventoryCountSession[]
-  parties                 Party[]
-  suppliers               Supplier[]
-  supplierVariantLinks    SupplierVariantLink[]
-  supplierOrders          SupplierOrder[]
-  customers               Customer[]
-  paymentOptions          PaymentOption[]
-  salesOrders             SalesOrder[]
-  stockReservations       StockReservation[]
-  stockReservationEvents  StockReservationEvent[]
-  onlineOrderEvents       OnlineOrderEvent[]
-  corrispettiviDeliveries CorrispettiviDelivery[]
-  onlineSales             OnlineSale[]
-  onlineSaleLines         OnlineSaleLine[]
-  corrispettivoEntries    CorrispettivoEntry[]
-  corrispettivoEntryLines CorrispettivoEntryLine[]
-  documents               Document[]
-  documentRevisions       DocumentRevision[]
-  documentAttachments     DocumentAttachment[]
-  supplierAttachments     SupplierAttachment[]
-  attachments             Attachment[]
-  inventoryLots           InventoryLot[]
-  inventorySerials        InventorySerial[]
-  userTableViewPreferences UserTableViewPreference[]
-  userDocumentPriceModePreferences UserDocumentPriceModePreference[]
-  userProductPriceModePreferences  UserProductPriceModePreference[]
-  documentSequences       DocumentSequence[]
-  documentTypeSettings    DocumentTypeSetting[]
-  documentCounters        DocumentCounter[]
-  goodsReceiptCausals     GoodsReceiptCausal[]
-  externalDocumentTypes   ExternalDocumentType[]
-  vatCodes                VatCode[]
-  featureSettings         TenantFeatureSettings?
-  shopifyConnection       ShopifyConnection?
-  shopifyCredential       ShopifyCredential?
-  shopifyOAuthStates      ShopifyOAuthState[]
-  shopifyInventorySyncStates ShopifyInventorySyncState[]
-  tiktokConnection        TikTokConnection?
-  tiktokCredential        TikTokCredential?
-  tiktokOAuthStates       TikTokOAuthState[]
-  supportSessionsAsTarget SupportSession[]        @relation("SupportSessionTarget")
+  users                                    User[]
+  stores                                   Store[]
+  locations                                Location[]
+  products                                 Product[]
+  productImages                            ProductImage[]
+  catalogCategories                        CatalogCategory[]
+  variants                                 ProductVariant[]
+  inventoryLevels                          InventoryLevel[]
+  stockMovements                           StockMovement[]
+  inventoryCounts                          InventoryCountSession[]
+  parties                                  Party[]
+  suppliers                                Supplier[]
+  supplierVariantLinks                     SupplierVariantLink[]
+  supplierOrders                           SupplierOrder[]
+  customers                                Customer[]
+  paymentOptions                           PaymentOption[]
+  unitOfMeasureOptions                     UnitOfMeasureOption[]
+  salesOrders                              SalesOrder[]
+  salesOrderRefunds                        SalesOrderRefund[]
+  stockReservations                        StockReservation[]
+  stockReservationEvents                   StockReservationEvent[]
+  onlineOrderEvents                        OnlineOrderEvent[]
+  onlineSales                              OnlineSale[]
+  onlineSaleLines                          OnlineSaleLine[]
+  documents                                Document[]
+  documentRevisions                        DocumentRevision[]
+  documentAttachments                      DocumentAttachment[]
+  supplierAttachments                      SupplierAttachment[]
+  attachments                              Attachment[]
+  inventoryLots                            InventoryLot[]
+  inventorySerials                         InventorySerial[]
+  userTableViewPreferences                 UserTableViewPreference[]
+  userDocumentPriceModePreferences         UserDocumentPriceModePreference[]
+  userDocumentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
+  documentSequences                        DocumentSequence[]
+  documentTypeSettings                     DocumentTypeSetting[]
+  documentCounters                         DocumentCounter[]
+  goodsReceiptCausals                      GoodsReceiptCausal[]
+  externalDocumentTypes                    ExternalDocumentType[]
+  vatCodes                                 VatCode[]
+  companyProfile                           CompanyProfile?
+  featureSettings                          TenantFeatureSettings?
+  shopifyConnection                        ShopifyConnection?
+  shopifyCredential                        ShopifyCredential?
+  shopifyOAuthStates                       ShopifyOAuthState[]
+  shopifyInventorySyncStates               ShopifyInventorySyncState[]
+  tiktokConnection                         TikTokConnection?
+  tiktokCredential                         TikTokCredential?
+  tiktokOAuthStates                        TikTokOAuthState[]
+  supportSessionsAsTarget                  SupportSession[]                          @relation("SupportSessionTarget")
+  tenantUserAuditLogs                      TenantUserAuditLog[]
+  manualReceipts                           ManualReceipt[]
+  creationIntents                          CreationIntent[]
+  storeSalePayments                        StoreSalePayment[]
+  cashSessions                             CashSession[]
+  cashSessionMovements                     CashSessionMovement[]
+  cashSessionDeviceChanges                 CashSessionDeviceChange[]
+  fiscalDevices                            FiscalDevice[]
+  fiscalReceipts                           FiscalReceipt[]
+  posTerminals                             PosTerminal[]
 
   @@map("tenants")
 }
 
+/// Registro degli INTENTI DI CREAZIONE: rende idempotenti i salvataggi che
+/// creano un record con effetti irreversibili (T15).
+///
+/// ⛔ Non conosce il dominio che protegge, ed è la ragione per cui è una tabella
+/// e non una colonna: i percorsi vulnerabili scrivono su tabelle diverse
+/// (`documents`, `sales_orders`, `supplier_orders`, `manual_receipts`…), e una
+/// colonna avrebbe richiesto una migration, un indice e un gestore di conflitto
+/// per ciascuna.
+///
+/// ⚠️ E una colonna su `documents` avrebbe rotto una cosa che oggi funziona:
+/// `isDocumentNumberConflict` riconosce il conflitto dal MODELLO Prisma, e si
+/// giustifica con «documents → SOLO documents_number_unique. Nessun altro
+/// candidato». Un secondo vincolo unico lì avrebbe fatto leggere all'operatore
+/// «numero già assegnato» davanti a un intento duplicato. Su questo modello il
+/// P2002 non entra in `MODELLI_NUMERATI`, quindi non lo sfiora.
+model CreationIntent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Identità dell'intento, generata dal CLIENT una volta per compilazione e
+  /// conservata attraverso i tentativi. Due compilazioni distinte sono due
+  /// intenti, anche a payload identico: è ciò che tiene separate due vendite
+  /// uguali dello stesso minuto da un reinvio della stessa vendita.
+  intentId String @map("intent_id")
+
+  /// Ambito dell'operazione (`store_sale`, `store_return`, …). Serve a leggere
+  /// il registro e a dare un messaggio sensato, non a decidere: la decisione la
+  /// prende il vincolo unico su (tenant, intento).
+  scope String
+
+  /// Impronta della richiesta. Stesso intento + stessa impronta = reinvio, e si
+  /// restituisce il risultato già prodotto. Stesso intento + impronta diversa =
+  /// due comandi diversi che rivendicano la stessa identità: è un errore del
+  /// chiamante, e si rifiuta senza creare niente.
+  fingerprint String
+
+  /// Riferimento OPACO al record creato. Il registro non sa che cosa sia: lo
+  /// interpreta il percorso che l'ha scritto. Resta `NULL` finché la creazione
+  /// non è andata a buon fine.
+  resultRef String? @map("result_ref")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, intentId])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("creation_intents")
+}
+
 model User {
-  id                 String   @id @default(uuid()) @db.Uuid
-  tenantId           String   @map("tenant_id") @db.Uuid
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
   /// Id dell'utente in Supabase Auth (sub del JWT). L'identità vive lì,
   /// qui vivono profilo applicativo e ruolo.
-  authUserId         String?  @unique @map("auth_user_id") @db.Uuid
-  email              String
-  displayName        String   @map("display_name")
-  role               UserRole @default(clerk)
+  authUserId            String?  @unique @map("auth_user_id") @db.Uuid
+  email                 String
+  displayName           String   @map("display_name")
+  role                  UserRole @default(clerk)
   /// URL pubblico foto profilo (Supabase Storage).
-  avatarUrl          String?  @map("avatar_url")
-  avatarStoragePath  String?  @map("avatar_storage_path")
-  isActive           Boolean  @default(true) @map("is_active")
+  avatarUrl             String?  @map("avatar_url")
+  avatarStoragePath     String?  @map("avatar_storage_path")
+  isActive              Boolean  @default(true) @map("is_active")
+  /// La password iniziale la imposta chi crea l'account (titolare o admin
+  /// piattaforma): al primo accesso l'app chiede di cambiarla; il flag si
+  /// azzera a cambio avvenuto (POST /auth/password-changed).
+  mustChangePassword    Boolean  @default(false) @map("must_change_password")
   /// Accesso a tutte le sedi del tenant indipendentemente dalle righe UserLocation
   /// (titolare ha sempre accesso pieno via hasFullTenantAccess, invariante rispetto a questo flag).
-  hasAllLocationsAccess Boolean @default(false) @map("has_all_locations_access")
+  hasAllLocationsAccess Boolean  @default(false) @map("has_all_locations_access")
   /// Sede operativa predefinita: SUGGERIMENTO nei form (mai fallback automatico).
   /// Deve essere una sede autorizzata per l'utente; azzerata se l'assegnazione cambia.
-  defaultLocationId  String?  @map("default_location_id") @db.Uuid
+  defaultLocationId     String?  @map("default_location_id") @db.Uuid
   /// Permessi granulari (chiavi). Il titolare ignora l'array (accesso pieno).
-  permissions        String[] @default([]) @map("permissions")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  permissions           String[] @default([]) @map("permissions")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
-  tenant                    Tenant           @relation(fields: [tenantId], references: [id])
-  defaultLocation           Location?        @relation("UserDefaultLocation", fields: [defaultLocationId], references: [id], onDelete: SetNull)
-  locations                 UserLocation[]
-  stores                    UserStore[]
-  supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
-  tableViewPreferences      UserTableViewPreference[]
-  documentPriceModePreferences UserDocumentPriceModePreference[]
-  productPriceModePreferences  UserProductPriceModePreference[]
+  tenant                               Tenant                                    @relation(fields: [tenantId], references: [id])
+  defaultLocation                      Location?                                 @relation("UserDefaultLocation", fields: [defaultLocationId], references: [id], onDelete: SetNull)
+  locations                            UserLocation[]
+  stores                               UserStore[]
+  supportSessionsAsOperator            SupportSession[]                          @relation("SupportSessionOperator")
+  tableViewPreferences                 UserTableViewPreference[]
+  documentPriceModePreferences         UserDocumentPriceModePreference[]
+  documentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
+  manualReceipts                       ManualReceipt[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -436,6 +565,36 @@ model SupportSession {
   @@index([operatorUserId, endedAt])
   @@index([targetTenantId])
   @@map("support_sessions")
+}
+
+enum TenantUserAuditAction {
+  created
+  updated
+  deleted
+}
+
+/// Audit del ciclo di vita account utenti tenant (pannello admin piattaforma e
+/// Impostazioni → Utenti del titolare): chi ha agito, su chi, cosa è cambiato.
+/// Attore e bersaglio sono snapshot testuali (niente FK verso users): la riga
+/// resta leggibile anche dopo rinomina o eliminazione degli account coinvolti.
+model TenantUserAuditLog {
+  id                   String                @id @default(uuid()) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  actorUserId          String?               @map("actor_user_id") @db.Uuid
+  actorEmail           String                @map("actor_email")
+  actorName            String                @map("actor_name")
+  actorIsPlatformAdmin Boolean               @default(false) @map("actor_is_platform_admin")
+  targetUserId         String?               @map("target_user_id") @db.Uuid
+  targetEmail          String                @map("target_email")
+  action               TenantUserAuditAction
+  /// Diff dei campi cambiati: { campo: { prima, dopo } }; per created lo stato iniziale.
+  details              Json                  @default("{}")
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt], map: "tenant_user_audit_logs_tenant_created_idx")
+  @@map("tenant_user_audit_logs")
 }
 
 model Store {
@@ -511,24 +670,31 @@ model Location {
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
-  tenant            Tenant                  @relation(fields: [tenantId], references: [id])
-  store             Store?                  @relation(fields: [storeId], references: [id])
-  inventoryLevels   InventoryLevel[]
-  movements         StockMovement[]         @relation("MovementLocation")
-  incomingTransfers StockMovement[]         @relation("MovementTargetLocation")
-  supplierOrders    SupplierOrder[]
-  inventoryCounts   InventoryCountSession[]
-  userLocations     UserLocation[]
-  defaultForUsers   User[]                  @relation("UserDefaultLocation")
-  documents         Document[]              @relation("DocumentLocation")
-  incomingDocuments Document[]              @relation("DocumentTargetLocation")
-  inventoryLots     InventoryLot[]
-  inventorySerials  InventorySerial[]
-  stockReservations StockReservation[]
-  onlineSales       OnlineSale[]
-  salesOrders       SalesOrder[]
+  tenant                     Tenant                      @relation(fields: [tenantId], references: [id])
+  store                      Store?                      @relation(fields: [storeId], references: [id])
+  inventoryLevels            InventoryLevel[]
+  movements                  StockMovement[]             @relation("MovementLocation")
+  incomingTransfers          StockMovement[]             @relation("MovementTargetLocation")
+  supplierOrders             SupplierOrder[]
+  inventoryCounts            InventoryCountSession[]
+  userLocations              UserLocation[]
+  defaultForUsers            User[]                      @relation("UserDefaultLocation")
+  documents                  Document[]                  @relation("DocumentLocation")
+  incomingDocuments          Document[]                  @relation("DocumentTargetLocation")
+  inventoryLots              InventoryLot[]
+  inventorySerials           InventorySerial[]
+  stockReservations          StockReservation[]
+  onlineSales                OnlineSale[]
+  salesOrders                SalesOrder[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
-  documentCounters  DocumentCounter[]
+  documentCounters           DocumentCounter[]
+  manualReceipts             ManualReceipt[]
+  /// Piu' dispositivi fiscali possono stare sulla stessa sede (C1B): due
+  /// casse affiancate, o un muletto durante un guasto.
+  fiscalDevices              FiscalDevice[]
+  cashSessions               CashSession[]
+  cashSessionDeviceChanges   CashSessionDeviceChange[]
+  posTerminals               PosTerminal[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -548,6 +714,14 @@ model Product {
   /// l'operatore non lo fornisce.
   articleCode                     String                  @map("article_code")
   name                            String
+  /// Titolo con cui il prodotto si vende ONLINE («Nome Shopify»), distinto dal
+  /// nome interno `name` che si usa in magazzino, nelle ricerche e nei documenti.
+  /// Si inizializza UNA volta — dal nome interno alla creazione, dal titolo
+  /// remoto sui prodotti già collegati — e da lì i due vivono separati:
+  /// rinominare online non tocca il gestionale, e viceversa (docs/24 §1.9).
+  /// null = mai inizializzato: chi spinge deve procurarselo, MAI dedurlo dal
+  /// nome interno su un prodotto collegato, o sovrascriverebbe il titolo online.
+  shopifyTitle                    String?                 @map("shopify_title")
   description                     String?
   brand                           String?
   /// Tipo prodotto Shopify (REST product_type) — organizzazione interna negozio.
@@ -571,10 +745,23 @@ model Product {
   /// Attributi categoria Shopify [{ attributeId, key, namespace, values: [{ id, name }] }].
   shopifyCategoryMetafields       Json                    @default("[]") @map("shopify_category_metafields")
   status                          ProductStatus           @default(draft)
+  // ── Cestino (docs/24 §4.1): cancellazione LOGICA, reversibile ──────────────
+  /// `deletedAt != null` = NEL CESTINO. Non significa «eliminato definitivamente»:
+  /// quella è la rimozione FISICA del record (§4.2) e non ha una colonna. Per la
+  /// stessa ragione l'enum `status` NON ha un valore `deleted`: sarebbero due
+  /// fonti per lo stesso fatto (§3.2). `archived` resta «Non attivo», che è un
+  /// altro asse (§1.4) e non c'entra col cestino.
+  deletedAt                       DateTime?               @map("deleted_at")
+  /// Chi ha spostato nel cestino: id utente come snapshot d'audit, senza FK —
+  /// stessa forma di `StockMovement.createdById`.
+  deletedById                     String?                 @map("deleted_by_id") @db.Uuid
+  deletionReason                  String?                 @map("deletion_reason")
   /// Interruttore di sincronizzazione Shopify per QUESTO prodotto: se false,
-  /// create/update e sync manuale NON propagano verso Shopify (il prodotto già
-  /// presente su Shopify resta invariato, nessun cleanup). Indipendente da
-  /// `status` e da `catalogOrigin`. Default true = comportamento invariato.
+  /// il prodotto non si tocca in NESSUNA delle due direzioni — create/update e
+  /// sync manuale non propagano verso Shopify, e un webhook o un pull non ne
+  /// cambiano nome, descrizione, stato, opzioni, varianti o immagini
+  /// (docs/24 §1.10, dal 03/09/2026: prima fermava il solo push).
+  /// Indipendente da `status` e da `catalogOrigin`. Default true.
   shopifySyncEnabled              Boolean                 @default(true) @map("shopify_sync_enabled")
   /// Chi possiede il catalogo ecommerce: vestiflow (creato in gestionale) o shopify (import).
   catalogOrigin                   CatalogOrigin           @default(vestiflow) @map("catalog_origin")
@@ -605,10 +792,19 @@ model Product {
   /// varianti e prezzo quando la variante è la sola default anonima (rispecchiata).
   sellingPriceMinor               Decimal                 @default(0) @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo barrato: dato SOLO dell'articolo (nessuna dimensione per-variante).
-  compareAtPriceMinor             Int?                    @map("compare_at_price_minor")
+  ///
+  /// NETTO canonico come ogni altro prezzo di vendita, con la coda decimale:
+  /// dal 17/08/2026 segue la modalità netto/ivato insieme a prezzo di vendita,
+  /// prezzo Shopify e listini. Prima era «come digitato» ed era l'unico dei sei
+  /// a ignorare il selettore — sulla stessa riga variante Shopify riceveva un
+  /// barrato ivato accanto a un prezzo netto.
+  ///
+  /// `null` = nessun prezzo barrato. NON è zero: zero direbbe «esiste e vale
+  /// zero», e `isValidCompareAt` lo scarterebbe comunque.
+  compareAtPriceMinor             Decimal?                @map("compare_at_price_minor") @db.Decimal(16, 6)
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
   /// per taglia vive sulla variante (aggiornato dai carichi).
-  purchasePriceMinor              Int?                    @map("purchase_price_minor")
+  purchasePriceMinor              Decimal                 @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
   /// Prezzo di vendita per il canale Shopify (listino), INDIPENDENTE dal prezzo
   /// articolo. La pubblicazione legge sempre e solo questo. Precompilato dal
   /// prezzo articolo alla creazione; con Shopify DISATTIVO segue il prezzo
@@ -618,7 +814,7 @@ model Product {
   /// sempre NETTI come ogni prezzo del gestionale. Rinominabili/attivabili nelle
   /// impostazioni tenant. Mai sincronizzati.
   /// La modalità netto/ivato con cui si compilano NON sta qui: è una preferenza
-  /// dell'operatore (`UserProductPriceModePreference`), non dell'articolo.
+  /// aziendale (`TenantFeatureSettings.salesPricesIncludeVat`), non dell'articolo.
   listino1PriceMinor              Decimal?                @map("listino1_price_minor") @db.Decimal(16, 6)
   listino2PriceMinor              Decimal?                @map("listino2_price_minor") @db.Decimal(16, 6)
   listino3PriceMinor              Decimal?                @map("listino3_price_minor") @db.Decimal(16, 6)
@@ -642,6 +838,8 @@ model Product {
 
   @@unique([tenantId, articleCode])
   @@index([tenantId, status])
+  // Cestino per tenant: l'anagrafica ordinaria filtrerà `deletedAt IS NULL`.
+  @@index([tenantId, deletedAt])
   @@index([tenantId, name])
   @@index([tenantId, importHandle])
   @@index([tenantId, shopifyProductId])
@@ -693,9 +891,9 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id                     String   @id @default(uuid()) @db.Uuid
-  tenantId               String   @map("tenant_id") @db.Uuid
-  productId              String   @map("product_id") @db.Uuid
+  id                     String                 @id @default(uuid()) @db.Uuid
+  tenantId               String                 @map("tenant_id") @db.Uuid
+  productId              String                 @map("product_id") @db.Uuid
   /// Univoco per tenant quando valorizzato (regola interna del gestionale).
   /// Facoltativo alla creazione (specifica cliente §SKU): puo' restare NULL
   /// finche' non viene inserito a mano o generato (Genera SKU). In import da
@@ -703,37 +901,46 @@ model ProductVariant {
   /// anomalie PRIMA dell'insert (regole-gestionale, clausola di realtà).
   sku                    String?
   /// Valori opzione (forma Shopify selectedOptions): [{ name, value }]
-  optionValues           Json     @default("[]") @map("option_values")
+  optionValues           Json                   @default("[]") @map("option_values")
   barcode                String?
   // Denaro in unità minori intere (mai float).
-  currency               String   @default("EUR")
-  sellingPriceMinor      Decimal  @map("selling_price_minor") @db.Decimal(16, 6)
+  currency               String                 @default("EUR")
+  sellingPriceMinor      Decimal                @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo Shopify per-taglia, INDIPENDENTE dal prezzo articolo. Precompilato
   /// dall'articolo alla creazione; la pubblicazione legge solo questo. Ha sempre
   /// un valore proprio.
-  shopifyPriceMinor      Decimal  @default(0) @map("shopify_price_minor") @db.Decimal(16, 6)
+  shopifyPriceMinor      Decimal                @default(0) @map("shopify_price_minor") @db.Decimal(16, 6)
   /// Costo effettivo di questa taglia (aggiornato dai carichi; alimenta
   /// valorizzazione e margini). Il barrato NON vive sulla variante: è dell'articolo.
-  purchasePriceMinor     Int?     @map("purchase_price_minor")
+  purchasePriceMinor     Decimal                @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
   // Collegamento Shopify: variante e inventory item.
-  shopifyVariantId       String?  @map("shopify_variant_id")
-  shopifyInventoryItemId String?  @map("shopify_inventory_item_id")
+  shopifyVariantId       String?                @map("shopify_variant_id")
+  shopifyInventoryItemId String?                @map("shopify_inventory_item_id")
   /// SKU id TikTok Shop (Partner API) per sync giacenze.
-  tiktokSkuId            String?  @map("tiktok_sku_id")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  tiktokSkuId            String?                @map("tiktok_sku_id")
+  /// Stato locale PROPRIO della variante (docs/24 §3.3), distinto da quello del
+  /// prodotto e da Shopify. Default `active`: ogni variante esistente è in uso.
+  lifecycleStatus        VariantLifecycleStatus @default(active) @map("lifecycle_status")
+  // ── Cestino (docs/24 §4.1): stesso contratto del prodotto ───────────────────
+  /// `deletedAt != null` = nel cestino; l'eliminazione definitiva è la rimozione
+  /// fisica (§4.2). Anche una variante da sola può stare nel cestino (§1.8).
+  deletedAt              DateTime?              @map("deleted_at")
+  deletedById            String?                @map("deleted_by_id") @db.Uuid
+  deletionReason         String?                @map("deletion_reason")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
 
-  tenant          Tenant               @relation(fields: [tenantId], references: [id])
-  product         Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
-  inventoryLevels InventoryLevel[]
-  movements       StockMovement[]
-  countLines      InventoryCountLine[]
-  documentLines   DocumentLine[]
-  supplierLinks   SupplierVariantLink[]
-  inventoryLots   InventoryLot[]
-  inventorySerials InventorySerial[]
-  stockReservations StockReservation[]
-  onlineSaleLines OnlineSaleLine[]
+  tenant                     Tenant                      @relation(fields: [tenantId], references: [id])
+  product                    Product                     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryLevels            InventoryLevel[]
+  movements                  StockMovement[]
+  countLines                 InventoryCountLine[]
+  documentLines              DocumentLine[]
+  supplierLinks              SupplierVariantLink[]
+  inventoryLots              InventoryLot[]
+  inventorySerials           InventorySerial[]
+  stockReservations          StockReservation[]
+  onlineSaleLines            OnlineSaleLine[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
 
   @@unique([tenantId, sku])
@@ -744,6 +951,9 @@ model ProductVariant {
   @@index([tenantId, shopifyInventoryItemId])
   @@index([tenantId, shopifyVariantId])
   @@index([tenantId, tiktokSkuId])
+  // Stato locale e cestino per tenant (docs/24 §3.4: selezionabilità).
+  @@index([tenantId, lifecycleStatus])
+  @@index([tenantId, deletedAt])
   @@map("product_variants")
 }
 
@@ -827,40 +1037,40 @@ model InventoryCountLine {
 /// (UNIQUE su source_document_type + source_line_id), aggiornato ai salvataggi
 /// successivi del documento — mai storni visibili per le modifiche ordinarie.
 model StockMovement {
-  id               String               @id @default(uuid()) @db.Uuid
-  tenantId         String               @map("tenant_id") @db.Uuid
-  type             StockMovementType
-  origin           MovementOrigin       @default(manual)
-  variantId        String               @map("variant_id") @db.Uuid
+  id                 String               @id @default(uuid()) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  type               StockMovementType
+  origin             MovementOrigin       @default(manual)
+  variantId          String               @map("variant_id") @db.Uuid
   /// Snapshot SKU al momento del movimento (audit anche se la variante cambia).
-  sku              String
-  locationId       String               @map("location_id") @db.Uuid
+  sku                String
+  locationId         String               @map("location_id") @db.Uuid
   /// Solo trasferimenti: destinazione.
-  targetLocationId String?              @map("target_location_id") @db.Uuid
-  quantity         Int
-  direction        AdjustmentDirection?
-  reason           String?
+  targetLocationId   String?              @map("target_location_id") @db.Uuid
+  quantity           Int
+  direction          AdjustmentDirection?
+  reason             String?
   /// Riferimento esterno (es. id ordine Shopify che ha generato la vendita).
-  externalRef      String?              @map("external_ref")
+  externalRef        String?              @map("external_ref")
   /// Documento origine del movimento (es. GOODS_RECEIPT per arrivi merce).
-  sourceDocumentType DocumentType?      @map("source_document_type")
-  sourceDocumentId   String?            @map("source_document_id") @db.Uuid
+  sourceDocumentType DocumentType?        @map("source_document_type")
+  sourceDocumentId   String?              @map("source_document_id") @db.Uuid
   /// Riga documento origine: al massimo UN movimento per riga (no doppi carichi).
-  sourceLineId       String?            @map("source_line_id") @db.Uuid
+  sourceLineId       String?              @map("source_line_id") @db.Uuid
   /// Costo unitario effettivo in unità minori: costo di riga netto sconto sui
   /// carichi documentali; costo della variante CONGELATO su vendite e resi
   /// (§Punto A: il costo di record è la variante, congelato alla vendita).
-  unitCostMinor      Int?               @map("unit_cost_minor")
+  unitCostMinor      Decimal              @default(0) @map("unit_cost_minor") @db.Decimal(16, 6)
   /// Costo totale del movimento in unità minori (unitario × quantità congelato).
-  totalCostMinor     Int?               @map("total_cost_minor")
+  totalCostMinor     Int                  @default(0) @map("total_cost_minor")
   /// Controparte facoltativa del movimento manuale (provenienza/destinatario merce).
-  partyId            String?            @map("party_id") @db.Uuid
+  partyId            String?              @map("party_id") @db.Uuid
   /// Snapshot nome controparte (display stabile anche se l'anagrafica cambia).
-  partyName          String?            @map("party_name")
-  createdAt        DateTime             @default(now()) @map("created_at")
-  createdById      String?              @map("created_by_id") @db.Uuid
+  partyName          String?              @map("party_name")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  createdById        String?              @map("created_by_id") @db.Uuid
   /// Snapshot del nome operatore (audit stabile anche se l'utente cambia nome).
-  createdByName    String               @map("created_by_name")
+  createdByName      String               @map("created_by_name")
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id])
   variant        ProductVariant @relation(fields: [variantId], references: [id])
@@ -899,6 +1109,14 @@ model Party {
   /// la fattura. Alternativo alla PEC (CessionarioCommittente, FatturaPA).
   sdiCode      String?  @map("sdi_code")
   phone        String?
+  /// Cellulare: secondo recapito telefonico del soggetto (Danea: «Cell.»).
+  mobilePhone  String?  @map("mobile_phone")
+  /// IBAN del soggetto — il conto su cui SI PAGA lui.
+  ///
+  /// ⚠️ Sta sul soggetto e non sul ruolo fornitore: è il conto della persona
+  /// giuridica, non un patto commerciale. Se lo stesso soggetto è anche
+  /// cliente, l'IBAN è quello — non ne ha due.
+  iban         String?
   website      String?
   contactName  String?  @map("contact_name")
   addressLine1 String?  @map("address_line1")
@@ -926,30 +1144,35 @@ model Party {
 /// commerciali del ruolo: l'anagrafica comune vive su Party. La disattivazione
 /// (isActive=false) esclude il ruolo dai nuovi utilizzi senza toccare storico.
 model Supplier {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @map("tenant_id") @db.Uuid
-  partyId      String   @unique @map("party_id") @db.Uuid
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  partyId               String   @unique @map("party_id") @db.Uuid
   /// Codice interno fornitore (progressivo, univoco per tenant se valorizzato).
-  code         String?
-  isActive     Boolean  @default(true) @map("is_active")
+  code                  String?
+  isActive              Boolean  @default(true) @map("is_active")
   /// Modalità di pagamento (voce gestita in Impostazioni → Pagamenti).
-  paymentMethod String? @map("payment_method")
+  paymentMethod         String?  @map("payment_method")
   /// Condizioni di pagamento (voce gestita in Impostazioni → Pagamenti).
-  paymentTerms String?  @map("payment_terms")
+  paymentTerms          String?  @map("payment_terms")
   /// Sconto fornitore (es. "10%" o "4+10%" — applicazione a cascata).
-  supplierDiscount       String? @map("supplier_discount")
+  supplierDiscount      String?  @map("supplier_discount")
   /// Codice IVA predefinito per documenti di questo fornitore. Null = usa il predefinito aziendale.
-  defaultVatCodeId       String? @map("default_vat_code_id") @db.Uuid
+  defaultVatCodeId      String?  @map("default_vat_code_id") @db.Uuid
   /// Incaricato trasporto (es. "Vettore", "Mittente").
-  transportResponsible   String? @map("transport_responsible")
+  transportResponsible  String?  @map("transport_responsible")
   /// Porto (es. "Franco", "Assegnato").
-  freightTerms           String? @map("freight_terms")
+  freightTerms          String?  @map("freight_terms")
+  /// «Ns. banca»: la NOSTRA banca con cui si paga questo fornitore.
+  ///
+  /// ⚠️ Sta sul ruolo e non sul soggetto, al contrario dell'IBAN: quello è il
+  /// conto di chi incassa, questo è una scelta nostra sul rapporto con lui.
+  ourBankName           String?  @map("our_bank_name")
   /// "Mostra avviso": avviso mostrato alla creazione di documenti per questo fornitore.
-  documentCreationAlert  String? @map("document_creation_alert")
+  documentCreationAlert String?  @map("document_creation_alert")
   /// "Inserisci nota": nota inserita automaticamente nei documenti del fornitore.
-  documentCreationNote   String? @map("document_creation_note")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  documentCreationNote  String?  @map("document_creation_note")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   tenant         Tenant                @relation(fields: [tenantId], references: [id])
   party          Party                 @relation(fields: [partyId], references: [id])
@@ -973,7 +1196,7 @@ model SupplierVariantLink {
   /// Codice articolo presso il fornitore (distinto dallo SKU interno).
   supplierSku            String?  @map("supplier_sku")
   isPreferred            Boolean  @default(false) @map("is_preferred")
-  lastPurchasePriceMinor Int?     @map("last_purchase_price_minor")
+  lastPurchasePriceMinor Decimal  @default(0) @map("last_purchase_price_minor") @db.Decimal(16, 6)
   minOrderQuantity       Int?     @map("min_order_quantity")
   currency               String   @default("EUR")
   createdAt              DateTime @default(now()) @map("created_at")
@@ -990,41 +1213,59 @@ model SupplierVariantLink {
 }
 
 model SupplierOrder {
-  id                    String              @id @default(uuid()) @db.Uuid
-  tenantId              String              @map("tenant_id") @db.Uuid
+  id                           String                @id @default(uuid()) @db.Uuid
+  tenantId                     String                @map("tenant_id") @db.Uuid
   /// Riferimento leggibile derivato `PREFISSO[-SERIE]-NUMERO`, univoco per tenant.
-  reference             String
+  reference                    String
   /// Numerazione interna: serie del contatore (NULL = senza serie) e progressivo
   /// max+1 per serie. Univocità sui manuali? No: gli ordini fornitore sono tutti
   /// interni, il vincolo parziale copre tutte le righe con numero valorizzato.
-  series                String?
-  number                Int?
-  supplierId            String              @map("supplier_id") @db.Uuid
+  series                       String?
+  number                       Int?
+  /// ⭐ Facoltativo: l'ordine SOPRAVVIVE al fornitore eliminato (31/08/2026).
+  /// Il nome resta in `supplierName`, che è uno snapshot — il riferimento serve
+  /// ad aprire la scheda, non a leggere il nome.
+  supplierId                   String?               @map("supplier_id") @db.Uuid
   /// Snapshot nome fornitore (display stabile).
-  supplierName          String              @map("supplier_name")
+  supplierName                 String                @map("supplier_name")
   /// Legacy: destinazione merce dei vecchi ordini. L'ordine fornitore non
   /// incide sulle giacenze, quindi i nuovi ordini non la valorizzano.
-  destinationLocationId String?             @map("destination_location_id") @db.Uuid
-  status                SupplierOrderStatus @default(confirmed)
-  currency              String              @default("EUR")
+  destinationLocationId        String?               @map("destination_location_id") @db.Uuid
+  status                       SupplierOrderStatus   @default(confirmed)
+  currency                     String                @default("EUR")
   /// Modalità inserimento costi riga (switch netto/ivato come Arrivo merce).
-  costEntryMode         PurchaseCostEntryMode @default(vat_excluded) @map("cost_entry_mode")
+  costEntryMode                PurchaseCostEntryMode @default(vat_excluded) @map("cost_entry_mode")
   /// Data ordine (testata).
-  orderDate             DateTime            @default(now()) @map("order_date")
+  orderDate                    DateTime              @default(now()) @map("order_date")
   /// "Rif. ordine fornitore": riferimento libero comunicato dal fornitore.
-  supplierReference     String?             @map("supplier_reference")
-  subtotalMinor         Int                 @default(0) @map("subtotal_minor")
-  taxMinor              Int                 @default(0) @map("tax_minor")
-  totalMinor            Int                 @default(0) @map("total_minor")
-  expectedAt            DateTime?           @map("expected_at")
-  createdAt             DateTime            @default(now()) @map("created_at")
-  updatedAt             DateTime            @updatedAt @map("updated_at")
+  supplierReference            String?               @map("supplier_reference")
+  // ── Documento della controparte (la conferma d'ordine del fornitore) ──
+  /// Numero del documento della controparte.
+  externalDocNumber            String?               @map("external_doc_number")
+  /// Data del documento della controparte (solo giorno).
+  externalDocDate              DateTime?             @map("external_doc_date") @db.Date
+  /// Tipo documento della controparte (tabella per tenant, estendibile).
+  externalDocumentTypeId       String?               @map("external_document_type_id") @db.Uuid
+  /// Snapshot etichetta breve del tipo al salvataggio (storico stabile).
+  externalDocumentTypeSnapshot String?               @map("external_document_type_snapshot")
+  /// Sconto extra di chiusura sull'intero ordine, in percentuale con coda
+  /// decimale (stesso pattern di Document.documentDiscountPercent e
+  /// SalesOrder.documentDiscountPercent). Aggiunto 11/08/2026: era l'unico
+  /// documento a non averlo, e non per scelta.
+  documentDiscountPercent      Decimal               @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
+  subtotalMinor                Int                   @default(0) @map("subtotal_minor")
+  taxMinor                     Int                   @default(0) @map("tax_minor")
+  totalMinor                   Int                   @default(0) @map("total_minor")
+  expectedAt                   DateTime?             @map("expected_at")
+  createdAt                    DateTime              @default(now()) @map("created_at")
+  updatedAt                    DateTime              @updatedAt @map("updated_at")
 
-  tenant              Tenant              @relation(fields: [tenantId], references: [id])
-  supplier            Supplier            @relation(fields: [supplierId], references: [id])
-  destinationLocation Location?           @relation(fields: [destinationLocationId], references: [id])
-  lines               SupplierOrderLine[]
-  documents           Document[]
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  supplier             Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  destinationLocation  Location?             @relation(fields: [destinationLocationId], references: [id])
+  externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
+  lines                SupplierOrderLine[]
+  documents            Document[]
 
   @@unique([tenantId, reference])
   @@index([tenantId, status])
@@ -1032,31 +1273,64 @@ model SupplierOrder {
 }
 
 model SupplierOrderLine {
-  id               String @id @default(uuid()) @db.Uuid
-  orderId          String @map("order_id") @db.Uuid
-  variantId        String @map("variant_id") @db.Uuid
+  id                   String   @id @default(uuid()) @db.Uuid
+  orderId              String   @map("order_id") @db.Uuid
+  /// Posizione della riga nel documento, 1-based — come `DocumentLine.lineNumber`,
+  /// che gli altri sei tipi documento hanno da sempre.
+  ///
+  /// Serve a due cose. La prima esisteva già ed era muta: le righe si
+  /// rileggevano senza `orderBy`, quindi il loro ordine era quello che
+  /// PostgreSQL restituiva — di norma l'inserimento, ma senza nessuna garanzia,
+  /// e bastava un aggiornamento a cambiarlo. La seconda è l'ordinamento righe
+  /// per contenuto (specifica §7.1): riordinare significa scrivere un ordine
+  /// nuovo, e un ordine si scrive solo se c'è dove metterlo.
+  lineNumber           Int      @default(0) @map("line_number")
+  variantId            String   @map("variant_id") @db.Uuid
   /// Snapshot SKU al momento dell'ordine.
-  sku              String
+  sku                  String
   /// Snapshot descrizione articolo (nome prodotto) al momento dell'ordine.
-  description      String @default("")
-  orderedQuantity  Int    @map("ordered_quantity")
-  receivedQuantity Int    @default(0) @map("received_quantity")
+  ///
+  /// ⛔ Il SOLO nome: la variante ha la colonna qui sotto. Prima ci finiva
+  /// dentro ogni volta che il nome era vuoto e la maschera ripiegava su
+  /// `summary.title`, che il display completo lo contiene gia'.
+  description          String   @default("")
+  /// Etichetta della VARIANTE, i soli valori: «M / Rosso». Vuota se l'articolo
+  /// non ha opzioni visibili (prodotto semplice, «Default Title» di Shopify).
+  ///
+  /// ⚠️ Qui lo snapshot NON e' per id, a differenza di `DocumentLine` e
+  /// `SalesOrderLine`: il salvataggio dell'ordine fornitore e' `deleteMany` +
+  /// `create`, quindi le righe perdono l'id e non c'e' un persistito da
+  /// ritrovare. L'etichetta viaggia nel payload, fotografata dalla maschera —
+  /// come `unitOfMeasure` qui sotto, e per la stessa ragione. Temporaneo per
+  /// decisione del proprietario (24/08/2026): se il salvataggio diventera' un
+  /// upsert per id, torna a essere uno snapshot per id.
+  variantLabel         String   @default("") @map("variant_label")
+  orderedQuantity      Int      @map("ordered_quantity")
+  receivedQuantity     Int      @default(0) @map("received_quantity")
   /// Costo unitario NETTO canonico in unità minori (riferimento fornitore).
-  unitCostMinor    Int    @map("unit_cost_minor")
+  /// Porta la coda decimale dello scorporo IVA (§sei decimali): è quella a far
+  /// tornare identico il costo ivato digitato quando lo si rimostra ivato.
+  unitCostMinor        Decimal  @map("unit_cost_minor") @db.Decimal(16, 6)
   /// Costo digitato dall'utente, nella modalità costEntryMode della testata.
-  enteredUnitCostMinor Int? @map("entered_unit_cost_minor")
-  /// Sconto riga percentuale intero (come DocumentLine.discountPercent).
-  discountPercent  Int    @default(0) @map("discount_percent")
-  vatCodeId        String? @map("vat_code_id") @db.Uuid
+  enteredUnitCostMinor Decimal? @map("entered_unit_cost_minor") @db.Decimal(16, 6)
+  /// Sconto riga a cascata (come DocumentLine.discountPercent): «4+10%» vale
+  /// 13,6% e non 14 — i decimali servono a non arrotondarlo al salvataggio.
+  discountPercent      Decimal  @default(0) @map("discount_percent") @db.Decimal(7, 4)
+  vatCodeId            String?  @map("vat_code_id") @db.Uuid
   /// Snapshot Codice IVA (stesso formato di DocumentLine.vatSnapshot).
-  vatSnapshot      Json?  @map("vat_snapshot")
+  vatSnapshot          Json?    @map("vat_snapshot")
   /// Totale riga netto (qty × costo netto − sconto), unità minori.
-  lineTotalMinor   Int    @default(0) @map("line_total_minor")
+  lineTotalMinor       Int      @default(0) @map("line_total_minor")
+  /// Unità di misura della riga, fotografata all'inserimento (come su
+  /// `DocumentLine`). Il campo esisteva in maschera ma non qui: si modificava,
+  /// si salvava, si riapriva e la modifica era sparita senza un errore.
+  unitOfMeasure        String?  @map("unit_of_measure")
 
-  order SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order         SupplierOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   documentLines DocumentLine[]
-  vatCode VatCode? @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
+  vatCode       VatCode?       @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
 
+  @@index([orderId, lineNumber])
   @@index([orderId])
   @@map("supplier_order_lines")
 }
@@ -1067,35 +1341,35 @@ model SupplierOrderLine {
 /// l'anagrafica comune vive su Party. La disattivazione (isActive=false)
 /// esclude il ruolo dai nuovi utilizzi senza toccare documenti o storico.
 model Customer {
-  id                String   @id @default(uuid()) @db.Uuid
-  tenantId          String   @map("tenant_id") @db.Uuid
-  partyId           String   @unique @map("party_id") @db.Uuid
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  partyId               String   @unique @map("party_id") @db.Uuid
   /// Codice interno cliente (progressivo, univoco per tenant se valorizzato).
-  code              String?
-  isActive          Boolean  @default(true) @map("is_active")
+  code                  String?
+  isActive              Boolean  @default(true) @map("is_active")
   /// Sconto cliente (es. "10%" o "4+10%" — applicazione a cascata).
-  customerDiscount  String?  @map("customer_discount")
+  customerDiscount      String?  @map("customer_discount")
   /// Modalità di pagamento (voce gestita in Impostazioni → Pagamenti).
-  paymentMethod     String?  @map("payment_method")
+  paymentMethod         String?  @map("payment_method")
   /// Condizioni di pagamento (voce gestita in Impostazioni → Pagamenti).
-  paymentTerms      String?  @map("payment_terms")
+  paymentTerms          String?  @map("payment_terms")
   /// Incaricato trasporto (es. "Vettore", "Mittente").
-  transportResponsible String? @map("transport_responsible")
+  transportResponsible  String?  @map("transport_responsible")
   /// "Mostra avviso": avviso mostrato alla creazione di documenti per questo cliente.
-  documentCreationAlert String? @map("document_creation_alert")
+  documentCreationAlert String?  @map("document_creation_alert")
   /// "Inserisci nota": nota inserita automaticamente nei documenti del cliente.
-  documentCreationNote  String? @map("document_creation_note")
-  commercialNotes   String?  @map("commercial_notes")
+  documentCreationNote  String?  @map("document_creation_note")
+  commercialNotes       String?  @map("commercial_notes")
   /// Mapping canale di vendita: id cliente Shopify (anagrafica owned da Shopify).
-  shopifyCustomerId String?  @map("shopify_customer_id")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  shopifyCustomerId     String?  @map("shopify_customer_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
-  tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  party          Party        @relation(fields: [partyId], references: [id])
-  orders         SalesOrder[]
-  documents      Document[]
-  onlineSales    OnlineSale[]
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  party       Party        @relation(fields: [partyId], references: [id])
+  orders      SalesOrder[]
+  documents   Document[]
+  onlineSales OnlineSale[]
 
   @@unique([tenantId, shopifyCustomerId])
   @@unique([tenantId, code])
@@ -1108,160 +1382,283 @@ model Customer {
 /// sono due elenchi separati, preimpostati e ampliabili dalle Impostazioni.
 /// I ruoli salvano il nome come stringa: rinominare una voce non riscrive
 /// le anagrafiche già salvate (snapshot, come per i documenti).
-model PaymentOption {
-  id        String            @id @default(uuid()) @db.Uuid
-  tenantId  String            @map("tenant_id") @db.Uuid
-  kind      PaymentOptionKind
-  name      String
-  sortOrder Int               @default(0) @map("sort_order")
-  isSystem  Boolean           @default(false) @map("is_system")
-  isActive  Boolean           @default(true) @map("is_active")
-  createdAt DateTime          @default(now()) @map("created_at")
-  updatedAt DateTime          @updatedAt @map("updated_at")
+/// Catalogo GLOBALE delle Modalita' di pagamento normative FatturaPA
+/// (MP01-MP23). Di sistema: nessun `tenantId`, non modificabile dall'utente.
+///
+/// ⭐ UNA sola colonna codice, non `key` + `officialCode` come `VatNature`.
+/// Li' sono distinte per due ragioni misurate — il formato differisce (`N2_1`
+/// contro `N2.1`) e quattro voci non hanno codice normativo — che nel
+/// perimetro MP01-MP23 non esistono: sarebbero identiche su tutte e 23 le
+/// righe (`docs/25` §7).
+///
+/// ⛔ Non ospita modalita' NON normative. `PayPal` e `Contrassegno` restano
+/// `PaymentOption` aziendali con `methodCodeId` nullo: righe finte accanto
+/// agli MP renderebbero il catalogo qualcos'altro da cio' che dichiara.
+model PaymentMethodCode {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Codice normativo FatturaPA: `MP01`…`MP23`. Unico.
+  code      String   @unique
+  /// Descrizione ufficiale (es. «Bonifico» per MP05).
+  label     String
+  sortOrder Int      @default(0) @map("sort_order")
+  /// Si DISATTIVA, non si cancella: la FK e' `RESTRICT` apposta.
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  paymentOptions PaymentOption[]
+
+  @@index([sortOrder])
+  @@map("payment_method_codes")
+}
+
+/// Tipo pagamento AZIENDALE: il preset che l'operatore vede nei documenti.
+///
+/// ⭐ Un tenant puo' avere piu' Tipi sulla stessa Modalita' — «Bonifico 30 gg»
+/// e «Bonifico 60 gg» sono entrambi MP05 — quindi NESSUN vincolo unico su
+/// `(tenantId, methodCodeId)`. Resta l'unicita' del nome nel proprio `kind`.
+model PaymentOption {
+  id           String             @id @default(uuid()) @db.Uuid
+  tenantId     String             @map("tenant_id") @db.Uuid
+  kind         PaymentOptionKind
+  name         String
+  sortOrder    Int                @default(0) @map("sort_order")
+  isSystem     Boolean            @default(false) @map("is_system")
+  isActive     Boolean            @default(true) @map("is_active")
+  /// Modalita' normativa referenziata. NULL e' uno stato valido e previsto:
+  /// le condizioni (`kind = terms`) non ne hanno mai una, e un Tipo puo'
+  /// restare scollegato finche' l'utente non ne assegna una esplicitamente.
+  ///
+  /// ⛔ Valorizzabile SOLO per `kind = method`. Il vincolo e' un `CHECK`
+  /// nella migration — `kind = 'method' OR method_code_id IS NULL` — che
+  /// Prisma non sa esprimere: qui lo dichiara solo questo commento.
+  methodCodeId String?            @map("method_code_id") @db.Uuid
+  /// Come si incassa al banco. ⭐ `NULL` e' uno stato PIENO e frequente:
+  /// «non utilizzabile nella Cassa» — bonifico, RIBA, MAV e tutte le condizioni
+  /// di pagamento restano `NULL` e devono restarci.
+  ///
+  /// ⛔ Valorizzabile SOLO per `kind = method`, come `methodCodeId`: il vincolo
+  /// e' un `CHECK` nella migration `20260904170000` — Prisma non sa esprimerlo.
+  ///
+  /// ⚠️ Non si deduce dal nome (l'utente lo rinomina) ne' dal codice normativo
+  /// (MP01 e MP04 sono entrambi «contanti», ma solo uno si incassa al banco).
+  /// Il backfill usa una mappa dichiarata di due voci: `docs/25` §7.
+  tenderKind   PaymentTenderKind? @map("tender_kind")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  methodCode        PaymentMethodCode? @relation(fields: [methodCodeId], references: [id], onDelete: Restrict)
+  /// Le quote di incasso che lo hanno usato. ⚠️ `SetNull`: eliminare il Tipo
+  /// non cancella le quote, che restano leggibili dai propri snapshot.
+  storeSalePayments StoreSalePayment[]
 
   @@unique([tenantId, kind, name])
   @@index([tenantId, kind, sortOrder])
+  @@index([methodCodeId])
   @@map("payment_options")
+}
+
+/// Le unità di misura suggerite al tenant (pz, conf, kg, m…).
+///
+/// **Elenco di suggerimenti, non autorità referenziale.** Righe e anagrafiche
+/// portano la stringa e nient'altro: nessuna chiave esterna punta qui, quindi
+/// eliminare una voce non lascia orfani, non innesca cascate e non richiede la
+/// disattivazione al posto della cancellazione. È la stessa forma di
+/// `PaymentOption`, e per la stessa ragione: si sta salvando una stringa.
+model UnitOfMeasureOption {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isSystem  Boolean  @default(false) @map("is_system")
+  isActive  Boolean  @default(true) @map("is_active")
+  /// Predefinita del tenant: precompila la U.M. di un ARTICOLO NUOVO, anche
+  /// creato inline da una riga documento.
+  ///
+  /// ⛔ NON e’ il default della riga documento: quella prende l’unita’
+  /// DELL’ARTICOLO e la congela. Leggerla qui rimetterebbe un effetto
+  /// retroattivo — cambiare l’impostazione cambierebbe cosa una riga sembra
+  /// proporre per articoli che hanno gia’ la loro unita’.
+  ///
+  /// ⚠️ Zero o una per tenant, garantita da indice parziale. «Nessuna» e’ uno
+  /// stato valido: chi ha articoli misti non deve cambiarla ogni volta.
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId, sortOrder])
+  @@map("unit_of_measure_options")
 }
 
 /// Ordini di vendita: read-model nel gestionale (owner Shopify per online/POS;
 /// `manual` per vendite registrate direttamente, se mai abilitate).
 model SalesOrder {
-  id                String                      @id @default(uuid()) @db.Uuid
-  tenantId          String                      @map("tenant_id") @db.Uuid
+  id                           String                      @id @default(uuid()) @db.Uuid
+  tenantId                     String                      @map("tenant_id") @db.Uuid
   /// Riferimento leggibile derivato `PREFISSO[-SERIE]-NUMERO` per gli ordini
   /// manuali; per i canali (Shopify/POS) resta il numero del canale (es. #1001).
-  orderNumber       String                      @map("order_number")
+  orderNumber                  String                      @map("order_number")
   /// Numerazione interna (solo ordini manuali; canali → NULL, numero del canale).
   /// Serie del contatore (NULL = senza serie) e progressivo max+1 per serie.
-  series            String?
-  number            Int?
-  source            SalesOrderSource            @default(manual)
-  financialStatus   SalesOrderFinancialStatus   @default(pending) @map("financial_status")
-  fulfillmentStatus SalesOrderFulfillmentStatus @default(unfulfilled) @map("fulfillment_status")
-  customerId        String?                     @map("customer_id") @db.Uuid
+  series                       String?
+  number                       Int?
+  source                       SalesOrderSource            @default(manual)
+  financialStatus              SalesOrderFinancialStatus   @default(pending) @map("financial_status")
+  fulfillmentStatus            SalesOrderFulfillmentStatus @default(unfulfilled) @map("fulfillment_status")
+  /// Stato del ciclo commerciale VestiFlow — l'AUTORITÀ per `source = manual`.
+  ///
+  /// ⛔ **Annullabile e SENZA default, entrambi deliberati.** `NULL` significa
+  /// «questo ordine non ha un ciclo commerciale VestiFlow», ed è il caso di ogni
+  /// ordine di canale: la separazione da Shopify è strutturale, non
+  /// convenzionale. Un `@default(confirmed)` assegnerebbe uno stato nostro a un
+  /// record di canale ogni volta che una INSERT omettesse il campo — un import,
+  /// una sync, uno script. Il valore alla creazione lo scrive il SERVIZIO.
+  ///
+  /// ⚠️ Dopo la migration, un ordine `manual` con questo campo a NULL è
+  /// un'INCOERENZA da rilevare, non un quinto modo di dedurre lo stato: non
+  /// esiste alcun ripiego su `fulfilledAt`/`fulfillmentStatus` (`18` §2.4-bis).
+  commercialState              OrderCommercialState?       @map("commercial_state")
+  customerId                   String?                     @map("customer_id") @db.Uuid
   /// Snapshot nome cliente (display stabile, anche senza anagrafica).
-  customerName      String                      @map("customer_name")
-  currency          String                      @default("EUR")
-  subtotalMinor     Int                         @default(0) @map("subtotal_minor")
-  totalMinor        Int                         @default(0) @map("total_minor")
-  taxMinor          Int                         @default(0) @map("tax_minor")
-  shippingMinor     Int                         @default(0) @map("shipping_minor")
-  discountMinor     Int                         @default(0) @map("discount_minor")
-  fiscalStatus      SalesOrderFiscalStatus      @default(pending_registration) @map("fiscal_status")
-  fiscalDeliveredAt DateTime?                   @map("fiscal_delivered_at")
-  fiscalNote        String?                     @map("fiscal_note")
-  placedAt          DateTime                    @map("placed_at")
-  shopifyOrderId    String?                     @map("shopify_order_id")
+  customerName                 String                      @map("customer_name")
+  currency                     String                      @default("EUR")
+  subtotalMinor                Int                         @default(0) @map("subtotal_minor")
+  totalMinor                   Int                         @default(0) @map("total_minor")
+  taxMinor                     Int                         @default(0) @map("tax_minor")
+  shippingMinor                Int                         @default(0) @map("shipping_minor")
+  discountMinor                Int                         @default(0) @map("discount_minor")
+  placedAt                     DateTime                    @map("placed_at")
+  shopifyOrderId               String?                     @map("shopify_order_id")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
   /// per gli ordini manuali: documento di scarico generato da "Concludi
   /// ordine" o DDT vendita che ha incluso l'ordine (aggancio 1:N: un DDT
   /// può includere più ordini cliente).
-  documentId        String?                     @map("document_id") @db.Uuid
+  documentId                   String?                     @map("document_id") @db.Uuid
   // ── Testata Ordine cliente manuale (source = manual) ──
   /// Location/magazzino di origine degli impegni e dello scarico.
-  locationId        String?                     @map("location_id") @db.Uuid
+  locationId                   String?                     @map("location_id") @db.Uuid
   /// Rif. ordine cliente esterno (testo libero, es. numero d'ordine del cliente).
-  externalRef       String?                     @map("external_ref")
+  externalRef                  String?                     @map("external_ref")
+  // ── Documento della controparte (l'ordine emesso dal cliente) ──
+  /// Numero del documento della controparte.
+  externalDocNumber            String?                     @map("external_doc_number")
+  /// Data del documento della controparte (solo giorno).
+  externalDocDate              DateTime?                   @map("external_doc_date") @db.Date
+  /// Tipo documento della controparte (tabella per tenant, estendibile).
+  externalDocumentTypeId       String?                     @map("external_document_type_id") @db.Uuid
+  /// Snapshot etichetta breve del tipo al salvataggio (storico stabile: il tipo
+  /// puo' essere eliminato, l'etichetta scritta sull'ordine no).
+  externalDocumentTypeSnapshot String?                     @map("external_document_type_snapshot")
   /// Data prevista consegna (solo giorno).
-  expectedDeliveryDate DateTime?                @map("expected_delivery_date") @db.Date
+  expectedDeliveryDate         DateTime?                   @map("expected_delivery_date") @db.Date
   /// Note documento.
-  notes             String?
+  notes                        String?
+  /// Nota interna, mai in stampa. Speculare a `Document.internalComment`:
+  /// l'ordine cliente ne era privo solo perche' la colonna non c'era, non per
+  /// una ragione funzionale (proprietario, 25/08/2026).
+  internalComment              String?                     @map("internal_comment")
   /// Condizioni di pagamento (snapshot testo, proposto dall'anagrafica cliente).
-  paymentTerms      String?                     @map("payment_terms")
+  paymentTerms                 String?                     @map("payment_terms")
   /// Sconto extra percentuale sull'intero documento, dopo gli sconti riga
   /// (stesso pattern di Document.documentDiscountPercent in Arrivo merce).
-  documentDiscountPercent Decimal               @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
+  documentDiscountPercent      Decimal                     @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
+  /// Modalità con cui i prezzi sono stati DIGITATI su questo ordine: netti o
+  /// ivati. È una proprietà dell'ORDINE, come `Document.pricesIncludeVat` lo è
+  /// del documento — non una preferenza di chi lo apre: due operatori devono
+  /// vedere lo stesso ordine nello stesso modo, e riaprendolo si deve sapere
+  /// come era stato compilato. Il prezzo memorizzato resta comunque il NETTO.
+  pricesIncludeVat             Boolean                     @default(false) @map("prices_include_vat")
   /// Annullamento comunicato dal canale (impegni rilasciati, ordine in storico).
-  cancelledAt       DateTime?                   @map("cancelled_at")
+  cancelledAt                  DateTime?                   @map("cancelled_at")
   /// Evasione completa registrata dal canale (evento canonico fulfilled).
-  fulfilledAt       DateTime?                   @map("fulfilled_at")
+  fulfilledAt                  DateTime?                   @map("fulfilled_at")
   /// Id evasione esterna (es. fulfillment Shopify), quando disponibile.
-  externalFulfillmentId String?                 @map("external_fulfillment_id")
+  externalFulfillmentId        String?                     @map("external_fulfillment_id")
   /// Evasione parziale o anomalia: fase 1 non la gestisce, richiede verifica (§7).
-  requiresReview    Boolean                     @default(false) @map("requires_review")
-  reviewReason      String?                     @map("review_reason")
-  createdAt         DateTime                    @default(now()) @map("created_at")
-  updatedAt         DateTime                    @updatedAt @map("updated_at")
+  requiresReview               Boolean                     @default(false) @map("requires_review")
+  reviewReason                 String?                     @map("review_reason")
+  /// Quando la riconciliazione ha visto che l'ordine non risulta più sul canale
+  /// (cancellato su Shopify). È un'OSSERVAZIONE, non un'azione: VestiFlow non
+  /// cancella niente da solo, la rimozione resta una scelta dell'operatore.
+  /// Torna null se l'ordine ricompare, perché l'informazione sarebbe scaduta.
+  channelMissingSince          DateTime?                   @map("channel_missing_since")
+  createdAt                    DateTime                    @default(now()) @map("created_at")
+  updatedAt                    DateTime                    @updatedAt @map("updated_at")
 
-  tenant       Tenant             @relation(fields: [tenantId], references: [id])
-  customer     Customer?          @relation(fields: [customerId], references: [id])
-  document     Document?          @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  location     Location?          @relation(fields: [locationId], references: [id])
-  lines        SalesOrderLine[]
-  reservations StockReservation[]
-  orderEvents  OnlineOrderEvent[]
-  onlineSale   OnlineSale?
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  customer             Customer?             @relation(fields: [customerId], references: [id])
+  document             Document?             @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  location             Location?             @relation(fields: [locationId], references: [id])
+  externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
+  lines                SalesOrderLine[]
+  reservations         StockReservation[]
+  orderEvents          OnlineOrderEvent[]
+  onlineSale           OnlineSale?
+  refunds              SalesOrderRefund[]
 
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
-  @@index([tenantId, fiscalStatus, placedAt(sort: Desc)])
   @@index([documentId])
   @@map("sales_orders")
 }
 
 /// Storico consegne corrispettivi al commercialista (batch per periodo).
-model CorrispettiviDelivery {
-  id            String   @id @default(uuid()) @db.Uuid
-  tenantId      String   @map("tenant_id") @db.Uuid
-  periodFrom    DateTime @map("period_from")
-  periodTo      DateTime @map("period_to")
-  channelFilter String   @map("channel_filter")
-  orderCount    Int      @map("order_count")
-  subtotalMinor Int      @map("subtotal_minor")
-  taxMinor      Int      @map("tax_minor")
-  shippingMinor Int      @map("shipping_minor")
-  totalMinor    Int      @map("total_minor")
-  refundsCount  Int      @default(0) @map("refunds_count")
-  note          String?
-  createdById   String?  @map("created_by_id") @db.Uuid
-  createdByName String   @map("created_by_name")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-
-  @@index([tenantId, createdAt(sort: Desc)])
-  @@map("corrispettivi_deliveries")
-}
-
 model SalesOrderLine {
-  id             String  @id @default(uuid()) @db.Uuid
-  orderId        String  @map("order_id") @db.Uuid
+  id                String  @id @default(uuid()) @db.Uuid
+  orderId           String  @map("order_id") @db.Uuid
   /// Nullable: una riga può riferirsi a una variante non più a catalogo.
-  variantId      String? @map("variant_id") @db.Uuid
+  variantId         String? @map("variant_id") @db.Uuid
   /// Id riga esterna del canale (es. line_item Shopify): stabile tra webhook,
   /// chiave di idempotenza per impegni. Null per righe manuali/pre-migrazione.
-  externalLineId String? @map("external_line_id")
+  externalLineId    String? @map("external_line_id")
   /// Snapshot SKU e titolo al momento della vendita.
-  sku            String
-  title          String
-  quantity       Int
-  unitPriceMinor Int     @map("unit_price_minor")
-  totalMinor     Int     @map("total_minor")
+  sku               String
+  title             String
+  /// Etichetta della VARIANTE, i soli valori: «M / Rosso». Fotografata quando
+  /// l'articolo entra nella riga, come sku e title.
+  ///
+  /// Prima non esisteva e la card la calcolava DAL VIVO, sottraendo il nome
+  /// prodotto dal titolo corrente della variante: un ordine di ieri mostrava la
+  /// variante di oggi, e se la variante usciva dal catalogo non mostrava niente.
+  ///
+  /// Stringa vuota = nessuna opzione visibile, compresi il prodotto semplice e
+  /// il «Default Title» di Shopify. Mai null: non e' uno stato funzionale valido.
+  variantLabel      String  @default("") @map("variant_label")
+  quantity          Int
+  /// Prezzo unitario NETTO in unità minori, con coda decimale: 25,00 ivati al
+  /// 22% valgono 2049,180328 centesimi netti, ed è quella coda a farli tornare
+  /// 25,00 quando il prezzo viene rimostrato ivato (regole-gestionale, «La
+  /// colonna è una, i comportamenti sono tanti»: ogni prezzo UNITARIO è
+  /// numeric(16,6), perché può nascere da uno scorporo).
+  unitPriceMinor    Decimal @map("unit_price_minor") @db.Decimal(16, 6)
+  /// Totale riga già arrotondato: resta intero.
+  totalMinor        Int     @map("total_minor")
   // ── Righe Ordine cliente manuale (source = manual) ──
   /// Ordinamento visuale delle righe nella maschera.
-  lineNumber     Int     @default(0) @map("line_number")
+  lineNumber        Int     @default(0) @map("line_number")
   /// Snapshot EAN al momento dell'ordine.
-  barcode        String?
+  barcode           String?
   /// Unità di misura snapshot (es. pz).
-  unitOfMeasure  String? @map("unit_of_measure")
+  unitOfMeasure     String? @map("unit_of_measure")
   /// Sconto riga in notazione testuale, anche a cascata (es. "10%", "4+10%").
   /// Il totale riga è già calcolato con la cascata ESATTA (mai % arrotondata).
-  discount       String?
+  discount          String?
   /// Codice IVA della riga + snapshot (come DocumentLine, §9).
-  vatCodeId      String? @map("vat_code_id") @db.Uuid
-  vatSnapshot    Json?   @map("vat_snapshot")
+  vatCodeId         String? @map("vat_code_id") @db.Uuid
+  vatSnapshot       Json?   @map("vat_snapshot")
   /// IVA riga in unità minori (per i totali documento).
-  lineVatTotalMinor Int  @default(0) @map("line_vat_total_minor")
+  lineVatTotalMinor Int     @default(0) @map("line_vat_total_minor")
   /// Spunta "Impegna magazzino": default dal Tipo prodotto (Articolo ON,
   /// Servizio OFF), sempre modificabile. L'impegno effettivo segue la spunta.
-  commitsStock   Boolean @default(true) @map("commits_stock")
+  commitsStock      Boolean @default(true) @map("commits_stock")
   /// Riga «documento collegato»: separatore informativo del gruppo di righe
   /// arrivate da un altro documento. Nessuna quantità, nessun valore, fuori
   /// dai totali. Le righe salvate prima di questo campo restano righe normali.
-  isReference    Boolean @default(false) @map("is_reference")
+  isReference       Boolean @default(false) @map("is_reference")
 
   order       SalesOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   reservation StockReservation?
@@ -1270,6 +1667,92 @@ model SalesOrderLine {
   @@unique([orderId, externalLineId])
   @@index([orderId])
   @@map("sales_order_lines")
+}
+
+/// Rettifica economica di un ordine di vendita: quanto è stato reso, e QUANDO.
+///
+/// Serve al registro corrispettivi, che oggi somma i totali dell'ordine e non
+/// sottrae nulla (specifica 08 §4). Non basta rileggere l'ordine: Shopify
+/// espone anche i totali `current_*` già al netto dei rimborsi, ma usarli
+/// ridurrebbe **all'indietro** il corrispettivo del giorno della vendita. Il
+/// registro di quel giorno deve continuare a dire quanto fu incassato; il reso
+/// è una rettifica del giorno in cui avviene (Ris. 274/E/2009). Da qui una
+/// riga datata a sé, non un totale riscritto.
+///
+/// Importi in unità minori con la stessa convenzione di SalesOrder, così il
+/// registro sottrae come somma: su store a prezzi ivati `subtotalMinor` è
+/// lordo e `taxMinor` è l'imposta contenuta.
+/// Natura della rettifica, letta dal `restock_type` delle righe rimborsate.
+/// Si CLASSIFICA, non si scarta: un annullamento è un fatto arrivato dal canale
+/// e va conservato — è il registro a decidere se ha effetto economico, non la
+/// traduzione a decidere se esiste.
+enum SalesOrderRefundKind {
+  /// Reso con rientro fisico dichiarato dal canale (`return`/`legacy_restock`).
+  return_with_restock
+  /// Rimborso senza rientro: capo rovinato, gesto commerciale, importo libero.
+  refund_only
+  /// Annullamento pre-evasione (`cancel`): la vendita non è mai avvenuta.
+  cancellation
+}
+
+model SalesOrderRefund {
+  id               String               @id @default(uuid()) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  salesOrderId     String               @map("sales_order_id") @db.Uuid
+  /// Id opaco del rimborso sul canale: chiave di idempotenza dei webhook
+  /// (lo stesso ordine torna a ogni aggiornamento, coi rimborsi già visti).
+  externalRefundId String               @map("external_refund_id")
+  /// Data della rettifica: `processed_at` del canale, `created_at` se assente.
+  /// È la data con cui il rimborso entra nel registro, non quella dell'ordine.
+  occurredAt       DateTime             @map("occurred_at")
+  /// Che gesto è stato. Il registro sottrae le prime due e ignora la terza:
+  /// un annullamento pre-evasione non rettifica una vendita che non c'è stata.
+  kind             SalesOrderRefundKind @default(refund_only)
+  currency         String               @default("EUR")
+  subtotalMinor    Int                  @default(0) @map("subtotal_minor")
+  taxMinor         Int                  @default(0) @map("tax_minor")
+  /// Spese di spedizione rese, **imposta inclusa** (`kind: shipping_refund`).
+  shippingMinor    Int                  @default(0) @map("shipping_minor")
+  /// Rettifiche fuori riga che NON sono spedizione (`refund_discrepancy`): il
+  /// rimborso di cortesia a importo libero sta qui, non fra le spedizioni.
+  adjustmentMinor  Int                  @default(0) @map("adjustment_minor")
+  totalMinor       Int                  @default(0) @map("total_minor")
+  /// Nota scritta da chi ha emesso il rimborso sul canale: il commercialista
+  /// chiede il perché di una rettifica, ed è l'unico posto in cui esiste.
+  note             String?
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  tenant   Tenant                    @relation(fields: [tenantId], references: [id])
+  order    SalesOrder                @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  taxLines SalesOrderRefundTaxLine[]
+
+  @@unique([tenantId, externalRefundId])
+  @@index([tenantId, occurredAt(sort: Desc)])
+  @@index([tenantId, kind, occurredAt(sort: Desc)])
+  @@index([salesOrderId])
+  @@map("sales_order_refunds")
+}
+
+/// Scomposizione per aliquota di una rettifica: il registro fiscale sottrae
+/// nella componente d'imposta giusta, non da un totale generico.
+///
+/// Si riscrive per intero a ogni sincronizzazione del rimborso (cancella e
+/// ricrea), quindi non serve una chiave di unicità: l'idempotenza sta a monte.
+model SalesOrderRefundTaxLine {
+  id           String   @id @default(uuid()) @db.Uuid
+  refundId     String   @map("refund_id") @db.Uuid
+  /// Aliquota in percentuale (22 = 22%). **NULL quando il canale non la
+  /// dichiara**: le rettifiche fuori riga portano l'importo e non l'aliquota,
+  /// e una riga muta è più onesta di un'attribuzione indovinata.
+  ratePercent  Decimal? @map("rate_percent") @db.Decimal(7, 4)
+  taxableMinor Int      @default(0) @map("taxable_minor")
+  taxMinor     Int      @default(0) @map("tax_minor")
+
+  refund SalesOrderRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+
+  @@index([refundId])
+  @@map("sales_order_refund_tax_lines")
 }
 
 // ── Impegni merce (Impegnata) e eventi canonici ordini online ────────────────
@@ -1411,13 +1894,12 @@ model OnlineSale {
   createdAt             DateTime                  @default(now()) @map("created_at")
   updatedAt             DateTime                  @updatedAt @map("updated_at")
 
-  tenant        Tenant              @relation(fields: [tenantId], references: [id])
-  order         SalesOrder          @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
-  customer      Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  location      Location?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  lines         OnlineSaleLine[]
-  corrispettivo CorrispettivoEntry?
-  documents     Document[]
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  order     SalesOrder       @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  customer  Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  location  Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  lines     OnlineSaleLine[]
+  documents Document[]
 
   @@unique([tenantId, dedupeKey])
   @@unique([tenantId, series, year, number])
@@ -1470,84 +1952,6 @@ model OnlineSaleLine {
   @@map("online_sale_lines")
 }
 
-/// Registrazione interna nel Registro Corrispettivi (fase 2 §4), creata nella
-/// stessa transazione della Vendita online. NON è la causa tecnica dello
-/// scarico e NON è una trasmissione fiscale automatica: è un registro interno
-/// con data fiscale distinta e modificabile dagli utenti autorizzati.
-model CorrispettivoEntry {
-  id                  String              @id @default(uuid()) @db.Uuid
-  tenantId            String              @map("tenant_id") @db.Uuid
-  series              String              @default("A")
-  number              Int
-  year                Int
-  /// Riferimento leggibile (es. 'COR-2026-0001').
-  reference           String
-  onlineSaleId        String              @unique @map("online_sale_id") @db.Uuid
-  salesOrderId        String              @map("sales_order_id") @db.Uuid
-  channel             SalesOrderSource
-  /// Data operativa (evasione).
-  operationalDate     DateTime            @map("operational_date")
-  /// Data fiscale DISTINTA (§5): proposta dalla data evasione, modificabile.
-  fiscalDate          DateTime            @map("fiscal_date") @db.Date
-  subtotalMinor       Int                 @default(0) @map("subtotal_minor")
-  taxMinor            Int                 @default(0) @map("tax_minor")
-  totalMinor          Int                 @default(0) @map("total_minor")
-  discountMinor       Int                 @default(0) @map("discount_minor")
-  shippingMinor       Int                 @default(0) @map("shipping_minor")
-  status              CorrispettivoStatus @default(to_verify)
-  /// Fattura emessa per questa operazione (allora esclusa dal riepilogo).
-  invoiceIssued       Boolean             @default(false) @map("invoice_issued")
-  excludedFromSummary Boolean             @default(false) @map("excluded_from_summary")
-  exclusionReason     String?             @map("exclusion_reason")
-  /// Nota di rettifica/rimborso predisposta (mai automatismi fiscali).
-  adjustmentNote      String?             @map("adjustment_note")
-  refundedAt          DateTime?           @map("refunded_at")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-
-  tenant     Tenant                   @relation(fields: [tenantId], references: [id])
-  onlineSale OnlineSale               @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
-  lines      CorrispettivoEntryLine[]
-
-  @@unique([tenantId, series, year, number])
-  @@index([tenantId, fiscalDate(sort: Desc)])
-  @@index([tenantId, channel, fiscalDate(sort: Desc)])
-  @@index([tenantId, salesOrderId])
-  @@map("corrispettivo_entries")
-}
-
-/// Riga Corrispettivo: prodotto o voce (es. spedizione) con imponibile,
-/// aliquota, imposta e totale — base per i riepiloghi per aliquota IVA.
-model CorrispettivoEntryLine {
-  id             String   @id @default(uuid()) @db.Uuid
-  tenantId       String   @map("tenant_id") @db.Uuid
-  entryId        String   @map("entry_id") @db.Uuid
-  lineNumber     Int      @map("line_number")
-  /// Voce non-prodotto (spedizione): true. Prodotti: false.
-  isShipping     Boolean  @default(false) @map("is_shipping")
-  description    String
-  quantity       Int      @default(1)
-  discountMinor  Int      @default(0) @map("discount_minor")
-  subtotalMinor  Int      @default(0) @map("subtotal_minor")
-  taxMinor       Int      @default(0) @map("tax_minor")
-  totalMinor     Int      @default(0) @map("total_minor")
-  /// Codice IVA riconosciuto per corrispondenza inversa con l'aliquota
-  /// derivata dal canale. Null se nessuna corrispondenza attiva per il tenant.
-  vatCodeId      String?  @map("vat_code_id") @db.Uuid
-  /// Snapshot IVA al momento della registrazione: Codice IVA se riconosciuto,
-  /// altrimenti solo l'aliquota derivata dal canale (§7).
-  vatSnapshot    Json?    @map("vat_snapshot")
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  tenant Tenant             @relation(fields: [tenantId], references: [id])
-  entry  CorrispettivoEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  vatCode VatCode?          @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
-
-  @@index([entryId])
-  @@index([tenantId])
-  @@map("corrispettivo_entry_lines")
-}
-
 // ── Integrazione Shopify (stato connessione, MAI token nel modello API) ─────
 
 /// Una connessione per tenant. I token OAuth NON vivono qui: stanno cifrati
@@ -1563,7 +1967,23 @@ model ShopifyConnection {
   lastConnectedAt     DateTime?               @map("last_connected_at")
   lastSyncAt          DateTime?               @map("last_sync_at")
   webhooksActivatedAt DateTime?               @map("webhooks_activated_at")
+  /// Derivata da webhookTopics (un solo scrittore). Si elimina dopo l'unione dei rami:
+  /// il database e' condiviso e il client Prisma dell'altro ramo la seleziona ancora.
   webhooksActiveCount Int?                    @map("webhooks_active_count")
+  /// Indirizzo a cui le sottoscrizioni risultano registrate. La deduplica Shopify
+  /// confronta per uguaglianza esatta: un indirizzo diverso da quello configurato
+  /// significa sottoscrizioni che consegnano altrove, e nessuno se ne accorgerebbe.
+  webhookAddress      String?                 @map("webhook_address")
+  /// QUALI topic, non quanti. Vuoto = «non lo sappiamo», MAI «zero attivi»:
+  /// la distinzione deve arrivare fino alla UI.
+  webhookTopics       String[]                @default([]) @map("webhook_topics")
+  /// Quando l'elenco qui sopra e' stato osservato (registrazione o «Verifica ora»).
+  /// Un'osservazione senza data non si sa quando era vera.
+  webhooksCheckedAt   DateTime?               @map("webhooks_checked_at")
+  /// Ultimo evento webhook verificato RICEVUTO da Shopify. Mai su lastSyncAt, che ha
+  /// sette scrittori di cui sei manuali: non potrebbe distinguere un bottone premuto
+  /// dall'operatore da un evento in arrivo.
+  lastWebhookEventAt  DateTime?               @map("last_webhook_event_at")
   /// Webhook Shopify attivi: ordini, clienti, prodotti e giacenze in tempo reale.
   autoSyncEnabled     Boolean                 @default(false) @map("auto_sync_enabled")
   lastErrorMessage    String?                 @map("last_error_message")
@@ -1609,18 +2029,18 @@ model ShopifyOAuthState {
 /// Stato push/webhook inventario per anti-loop e riconciliazione (post-audit fase 2).
 /// NON sovrascrive Giacenza VF: traccia solo valori pubblicati e osservati su Shopify.
 model ShopifyInventorySyncState {
-  id                          String    @id @default(uuid()) @db.Uuid
-  tenantId                    String    @map("tenant_id") @db.Uuid
-  variantId                   String    @map("variant_id") @db.Uuid
-  locationId                  String    @map("location_id") @db.Uuid
-  lastPushedAvailable         Int?      @map("last_pushed_available")
-  lastPushedAt                DateTime? @map("last_pushed_at")
-  lastObservedShopifyAvailable Int?     @map("last_observed_shopify_available")
-  lastObservedAt              DateTime? @map("last_observed_at")
-  mismatchDetected            Boolean   @default(false) @map("mismatch_detected")
-  mismatchNote                String?   @map("mismatch_note")
-  createdAt                   DateTime  @default(now()) @map("created_at")
-  updatedAt                   DateTime  @updatedAt @map("updated_at")
+  id                           String    @id @default(uuid()) @db.Uuid
+  tenantId                     String    @map("tenant_id") @db.Uuid
+  variantId                    String    @map("variant_id") @db.Uuid
+  locationId                   String    @map("location_id") @db.Uuid
+  lastPushedAvailable          Int?      @map("last_pushed_available")
+  lastPushedAt                 DateTime? @map("last_pushed_at")
+  lastObservedShopifyAvailable Int?      @map("last_observed_shopify_available")
+  lastObservedAt               DateTime? @map("last_observed_at")
+  mismatchDetected             Boolean   @default(false) @map("mismatch_detected")
+  mismatchNote                 String?   @map("mismatch_note")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id])
   variant  ProductVariant @relation(fields: [variantId], references: [id])
@@ -1690,22 +2110,20 @@ model TikTokOAuthState {
 /// Configurazione per tipo documento a livello tenant (§2.2): quali documenti
 /// sono abilitati, titolo di stampa, numerazione, serie di default, blocchi.
 model DocumentTypeSetting {
-  id                String       @id @default(uuid()) @db.Uuid
-  tenantId          String       @map("tenant_id") @db.Uuid
-  type              DocumentType
+  id            String       @id @default(uuid()) @db.Uuid
+  tenantId      String       @map("tenant_id") @db.Uuid
+  type          DocumentType
   /// Titolo personalizzato del PDF/stampa ("Documento di trasporto", "Arrivo merce", ...).
-  printTitle        String?      @map("print_title")
-  autoNumbering     Boolean      @default(true) @map("auto_numbering")
+  printTitle    String?      @map("print_title")
+  autoNumbering Boolean      @default(true) @map("auto_numbering")
   /// Prefisso numerazione (es. 'DDT', 'CAR', 'TR', 'OF', 'INV').
-  numberPrefix      String?      @map("number_prefix")
+  numberPrefix  String?      @map("number_prefix")
   /// Serie predefinita per distinguere sedi/sezioni (es. 'A', 'MI').
-  defaultSeries     String       @default("A") @map("default_series")
-  /// Gestione prezzi ivati vs imponibili.
-  pricesIncludeVat  Boolean      @default(false) @map("prices_include_vat")
+  defaultSeries String       @default("A") @map("default_series")
   /// Testo automatico in fondo al documento.
-  defaultNotes      String?      @map("default_notes")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  defaultNotes  String?      @map("default_notes")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -1714,33 +2132,118 @@ model DocumentTypeSetting {
   @@map("document_type_settings")
 }
 
+/// Anagrafica dell'AZIENDA GESTITA nel gestionale: è questa che intesta
+/// documenti, stampe e XML, e la compila il titolare.
+///
+/// Non va confusa con i campi anagrafici sul `Tenant`, che sono **un altro
+/// dato**: quelli li inserisce l'admin di piattaforma quando attiva il cliente
+/// e identificano il cliente VestiFlow (a chi è intestato il contratto). Il
+/// titolare può cambiare la propria azienda senza toccare quel record, e
+/// viceversa. Tenerli separati è una decisione di prodotto (08/2026), non una
+/// duplicazione da riunificare.
+///
+/// Tutti i campi sono opzionali: il primo giorno l'anagrafica è vuota, e la
+/// maschera offre di precompilarla dai dati di attivazione — con una pressione
+/// esplicita del titolare, mai in automatico.
+model CompanyProfile {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @unique @map("tenant_id") @db.Uuid
+  legalName         String?  @map("legal_name")
+  vatNumber         String?  @map("vat_number")
+  fiscalCode        String?  @map("fiscal_code")
+  phone             String?
+  email             String?
+  website           String?
+  pec               String?
+  sdiCode           String?  @map("sdi_code")
+  /// IBAN di incasso: precompila i dati pagamento in fattura.
+  iban              String?
+  addressLine1      String?  @map("address_line1")
+  addressLine2      String?  @map("address_line2")
+  city              String?
+  province          String?
+  postalCode        String?  @map("postal_code")
+  countryCode       String?  @map("country_code")
+  /// Regime fiscale FatturaPA (RF01 ordinario, RF19 forfettario…). NULL = RF01.
+  taxRegime         String?  @map("tax_regime")
+  // ── Iscrizione al Registro Imprese (art. 2250 c.c. per le società) ──
+  /// Sigla provincia della CCIAA: «NA», «MI».
+  reaOffice         String?  @map("rea_office")
+  reaNumber         String?  @map("rea_number")
+  /// Capitale sociale in centesimi (unità minori, come ogni importo).
+  shareCapitalMinor Int?     @map("share_capital_minor")
+  /// NULL = non dichiarato; true = socio unico; false = più soci.
+  soleShareholder   Boolean? @map("sole_shareholder")
+  inLiquidation     Boolean  @default(false) @map("in_liquidation")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("company_profiles")
+}
+
 /// Impostazioni operative tenant (§16): moduli magazzino, lotti, seriali, prezzi fornitore.
 model TenantFeatureSettings {
-  id                          String                    @id @default(uuid()) @db.Uuid
-  tenantId                    String                    @unique @map("tenant_id") @db.Uuid
-  lotsEnabled                 Boolean                   @default(false) @map("lots_enabled")
-  serialsEnabled              Boolean                   @default(false) @map("serials_enabled")
-  variantsEnabled             Boolean                   @default(true) @map("variants_enabled")
-  barcodeScannerEnabled       Boolean                   @default(true) @map("barcode_scanner_enabled")
-  supplierOrdersEnabled       Boolean                   @default(true) @map("supplier_orders_enabled")
-  goodsReceiptEnabled         Boolean                   @default(true) @map("goods_receipt_enabled")
-  warehouseValuationEnabled   Boolean                   @default(true) @map("warehouse_valuation_enabled")
-  allowNegativeInventory      Boolean                   @default(false) @map("allow_negative_inventory")
-  warnNegativeInventory       Boolean                   @default(true) @map("warn_negative_inventory")
-  blockNegativeInventory      Boolean                   @default(false) @map("block_negative_inventory")
-  defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
+  id                        String   @id @default(uuid()) @db.Uuid
+  tenantId                  String   @unique @map("tenant_id") @db.Uuid
+  lotsEnabled               Boolean  @default(false) @map("lots_enabled")
+  serialsEnabled            Boolean  @default(false) @map("serials_enabled")
+  variantsEnabled           Boolean  @default(true) @map("variants_enabled")
+  barcodeScannerEnabled     Boolean  @default(true) @map("barcode_scanner_enabled")
+  supplierOrdersEnabled     Boolean  @default(true) @map("supplier_orders_enabled")
+  goodsReceiptEnabled       Boolean  @default(true) @map("goods_receipt_enabled")
+  warehouseValuationEnabled Boolean  @default(true) @map("warehouse_valuation_enabled")
+  allowNegativeInventory    Boolean  @default(false) @map("allow_negative_inventory")
+  warnNegativeInventory     Boolean  @default(true) @map("warn_negative_inventory")
+  blockNegativeInventory    Boolean  @default(false) @map("block_negative_inventory")
+  /// Vendita manuale: la capacita’ operativa e’ disponibile solo dove il
+  /// titolare l’ha accesa. Riduce la giacenza SENZA generare StockMovement
+  /// (deroga di `regole-gestionale`), quindi e’ un interruttore di sicurezza e
+  /// non una preferenza: nasce SPENTA, al contrario delle altre colonne qui.
+  ///
+  /// ⚠️ Si legge sempre `=== true`. Riga assente e colonna `false` devono dire
+  /// la stessa cosa — spento — perche’ la riga si materializza solo quando
+  /// qualcuno apre il pannello Impostazioni.
+  ///
+  /// Governa creazione e modifica. NON l’eliminazione, che resta con i
+  /// permessi di sempre.
+  manualUnloadEnabled       Boolean  @default(false) @map("manual_unload_enabled")
+  // ⛔ Qui c’era `defaultUnitOfMeasure String @default("pz")`, tolta il 26/08/2026.
+  //   La sostituisce `UnitOfMeasureOption.isDefault`, che sta sulla riga che riguarda
+  //   e ha il vincolo a livello di database (indice unico parziale per tenant).
+  //
+  // ⚠️ La COLONNA `default_unit_of_measure` RESTA nel database, orfana, e non è una
+  //   dimenticanza: gli altri rami la dichiarano ancora e il database è condiviso.
+  //   Eliminarla ora romperebbe le loro query che la nominano. Si toglie con un
+  //   `DROP COLUMN` quando i rami sono riallineati — vedi `docs/DA-FARE.md`.
+  //   Una colonna che il database ha e lo schema non dichiara è invisibile a Prisma:
+  //   nel progetto è già così per i 12 oggetti del ramo cassa.
   /// Codice IVA predefinito aziendale.
-  defaultVatCodeId              String?                   @map("default_vat_code_id") @db.Uuid
+  defaultVatCodeId          String?  @map("default_vat_code_id") @db.Uuid
+  /// Convenzione aziendale sui PREZZI DI VENDITA: netti o ivati.
+  ///
+  /// Non è solo il default dei documenti nuovi — è come questa azienda guarda i
+  /// prezzi: al dettaglio si ragiona ivato, all'ingrosso netto. Governa quindi
+  /// anche le viste che non appartengono a un documento (anagrafica, listini, e
+  /// in futuro i report). `true` = ivato, che è ciò con cui il sistema partiva
+  /// prima che questa impostazione esistesse.
+  ///
+  /// ⚠️ NON esiste la gemella per i COSTI, ed è una scelta: i costi partono
+  /// sempre netti. Per un'azienda che detrae l'IVA il costo *è* il netto, e
+  /// l'inserimento ivato resta una comodità del singolo documento — non una
+  /// convenzione aziendale.
+  salesPricesIncludeVat     Boolean  @default(true) @map("sales_prices_include_vat")
   /// Listini aggiuntivi (fissi 3): nome rinominabile e attivazione. Il primo è
   /// attivo di default, gli altri due si attivano quando servono.
-  listino1Name                  String?                   @map("listino1_name")
-  listino1Active                Boolean                   @default(true) @map("listino1_active")
-  listino2Name                  String?                   @map("listino2_name")
-  listino2Active                Boolean                   @default(false) @map("listino2_active")
-  listino3Name                  String?                   @map("listino3_name")
-  listino3Active                Boolean                   @default(false) @map("listino3_active")
-  createdAt                   DateTime                  @default(now()) @map("created_at")
-  updatedAt                   DateTime                  @updatedAt @map("updated_at")
+  listino1Name              String?  @map("listino1_name")
+  listino1Active            Boolean  @default(true) @map("listino1_active")
+  listino2Name              String?  @map("listino2_name")
+  listino2Active            Boolean  @default(false) @map("listino2_active")
+  listino3Name              String?  @map("listino3_name")
+  listino3Active            Boolean  @default(false) @map("listino3_active")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
 
   tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   defaultVatCode VatCode? @relation(fields: [defaultVatCodeId], references: [id], onDelete: SetNull)
@@ -1805,136 +2308,144 @@ model DocumentCounter {
 /// Documento gestionale (§2). Testata con controparti, totali e stato; le righe
 /// generano i movimenti quando il documento è confermato (negli step successivi).
 model Document {
-  id                String         @id @default(uuid()) @db.Uuid
-  tenantId          String         @map("tenant_id") @db.Uuid
-  type              DocumentType
-  status            DocumentStatus @default(draft)
+  id                           String                @id @default(uuid()) @db.Uuid
+  tenantId                     String                @map("tenant_id") @db.Uuid
+  type                         DocumentType
+  status                       DocumentStatus        @default(draft)
   /// Serie del contatore; NULL = senza serie. Fa parte dell'identità del numero.
-  series            String?
+  series                       String?
   /// Numero progressivo nella serie (max+1); null finché in bozza.
-  number            Int?
+  number                       Int?
   /// Metadato (filtri/adempimenti). NON fa più parte della numerazione.
-  year              Int
+  year                         Int
   /// Riferimento leggibile `PREFISSO[-SERIE]-NUMERO`; assegnato alla conferma.
-  reference         String?
+  reference                    String?
   /// Data interna di registrazione (solo giorno: niente orario, niente slittamenti TZ).
-  documentDate      DateTime       @map("document_date") @db.Date
-  registrationDate  DateTime?      @map("registration_date")
-  printTitle        String?        @map("print_title")
-  notes             String?
-  internalComment   String?        @map("internal_comment")
+  documentDate                 DateTime              @map("document_date") @db.Date
+  registrationDate             DateTime?             @map("registration_date")
+  printTitle                   String?               @map("print_title")
+  notes                        String?
+  internalComment              String?               @map("internal_comment")
+  /// Intestazione di chi emette, congelata alla creazione: un documento emesso
+  /// si ristampa identico anche se l'anagrafica azienda cambia dopo. NULL sui
+  /// documenti anteriori allo snapshot, che rileggono l'anagrafica corrente.
+  issuerSnapshot               Json?                 @map("issuer_snapshot")
   // ── Controparti (snapshot nome per display stabile) ──
-  supplierId        String?        @map("supplier_id") @db.Uuid
-  supplierName      String?        @map("supplier_name")
-  customerId        String?        @map("customer_id") @db.Uuid
-  customerName      String?        @map("customer_name")
+  supplierId                   String?               @map("supplier_id") @db.Uuid
+  supplierName                 String?               @map("supplier_name")
+  customerId                   String?               @map("customer_id") @db.Uuid
+  customerName                 String?               @map("customer_name")
   // ── Location origine e destinazione (trasferimenti) ──
-  locationId        String?        @map("location_id") @db.Uuid
-  targetLocationId  String?        @map("target_location_id") @db.Uuid
+  locationId                   String?               @map("location_id") @db.Uuid
+  targetLocationId             String?               @map("target_location_id") @db.Uuid
   /// Direzione rettifica (solo DocumentType.adjustment): increase = carico, decrease = scarico.
-  adjustmentDirection AdjustmentDirection? @map("adjustment_direction")
+  adjustmentDirection          AdjustmentDirection?  @map("adjustment_direction")
   // ── Documento del fornitore (DDT/fattura/reso ricevuto con la merce) ──
-  externalDocNumber String?        @map("external_doc_number")
-  externalDocDate   DateTime?      @map("external_doc_date") @db.Date
-  externalRef       String?        @map("external_ref")
+  externalDocNumber            String?               @map("external_doc_number")
+  externalDocDate              DateTime?             @map("external_doc_date") @db.Date
+  externalRef                  String?               @map("external_ref")
   /// Tipo documento fornitore (tabella per tenant, estendibile).
-  externalDocumentTypeId String?   @map("external_document_type_id") @db.Uuid
+  externalDocumentTypeId       String?               @map("external_document_type_id") @db.Uuid
   /// Snapshot etichetta breve del tipo al salvataggio (storico stabile).
-  externalDocumentTypeSnapshot String? @map("external_document_type_snapshot")
+  externalDocumentTypeSnapshot String?               @map("external_document_type_snapshot")
   /// Documento origine (es. proforma convertita in bozza fattura / DDT).
-  sourceDocumentId  String?        @map("source_document_id") @db.Uuid
+  sourceDocumentId             String?               @map("source_document_id") @db.Uuid
   /// Vendita online che ha GIÀ scaricato il magazzino (fase 2 §9): il DDT
   /// collegato non crea movimenti né consuma impegni (inventory effect NONE,
   /// non modificabile dall'utente).
-  onlineSaleId      String?        @map("online_sale_id") @db.Uuid
+  onlineSaleId                 String?               @map("online_sale_id") @db.Uuid
   /// Ordine fornitore collegato (§10.1 arrivo merce da PO).
-  supplierOrderId   String?        @map("supplier_order_id") @db.Uuid
+  supplierOrderId              String?               @map("supplier_order_id") @db.Uuid
   /// Causale fatturazione (bozza fattura, §9.2).
-  billingCause      String?        @map("billing_cause")
+  billingCause                 String?               @map("billing_cause")
   /// Causale di carico (arrivo merce): es. "DDT 145 del 08/05/2026".
-  causalText        String?        @map("causal_text")
+  causalText                   String?               @map("causal_text")
   /// Modalità causale: auto (generata dal modello) o manual (testo utente).
-  causalGenerationMode String?     @map("causal_generation_mode")
+  causalGenerationMode         String?               @map("causal_generation_mode")
   /// Snapshot del modello causale usato in modalità auto (es. "DDT {numero} del {data}").
-  causalTemplateSnapshot String?   @map("causal_template_snapshot")
+  causalTemplateSnapshot       String?               @map("causal_template_snapshot")
   // ── Totali (denaro in unità minori intere, mai float) ──
-  currency          String         @default("EUR")
-  subtotalMinor     Int            @default(0) @map("subtotal_minor")
-  taxMinor          Int            @default(0) @map("tax_minor")
-  totalMinor        Int            @default(0) @map("total_minor")
+  currency                     String                @default("EUR")
+  subtotalMinor                Int                   @default(0) @map("subtotal_minor")
+  taxMinor                     Int                   @default(0) @map("tax_minor")
+  totalMinor                   Int                   @default(0) @map("total_minor")
   /// Registrazione fattura fornitore: residuo "Ancora da saldare" denormalizzato
   /// (totale - scadenze saldate), mantenuto dal salvataggio. 0 per gli altri tipi.
-  outstandingMinor  Int            @default(0) @map("outstanding_minor")
+  outstandingMinor             Int                   @default(0) @map("outstanding_minor")
   /// Sconto extra percentuale applicato sull'intero documento oltre agli sconti riga.
-  documentDiscountPercent Decimal  @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
-  pricesIncludeVat  Boolean        @default(false) @map("prices_include_vat")
+  documentDiscountPercent      Decimal               @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
+  pricesIncludeVat             Boolean               @default(false) @map("prices_include_vat")
   /// Modalità inserimento costi dell'Arrivo merce: netti o ivati (§11.1).
-  purchaseCostEntryMode PurchaseCostEntryMode @default(vat_excluded) @map("purchase_cost_entry_mode")
-  createdById       String?        @map("created_by_id") @db.Uuid
+  purchaseCostEntryMode        PurchaseCostEntryMode @default(vat_excluded) @map("purchase_cost_entry_mode")
+  createdById                  String?               @map("created_by_id") @db.Uuid
   /// Snapshot nome operatore (audit stabile anche se l'utente cambia nome).
-  createdByName     String         @map("created_by_name")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
-  confirmedAt       DateTime?      @map("confirmed_at")
-  cancelledAt       DateTime?      @map("cancelled_at")
+  createdByName                String                @map("created_by_name")
+  createdAt                    DateTime              @default(now()) @map("created_at")
+  updatedAt                    DateTime              @updatedAt @map("updated_at")
+  confirmedAt                  DateTime?             @map("confirmed_at")
+  cancelledAt                  DateTime?             @map("cancelled_at")
   /// Data emissione fattura esterna (bozza fattura, step intermedio §9.2).
-  externallyIssuedAt DateTime?     @map("externally_issued_at")
+  externallyIssuedAt           DateTime?             @map("externally_issued_at")
   /// Modalità di pagamento (Vendita in negozio, fase 3 §7): cash/card/other.
-  paymentMethod     String?        @map("payment_method")
+  paymentMethod                String?               @map("payment_method")
   /// Descrizione libera quando paymentMethod = 'other' (Vendita in negozio):
   /// es. «Assegno», «Bonifico». Mostrata accanto ad «Altro» in elenco/dettaglio.
-  paymentMethodNote String?        @map("payment_method_note")
+  paymentMethodNote            String?               @map("payment_method_note")
+  /// Sessione di cassa che ha concluso la vendita (`docs/25` §4). NULL su
+  /// ogni Vendita al banco ordinaria: e' cio' che distingue i due flussi,
+  /// senza bisogno di un flag di origine.
+  cashSessionId                String?               @map("cash_session_id") @db.Uuid
   /// Condizioni di pagamento in testata (Preventivo: campo «Pagamento»,
   /// stesso snapshot testo dell'Ordine cliente manuale).
-  paymentTerms      String?        @map("payment_terms")
+  paymentTerms                 String?               @map("payment_terms")
   /// Data prevista consegna (Preventivo: campo «Consegna prevista», solo giorno).
-  expectedDeliveryDate DateTime?   @map("expected_delivery_date") @db.Date
+  expectedDeliveryDate         DateTime?             @map("expected_delivery_date") @db.Date
   /// Scadenza pagamento (Fattura: solo giorno, alimenta DatiPagamento XML).
-  paymentDueDate    DateTime?      @map("payment_due_date") @db.Date
+  paymentDueDate               DateTime?             @map("payment_due_date") @db.Date
   /// IBAN di incasso: snapshot precompilato da Impostazioni negozio e
   /// modificabile sul documento (Fattura). Storico stabile se l'IBAN cambia.
-  iban              String?
+  iban                         String?
   // ── DDT vendita: testata operativa (prompt DDT §TESTATA/§TRASPORTO/§INDIRIZZI) ──
   /// "Seguirà doc. di vendita" (DDT vendita).
-  followedBySalesDoc Boolean       @default(false) @map("followed_by_sales_doc")
+  followedBySalesDoc           Boolean               @default(false) @map("followed_by_sales_doc")
   /// Causale trasporto (es. "Vendita", "Conto visione").
-  transportCausal   String?        @map("transport_causal")
+  transportCausal              String?               @map("transport_causal")
   /// Data e ora inizio trasporto.
-  transportStartAt  DateTime?      @map("transport_start_at")
+  transportStartAt             DateTime?             @map("transport_start_at")
   /// Porto: franco o assegnato.
-  transportPort     String?        @map("transport_port")
+  transportPort                String?               @map("transport_port")
   /// Incaricato del trasporto (vettore/mittente/destinatario).
-  transportCarrier  String?        @map("transport_carrier")
+  transportCarrier             String?               @map("transport_carrier")
   /// Numero colli.
-  transportPackagesCount Int?      @map("transport_packages_count")
+  transportPackagesCount       Int?                  @map("transport_packages_count")
   /// Peso (testo libero, es. "12,5 kg").
-  transportWeight   String?        @map("transport_weight")
+  transportWeight              String?               @map("transport_weight")
   /// Aspetto esteriore dei beni (es. "Scatole").
-  transportGoodsAspect String?     @map("transport_goods_aspect")
+  transportGoodsAspect         String?               @map("transport_goods_aspect")
   /// Codice spedizione del vettore.
-  transportShippingCode String?    @map("transport_shipping_code")
+  transportShippingCode        String?               @map("transport_shipping_code")
   /// Tracking spedizione (codice o URL).
-  transportTrackingCode String?    @map("transport_tracking_code")
+  transportTrackingCode        String?               @map("transport_tracking_code")
   /// Intestatario documento (snapshot JSON: nome, indirizzo, CAP, città,
   /// provincia, nazione, CF, P.IVA — shape DocumentAddress).
-  recipientAddress  Json?          @map("recipient_address")
+  recipientAddress             Json?                 @map("recipient_address")
   /// Destinazione merce (stesso shape dell'intestatario; può differire).
-  destinationAddress Json?         @map("destination_address")
+  destinationAddress           Json?                 @map("destination_address")
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
-  customer       Customer?      @relation(fields: [customerId], references: [id])
-  location       Location?      @relation("DocumentLocation", fields: [locationId], references: [id])
-  targetLocation Location?      @relation("DocumentTargetLocation", fields: [targetLocationId], references: [id])
-  externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
-  onlineSale     OnlineSale?    @relation(fields: [onlineSaleId], references: [id], onDelete: SetNull)
-  lines          DocumentLine[]
-  revisions      DocumentRevision[]
-  attachments    DocumentAttachment[]
-  sourceDocument Document?      @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
-  derivedDocuments Document[]     @relation("DocumentConversion")
-  supplierOrder  SupplierOrder? @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
-  salesOrders      SalesOrder[]
+  tenant                 Tenant                            @relation(fields: [tenantId], references: [id])
+  supplier               Supplier?                         @relation(fields: [supplierId], references: [id])
+  customer               Customer?                         @relation(fields: [customerId], references: [id])
+  location               Location?                         @relation("DocumentLocation", fields: [locationId], references: [id])
+  targetLocation         Location?                         @relation("DocumentTargetLocation", fields: [targetLocationId], references: [id])
+  externalDocumentType   ExternalDocumentType?             @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
+  onlineSale             OnlineSale?                       @relation(fields: [onlineSaleId], references: [id], onDelete: SetNull)
+  lines                  DocumentLine[]
+  revisions              DocumentRevision[]
+  attachments            DocumentAttachment[]
+  sourceDocument         Document?                         @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  derivedDocuments       Document[]                        @relation("DocumentConversion")
+  supplierOrder          SupplierOrder?                    @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
+  salesOrders            SalesOrder[]
   inventoryCountSessions InventoryCountSession[]
   /// Link fattura registrata → arrivi merce inclusi (questo doc è la fattura).
   goodsReceiptLinks      PurchaseInvoiceGoodsReceiptLink[] @relation("LinkInvoice")
@@ -1948,6 +2459,13 @@ model Document {
   ddtLinks               InvoiceSalesDdtLink[]             @relation("InvoiceLinkInvoice")
   /// Link DDT vendita → fatture che lo agganciano (questo doc è il DDT).
   invoiceLinks           InvoiceSalesDdtLink[]             @relation("InvoiceLinkDdt")
+  /// Quote incassate dal checkout Cassa (`docs/25` §6): FONTE CANONICA del
+  /// pagamento. Il riepilogo «Misto» si calcola da qui e non si persiste.
+  storeSalePayments      StoreSalePayment[]
+  /// Documento commerciale emesso dall'RT: al piu' uno per documento.
+  fiscalReceipt          FiscalReceipt?
+  /// Sessione che ha concluso la vendita in Cassa; NULL sul banco ordinario.
+  cashSession            CashSession?                      @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
 
   // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
   // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)
@@ -1961,84 +2479,169 @@ model Document {
   @@index([sourceDocumentId, type, status])
   @@index([tenantId, supplierOrderId])
   @@index([tenantId, onlineSaleId])
+  @@index([tenantId, cashSessionId])
   @@map("documents")
 }
 
 /// Riga documento (§2, §3.2). Il flag loadsStock distingue righe che movimentano
 /// magazzino da spese/servizi/descrizioni.
 model DocumentLine {
-  id              String   @id @default(uuid()) @db.Uuid
-  tenantId        String   @map("tenant_id") @db.Uuid
-  documentId      String   @map("document_id") @db.Uuid
-  lineNumber      Int      @map("line_number")
+  id                       String                 @id @default(uuid()) @db.Uuid
+  tenantId                 String                 @map("tenant_id") @db.Uuid
+  documentId               String                 @map("document_id") @db.Uuid
+  lineNumber               Int                    @map("line_number")
+  /// ⭐ La riga di VENDITA che questa riga di reso rettifica (tranche C4R,
+  /// `docs/25` §12). Un solo significato:
+  ///
+  ///   questa riga `store_return` restituisce quantita' e valore della
+  ///   PRECISA riga di vendita indicata.
+  ///
+  /// ⛔ NON si chiama `sourceDocumentLineId`, e il nome e' la decisione: quel
+  /// nome esiste gia' come riferimento TRANSIENTE per duplicazioni e
+  /// conversioni — `CreateDocumentLineDto`, con un `FormControl` omonimo lato
+  /// client — e `regole-gestionale` dice «il riferimento non si persiste».
+  /// Una colonna cosi' chiamata si riempirebbe di legami di derivazione dal
+  /// primo salvataggio, dentro un campo che significa un'altra cosa.
+  ///
+  /// ⚠️ `NULL` su tutte le righe che non sono resi collegati, e sui 15 resi
+  /// STORICI: la loro origine non e' ricostruibile, e dedurla per variante o
+  /// per prezzo sarebbe inventarla. Nel registro si leggono come
+  /// «Reso storico — origine non disponibile».
+  ///
+  /// ⛔ Obbligatorio a livello di SERVIZIO per ogni riga di reso creata dalla
+  /// Cassa: il database lo ammette nullo perche' deve ammettere le righe che
+  /// resi non sono.
+  returnedFromLineId       String?                @map("returned_from_line_id") @db.Uuid
   /// Nullable: riga non a magazzino (spesa/servizio) o articolo non ancora identificato.
-  variantId       String?  @map("variant_id") @db.Uuid
-  sku             String?
-  description     String
-  quantity        Int      @default(0)
+  variantId                String?                @map("variant_id") @db.Uuid
+  sku                      String?
+  description              String
+  /// Codice articolo del PRODOTTO, fotografato quando l'articolo entra nella
+  /// riga — come sku, description e variantLabel.
+  ///
+  /// ⛔ Fino al 03/09/2026 non esisteva: la maschera lo RILEGGEVA
+  /// dall'anagrafica corrente a ogni apertura del documento, e il commento in
+  /// `goods-receipt-form.component.ts` lo dichiarava — «non hanno una colonna
+  /// da cui ricaricarsi». Un articolo rinominato riscriveva quindi i documenti
+  /// già emessi, e una variante eliminata li lasciava senza.
+  ///
+  /// Nullable: la riga di spesa o servizio non ha articolo, e le righe scritte
+  /// prima di questa colonna restano null — non si inventa un passato
+  /// (`docs/24` §5.4).
+  articleCode              String?                @map("article_code")
+  /// Nome del PRODOTTO al momento del documento. Stessa storia e stessa regola
+  /// di `articleCode`: non si ricalcola, non si rilegge.
+  productName              String?                @map("product_name")
+  /// Barcode della VARIANTE al momento del documento. Idem.
+  barcode                  String?
+  /// Etichetta della VARIANTE, i soli valori: «M / Rosso». Fotografata quando
+  /// l'articolo entra nella riga, come sku e description.
+  ///
+  /// ⛔ NON si ricalcola a ogni salvataggio: su una riga esistente che porta
+  /// ancora la stessa variante si conserva quella persistita
+  /// (`document-line-variant-snapshot.util`). Ricalcolarla farebbe diventare
+  /// «Bordeaux / M» un documento di marzo che diceva «Rosso / M», solo perche'
+  /// qualcuno ha rinominato un valore d'opzione in anagrafica.
+  ///
+  /// Stringa vuota = nessuna opzione visibile, compresi il prodotto semplice e
+  /// il «Default Title» di Shopify. Mai null: non e' uno stato funzionale
+  /// valido, e il DEFAULT '' e' una sicurezza per le righe di prima — non il
+  /// comportamento ordinario di un writer.
+  variantLabel             String                 @default("") @map("variant_label")
+  quantity                 Int                    @default(0)
   /// Costo/prezzo unitario NETTO canonico in unità minori (riferimento per
   /// confronto prezzi fornitore, storico costi e valorizzazione).
   /// SEI DECIMALI: un prezzo digitato ivato non ha un netto intero, e la coda
   /// decimale è ciò che lo fa tornare identico quando viene rimostrato ivato.
-  unitPriceMinor  Decimal  @default(0) @map("unit_price_minor") @db.Decimal(16, 6)
+  unitPriceMinor           Decimal                @default(0) @map("unit_price_minor") @db.Decimal(16, 6)
   /// Sconto riga in percentuale EFFETTIVA, con decimali: la cascata «4+10%»
   /// vale 13,6%, e arrotondarla a 14 farebbe valere il documento meno di
   /// quanto l'anteprima ha mostrato.
-  discountPercent Decimal  @default(0) @map("discount_percent") @db.Decimal(7, 4)
+  discountPercent          Decimal                @default(0) @map("discount_percent") @db.Decimal(7, 4)
   /// Imponibile riga in unità minori (dopo sconto riga, prima IVA).
-  lineTotalMinor  Int      @default(0) @map("line_total_minor")
+  lineTotalMinor           Int                    @default(0) @map("line_total_minor")
   /// Codice IVA della riga. Null su righe storiche non migrate.
-  vatCodeId       String?  @map("vat_code_id") @db.Uuid
+  vatCodeId                String?                @map("vat_code_id") @db.Uuid
   /// Snapshot del Codice IVA al salvataggio: codice, natura, aliquota,
   /// descrizione, % indetraibile, modalità calcolo, flag totale fornitore.
-  vatSnapshot     Json?    @map("vat_snapshot")
+  vatSnapshot              Json?                  @map("vat_snapshot")
   /// Costo unitario così come digitato dall'utente (netto o ivato secondo
   /// costEntryMode). NUMERIC 6 decimali, mai float.
-  enteredUnitCost Decimal? @map("entered_unit_cost") @db.Decimal(16, 6)
+  enteredUnitCost          Decimal?               @map("entered_unit_cost") @db.Decimal(16, 6)
   /// Modalità costo del documento al salvataggio della riga.
-  costEntryModeSnapshot PurchaseCostEntryMode? @map("cost_entry_mode_snapshot")
+  costEntryModeSnapshot    PurchaseCostEntryMode? @map("cost_entry_mode_snapshot")
   /// Costo unitario netto/lordo normalizzati (prima dello sconto riga).
-  unitCostNet     Decimal? @map("unit_cost_net") @db.Decimal(16, 6)
-  unitCostGross   Decimal? @map("unit_cost_gross") @db.Decimal(16, 6)
-  unitVatAmount   Decimal? @map("unit_vat_amount") @db.Decimal(16, 6)
+  unitCostNet              Decimal?               @map("unit_cost_net") @db.Decimal(16, 6)
+  unitCostGross            Decimal?               @map("unit_cost_gross") @db.Decimal(16, 6)
+  unitVatAmount            Decimal?               @map("unit_vat_amount") @db.Decimal(16, 6)
   /// Totali riga IVA in unità minori: IVA, lordo, importo dovuto al fornitore,
   /// IVA reverse charge calcolata a parte, IVA indetraibile.
-  lineVatTotalMinor          Int @default(0) @map("line_vat_total_minor")
-  lineGrossTotalMinor        Int @default(0) @map("line_gross_total_minor")
-  supplierPayableLineMinor   Int @default(0) @map("supplier_payable_line_minor")
-  reverseChargeVatMinor      Int @default(0) @map("reverse_charge_vat_minor")
-  nonDeductibleVatMinor      Int @default(0) @map("non_deductible_vat_minor")
+  lineVatTotalMinor        Int                    @default(0) @map("line_vat_total_minor")
+  lineGrossTotalMinor      Int                    @default(0) @map("line_gross_total_minor")
+  supplierPayableLineMinor Int                    @default(0) @map("supplier_payable_line_minor")
+  reverseChargeVatMinor    Int                    @default(0) @map("reverse_charge_vat_minor")
+  nonDeductibleVatMinor    Int                    @default(0) @map("non_deductible_vat_minor")
+  /// Unità di misura della riga, fotografata all'inserimento. Nullable: sulle
+  /// righe salvate prima che la colonna esistesse l'assenza vale «prendi quella
+  /// dell'anagrafica». Nessuna chiave esterna: è una stringa, e l'elenco delle
+  /// unità (`UnitOfMeasureOption`) suggerisce, non obbliga.
+  unitOfMeasure            String?                @map("unit_of_measure")
   /// Flag "carica magazzino" (§3.2): righe spese/servizi non movimentano stock.
-  loadsStock      Boolean  @default(true) @map("loads_stock")
+  loadsStock               Boolean                @default(true) @map("loads_stock")
   /// Riga «documento collegato»: separatore informativo del gruppo di righe
   /// arrivate da un altro documento. Nessuna quantità, nessun valore, fuori
   /// dai totali. Le righe salvate prima di questo campo restano righe normali.
-  isReference     Boolean  @default(false) @map("is_reference")
+  isReference              Boolean                @default(false) @map("is_reference")
   /// Riga ordine fornitore collegata (§10.1).
-  supplierOrderLineId String? @map("supplier_order_line_id") @db.Uuid
+  supplierOrderLineId      String?                @map("supplier_order_line_id") @db.Uuid
   /// Lotto (tracciamento lot, opzionale).
-  lotCode         String?  @map("lot_code")
-  lotExpiryDate   DateTime? @map("lot_expiry_date") @db.Date
+  lotCode                  String?                @map("lot_code")
+  lotExpiryDate            DateTime?              @map("lot_expiry_date") @db.Date
   /// Numeri seriali (tracciamento serial, opzionale).
-  serialNumbers   Json     @default("[]") @map("serial_numbers")
-  /// Riga riepilogativa di registrazione fattura: arrivo merce riepilogato.
-  linkedGoodsReceiptId String? @map("linked_goods_receipt_id") @db.Uuid
-  /// Origine riga di registrazione fattura: 'vat_summary' (riepilogo automatico
-  /// per aliquota dagli arrivi inclusi) o 'manual' (voce libera). Null altrove.
-  lineSource      String?  @map("line_source")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  serialNumbers            Json                   @default("[]") @map("serial_numbers")
+  /// L'arrivo merce da cui questa riga di Registrazione fattura e' nata.
+  ///
+  /// ⭐ E' L'UNICA FONTE del collegamento fattura↔arrivo: un arrivo e'
+  /// agganciato finche' almeno una riga dice di venire da lui, e cancellare
+  /// quelle righe lo scollega da se'. Deciso il 25/08/2026 sul modello Danea.
+  ///
+  /// ⚠️ La colonna esiste da luglio con chiave esterna e indice, e fino ad
+  /// allora NESSUN percorso dell'API la scriveva: era sempre null.
+  linkedGoodsReceiptId     String?                @map("linked_goods_receipt_id") @db.Uuid
+  /// Provenienza STORICA della riga di Registrazione fattura: 'vat_summary' se
+  /// e' nata includendo un arrivo, 'manual' se e' una voce libera. Null altrove.
+  ///
+  /// ⛔ **Non e' piu' un'origine ricalcolabile.** Diceva «riepilogo automatico
+  /// per aliquota dagli arrivi inclusi», e descriveva un dato che il server
+  /// rigenerava a ogni salvataggio — in sola lettura per l'operatore. Dal
+  /// 25/08/2026 le righe sono UNA lista e tutte modificabili: questo campo
+  /// racconta da dove viene la riga, non chi la comanda.
+  lineSource               String?                @map("line_source")
+  createdAt                DateTime               @default(now()) @map("created_at")
+  updatedAt                DateTime               @updatedAt @map("updated_at")
 
-  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  variant  ProductVariant? @relation(fields: [variantId], references: [id])
-  supplierOrderLine SupplierOrderLine? @relation(fields: [supplierOrderLineId], references: [id], onDelete: SetNull)
-  linkedGoodsReceipt Document? @relation("LineGoodsReceipt", fields: [linkedGoodsReceiptId], references: [id], onDelete: SetNull)
-  vatCode  VatCode?        @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
-  inventorySerials InventorySerial[]
+  document           Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  variant            ProductVariant?    @relation(fields: [variantId], references: [id])
+  supplierOrderLine  SupplierOrderLine? @relation(fields: [supplierOrderLineId], references: [id], onDelete: SetNull)
+  linkedGoodsReceipt Document?          @relation("LineGoodsReceipt", fields: [linkedGoodsReceiptId], references: [id], onDelete: SetNull)
+  vatCode            VatCode?           @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
+  inventorySerials   InventorySerial[]
 
+  /// ⛔ `Restrict`, mai `SetNull`: azzerare il riferimento perderebbe
+  /// l'origine IN SILENZIO, ed e' un collegamento permanente quanto quello
+  /// fra ricevute fiscali.
+  ///
+  /// ⚠️ MISURATO: con questa FK il `Cascade` da `documents` non puo' piu'
+  /// attraversare le righe — cancellare la vendita mentre un reso la
+  /// referenzia da' 23503. E' la protezione, non un effetto collaterale.
+  returnSourceLine DocumentLine?  @relation("DocumentLineReturn", fields: [returnedFromLineId], references: [id], onDelete: Restrict)
+  returnLines      DocumentLine[] @relation("DocumentLineReturn")
+
+  @@unique([documentId, returnedFromLineId])
   @@index([documentId])
   @@index([tenantId])
   @@index([linkedGoodsReceiptId])
+  @@index([returnedFromLineId])
   @@map("document_lines")
 }
 
@@ -2084,11 +2687,19 @@ model ExternalDocumentType {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  tenant    Tenant               @relation(fields: [tenantId], references: [id])
-  documents Document[]
-  causals   GoodsReceiptCausal[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  documents      Document[]
+  causals        GoodsReceiptCausal[]
+  salesOrders    SalesOrder[]
+  supplierOrders SupplierOrder[]
 
-  @@unique([tenantId, name])
+  // Il nome e' univoco per tenant SOLO fra i tipi vivi: un tipo eliminato
+  // (deleted_at valorizzato) resta in tabella per lo storico ma libera il
+  // proprio nome. E' un indice parziale `WHERE deleted_at IS NULL`, che Prisma
+  // non sa esprimere: vive nella migration 20260810120000, in due forme —
+  // esatta e case-insensitive. Niente `@@unique` qui, o il prossimo
+  // `migrate diff` rimetterebbe l'indice totale e il soft-delete smetterebbe
+  // di permettere di ricreare un tipo con lo stesso nome.
   @@index([tenantId, sortOrder])
   @@map("external_document_types")
 }
@@ -2148,16 +2759,16 @@ model VatCode {
   updatedAt               DateTime           @updatedAt @map("updated_at")
   deletedAt               DateTime?          @map("deleted_at")
 
-  tenant        Tenant                 @relation(fields: [tenantId], references: [id])
-  nature        VatNature              @relation(fields: [natureId], references: [id])
-  products      Product[]
-  documentLines DocumentLine[]
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id])
+  nature                 VatNature               @relation(fields: [natureId], references: [id])
+  products               Product[]
+  documentLines          DocumentLine[]
+  manualReceiptLines     ManualReceiptLine[]
   featureSettingsDefault TenantFeatureSettings[]
-  suppliers                Supplier[]
-  onlineSaleLines          OnlineSaleLine[]
-  corrispettivoEntryLines  CorrispettivoEntryLine[]
-  salesOrderLines          SalesOrderLine[]
-  supplierOrderLines       SupplierOrderLine[]
+  suppliers              Supplier[]
+  onlineSaleLines        OnlineSaleLine[]
+  salesOrderLines        SalesOrderLine[]
+  supplierOrderLines     SupplierOrderLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId, sortOrder])
@@ -2168,19 +2779,19 @@ model VatCode {
 /// Causale di carico per Arrivo merce: elenco editabile per tenant con
 /// ordinamento e predefinita (finestra "Gestione causali").
 model GoodsReceiptCausal {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @map("tenant_id") @db.Uuid
+  id                     String   @id @default(uuid()) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
   /// Testo/modello della causale, es. "DDT {numero} del {data} - C/Lavorazione".
-  label        String
+  label                  String
   /// Tipo documento fornitore associato: selezionare la causale imposta il tipo.
-  externalDocumentTypeId String? @map("external_document_type_id") @db.Uuid
-  sortOrder    Int      @default(0) @map("sort_order")
-  isDefault    Boolean  @default(false) @map("is_default")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  externalDocumentTypeId String?  @map("external_document_type_id") @db.Uuid
+  sortOrder              Int      @default(0) @map("sort_order")
+  isDefault              Boolean  @default(false) @map("is_default")
+  isActive               Boolean  @default(true) @map("is_active")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
   externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, label])
@@ -2191,17 +2802,17 @@ model GoodsReceiptCausal {
 /// Collegamento documentale fattura registrata ↔ arrivo merce (§6 prompt).
 /// Solo informativo/contabile: NON genera movimenti di magazzino.
 model PurchaseInvoiceGoodsReceiptLink {
-  id                String   @id @default(uuid()) @db.Uuid
-  tenantId          String   @map("tenant_id") @db.Uuid
-  purchaseInvoiceId String   @map("purchase_invoice_id") @db.Uuid
-  goodsReceiptId    String   @map("goods_receipt_id") @db.Uuid
-  linkedNetMinor    Int      @default(0) @map("linked_net_minor")
-  linkedVatMinor    Int      @default(0) @map("linked_vat_minor")
-  linkedGrossMinor  Int      @default(0) @map("linked_gross_minor")
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  purchaseInvoiceId  String   @map("purchase_invoice_id") @db.Uuid
+  goodsReceiptId     String   @map("goods_receipt_id") @db.Uuid
+  linkedNetMinor     Int      @default(0) @map("linked_net_minor")
+  linkedVatMinor     Int      @default(0) @map("linked_vat_minor")
+  linkedGrossMinor   Int      @default(0) @map("linked_gross_minor")
   /// "Totali da verificare" (§15): l'arrivo è stato modificato dopo il
   /// collegamento alla fattura; si azzera al ri-salvataggio della fattura.
-  totalsCheckPending Boolean @default(false) @map("totals_check_pending")
-  createdAt         DateTime @default(now()) @map("created_at")
+  totalsCheckPending Boolean  @default(false) @map("totals_check_pending")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   purchaseInvoice Document @relation("LinkInvoice", fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
   goodsReceipt    Document @relation("LinkReceipt", fields: [goodsReceiptId], references: [id], onDelete: Cascade)
@@ -2318,15 +2929,15 @@ model SupplierAttachment {
 
 /// Lotto inventario (tracciamento lot/expiry — C1).
 model InventoryLot {
-  id          String    @id @default(uuid()) @db.Uuid
-  tenantId    String    @map("tenant_id") @db.Uuid
-  variantId   String    @map("variant_id") @db.Uuid
-  locationId  String    @map("location_id") @db.Uuid
-  lotCode     String    @map("lot_code")
-  expiryDate  DateTime? @map("expiry_date") @db.Date
-  quantity    Int       @default(0)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  variantId  String    @map("variant_id") @db.Uuid
+  locationId String    @map("location_id") @db.Uuid
+  lotCode    String    @map("lot_code")
+  expiryDate DateTime? @map("expiry_date") @db.Date
+  quantity   Int       @default(0)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id])
   variant  ProductVariant @relation(fields: [variantId], references: [id])
@@ -2381,6 +2992,30 @@ model UserTableViewPreference {
 /// Ricordata alla creazione di un documento nuovo e riproposta al successivo
 /// dello stesso tipo, per (tenant, utente, tipo). Primo utilizzo: vendita ivato,
 /// acquisto netto. Vendita usa pricesIncludeVat, acquisto mappa costEntryMode.
+/// Avviso cronologico spento dall'operatore per un tipo documento (§4).
+///
+/// L'esistenza della riga È la preferenza: non c'è un booleano da leggere,
+/// perché non esiste il caso «riacceso» — una volta spenta resta spenta, senza
+/// pannello nelle Impostazioni. `dismissedAt` serve a sapere QUANDO, visto che
+/// l'unico rimedio a una spunta presa per sbaglio è il database.
+///
+/// Stessa identità di `UserDocumentPriceModePreference`: (tenant, utente, tipo).
+/// Spegnerlo sulle Fatture non rende ciechi sui DDT.
+model UserDocumentChronologyWarningPreference {
+  id           String       @id @default(uuid()) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  documentType DocumentType @map("document_type")
+  dismissedAt  DateTime     @default(now()) @map("dismissed_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, documentType], map: "user_doc_chrono_warn_pref_tenant_user_type_key")
+  @@index([tenantId, userId], map: "user_doc_chrono_warn_pref_tenant_user_idx")
+  @@map("user_document_chronology_warning_preferences")
+}
+
 model UserDocumentPriceModePreference {
   id               String       @id @default(uuid()) @db.Uuid
   tenantId         String       @map("tenant_id") @db.Uuid
@@ -2397,22 +3032,624 @@ model UserDocumentPriceModePreference {
   @@map("user_document_price_mode_preferences")
 }
 
-/// Preferenza operatore della modalità prezzo (netto/ivato) della sezione Listini
-/// in anagrafica articolo. Stessa logica di UserDocumentPriceModePreference:
-/// ricordata al salvataggio di un articolo, riproposta alla creazione del
-/// successivo, per (tenant, utente). Primo utilizzo: ivato. La modifica di un
-/// articolo esistente NON aggiorna la preferenza: solo la creazione lo fa.
-model UserProductPriceModePreference {
-  id               String   @id @default(uuid()) @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
-  pricesIncludeVat Boolean  @map("prices_include_vat")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+/// Corrispettivo manuale: una registrazione ECONOMICA autonoma del Registro
+/// Corrispettivi (specifica `docs/10-specifica-registro-corrispettivi.md` §12).
+///
+/// Serve quando VestiFlow conosce l'importo ma NON la vendita analitica che
+/// l'ha prodotto: la cassa esterna ha battuto mentre VestiFlow non era
+/// disponibile, una chiusura di cassa da recuperare, importi storici di cui si
+/// sanno importo e IVA ma non gli articoli.
+///
+/// ⚠️ Righe SENZA articolo, e non è una semplificazione: è la definizione. Una
+/// registrazione che non conosce gli articoli non può muovere quantità — se lo
+/// facesse starebbe inventando merce. Nessun `StockMovement`, nessun
+/// `Document`, nessun `SalesOrder`, nessun pagamento.
+///
+/// Niente stato, niente soft-delete: creare, modificare, eliminare. I buchi di
+/// numerazione sono ammessi e non si rinumera mai.
+model ManualReceipt {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Sempre NULL, e non compare in nessuna maschera: esiste solo perché il
+  /// motore di numerazione comune partiziona per (tenant, tipo, serie), e
+  /// «senza serie» È `NULL`. Non stiamo introducendo una gestione serie.
+  series String?
+  /// Progressivo dal motore comune, chiave `DocumentType.manual_receipt`.
+  /// Si mostra nudo: 1, 2, 3 — nessun prefisso, nessuno zero di riempimento.
+  number Int
 
-  @@unique([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_key")
-  @@index([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_idx")
-  @@map("user_product_price_mode_preferences")
+  /// UNA sola data, economica: è quella che determina il periodo del Registro.
+  /// Il legacy ne aveva due perché una nasceva dal canale e l'altra la
+  /// correggeva l'operatore. Qui la digita l'operatore, ed è una.
+  documentDate DateTime @map("document_date") @db.Date
+
+  /// Obbligatoria, ed è una regola del MODELLO, non una convalida di maschera:
+  /// non esiste un Corrispettivo manuale con location non determinata. Il «Non
+  /// determinata» del Registro riguarda le righe Shopify, dove il dato oggi può
+  /// mancare — anomalia temporanea, tracciata nel blocco sincronizzazione.
+  locationId String @map("location_id") @db.Uuid
+
+  /// Nasce IVATO, al contrario di `Document` e `SalesOrder` che nascono netti:
+  /// il caso operativo è riportare i valori di una chiusura di cassa, che sono
+  /// ivati. Il selettore resta modificabile.
+  pricesIncludeVat Boolean @default(true) @map("prices_include_vat")
+
+  notes    String?
+  currency String  @default("EUR")
+
+  /// Totali già arrotondati: sono i tre numeri che il Registro consuma.
+  subtotalMinor Int @default(0) @map("subtotal_minor")
+  taxMinor      Int @default(0) @map("tax_minor")
+  totalMinor    Int @default(0) @map("total_minor")
+
+  createdById   String?  @map("created_by_id") @db.Uuid
+  /// Snapshot del nome: l'audit regge anche se l'utente cambia nome o sparisce.
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  location  Location            @relation(fields: [locationId], references: [id])
+  createdBy User?               @relation(fields: [createdById], references: [id])
+  lines     ManualReceiptLine[]
+
+  /// L'unicità vera è scritta a mano nella migration con NULLS NOT DISTINCT:
+  /// due «senza serie» sono la STESSA serie, e Prisma non sa esprimerlo.
+  @@unique([tenantId, series, number], map: "manual_receipts_number_unique")
+  @@index([tenantId, documentDate], map: "manual_receipts_tenant_date_idx")
+  @@index([tenantId, locationId], map: "manual_receipts_tenant_location_idx")
+  @@map("manual_receipts")
+}
+
+/// Riga economica di un Corrispettivo manuale: `Descrizione | Importo | IVA`.
+///
+/// Nessun articolo, nessuno SKU, nessuna variante, nessuna quantità: è la
+/// forma che il gestionale ha già in produzione da luglio con la voce
+/// «Spedizione» delle vendite online.
+///
+/// Non porta `tenantId`: si raggiunge solo dalla testata, cade in cascata con
+/// essa, e la RLS copre la tabella. È il pattern di `SupplierOrderLine`.
+model ManualReceiptLine {
+  id         String @id @default(uuid()) @db.Uuid
+  receiptId  String @map("receipt_id") @db.Uuid
+  lineNumber Int    @map("line_number")
+
+  description String
+
+  /// L'importo COME DIGITATO, nella modalità della testata (ivato o netto).
+  enteredAmountMinor Decimal @map("entered_amount_minor") @db.Decimal(16, 6)
+  /// Il netto CANONICO con la coda decimale: è questo che fa tornare 70,00
+  /// identico alla riapertura in modalità ivata. Con un intero si leggerebbe
+  /// 69,99. La coppia digitato+canonico è già in uso su `SupplierOrderLine`.
+  netAmountMinor     Decimal @map("net_amount_minor") @db.Decimal(16, 6)
+
+  vatCodeId   String? @map("vat_code_id") @db.Uuid
+  /// Obbligatorio, a differenza di `DocumentLine` dove è facoltativo: una riga
+  /// senza IVA in un corrispettivo non ha senso. Anche i codici non imponibili
+  /// ed esenti passano di qui, mai una riga fiscalmente indefinita.
+  ///
+  /// È lo snapshot congelato: se il Codice IVA cambia domani, la registrazione
+  /// di ieri non cambia — ed è per questo che la sua FK è `SetNull` e non
+  /// `Restrict`.
+  vatSnapshot Json    @map("vat_snapshot")
+
+  /// I tre esiti ARROTONDATI della riga: si arrotonda una volta sola, sul
+  /// totale di riga, mai sull'importo unitario.
+  netMinor   Int @default(0) @map("net_minor")
+  vatMinor   Int @default(0) @map("vat_minor")
+  grossMinor Int @default(0) @map("gross_minor")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  receipt ManualReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  vatCode VatCode?      @relation(fields: [vatCodeId], references: [id])
+
+  @@index([receiptId, lineNumber], map: "manual_receipt_lines_receipt_idx")
+  @@map("manual_receipt_lines")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CASSA — schema DORMIENTE, portato in Prisma dalla tranche C1 (`docs/25`).
+//
+// ⛔ Le sei tabelle ESISTONO GIA' nel database condiviso: le hanno create le
+//    migration del 06-07/08/2026, applicate e mai annullate. Qui non si crea
+//    niente e non si genera nessuna migration: si dichiara a Prisma cio' che
+//    il database e' gia', perche' il client possa leggerlo.
+//
+// ⚠️ Nessun servizio, nessuna rotta e nessuna UI le usa ancora: la Cassa
+//    arriva da C3. Misurate il 04/09/2026: tutte vuote tranne
+//    `store_sale_payments`, che ha UNA riga del 22/07 (`docs/25` §8).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum CashSessionStatus {
+  open
+  closed
+}
+
+/// Movimento di cassetto durante la sessione: versamento (entra contante) o
+/// prelievo (esce contante). Entrambi con causale obbligatoria.
+enum CashSessionMovementType {
+  deposit
+  withdrawal
+}
+
+enum FiscalDeviceBrand {
+  epson
+  custom
+  rch
+  olivetti
+  other
+}
+
+/// Stato del documento commerciale: `pending` = da fiscalizzare (dispositivo
+/// non raggiungibile alla conferma), `emitted` = emesso, `failed` = ultimo
+/// tentativo fallito, `cancelled` = annullato con documento di annullo.
+///
+/// ⛔ Mai `emitted` prima della conferma effettiva dell'RT (`docs/25` §10).
+enum FiscalReceiptStatus {
+  pending
+  emitted
+  failed
+  cancelled
+}
+
+/// Quota incassata dal checkout Cassa: una riga per metodo usato.
+///
+/// ⭐ E' la FONTE CANONICA del pagamento di una vendita Cassa (`docs/25` §6).
+/// «Misto» si calcola contando queste righe e non si persiste mai: un
+/// riepilogo salvato puo' divergere dalle righe che riassume.
+///
+/// ⚠️ `method` porta oggi il vocabolario legacy della Vendita al banco
+/// (`cash`/`card`/`other`). Il nuovo codice Cassa usera' invece le modalita'
+/// condivise, quando C2 avra' implementato i due livelli decisi dalla
+/// specifica Pagamenti/Tesoreria §2.1-2.3.
+model StoreSalePayment {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  documentId String  @map("document_id") @db.Uuid
+  /// Ordine di visualizzazione (1-based).
+  position   Int     @default(1)
+  /// ⛔ **LEGACY, e solo per la Vendita al banco**: e' il vocabolario
+  /// `cash | card | other` di quel documento. La CASSA non lo scrive mai —
+  /// usa `paymentOptionId` e i due snapshot (tranche C4A, `docs/25` §5-bis).
+  ///
+  /// ⚠️ Nullable da C4A: una quota della Cassa non ha nulla da metterci, e
+  /// lasciarlo obbligatorio avrebbe costretto a inventare un valore di quel
+  /// vocabolario — cio' che C2B ha smesso di fare.
+  method     String?
+  /// Descrizione libera quando `method` = 'other' (es. «Assegno»). Legacy.
+  methodNote String? @map("method_note")
+
+  /// Il Tipo pagamento del tenant con cui si e' incassato (C2A).
+  ///
+  /// ⚠️ `SetNull` e non `Restrict`, ed e' l'opposto della scelta fatta per il
+  /// reso: qui il riferimento e' una comodita' di navigazione, non l'identita'
+  /// del dato. Il titolare deve poter eliminare un Tipo che non usa piu', e la
+  /// quota storica resta leggibile dai propri snapshot.
+  paymentOptionId    String?            @map("payment_option_id") @db.Uuid
+  /// Il NOME come si leggeva al momento dell'incasso.
+  optionNameSnapshot String?            @map("option_name_snapshot")
+  /// La CLASSE come si leggeva al momento dell'incasso (C2B).
+  ///
+  /// ⭐ E' il dato da cui **C4B** calcola gli attesi di chiusura: senza,
+  /// riclassificare un Tipo a settembre cambierebbe la quadratura di una
+  /// sessione chiusa a marzo.
+  tenderKindSnapshot PaymentTenderKind? @map("tender_kind_snapshot")
+
+  /// ⭐ La QUOTA dell'incasso originale che questo rimborso restituisce.
+  ///
+  /// ⛔ L'identita' di una quota non e' il suo TIPO: e' la quota. Prima il
+  /// cumulativo del rimborso si contava per `paymentOptionId`, e bastava
+  /// eliminare un Tipo pagamento — cosa che C4A permette — perche' quel
+  /// denaro non si potesse piu' rimborsare E perche' i rimborsi gia' fatti
+  /// sparissero dal conteggio, rendendone possibile un secondo.
+  ///
+  /// ⚠️ `NULL` sulle quote di VENDITA, che non rimborsano niente, e sulle
+  /// quote legacy: nessun backfill dedotto.
+  refundedFromPaymentId String?  @map("refunded_from_payment_id") @db.Uuid
+  /// Quota del totale documento coperta da questo metodo (lordo).
+  amountMinor           Int      @map("amount_minor")
+  /// Solo contanti: denaro CONSEGNATO dal cliente. Il resto e' derivato
+  /// (`tendered - amount`) e non si memorizza; a pagare la vendita e'
+  /// `amountMinor`, ed e' quello che va anche all'RT (`docs/25` §9).
+  tenderedMinor         Int?     @map("tendered_minor")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  tenant              Tenant             @relation(fields: [tenantId], references: [id])
+  document            Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  paymentOption       PaymentOption?     @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  /// ⛔ `Restrict`: azzerare il riferimento perderebbe l'origine del rimborso
+  /// in silenzio, e con lei il cumulativo — il difetto che questo campo
+  /// esiste per chiudere.
+  refundedFromPayment StoreSalePayment?  @relation("StoreSalePaymentRefund", fields: [refundedFromPaymentId], references: [id], onDelete: Restrict)
+  refunds             StoreSalePayment[] @relation("StoreSalePaymentRefund")
+
+  /// ⛔ Due `CHECK` nella migration `20260904210000`, che Prisma non sa
+  /// esprimere: `amount_minor >= 0` (e non `> 0`: la riga legacy a importo
+  /// zero esiste, e a pretendere quote positive e' il SERVIZIO), e
+  /// `tendered_minor IS NULL OR tendered_minor >= amount_minor` — il denaro
+  /// consegnato non puo' essere inferiore alla quota che paga.
+  @@unique([documentId, position])
+  @@unique([documentId, refundedFromPaymentId])
+  @@index([documentId])
+  @@index([paymentOptionId])
+  @@index([refundedFromPaymentId])
+  @@index([tenantId])
+  @@map("store_sale_payments")
+}
+
+/// Sessione di cassa di una sede: apertura con fondo dichiarato, vendite e
+/// resi agganciati man mano, chiusura con conteggio per metodo.
+///
+/// ⛔ **Al piu' una sessione APERTA per sede**, e il vincolo e' un indice
+/// unico PARZIALE — `UNIQUE(location_id) WHERE status = 'open'` — che vive
+/// nella migration `20260806220000_sessioni_di_cassa`. Prisma non lo sa
+/// esprimere: qui NON si dichiara `@@unique([locationId])`, o il vincolo
+/// diventerebbe totale e una sede potrebbe avere una sola sessione PER
+/// SEMPRE invece che una sola aperta. Stessa disciplina di
+/// `ExternalDocumentType`.
+model CashSession {
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  locationId        String            @map("location_id") @db.Uuid
+  /// ⭐ Il dispositivo fiscale di QUESTA sessione, scelto all'apertura
+  /// (tranche C1C, `docs/25` §10). Tolta l'unicita' per sede, una sede puo'
+  /// avere piu' dispositivi: la sessione dichiara quale usa, cosi' la
+  /// selezione e' un dato e non una ricerca.
+  ///
+  /// ⛔ `NULL` NON significa «prendi il predefinito»: significa che questa
+  /// sessione non ha un dispositivo, e allora non si emette. La selezione
+  /// implicita e' cio' che questa tranche elimina.
+  ///
+  /// ⚠️ Passare al muletto e' un'AZIONE ESPLICITA che riscrive questo campo,
+  /// e va tracciata: le ricevute gia' emesse continuano a riferire il
+  /// dispositivo che le ha prodotte (`FiscalReceipt.deviceId`), che e' un
+  /// dato diverso da questo.
+  fiscalDeviceId    String?           @map("fiscal_device_id") @db.Uuid
+  status            CashSessionStatus @default(open)
+  openedAt          DateTime          @default(now()) @map("opened_at")
+  openedById        String?           @map("opened_by_id") @db.Uuid
+  /// Snapshot operatore: l'audit regge anche se l'utente cambia nome.
+  openedByName      String            @map("opened_by_name")
+  /// Fondo cassa dichiarato all'apertura (contanti nel cassetto).
+  openingFloatMinor Int               @default(0) @map("opening_float_minor")
+  closedAt          DateTime?         @map("closed_at")
+  closedById        String?           @map("closed_by_id") @db.Uuid
+  closedByName      String?           @map("closed_by_name")
+  notes             String?
+  /// ⭐ Il CONTANTE si CONTA: l'operatore apre il cassetto e conta. `NULL`
+  /// finche' la sessione e' aperta (tranche C2C, `docs/25` §9).
+  countedCashMinor  Int?              @map("counted_cash_minor")
+
+  /// ⭐ L'ELETTRONICO si RICONCILIA, non si conta: e' il totale che
+  /// l'operatore LEGGE sul terminale di pagamento e dichiara.
+  ///
+  /// ⛔ NON e' una risposta tecnica del POS: VestiFlow non parla col
+  /// terminale e non finge di averlo fatto. Facoltativo — `NULL` significa
+  /// «non riconciliato», che e' una chiusura legittima.
+  ///
+  /// ⚠️ Era `countedCardMinor`, e il nome presupponeva che la carta si
+  /// contasse: cambia il nome E il significato.
+  declaredElectronicMinor Int? @map("declared_electronic_minor")
+
+  /// Attesi CALCOLATI dalle quote e CONGELATI alla chiusura: la differenza
+  /// di cassa e' un fatto storico, non un ricalcolo.
+  ///
+  /// ⚠️ Restano `NULL` finche' non esistono le quote da cui derivano: il
+  /// calcolo e il congelamento sono di **C4B**, non di C3.
+  ///
+  /// ⛔ La DIFFERENZA non e' una colonna: e' `countedCash - expectedCash`,
+  /// entrambi congelati. Persisterla creerebbe un terzo valore capace di
+  /// contraddire i due da cui deriva.
+  expectedCashMinor       Int? @map("expected_cash_minor")
+  expectedElectronicMinor Int? @map("expected_electronic_minor")
+
+  /// ⛔ Non esiste una colonna VOUCHER, e non e' una dimenticanza: C2B li
+  /// modella ma non li abilita. Le vecchie `*_other_minor` sono state
+  /// RIMOSSE invece che rinominate — `other` era la discarica dei metodi
+  /// sconosciuti, non i buoni, e tradurla in `voucher` sarebbe stato
+  /// scrivere una cosa per un'altra.
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant        Tenant                    @relation(fields: [tenantId], references: [id])
+  location      Location                  @relation(fields: [locationId], references: [id])
+  /// ⛔ `Restrict`: una sessione che ha incassato non puo' perdere CON QUALE
+  /// dispositivo lo ha fatto. Un dispositivo si disabilita, non si cancella.
+  device        FiscalDevice?             @relation(fields: [fiscalDeviceId], references: [id], onDelete: Restrict)
+  movements     CashSessionMovement[]
+  deviceChanges CashSessionDeviceChange[]
+  documents     Document[]
+
+  @@index([fiscalDeviceId])
+  @@index([tenantId, locationId, status])
+  @@index([tenantId, openedAt(sort: Desc)])
+  @@map("cash_sessions")
+}
+
+/// Versamento o prelievo dal cassetto durante la sessione.
+///
+/// ⚠️ Non ha `updatedAt`: un movimento di cassetto e' un fatto avvenuto, e
+/// non si corregge in posto. La colonna nel database non esiste.
+model CashSessionMovement {
+  id            String                  @id @default(uuid()) @db.Uuid
+  tenantId      String                  @map("tenant_id") @db.Uuid
+  sessionId     String                  @map("session_id") @db.Uuid
+  type          CashSessionMovementType
+  amountMinor   Int                     @map("amount_minor")
+  reason        String
+  createdById   String?                 @map("created_by_id") @db.Uuid
+  createdByName String                  @map("created_by_name")
+  createdAt     DateTime                @default(now()) @map("created_at")
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id])
+  session CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("cash_session_movements")
+}
+
+/// Storico APPEND-ONLY dei cambi di dispositivo di una sessione di cassa
+/// (tranche C2C, `docs/25` §10).
+///
+/// ⭐ C1C ha reso `CashSession.fiscalDeviceId` il dispositivo OPERATIVO
+/// corrente. Riscriverlo perde il momento e la ragione del passaggio al
+/// muletto — che e' proprio cio' che serve quando si riconcilia una chiusura
+/// con due serie fiscali, perche' ogni RT ha numerazione e chiusura proprie.
+///
+/// ⛔ NON e' un `CashSessionMovement`: un cambio dispositivo non e' un
+/// movimento di denaro, e rappresentarlo la' richiederebbe di inventare un
+/// importo e di aggiungere un terzo valore a `deposit | withdrawal`.
+///
+/// ⛔ Nessun `updatedAt`, ed e' la garanzia strutturale dell'append-only:
+/// una riga di storico non si corregge in posto. Se e' sbagliata, il rimedio
+/// e' una riga nuova che lo dice. Nessuna API di modifica o cancellazione.
+model CashSessionDeviceChange {
+  /// RLS e revoche Data API: migration correttiva 20260905210000.
+  /// Prisma non rappresenta questi privilegi; si verificano su PostgreSQL TEST.
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  /// ⚠️ Ridondante rispetto alla sessione, e tenuto lo stesso: stessa scelta
+  /// di `CashSessionMovement.tenantId`, e serve a interrogare lo storico
+  /// senza passare da una join.
+  locationId String @map("location_id") @db.Uuid
+  sessionId  String @map("session_id") @db.Uuid
+
+  /// ⭐ `NULL` al PRIMO assegnamento: non e' un dato mancante, e' l'inizio.
+  previousDeviceId String? @map("previous_device_id") @db.Uuid
+  /// ⭐ `NULL` quando il dispositivo si TOGLIE: la sessione smette di
+  /// fiscalizzare.
+  newDeviceId      String? @map("new_device_id") @db.Uuid
+
+  /// ⛔ UN `CHECK` nella migration `20260904180000`, che Prisma non sa
+  /// esprimere: `previous IS DISTINCT FROM new`. Garantisce DUE cose in una,
+  /// ed e' la ragione per cui non e' `<>`:
+  ///
+  ///   A → A        `false`  rifiutata: un cambio che non cambia
+  ///   NULL → NULL  `false`  rifiutata: due NULL NON sono distinti
+  ///
+  /// ⚠️ Un secondo CHECK «almeno uno presente» c'era, ed e' stato RIMOSSO da
+  /// `20260904190000`: era implicato dal primo, e provando a falsificarlo la
+  /// prova restava verde. Un vincolo che non puo' fallire fa credere protetto
+  /// cio' che lo e' gia' per un'altra ragione.
+  ///
+  /// Causale obbligatoria, come su `CashSessionMovement`: un passaggio al
+  /// muletto senza motivo non e' ricostruibile a distanza di mesi.
+  reason        String
+  changedById   String?  @map("changed_by_id") @db.Uuid
+  /// Snapshot operatore: lo storico regge anche se l'utente cambia nome.
+  changedByName String   @map("changed_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  location Location    @relation(fields: [locationId], references: [id])
+  /// `Cascade`, come per i movimenti: se la sessione non esiste piu', il suo
+  /// storico non ha piu' un soggetto.
+  session  CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// ⛔ `Restrict`, mai `SetNull`: azzerare il riferimento cancellerebbe
+  /// proprio l'identita' che questo storico esiste per conservare, e lo
+  /// farebbe in silenzio. Un dispositivo si DISABILITA, non si cancella.
+  previousDevice FiscalDevice? @relation("DeviceChangePrevious", fields: [previousDeviceId], references: [id], onDelete: Restrict)
+  newDevice      FiscalDevice? @relation("DeviceChangeNew", fields: [newDeviceId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, createdAt])
+  @@index([tenantId])
+  @@map("cash_session_device_changes")
+}
+
+/// Dispositivo fiscale configurato su una sede.
+///
+/// ⛔ **Nessuna assunzione sul produttore, sul trasporto o sul numero di
+/// dispositivi per sede** (tranche C1B, `docs/25` §10). La Cassa parla il
+/// contratto normalizzato; a tradurlo e' l'adapter, che a sua volta non
+/// decide da dove parte la chiamata.
+model FiscalDevice {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  /// ⚠️ NON e' unico: una sede puo' avere piu' dispositivi — oggi un
+  /// principale e una riserva (`docs/25` §10, deciso il 04/09/2026).
+  ///
+  /// ⭐ Quale si usa lo dichiara la SESSIONE (`CashSession.fiscalDeviceId`),
+  /// mai «il primo trovato». Una postazione di cassa non esiste e non si
+  /// inventa qui: se servira', sara' un'entita' propria.
+  locationId String @map("location_id") @db.Uuid
+
+  /// Produttore, come **informazione descrittiva**: serve a chi guarda
+  /// l'elenco, non a scegliere il codice. `other` e' la valvola che permette
+  /// una marca nuova senza toccare il dominio.
+  ///
+  /// ⛔ Non e' il selettore dell'adapter: quello e' `adapterKey`.
+  brand           FiscalDeviceBrand
+  /// Modello dichiarato dal dispositivo (testo: i cataloghi dei produttori
+  /// non sono enumerabili a priori).
+  model           String?
+
+
+  /// ⭐ Chiave dell'adapter che parla con questo dispositivo, APERTA e
+  /// VERSIONABILE: `<fornitore>.<protocollo>.<versione>`.
+  ///
+  /// ⛔ Testo e non enum, di proposito: un enum obbligherebbe a una migration
+  /// — cioe' a toccare il dominio della Cassa — per ogni fornitore nuovo, che
+  /// e' esattamente cio' che C1B impedisce. Un catalogo globale sarebbe
+  /// l'altra strada, ma qui non serve: non c'e' nulla da condividere fra
+  /// tenant, e `VatNature` esiste perche' porta dati normativi.
+  ///
+  /// ⛔ **Si risolve SOLO contro un registro statico di adapter compilati
+  /// nell'applicazione.** Mai import dinamici, percorsi di file, URL o
+  /// esecuzione di codice: e' testo che arriva da una scrittura del tenant, e
+  /// usarlo per caricare qualcosa sarebbe esecuzione di codice arbitrario. Un
+  /// valore sintatticamente valido ma non nel registro si RIFIUTA.
+  ///
+  /// ⭐ E' la garanzia che `brand` forniva implicitamente quando era l'unico
+  /// selettore: l'enum faceva da whitelist. Aperta la chiave, la whitelist
+  /// deve tornare esplicita — nel codice, non nel database.
+  ///
+  /// NULL finche' non e' stato scelto: il dispositivo si censisce prima di
+  /// saper parlare con lui.
+  adapterKey    String? @map("adapter_key")
+  /// Configurazione dell'adapter (parametri, non credenziali).
+  ///
+  /// ⛔ Nessun segreto qui dentro: chiavi e password stanno dove stanno gli
+  /// altri segreti (`regole-sicurezza`), mai in una colonna del tenant. Un
+  /// segreto che vi comparisse si RIFIUTA o si reda.
+  ///
+  /// ⚠️ Ogni adapter valida la propria configurazione con uno schema
+  /// ESPLICITO: campi sconosciuti e configurazione incompleta si rifiutano.
+  /// Un `Json` senza schema e' il modo di non modellare i dati.
+  adapterConfig Json?   @map("adapter_config")
+
+  /// Indirizzo di collegamento, **opzionale nello schema**: un adapter cloud
+  /// o un agente locale possono non averne uno, e la forma di trasporto non
+  /// e' decisa (`docs/25` §10).
+  ///
+  /// ⚠️ Opzionale non vuol dire facoltativo: lo richiede **l'adapter** il cui
+  /// trasporto ne ha bisogno, nella validazione della propria configurazione.
+  /// Il NOT NULL di prima impediva configurazioni incomplete per TUTTI, e
+  /// quella garanzia si ricostruisce li', non qui.
+  endpoint       String?
+  /// Matricola fiscale: finisce sul documento commerciale.
+  serialNumber   String?   @map("serial_number")
+  /// ⛔ Nasce SPENTO, al contrario di prima.
+  ///
+  /// ⭐ Quando la sede aveva un solo dispositivo e l'indirizzo era
+  /// obbligatorio, salvare la configurazione la rendeva subito operativa e
+  /// non poteva essere incompleta. Tolti quei due vincoli, `@default(true)`
+  /// significherebbe «attivo appena censito, anche senza saperci parlare».
+  ///
+  /// ⛔ Non si abilita senza `adapterKey`: e' un CHECK nella migration
+  /// `20260904150000`, perche' la guardia vera non deve poter essere
+  /// aggirata da un'altra strada.
+  enabled        Boolean   @default(false)
+  /// Mappa aliquota -> reparto: molte RT italiane associano l'IVA ai reparti
+  /// configurati a bordo invece che alla riga. Resta opzionale perche' non
+  /// ogni dispositivo lavora cosi'.
+  vatDepartments Json?     @map("vat_departments")
+  notes          String?
+  /// Diagnostica dell'ultimo contatto riuscito e dell'ultimo errore.
+  lastSeenAt     DateTime? @map("last_seen_at")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant            Tenant                    @relation(fields: [tenantId], references: [id])
+  location          Location                  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  receipts          FiscalReceipt[]
+  sessions          CashSession[]
+  /// Storico dei cambi in cui questo dispositivo compare, da una parte o
+  /// dall'altra. Entrambe `Restrict`: finche' e' nominato qui, non si
+  /// cancella.
+  changesAsPrevious CashSessionDeviceChange[] @relation("DeviceChangePrevious")
+  changesAsNew      CashSessionDeviceChange[] @relation("DeviceChangeNew")
+
+  @@index([tenantId])
+  @@index([locationId])
+  @@map("fiscal_devices")
+}
+
+/// Documento commerciale emesso dall'RT per una vendita o un reso di Cassa:
+/// al piu' uno per documento.
+///
+/// ⚠️ Se il pagamento riesce e l'RT non risponde, la riga resta `pending` o
+/// `failed` e si ritenta la SOLA emissione fiscale: non si ripetono carta,
+/// contanti ne' scarico di magazzino (`docs/25` §10).
+model FiscalReceipt {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  documentId        String              @unique @map("document_id") @db.Uuid
+  deviceId          String?             @map("device_id") @db.Uuid
+  status            FiscalReceiptStatus @default(pending)
+  /// MATRICOLA del dispositivo emittente, congelata sulla ricevuta: gemella
+  /// di `FiscalDevice.serialNumber` («finisce sul documento commerciale»).
+  serialNumber      String?             @map("serial_number")
+  /// Progressivo del DOCUMENTO COMMERCIALE, e nient'altro.
+  ///
+  /// ⛔ Da C4R NON contiene piu' forme composte. L'unica implementazione mai
+  /// scritta — nel ramo storico, non normativo — ci infilava dentro il numero
+  /// di chiusura come prefisso (`0012-0034`), con degrado silenzioso al solo
+  /// numero quando la chiusura mancava. Nel dominio i due dati restano
+  /// separati; a comporli sara' l'adapter, se un protocollo lo richiede.
+  fiscalNumber      String?             @map("fiscal_number")
+  /// Numero di CHIUSURA/AZZERAMENTO (Z) sotto cui la ricevuta e' stata
+  /// emessa: serve a richiamare fiscalmente l'originale da un reso.
+  ///
+  /// ⚠️ Testo e non intero: puo' avere zeri iniziali, e perderli significa
+  /// non poterlo piu' confrontare con lo scontrino di carta.
+  closureNumber     String?             @map("closure_number")
+  issuedAt          DateTime?           @map("issued_at")
+  /// Ricevuta annullata da questa (annullo/reso): auto-relazione.
+  originalReceiptId String?             @map("original_receipt_id") @db.Uuid
+  errorMessage      String?             @map("error_message")
+  /// Risposta tecnica dell'RT, conservata per la riconciliazione.
+  rawResponse       Json?               @map("raw_response")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// ⛔ `Restrict`, non `SetNull` (tranche C1C): ogni RT ha memoria fiscale,
+  /// numerazione e chiusura giornaliera PROPRIE. Azzerare il riferimento
+  /// renderebbe la ricevuta non riconciliabile con la chiusura che la
+  /// contiene — e lo farebbe in silenzio.
+  device   FiscalDevice?   @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  /// ⛔ `Restrict` da C4R: una ricevuta richiamata da un reso non si cancella
+  /// e non si scollega. Stesso principio della self-FK delle righe, e il
+  /// precedente motivato e' qui accanto (`device`, da C1C).
+  original FiscalReceipt?  @relation("FiscalReceiptOriginal", fields: [originalReceiptId], references: [id], onDelete: Restrict)
+  derived  FiscalReceipt[] @relation("FiscalReceiptOriginal")
+
+  @@index([tenantId, status])
+  @@map("fiscal_receipts")
+}
+
+/// Terminale POS di una sede: anagrafica per l'adempimento del collegamento
+/// logico POS <-> strumento di certificazione.
+///
+/// ⛔ E' un DISPOSITIVO, non una Risorsa finanziaria e non un conto con
+/// saldo (specifica Pagamenti/Tesoreria, Appendice E). L'associazione vera
+/// si fa sul portale dall'esercente: qui se ne tiene traccia.
+model PosTerminal {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  terminalId     String    @map("terminal_id")
+  acquirerName   String    @map("acquirer_name")
+  description    String?
+  /// Solo giorno: sono date di adempimento, non istanti.
+  activatedAt    DateTime  @map("activated_at") @db.Date
+  portalLinkedAt DateTime? @map("portal_linked_at") @db.Date
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, terminalId])
+  @@index([tenantId])
+  @@map("pos_terminals")
 }

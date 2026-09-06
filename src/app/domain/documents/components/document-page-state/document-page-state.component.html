@@ -1,0 +1,21 @@
+@switch (state()) {
+  @case ('loading') {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  }
+  @case ('error') {
+    <!-- ⭐ UNA descrizione, non tre. Diceva «il documento», «l'ordine» e
+         «l'ordine cliente» a seconda della maschera: la stessa cosa con la
+         parola del tipo, che e' esattamente la deriva da chiudere. -->
+    <app-error-state
+      description="Impossibile caricare il documento."
+      retryLabel="Riprova"
+      (retry)="retry.emit()"
+    />
+  }
+  @case ('not-found') {
+    <!-- ⛔ Il MOTIVO per cui non si puo' modificare dipende dal documento —
+         l'Ordine cliente ne calcola tre — quindi titolo, descrizione e comando
+         li porta il consumer. La struttura e' comune, il contenuto no. -->
+    <ng-content select="[documentPageStateBlocked]" />
+  }
+}

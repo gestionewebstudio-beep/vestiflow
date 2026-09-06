@@ -28,7 +28,11 @@
         [attr.aria-invalid]="fieldInvalid('name') ? true : null"
       />
       @if (fieldInvalid('name')) {
-        <p class="count-new__error">Inserisci un nome (minimo 2 caratteri).</p>
+        @if (form.controls.name.hasError('maxlength')) {
+          <p class="count-new__error">Il nome può avere al massimo 120 caratteri.</p>
+        } @else {
+          <p class="count-new__error">Inserisci un nome (minimo 2 caratteri).</p>
+        }
       }
     </div>
 
@@ -63,7 +67,11 @@
         class="count-new__textarea"
         rows="3"
         formControlName="notes"
+        [attr.aria-invalid]="fieldInvalid('notes') ? true : null"
       ></textarea>
+      @if (fieldInvalid('notes')) {
+        <p class="count-new__error">Le note possono avere al massimo 500 caratteri.</p>
+      }
     </div>
 
     <div class="count-new__actions">

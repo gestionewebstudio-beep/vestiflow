@@ -18,6 +18,9 @@ export interface ShopifyScopeDiagnosticsDto {
   readonly missingFromGrant: readonly string[];
   readonly missingForCatalogImport: readonly string[];
   readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
+  /** Ambiti publication mancanti (canali di vendita, Tranche 2A). */
+  readonly missingForPublications: readonly string[];
+  readonly publicationsBlockedReason: 'none' | 'not_requested' | 'not_granted';
 }
 
 export interface ShopifyConnectionDto {
@@ -34,6 +37,18 @@ export interface ShopifyConnectionDto {
   readonly lastSyncAt?: IsoDateString;
   readonly webhooksActivatedAt?: IsoDateString;
   readonly webhooksActiveCount?: number;
+  // I `| null` qui sotto non sono pedanteria: `null` significa «non lo sappiamo» e deve
+  // restare distinguibile da `false` e da un elenco vuoto fino alla schermata. Il resto
+  // del file usa il solo `?` perche' li' la differenza non cambia cosa si mostra.
+  readonly webhookAddress?: string | null;
+  readonly webhookAddressMatchesConfigured?: boolean | null;
+  readonly webhookAddressComparable?: boolean;
+  readonly webhookTopics?: readonly string[];
+  readonly webhookTopicsKnown?: boolean;
+  readonly webhookMissingTopics?: readonly string[];
+  readonly webhookUnexpectedTopics?: readonly string[];
+  readonly webhooksCheckedAt?: IsoDateString | null;
+  readonly lastWebhookEventAt?: IsoDateString | null;
   readonly autoSyncEnabled?: boolean;
   readonly lastError?: ShopifyConnectionErrorDto;
   readonly createdAt: IsoDateString;

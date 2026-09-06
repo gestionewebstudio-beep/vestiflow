@@ -96,7 +96,7 @@ test.describe('Permessi titolare/admin tenant (E2E_USER_*)', () => {
         timeout: 30_000,
       });
 
-      const syncBtn = page.getByRole('button', { name: 'Sincronizza giacenze da Shopify' });
+      const syncBtn = page.getByRole('button', { name: 'Riallinea le giacenze su Shopify' });
       const csvExport = page.getByRole('button', { name: 'Esporta CSV' });
 
       const hasSync = await syncBtn.isVisible();

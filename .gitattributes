@@ -1,0 +1,16 @@
+# ⛔ Le migration Prisma restano LF, sempre.
+#
+# Prisma verifica ogni `migration.sql` con uno **SHA-256 del contenuto**,
+# confrontato con la colonna `checksum` di `_prisma_migrations`. Un CRLF cambia
+# i byte, quindi cambia il checksum: la migration risulterebbe MODIFICATA dopo
+# essere stata applicata, e la history verrebbe rifiutata.
+#
+# ⚠️ Su questa macchina `core.autocrlf` è `true`: senza questa riga, un `clone`
+# o un `checkout` fresco riscriverebbe i file con CRLF e romperebbe la verifica
+# — su TUTTE le migration, non solo quelle nuove. Misurato il 22/08/2026: 132
+# migration nel repository, nessuna con CR nei blob, quindi questa regola non
+# cambia un byte di ciò che è già stato applicato.
+#
+# ⭐ Regola volutamente MINIMA: solo i file di migration. Il resto del
+# repository continua a seguire la configurazione locale di ciascuno.
+api/prisma/migrations/**/migration.sql text eol=lf

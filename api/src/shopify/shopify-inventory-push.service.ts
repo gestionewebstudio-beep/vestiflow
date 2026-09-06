@@ -12,6 +12,7 @@ import { SHOPIFY_WRITE_INVENTORY_SCOPE, shopifyHasScope } from './shopify-scopes
 export type ShopifyInventoryPushSkipReason =
   | 'not_connected'
   | 'missing_write_inventory_scope'
+  | 'sync_disabled'
   | 'variant_not_linked'
   | 'location_not_linked'
   | 'level_not_found'
@@ -69,10 +70,18 @@ export class ShopifyInventoryPushService {
         sku: true,
         shopifyInventoryItemId: true,
         shopifyVariantId: true,
+        product: { select: { shopifySyncEnabled: true } },
       },
     });
     if (!variant) {
       return { pushed: false, reason: 'variant_not_linked' };
+    }
+    // ⛔ «Sincronizza con Shopify» spento ferma TUTTI i flussi, inventario
+    //    compreso (docs/24 §1.8). Qui il flag non veniva letto: il catalogo si
+    //    congelava e lo stock continuava a partire — l'interruttore prometteva
+    //    una cosa e ne faceva un'altra.
+    if (!variant.product.shopifySyncEnabled) {
+      return { pushed: false, reason: 'sync_disabled' };
     }
 
     const location = await this.prisma.location.findFirst({
@@ -111,7 +120,12 @@ export class ShopifyInventoryPushService {
       const inventoryItemId = await this.resolveInventoryItemId(variant, shopDomain, accessToken);
       if (!inventoryItemId) {
         this.logger.debug(
-          `Push inventario saltato (${tenantId}): variante ${variant.sku} non collegata a Shopify`,
+          // Lo SKU è il nome con cui si riconosce una variante, ma può mancare:
+          // Shopify non lo garantisce, e in import arrivano varianti senza. La
+          // riga diceva «variante null» e non permetteva di risalire a quale,
+          // cioè era una segnalazione che non si poteva seguire. L'id c'è
+          // sempre, e vale come ripiego.
+          `Push inventario saltato (${tenantId}): variante ${variant.sku || variant.id} non collegata a Shopify`,
         );
         return { pushed: false, reason: 'variant_not_linked' };
       }

@@ -1,165 +1,133 @@
-<section class="product-list">
-  <header class="product-list__header">
-    <h1 class="product-list__title">Prodotti</h1>
-    <div class="product-list__actions">
-      @if (showShopifyCatalogSync()) {
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="shopifyCatalogLoading()"
-          [disabled]="shopifyCatalogLoading()"
-          (click)="importCatalogFromShopify()"
-        >
-          <i class="pi pi-sync" aria-hidden="true"></i>
-          Sincronizza catalogo da Shopify
-        </app-button>
-      }
-      @if (canImportExportCatalog()) {
-        <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
-          <i class="pi pi-download" aria-hidden="true"></i>
-          @if (exporting()) {
-            Export in corso…
-          } @else {
-            Esporta CSV
-          }
-        </app-button>
-        <app-button variant="secondary" (click)="importProducts()">
-          <i class="pi pi-upload" aria-hidden="true"></i>
-          Importa CSV
-        </app-button>
-      }
-      @if (canManageCatalog()) {
-        <app-button (click)="createProduct()">
-          <i class="pi pi-plus" aria-hidden="true"></i>
-          Aggiungi prodotto
-        </app-button>
-      }
-    </div>
-  </header>
-
-  @if (shopifySyncError(); as message) {
-    <p class="product-list__shopify-error" role="alert">{{ message }}</p>
-  }
-
-  @if (shopifyFeedback(); as feedback) {
-    <app-shopify-sync-feedback
-      [message]="feedback.message"
-      [tone]="feedback.tone"
-      (dismissed)="dismissShopifyFeedback()"
+<app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
+  class="product-list"
+  pageTitle="Prodotti"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns()"
+  [columnsViewId]="productListView"
+  emptyTitle="Nessun prodotto"
+  emptyDescription="Nessun prodotto corrisponde ai filtri attuali."
+  emptyIcon="pi-tag"
+  (retry)="reload()"
+>
+  <!--
+    ⚠️ Ricerca e filtri stanno dentro `app-product-toolbar`, un componente di
+    questa pagina. Il telaio non li conosce: proietta il componente intero nella
+    zona dei filtri, che è dove la sua riga appartiene.
+  -->
+  <div filters>
+    <app-product-toolbar
+      [search]="searchDraft()"
+      [filters]="query()"
+      [categories]="filterOptions().categories"
+      [brands]="filterOptions().brands"
+      [seasons]="filterOptions().seasons"
+      [statusOptions]="statusOptions"
+      [hasActiveFilters]="hasActiveFilters()"
+      [barcodeScannerEnabled]="barcodeScannerEnabled()"
+      (searchChange)="onSearchInput($event)"
+      (filterChange)="onFilterChange($event)"
+      (resetFilters)="onResetFilters()"
+      (barcodeScanned)="onBarcodeScanned($event)"
     />
-  }
-
-  <app-product-toolbar
-    [search]="searchDraft()"
-    [filters]="query()"
-    [categories]="filterOptions().categories"
-    [brands]="filterOptions().brands"
-    [seasons]="filterOptions().seasons"
-    [statusOptions]="statusOptions"
-    [hasActiveFilters]="hasActiveFilters()"
-    [barcodeScannerEnabled]="barcodeScannerEnabled"
-    (searchChange)="onSearchInput($event)"
-    (filterChange)="onFilterChange($event)"
-    (resetFilters)="onResetFilters()"
-    (barcodeScanned)="onBarcodeScanned($event)"
-  />
-
-  <!-- F6d: accesso rapido agli articoli in bozza (es. creati al volo da scanner
-       ordine), da completare con anagrafica prima della sync Shopify. -->
-  @if (draftCount() > 0 || draftFilterActive()) {
-    <button
-      type="button"
-      class="product-list__drafts-chip"
-      [class.product-list__drafts-chip--active]="draftFilterActive()"
-      [attr.aria-pressed]="draftFilterActive()"
-      (click)="toggleDraftFilter()"
-    >
-      <i class="pi pi-inbox" aria-hidden="true"></i>
-      Articoli da completare
-      <span class="product-list__drafts-count tabular-nums">{{ draftCount() }}</span>
-    </button>
-  }
-
-  <div class="product-list__columns">
-    <app-table-column-picker [viewId]="productListView" />
-    <label class="product-list__label-copies">
-      Copie per etichetta
-      <input
-        class="product-list__label-copies-input"
-        type="number"
-        min="1"
-        max="500"
-        step="1"
-        [value]="labelCopies()"
-        (change)="setLabelCopies($any($event.target).valueAsNumber)"
-      />
-    </label>
   </div>
 
-  @if (scanFeedback(); as message) {
-    <p class="product-list__scan-feedback" role="status">{{ message }}</p>
-  }
+  <div warnings>
+    @if (shopifySyncError(); as message) {
+      <p class="product-list__shopify-error" role="alert">{{ message }}</p>
+    }
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns()" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun prodotto"
-      description="Nessun prodotto corrisponde ai filtri attuali. Modifica i criteri o azzera i filtri."
-      icon="pi-tags"
-    />
-  } @else {
-    @if (selectedCount() > 0) {
-      <div class="product-list__bulk-actions" aria-live="polite">
-        <p class="product-list__bulk-summary">
-          {{ selectedCount() }}
-          {{ selectedCount() === 1 ? 'prodotto selezionato' : 'prodotti selezionati' }}
-        </p>
-        <div class="product-list__bulk-buttons">
-          <app-button variant="secondary" (click)="clearSelection()">Deseleziona</app-button>
-          <app-button
-            loadingIndicator="icon"
-            [loading]="bulkPrintLoading()"
-            [disabled]="bulkPrintLoading()"
-            (click)="printSelectedLabels()"
-          >
-            <i class="pi pi-print" aria-hidden="true"></i>
-            Stampa etichette selezionate
-            @if (labelCopies() > 1) {
-              ({{ labelCopies() }} copie cad.)
-            }
-          </app-button>
-        </div>
-      </div>
+    @if (shopifyFeedback(); as feedback) {
+      <app-shopify-sync-feedback
+        [message]="feedback.message"
+        [tone]="feedback.tone"
+        (dismissed)="dismissShopifyFeedback()"
+      />
+    }
+    @if (draftCount() > 0 || draftFilterActive()) {
+      <button
+        type="button"
+        class="product-list__drafts-chip"
+        [class.product-list__drafts-chip--active]="draftFilterActive()"
+        [attr.aria-pressed]="draftFilterActive()"
+        (click)="toggleDraftFilter()"
+      >
+        <i class="pi pi-inbox" aria-hidden="true"></i>
+        Articoli da completare
+        <span class="product-list__drafts-count tabular-nums">{{ draftCount() }}</span>
+      </button>
+    }
+    @if (scanFeedback(); as message) {
+      <p class="product-list__scan-feedback" role="status">{{ message }}</p>
     }
     @if (duplicateError(); as message) {
       <app-error-state [description]="message" />
     }
-    <app-product-table
-      [products]="products()"
-      [columns]="tableColumns()"
-      [sortField]="query().sort"
-      [sortOrder]="query().order"
-      [showShopifyColumn]="showShopifyColumn()"
-      [selectedProductIds]="selectedProductIds()"
-      [allOnPageSelected]="allOnPageSelected()"
-      [someOnPageSelected]="someOnPageSelected()"
-      [canManage]="canManageCatalog()"
-      (rowClick)="openProduct($event)"
-      (printLabel)="printProductLabels($event)"
-      (duplicate)="duplicateProduct($event)"
-      (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
-      (selectAllToggle)="toggleSelectAllOnPage($event)"
-      (sortChange)="onSortChange($event)"
+  </div>
+
+  <app-product-table
+    [rowClickSelects]="modoSelezione.perTocco()"
+    data
+    [products]="products()"
+    [columns]="tableColumns()"
+    [viewId]="productListView"
+    [sortField]="query().sort"
+    [sortOrder]="query().order"
+    [selectedProductIds]="selectedProductIds()"
+    (rowClick)="openProduct($event)"
+    (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
+    (selectAllToggle)="toggleSelectAllOnPage($event)"
+    (sortChange)="onSortChange($event)"
+  />
+
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026. L'elenco mostra tutte le
+    righe del filtro attivo, che è la regola generale («NESSUN TETTO DI RIGHE»,
+    `regole-stile-ui`) e non un'eccezione di questa schermata.
+
+    ⚠️ **Il conteggio non si è perso**: lo dice la riga totali del motore, «N voci»,
+    che ora conta il risultato intero invece della pagina.
+  -->
+  <!--
+    ⭐ **Tutte le funzioni nella barra in basso, e non si nascondono** (`14`
+    §0.2). Qui c'era una barra fatta a mano che compariva solo a righe spuntate:
+    chi non sapeva che si selezionano non vedeva nemmeno che le etichette si
+    possono stampare. Ora è `app-list-actions-bar`, con `requires: 'oneOrMore'` —
+    l'azione c'è sempre, e a selezione vuota è spenta CON il motivo.
+
+    ⛔ **Qui c'era «Copie per etichetta»**, un campo numerico accanto ai comandi.
+    Tolto il 30/08/2026: «non ne vedo il senso, lo andremo a gestire nella stampa
+    delle etichette». Un parametro di stampa in fondo a un elenco chiede una
+    decisione a chi non sta stampando — la sua casa è la maschera di stampa.
+  -->
+  <div listActions>
+    <app-list-actions-bar
+      [count]="selectedCount()"
+      [ids]="[...selectedProductIds()]"
+      [actions]="selectionActions()"
+      labelSingular="prodotto selezionato"
+      labelPlural="prodotti selezionati"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
     />
-    <app-pagination
-      label="Paginazione prodotti"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
-</section>
+  </div>
+
+  <!--
+    ⚠️ **Nello slot `overlays`, non in fondo al markup**: le cose `position: fixed`
+    hanno una casella loro nel telaio, e il contenuto proiettato che non trova uno
+    slot Angular lo **elimina dal DOM** — senza errori e senza test rossi.
+  -->
+  <app-delete-confirm
+    overlays
+    [(open)]="deleteWarnOpen"
+    [title]="deleteWarnTitle()"
+    [consequence]="deleteWarnMessage()"
+    [busy]="deleteBusy()"
+    (confirmed)="onDeleteConfirm()"
+    (dismissed)="onDeleteCancel()"
+  />
+</app-list-page>

@@ -330,23 +330,23 @@ Il **titolare** (`owner`) ha sempre accesso completo (`hasFullTenantAccess`); i 
 
 Per `admin`, `manager`, `clerk` valgono chiavi `TenantPermission` (FE: `tenant-permission.model.ts`, BE: `tenant-permission.constants.ts`). Preset per ruolo: `ROLE_DEFAULT_PERMISSIONS`. Normalizzazione e filtro chiavi legacy: `user-permissions.util.ts` (FE + BE).
 
-| Chiave                                | Gruppo    | Uso principale                                                                |
-| ------------------------------------- | --------- | ----------------------------------------------------------------------------- |
-| `inventory.view_all_locations`        | inventory | Filtri giacenze/movimenti su tutte le sedi (azioni restano su sede operativa) |
-| `inventory.manage`                    | inventory | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico               |
-| `inventory.import_export`             | inventory | CSV giacenze + sync giacenze Shopify                                          |
-| `catalog.manage`                      | catalog   | CRUD prodotti                                                                 |
-| `catalog.import_export`               | catalog   | CSV catalogo + sync/import catalogo Shopify                                   |
-| `catalog.delete`                      | catalog   | Delete prodotto                                                               |
-| `supplier_orders.manage`              | orders    | CRUD ordini fornitore                                                         |
-| `supplier_orders.receive`             | orders    | Ricezione merce                                                               |
-| `documents.view`                      | documents | Lista/dettaglio/stampa documenti                                              |
-| `documents.manage`                    | documents | CRUD documenti, transizioni stato, impostazioni numerazione                   |
-| `retail.register`                     | orders    | `POST /inventory/retail-scans`, pagina Registra vendita                       |
-| `reports.view`                        | reports   | Dashboard e Report                                                            |
-| `reports.export`                      | reports   | Export CSV + sync vendite/clienti Shopify                                     |
-| `settings.company`                    | settings  | `GET /tenant/company`, pannello Sede fisica                                   |
-| `customers.view` / `customers.manage` | customers | Lista clienti / gestione (se prevista)                                        |
+| Chiave                                | Gruppo    | Uso principale                                                                    |
+| ------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `inventory.view_all_locations`        | inventory | Filtri giacenze/movimenti su tutte le sedi (azioni restano su sede operativa)     |
+| `inventory.manage`                    | inventory | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico                   |
+| `inventory.import_export`             | inventory | CSV giacenze + sync giacenze Shopify                                              |
+| `catalog.manage`                      | catalog   | CRUD prodotti                                                                     |
+| `catalog.import_export`               | catalog   | CSV catalogo + sync/import catalogo Shopify                                       |
+| `catalog.delete`                      | catalog   | Delete prodotto                                                                   |
+| `supplier_orders.manage`              | orders    | CRUD ordini fornitore                                                             |
+| `supplier_orders.receive`             | orders    | Ricezione merce                                                                   |
+| `documents.view`                      | documents | Lista/dettaglio/stampa documenti                                                  |
+| `documents.manage`                    | documents | CRUD documenti, transizioni stato, impostazioni numerazione                       |
+| `retail.register`                     | orders    | endpoint `store-sales` (lookup, vendita, reso), schermate `/app/vendita-al-banco` |
+| `reports.view`                        | reports   | Dashboard e Report                                                                |
+| `reports.export`                      | reports   | Export CSV + sync vendite/clienti Shopify                                         |
+| `settings.company`                    | settings  | `GET /tenant/company`, pannello Sede fisica                                       |
+| `customers.view` / `customers.manage` | customers | Lista clienti / gestione (se prevista)                                            |
 
 **Rimosso:** `settings.integrations` — filtrato al save admin e in normalizzazione profilo.
 
@@ -363,7 +363,7 @@ Per `admin`, `manager`, `clerk` valgono chiavi `TenantPermission` (FE: `tenant-p
 | Operazione           | Permesso                  |
 | -------------------- | ------------------------- |
 | Import/sync catalogo | `catalog.import_export`   |
-| Sync giacenze        | `inventory.import_export` |
+| Riallinea giacenze   | `inventory.import_export` |
 | Sync vendite/clienti | `reports.export`          |
 
 Route Angular sensibili: `tenantPermissionGuard` (sostituisce il vecchio guard solo-ruolo dove applicabile).
@@ -410,8 +410,8 @@ Logica centralizzata in `api/src/products/catalog-origin.util.ts`:
 
 - `isVestiflowCatalogOwner()` — esclude import Shopify e legacy con link alla creazione; include push e prodotti con media locale Supabase
 - `shouldSkipShopifyCatalogImport()` — pull/webhook **non sovrascrivono** catalogo VF-owned
-- `assertShopifyCatalogUpdateAllowed()` — su `shopify`: blocca mutazioni catalogo; consente `season` + `purchasePriceMinor`
-- `assertShopifyCatalogDeleteAllowed()` / `assertShopifyCatalogManualSyncAllowed()` / `assertShopifyCatalogMediaMutationAllowed()`
+- `assertShopifyCatalogDeleteAllowed()` — su `shopify`: l'**eliminazione** resta bloccata (si scollega o si archivia)
+- ⚠️ Fino al 03/09/2026 esistevano anche le guardie di _update_, _sync manuale_ e _media_: **rimosse** — l'origine è provenienza, non un vincolo di sola lettura (docs/24 §1.8)
 
 **Backfill tenant esistenti** (dopo deploy migration):
 
@@ -420,7 +420,7 @@ cd api && npm run backfill:catalog-origin        # dry-run
 cd api && npm run backfill:catalog-origin:apply  # scrive su DB
 ```
 
-**UI tenant:** colonna **Fonte** in lista prodotti; badge `Fonte: VestiFlow` / `Fonte: Shopify` in dettaglio; form in modalità **Modifica dati operativi** se `catalogOrigin=shopify` (`catalog-origin.util.ts` FE + `product-form` / `product-detail`).
+**UI tenant:** colonna **Fonte** in lista prodotti; badge `Fonte: VestiFlow` / `Fonte: Shopify` in dettaglio; i prodotti importati si **modificano come gli altri** (dal 03/09/2026): il salvataggio di un prodotto collegato va a Shopify via GraphQL, e un errore remoto resta visibile sul prodotto.
 
 ### Form creazione prodotto (`product-form`)
 
@@ -432,7 +432,7 @@ cd api && npm run backfill:catalog-origin:apply  # scrive su DB
 
 Mapper: `ensureQuickModeDraft`, `createSingleVariantDraft` in `product-form.mapper.ts`. Creazione inline anche in **arrivo merce** (`goods-receipt-form`) con payload minimo API.
 
-**Arrivo merce (`goods-receipt-form.component`):** griglia tabellare righe con **column picker** (`goods_receipt_lines`), resize colonne, card mobile; tipi `goods_receipt`, `supplier_ddt`, `supplier_invoice_accompanying`, `manual_load`, `initial_load`; testata con anteprima numero (`GET /documents/preview-number`); colonne **Ord./Ric./Res.** se ordine collegato; **Sblocca modifica** su confermati; dialog prezzo fornitore (`GET /documents/:id/supplier-price-diffs`, policy da `TenantFeatureSettings`); **SlidePanel** + `ProductFormComponent.embeddedPanel` per anagrafica completa; azioni lifecycle (print/send/register-external) nel form; lotti/seriali condizionati a flag tenant.
+**Arrivo merce (`goods-receipt-form.component`):** griglia tabellare righe con **column picker** (`goods_receipt_lines`), resize colonne, card mobile; tipi `goods_receipt`, `supplier_ddt`, `supplier_invoice_accompanying`, `manual_load`, `initial_load`; testata con anteprima numero (`GET /documents/preview-number`); colonne **Ord./Ric./Res.** se ordine collegato; **Sblocca modifica** su confermati; dialog prezzo fornitore (`GET /documents/:id/supplier-price-diffs`, policy da `TenantFeatureSettings`); **SlidePanel** + `ProductFormComponent.embeddedPanel` per anagrafica completa; azioni lifecycle nel form; lotti/seriali condizionati a flag tenant.
 
 ### Taxonomy Shopify e metafield di categoria
 
@@ -519,7 +519,7 @@ Regole business:
 - **403** se il cliente tenta di salvare con selezione bloccata e senza concessione.
 - **Auto-licenza singola sede Shopify:** se piano = 1 e Shopify espone 1 sola location attiva, `tryAutoLicenseSingleShopifyLocation()` pre-seleziona senza bloccare (`lockAfterSave: false`, `bypassSelectionLock: true`); il blocco scatta al primo salvataggio esplicito del cliente quando applicabile.
 - **Trim admin:** abbassare `licensedLocationCount` disattiva le sedi in eccesso (FIFO per `createdAt`), **senza** sbloccare la selezione.
-- **Scope inventario:** `licensed-location-scope.util.ts` filtra query movimenti, giacenze, inventario fisico, retail-scans su sedi licenziate.
+- **Scope inventario:** `licensed-location-scope.util.ts` filtra query movimenti, giacenze e inventario fisico su sedi licenziate.
 
 FE tenant: `location-licensing-panel` in Impostazioni (Shopify); messaggi blocco/concessione in fondo al pannello.
 
@@ -541,9 +541,63 @@ Popolati al provisioning admin (`create-client`). UI: `tenant-client-card` in Im
 - Token cifrati at rest (`SHOPIFY_TOKEN_ENCRYPTION_KEY`)
 - Diagnostica scope in Impostazioni: richiesti vs concessi
 
+**Gli ambiti dei canali di vendita sono a parte, e oggi non sono concessi.** `read_publications` e `write_publications` servono a pubblicare e ritirare una risorsa da un canale (`publishablePublish` / `publishableUnpublish`) e a leggere l'elenco dei canali (`publications`). Sono in `.env.example`, **non** in `api/.env` e **non** nei token dei negozi collegati — misurato il 03/09/2026 su entrambi gli shop di sviluppo.
+
+La diagnostica distingue due situazioni, e l'azione da fare è diversa:
+
+| Stato           | Che cosa significa                                 | Che cosa si fa                                                                              |
+| --------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `not_requested` | il server non li chiede nemmeno (`SHOPIFY_SCOPES`) | aggiungerli in `SHOPIFY_SCOPES` (locale **e** Railway), ridistribuire, **poi** riconnettere |
+| `not_granted`   | il server li chiede, il token è più vecchio        | disconnettere e riconnettere lo store da Impostazioni                                       |
+
+⛔ **Riconnettere non basta se lo stato è `not_requested`**: il consenso viene chiesto per gli ambiti che il server dichiara, quindi si tornerebbe con lo stesso token. È la ragione per cui i due casi hanno messaggi diversi invece di uno solo.
+
+L'errore vero di Shopify, se si prova lo stesso: `Access denied for publishablePublish field. Required access: write_publications access scope.`
+
+### Contratto GraphQL Admin API — verificato su `2026-07`
+
+La versione è **fissata** a `2026-07` (`SHOPIFY_API_VERSION`; mai `latest` né `unstable`). Le note qui sotto sono **misurate** contro uno shop di sviluppo il 03/09/2026 dal gate `npm run test:shopify:contract`, non dedotte dalla documentazione: sono i punti in cui `2026-07` si comporta diversamente da quanto ci si aspetterebbe, e ognuno era già costato un errore.
+
+**`inventorySetQuantities` — tre trappole nella stessa mutation**
+
+1. `InventorySetQuantitiesInput` **non ha `ignoreCompareQuantity`**. Mandarlo fa rifiutare l'intera mutation. Chi vuole scrivere senza confronto **omette** il campo di confronto, non alza una bandiera.
+2. Il confronto concorrenziale si chiama **`changeFromQuantity`**, non `compareQuantity`. Se non corrisponde alla quantità persistita, Shopify risponde con un `userErrors` — «The changeFromQuantity argument no longer matches the persisted quantity» — e **non scrive**. È la protezione contro due scritture che si sovrascrivono in silenzio: va tenuta.
+3. La direttiva **`@idempotent(key:)` sta sul CAMPO, non sull'operazione**. Scritta dopo le variabili della `mutation` viene rifiutata: «'@idempotent' can't be applied to mutations (allowed: fields)». Forma corretta:
+
+```graphql
+mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+  inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    userErrors {
+      field
+      message
+    }
+  }
+}
+```
+
+**`productOptionsReorder`** — `OptionReorderInput` vuole **esattamente uno** fra `id` e `name`. Passandoli entrambi: «OptionReorderInput requires exactly one of id, name».
+
+**`productSet`** ha semantica **sostitutiva** sulle liste (opzioni, varianti, media): usato su un prodotto esistente con una lista parziale, Shopify **elimina** ciò che è stato omesso. In VestiFlow è quindi usato **solo per creare**, e il tipo dell'input non ha `id` — l'uso in aggiornamento non è possibile nemmeno per sbaglio. L'aggiornamento passa da `productUpdate` e dalle mutation per intenzione.
+
+**`variantStrategy: LEAVE_AS_IS`** su `productOptionsCreate` e `productOptionUpdate`: il default di Shopify (`CREATE` / `MANAGE`) creerebbe o **cancellerebbe** varianti che nessuno ha chiesto. Aggiungendo un'opzione con `LEAVE_AS_IS` le varianti esistenti ricevono il primo valore della nuova opzione, e nessuna sparisce.
+
+**`collectionAddProducts` e `collectionRemoveProducts` sono DEPRECATE, e si usano lo stesso.** Shopify rimanda a `collectionUpdate` con `inclusion.selectionsToAdd`, ma in `2026-07` quel campo **non esiste** in `CollectionInput`, e `products` è valido «only with `collectionCreate`». In questa versione non c'è altra via per cambiare l'appartenenza a una collezione manuale. Il gate porta una sveglia: la sua prova diventa rossa il giorno in cui le inclusioni compaiono.
+
+**Le giacenze si scrivono anche su una variante non tracciata.** Una variante creata da `productSet` nasce con `inventoryItem.tracked = false`, ma il livello di inventario esiste comunque e `inventorySetQuantities` funziona: verificato, non supposto.
+
 ### Webhook
 
 Registrati con **Attiva aggiornamenti automatici**. Idempotenza lato backend per eventi duplicati/out-of-order.
+
+**La registrazione punta all'indirizzo dell'ambiente da cui parte la chiamata** (`SHOPIFY_APP_URL`), non a quello del negozio. Da un ambiente locale l'operazione è **rifiutata**: creerebbe sottoscrizioni verso `localhost` sul negozio reale, e la deduplica di Shopify confronta gli indirizzi per uguaglianza esatta, quindi si sommerebbero a quelle buone invece di sostituirle. Chi sviluppa con un tunnel pubblico in HTTPS (ngrok, cloudflared) passa: il criterio esclude ciò che non è un riferimento raggiungibile, non ciò che è insolito.
+
+**La connessione salva l'elenco dei topic, non il conteggio**, insieme all'indirizzo e alla data dell'osservazione. Il conteggio da solo non permetteva di accorgersi che un topic aggiunto al codice non fosse mai stato registrato sui negozi già collegati — la registrazione avviene solo all'OAuth o su richiesta esplicita, mai da sola.
+
+**«Verifica ora»** interroga `GET /webhooks.json` e confronta con i topic attesi. È **sola lettura verso Shopify**: il servizio che la esegue non ha fra le dipendenze niente in grado di registrare o cancellare, quindi non è una convenzione ma un vincolo. Scrive l'osservazione in locale, con la sua data.
+
+**«Registra le notifiche mancanti»** usa l'operazione **additiva** — salta i presenti, aggiunge i mancanti, non cancella niente — e restituisce il referto della **rilettura**, non l'esito della scrittura: la registrazione riporta cosa crede di aver fatto, la verifica riporta cosa c'è, e in caso di divergenza vale la seconda.
+
+**`lastWebhookEventAt` è distinto da `lastSyncAt`.** Il secondo ha sette scrittori, sei dei quali sono sincronizzazioni manuali: una data che si muove sia per un evento in arrivo sia perché qualcuno ha premuto un pulsante non distingue nulla. Il campo nuovo registra **solo gli eventi accolti** — non quelli scartati perché la sincronizzazione è spenta o perché il topic non è fra quelli gestiti — e si aggiorna al massimo una volta al minuto, per non mettere in contesa la stessa riga durante le raffiche di giacenze.
 
 ### Limiti Shopify Admin API — concetto
 
@@ -777,16 +831,16 @@ Export CSV dalle liste (filtri rispettati). Sync manuale Shopify vendite/clienti
 
 ### Ordini fornitori
 
-| Metodo | Path                           | Azione                                               | Permessi                  |
-| ------ | ------------------------------ | ---------------------------------------------------- | ------------------------- |
-| GET    | `/supplier-orders`             | Lista paginata (ricerca, filtro stato)               | autenticato               |
-| GET    | `/supplier-orders/:id`         | Dettaglio                                            | autenticato               |
-| POST   | `/supplier-orders`             | Crea ordine (bozza o inviato)                        | `supplier_orders.manage`  |
-| PATCH  | `/supplier-orders/:id`         | Aggiorna bozza (righe sostituite integralmente)      | `supplier_orders.manage`  |
-| POST   | `/supplier-orders/:id/send`    | Bozza → inviato                                      | `supplier_orders.manage`  |
-| POST   | `/supplier-orders/:id/cancel`  | Annulla (solo bozza o inviato, non ancora ricevuto)  | `supplier_orders.manage`  |
-| DELETE | `/supplier-orders/:id`         | Elimina ordine **annullato** (righe in cascade)      | `supplier_orders.manage`  |
-| POST   | `/supplier-orders/:id/receive` | Ricezione merce + movimenti `load` + push inventario | `supplier_orders.receive` |
+| Metodo | Path                           | Azione                                                                                          | Permessi                  |
+| ------ | ------------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------- |
+| GET    | `/supplier-orders`             | Lista paginata (ricerca, filtro stato)                                                          | autenticato               |
+| GET    | `/supplier-orders/:id`         | Dettaglio                                                                                       | autenticato               |
+| POST   | `/supplier-orders`             | Crea ordine — nasce **Confermato** (`17` §2.4)                                                  | `supplier_orders.manage`  |
+| PATCH  | `/supplier-orders/:id`         | Aggiorna l’ordine (righe sostituite integralmente) — in **qualunque** stato (`17` §2.2)         | `supplier_orders.manage`  |
+| POST   | `/supplier-orders/:id/cancel`  | imposta lo stato Annullato ⚠️ oggi a senso unico e solo da Confermato (`17` §2.6)               |
+| POST   | `/supplier-orders/:id/cancel`  | Imposta Annullato ⚠️ oggi a senso unico e solo da Confermato (`17` §2.6) — non ancora ricevuto) | `supplier_orders.manage`  |
+| DELETE | `/supplier-orders/:id`         | Elimina ordine **annullato** (righe in cascade)                                                 | `supplier_orders.manage`  |
+| POST   | `/supplier-orders/:id/receive` | Ricezione merce + movimenti `load` + push inventario                                            | `supplier_orders.receive` |
 
 Service: `SupplierOrdersService` (`api/src/supplier-orders/`). Ricezione in transazione atomica con `StockMovement`.
 
@@ -803,26 +857,25 @@ Modulo `api/src/documents/` + feature Angular `src/app/features/documents/`.
 | GET             | `/documents`                            | Lista paginata (filtri sotto)                                           | `documents.view`   |
 | GET             | `/documents/preview-number`             | Anteprima prossimo numero (`type`, `series?`, `year?`) — non incrementa | `documents.view`   |
 | GET             | `/documents/:id`                        | Dettaglio + righe + `linkedSupplierOrder` / `linkedSupplierOrderLines`  | `documents.view`   |
-| POST            | `/documents`                            | Crea bozza                                                              | `documents.manage` |
-| PATCH           | `/documents/:id`                        | Aggiorna bozza                                                          | `documents.manage` |
+| POST            | `/documents`                            | Crea documento — nasce **Confermato**                                   | `documents.manage` |
+| PATCH           | `/documents/:id`                        | Aggiorna il documento                                                   | `documents.manage` |
 | POST            | `/documents/:id/confirm`                | Conferma → numero + movimenti stock                                     | `documents.manage` |
 | POST            | `/documents/:id/convert`                | Conversione (es. DDT vendita → bozza fattura)                           | `documents.manage` |
 | POST            | `/documents/:id/print`                  | Marca stampato                                                          | `documents.manage` |
 | POST            | `/documents/:id/send`                   | Marca inviato (bozze fattura)                                           | `documents.manage` |
-| POST            | `/documents/:id/register-external`      | Registrato esternamente                                                 | `documents.manage` |
 | POST            | `/documents/:id/mark-externally-issued` | Emessa esternamente (bozza fattura)                                     | `documents.manage` |
 | POST            | `/documents/:id/cancel`                 | Annullamento con reversal stock se applicabile                          | `documents.manage` |
-| DELETE          | `/documents/:id`                        | Elimina bozza                                                           | `documents.manage` |
+| DELETE          | `/documents/:id`                        | Elimina il documento                                                    | `documents.manage` |
 | GET/POST/DELETE | `/documents/:id/attachments`            | Allegati documento                                                      | view / manage      |
 | GET/PATCH       | `/document-settings/:type`              | Prefissi numerazione per tipo                                           | manage             |
 
 **Query lista** (`ListDocumentsQueryDto`): `search`, `type`, `status`, `dateFrom`, `dateTo`, `supplierOrderId`, `customerId`, `accountant` (solo tipi registro commercialista), `pendingInvoice` (DDT vendita attivi senza bozza fattura figlia).
 
-**Tipi** (`DocumentType` in Prisma): `goods_receipt`, `manual_load`, `initial_load`, `sales_ddt`, `invoice_draft`, `transfer`, `manual_unload`, `adjustment`, `supplier_ddt`, `supplier_invoice`, … — vedi enum in `schema.prisma`.
+**Tipi** (`DocumentType` in Prisma): `goods_receipt`, `manual_load`, `initial_load`, `sales_ddt`, `invoice`, `transfer`, `manual_unload`, `adjustment`, `supplier_ddt`, `supplier_invoice`, … — vedi enum in `schema.prisma`.
 
 **Seriali/lotti:** in conferma `goods_receipt`, `inventory-serial.util.ts` e righe `DocumentLine` con `lotCode` / `serialNumbers`.
 
-**Frontend route:** `/app/documents` (+ form dedicati `goods-receipt`, `transfer`, `sales-ddt`, …). Liste e form con `TableColumnPickerComponent` + sync preferenze: documenti, giacenze, movimenti, fornitori, prodotti, clienti, righe ordine fornitore (`supplier-order-form`), righe arrivo merce.
+**Frontend route:** `/app/documents` (+ form dedicati `goods-receipt`, `transfer`, `ddt-vendita`, …). Liste e form con `TableColumnPickerComponent` + sync preferenze: documenti, giacenze, movimenti, fornitori, prodotti, clienti, righe ordine fornitore (`supplier-order-form`), righe arrivo merce.
 
 ### Impostazioni operative tenant
 
@@ -832,14 +885,6 @@ Modulo `api/src/documents/` + feature Angular `src/app/features/documents/`.
 | PATCH  | `/tenant/feature-settings` | Aggiorna impostazioni           | accesso tenant owner+ |
 
 Tabella `tenant_feature_settings` (RLS + REVOKE anon/authenticated). FE: `TenantOperationalSettingsPanelComponent` in Impostazioni. Service: `TenantFeatureSettingsService` (API + FE).
-
-### Registro commercialista (`/accountant-register`)
-
-| Metodo | Path                           | Azione                        | Permessi       |
-| ------ | ------------------------------ | ----------------------------- | -------------- |
-| GET    | `/accountant-register/summary` | KPI documenti + corrispettivi | `reports.view` |
-
-Service: `AccountantRegisterService` — conteggi aggregati (query raw unificata in `accountant-register-document-counts.util.ts`). FE: `/app/reports/accountant-register` con link a `/app/documents?accountant=1&…` e `pendingInvoice=1`.
 
 ### Preferenze colonne tabella
 
@@ -856,9 +901,11 @@ Modulo `api/src/user-preferences/` — validazione `stateJson` (`table-view-stat
 
 Endpoint dedicato per **doppia scansione** al banco: decremento/incremento stock senza creare `SalesOrder`. Disponibile per `gestionale`, `shopify` e `tiktok_shop`.
 
-| Metodo | Path                      | Body / azione                                                                  | Permessi          |
-| ------ | ------------------------- | ------------------------------------------------------------------------------ | ----------------- |
-| POST   | `/inventory/retail-scans` | `{ code, locationId, action: 'sale' \| 'return' }` — qty fissa 1 per scansione | `retail.register` |
+| Metodo | Path                   | Body / azione                                                                                                    | Permessi          |
+| ------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------- |
+| POST   | `/store-sales`         | vendita al banco: carrello completo (righe, pagamento, sede) → documento `store_sale` + movimenti in transazione | `retail.register` |
+| POST   | `/store-sales/returns` | reso al banco → documento `store_return`; il carico segue la spunta di riga                                      | `retail.register` |
+| GET    | `/store-sales/lookup`  | ricerca articolo per codice o EAN dalla cassa                                                                    | `retail.register` |
 
 **Backend:** `InventoryService.registerRetailScan()` (`api/src/inventory/inventory.service.ts`).
 
@@ -869,25 +916,32 @@ Endpoint dedicato per **doppia scansione** al banco: decremento/incremento stock
 - Post-scan: `ChannelSyncFacade.pushInventoryLevels()` (Shopify/TikTok se connessi)
 - Migration enum: `0019_vestiflow_pos_movement_origin` → `MovementOrigin.vestiflow_pos`
 
-I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra movimento** (solo via retail-scans).
+I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra movimento** — `MANUAL_TYPES` espone solo Carico, Scarico, Rettifica, Trasferimento. Li scrive la Vendita al banco, dai propri endpoint.
 
 **Frontend:**
 
-| Rotta                 | Componente                    | Guard / note                                         |
-| --------------------- | ----------------------------- | ---------------------------------------------------- |
-| `/app/sales/register` | `RetailSaleRegisterComponent` | `retailSalesRegisterGuard` — tutti i profili canale  |
-| `/app/sales`          | lista ordini Shopify          | `salesHistoryGuard` — redirect gestionale → register |
+| Rotta                                          | Componente                                             | Guard / note                                       |
+| ---------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------- |
+| `/app/vendita-al-banco/nuova-vendita-al-banco` | `StoreSaleRegisterComponent`                           | `retailSalesRegisterGuard` + `unsavedChangesGuard` |
+| `/app/vendita-al-banco/nuovo-reso-al-banco`    | `StoreSaleRegisterComponent` (stesso, modo dai `data`) | idem                                               |
+| `/app/vendita-al-banco`                        | `DocumentListComponent`, profilo `store-sale`          | `tenantPermissionGuard`                            |
+
+⚠️ **Il resto di questo blocco è vecchio e non è stato riscritto qui**: verificato il
+19/08/2026 che `salesHistoryGuard` e `InventoryService.registerRetailScan()` **non
+esistono più** in `src/app`. Vanno rifatti quando si tocca questa sezione.
 
 **Navigazione shell** (`shell-layout.component.ts`):
 
 - `showRetailSalesRegister(profile)` — Registra vendita per gestionale, Shopify, TikTok
 - `showSalesOrderHistory(profile)` — **Vendite** solo Shopify
 - `canViewDocuments` / `canManageDocuments` — voci **Documenti** e azioni create
-- **Registro commercialista** — route dedicata con `activeRouteExclude` su Report
-- Profilo Shopify: entrambe le voci in sidebar; `activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`
+- ⚠️ Qui c'era: «`activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`».
+  **Non è più vero dal 19/08/2026**: le Vendite al banco sono uscite da `/app/sales` e sono
+  un modulo fratello, quindi non c'è più niente da escludere. Nessuna voce reale usa
+  `activeRouteExclude` oggi
 
 - Service HTTP: `InventoryService.registerRetailScan()` (`src/app/features/inventory/services/inventory.service.ts`)
-- Label origine movimento: **Vendita negozio** (`inventory-labels.util.ts` → `MovementOrigin.VestiflowPos`)
+- Label origine movimento: **Vendita al banco** (`inventory-labels.util.ts` → `MovementOrigin.VestiflowPos`)
 
 ### Sidebar: evidenziazione sezione su sotto-route
 
@@ -959,43 +1013,42 @@ cd api && npm run test
 
 ### Copertura automatica — Shopify shop change / location / delete
 
-| Area                                                                | File test                                                                                                                                                                           |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purge / preview shop change                                         | `api/src/shopify/shopify-shop-change.service.spec.ts`                                                                                                                               |
-| Sync location + cleanup onboarding/stale                            | `api/src/shopify/shopify-location-sync.service.spec.ts`                                                                                                                             |
-| Delete prodotto write-through Shopify                               | `api/src/products/products.service.spec.ts`                                                                                                                                         |
-| Guard `catalogOrigin` (update/delete/sync/media)                    | `api/src/products/catalog-origin.util.spec.ts`                                                                                                                                      |
-| Wizard UI (anteprima, conferma, disconnect)                         | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts`                                                                                             |
-| HTTP client shop change / sync location                             | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`                                                                                                 |
-| E2E wizard (anteprima, step conferma, annulla)                      | `e2e/shopify.spec.ts`                                                                                                                                                               |
-| Retail scan API (sale/return, profili, push canale)                 | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`                                                                                                       |
-| Guard vendite / retail register                                     | `src/app/features/sales-orders/guards/retail-sales.guard.spec.ts`                                                                                                                   |
-| Pagina Registra vendita                                             | `src/app/features/sales-orders/retail-sale-register.component.spec.ts`                                                                                                              |
-| HTTP client retail-scans                                            | `src/app/features/inventory/services/inventory.service.spec.ts`                                                                                                                     |
-| Profilo canale / label origine movimento                            | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                                                                                                             |
-| Evidenza sidebar su sotto-route                                     | `src/app/shared/utils/nav-link-active.util.spec.ts`                                                                                                                                 |
-| Licensing sedi + blocco selezione (BE)                              | `api/src/inventory/location-licensing.service.spec.ts`                                                                                                                              |
-| Scope query su sedi licenziate                                      | `api/src/inventory/licensed-location-scope.util.spec.ts`                                                                                                                            |
-| Admin grant + trim piano / activeLocations                          | `api/src/admin/admin-tenants.service.spec.ts`                                                                                                                                       |
-| Pannello Sedi attive (FE)                                           | `src/app/features/settings/components/location-licensing-panel/*.spec.ts`                                                                                                           |
-| Util lock/grant UI                                                  | `src/app/core/utils/location-selection-lock.util.spec.ts`, `admin-location-selection.util.spec.ts`                                                                                  |
-| Summary licensing in tenant company                                 | `src/app/features/settings/models/tenant-company.model.spec.ts`, `tenant-company.service.spec.ts`                                                                                   |
-| Permessi tenant (FE util + guard)                                   | `src/app/core/permissions/tenant-permissions.util.spec.ts`, `tenant-permission.guard.spec.ts`                                                                                       |
-| Permessi utente / legacy keys                                       | `src/app/core/permissions/user-permissions.util.spec.ts`, `api/src/auth/user-permissions.util.spec.ts`                                                                              |
-| Scope sedi utente (FE + BE)                                         | `src/app/core/utils/user-location-scope.util.spec.ts`, `api/src/inventory/user-location-scope.util.spec.ts`                                                                         |
-| Topbar sede fissa vs select                                         | `src/app/shared/components/app-topbar/app-topbar.component.spec.ts`                                                                                                                 |
-| Admin save utenti / filtro permessi                                 | `api/src/admin/admin-tenant-users.service.spec.ts`                                                                                                                                  |
-| E2E permessi commesso (base)                                        | `e2e/permissions.spec.ts` — variabili `E2E_CLERK_*` in `.env`                                                                                                                       |
-| E2E permessi owner/admin                                            | `e2e/permissions-owner.spec.ts` — `E2E_USER_*` + sessione setup                                                                                                                     |
-| E2E permessi granulari (catalog vs inventory import)                | `e2e/permissions-granular.spec.ts` — `E2E_CLERK_CATALOG_IMPORT_*`, `E2E_CLERK_INVENTORY_IMPORT_*`                                                                                   |
-| Provision utenti E2E granulari                                      | `npm run provision:e2e-users` → `api/scripts/provision-e2e-permission-users.mjs` (credenziali solo in `.env`, non in codice app)                                                    |
-| Documenti — filtri lista / incoming PO / seriali / prezzo fornitore | `api/src/documents/documents.service.spec.ts`, `document-supplier-order.util.spec.ts`, `document-supplier-price.util.spec.ts`, `inventory-serial.util.spec.ts`                      |
-| E2E arrivo merce (bozza manuale, column picker, flusso da ordine)   | `e2e/goods-receipt.spec.ts`, `e2e/supplier-order-send-receive.spec.ts`, helper `e2e/helpers/goods-receipt-form.ts` — flusso ordine richiede seed (`Confezioni Sud`, `PO-2026-0003`) |
-| Impostazioni operative tenant                                       | `api/src/tenant/tenant-feature-settings.service.spec.ts`                                                                                                                            |
-| Preferenze colonne — validazione stateJson / reset FE               | `api/src/user-preferences/table-view-state.util.spec.ts`, `user-table-views.service.spec.ts`, `src/app/shared/table-columns/table-column-preference.service.spec.ts`                |
-| FE documenti — query URL / seriali input                            | `document-list-query.model.spec.ts`, `serial-numbers-input.util.spec.ts`                                                                                                            |
-| FE registro commercialista                                          | `accountant-register.model.spec.ts`                                                                                                                                                 |
-| E2E registro commercialista → DDT da fatturare                      | `e2e/accountant-register.spec.ts`, `e2e/helpers/accountant-register.ts`, smoke in `e2e/ci-smoke.spec.ts`                                                                            |
+| Area                                                                  | File test                                                                                                                                                                           |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purge / preview shop change                                           | `api/src/shopify/shopify-shop-change.service.spec.ts`                                                                                                                               |
+| Sync location + cleanup onboarding/stale                              | `api/src/shopify/shopify-location-sync.service.spec.ts`                                                                                                                             |
+| Delete prodotto write-through Shopify                                 | `api/src/products/products.service.spec.ts`                                                                                                                                         |
+| Guard `catalogOrigin` (update/delete/sync/media)                      | `api/src/products/catalog-origin.util.spec.ts`                                                                                                                                      |
+| Wizard UI (anteprima, conferma, disconnect)                           | `src/app/features/integrations/shopify/components/shopify-shop-change-wizard/*.spec.ts`                                                                                             |
+| HTTP client shop change / sync location                               | `src/app/features/integrations/shopify/services/shopify-connection.service.spec.ts`                                                                                                 |
+| E2E wizard (anteprima, step conferma, annulla)                        | `e2e/shopify.spec.ts`                                                                                                                                                               |
+| Retail scan API (sale/return, profili, push canale)                   | `api/src/inventory/inventory.service.spec.ts`, `inventory.controller.spec.ts`                                                                                                       |
+| Guard vendite / retail register                                       | `src/app/features/sales-orders/guards/retail-sales.guard.spec.ts`                                                                                                                   |
+| Pagina Registra vendita                                               | `src/app/features/sales-orders/retail-sale-register.component.spec.ts`                                                                                                              |
+| HTTP client inventario                                                | `src/app/domain/inventory/services/inventory.service.spec.ts`                                                                                                                       |
+| Profilo canale / label origine movimento                              | `tenant-channel-profile.model.spec.ts`, `inventory-labels.util.spec.ts`                                                                                                             |
+| Evidenza sidebar su sotto-route                                       | `src/app/shared/utils/nav-link-active.util.spec.ts`                                                                                                                                 |
+| Licensing sedi + blocco selezione (BE)                                | `api/src/inventory/location-licensing.service.spec.ts`                                                                                                                              |
+| Scope query su sedi licenziate                                        | `api/src/inventory/licensed-location-scope.util.spec.ts`                                                                                                                            |
+| Admin grant + trim piano / activeLocations                            | `api/src/admin/admin-tenants.service.spec.ts`                                                                                                                                       |
+| Pannello Sedi attive (FE)                                             | `src/app/features/settings/components/location-licensing-panel/*.spec.ts`                                                                                                           |
+| Util lock/grant UI                                                    | `src/app/core/utils/location-selection-lock.util.spec.ts`, `admin-location-selection.util.spec.ts`                                                                                  |
+| Summary licensing in tenant company                                   | `src/app/features/settings/models/tenant-company.model.spec.ts`, `tenant-company.service.spec.ts`                                                                                   |
+| Permessi tenant (FE util + guard)                                     | `src/app/core/permissions/tenant-permissions.util.spec.ts`, `tenant-permission.guard.spec.ts`                                                                                       |
+| Permessi utente / legacy keys                                         | `src/app/core/permissions/user-permissions.util.spec.ts`, `api/src/auth/user-permissions.util.spec.ts`                                                                              |
+| Scope sedi utente (FE + BE)                                           | `src/app/core/utils/user-location-scope.util.spec.ts`, `api/src/inventory/user-location-scope.util.spec.ts`                                                                         |
+| Topbar sede fissa vs select                                           | `src/app/shared/components/app-topbar/app-topbar.component.spec.ts`                                                                                                                 |
+| Admin save utenti / filtro permessi                                   | `api/src/admin/admin-tenant-users.service.spec.ts`                                                                                                                                  |
+| E2E permessi commesso (base)                                          | `e2e/permissions.spec.ts` — variabili `E2E_CLERK_*` in `.env`                                                                                                                       |
+| E2E permessi owner/admin                                              | `e2e/permissions-owner.spec.ts` — `E2E_USER_*` + sessione setup                                                                                                                     |
+| E2E permessi granulari (catalog vs inventory import)                  | `e2e/permissions-granular.spec.ts` — `E2E_CLERK_CATALOG_IMPORT_*`, `E2E_CLERK_INVENTORY_IMPORT_*`                                                                                   |
+| Provision utenti E2E granulari                                        | `npm run provision:e2e-users` → `api/scripts/provision-e2e-permission-users.mjs` (credenziali solo in `.env`, non in codice app)                                                    |
+| Documenti — filtri lista / incoming PO / seriali / prezzo fornitore   | `api/src/documents/documents.service.spec.ts`, `document-supplier-order.util.spec.ts`, `document-supplier-price.util.spec.ts`, `inventory-serial.util.spec.ts`                      |
+| E2E arrivo merce (creazione manuale, column picker, flusso da ordine) | `e2e/goods-receipt.spec.ts`, `e2e/supplier-order-send-receive.spec.ts`, helper `e2e/helpers/goods-receipt-form.ts` — flusso ordine richiede seed (`Confezioni Sud`, `PO-2026-0003`) |
+| Impostazioni operative tenant                                         | `api/src/tenant/tenant-feature-settings.service.spec.ts`                                                                                                                            |
+| Preferenze colonne — validazione stateJson / reset FE                 | `api/src/user-preferences/table-view-state.util.spec.ts`, `user-table-views.service.spec.ts`, `src/app/shared/table-columns/table-column-preference.service.spec.ts`                |
+| FE documenti — query URL / seriali input                              | `document-list-query.model.spec.ts`, `serial-numbers-input.util.spec.ts`                                                                                                            |
+| E2E DDT da fatturare (filtri URL, banner, checkbox)                   | `e2e/helpers/documents-list.ts`, smoke in `e2e/ci-smoke.spec.ts`                                                                                                                    |
 
 ### CI GitHub Actions
 
@@ -1025,7 +1078,6 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 - [ ] Login tenant test
 - [ ] **Documenti** — lista, filtro DDT da fatturare, conferma arrivo merce test
-- [ ] **Registro commercialista** — KPI periodo + link a documenti filtrati
 - [ ] Platform admin → Clienti → Nuovo cliente (staging)
 - [ ] Platform admin → **Apri gestionale (assistenza)** su tenant test → banner + operazione magazzino → **Esci dall'assistenza**
 - [ ] Profilo canale Shopify e TikTok su tenant test
@@ -1036,9 +1088,9 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 - [ ] OAuth TikTok Shop su tenant test (se abilitato)
 - [ ] Upload foto profilo + avatar topbar
 - [ ] Import catalogo + webhook
-- [ ] Tenant **Solo gestionale**: POST retail-scans vendita + storno su variante test
-- [ ] Tenant **Shopify**: Registra vendita + lista Vendite in sidebar; retail-scans + sync giacenze
-- [ ] Tenant **TikTok** (se abilitato): retail-scans + push inventario
+- [ ] Tenant **Solo gestionale**: vendita al banco + reso su variante test
+- [ ] Tenant **Shopify**: Vendita al banco + lista Vendite in sidebar; sync giacenze
+- [ ] Tenant **TikTok** (se abilitato): vendita al banco + push inventario
 - [ ] Upload immagine prodotto
 - [ ] Guida utente + guida tecnica admin
 
@@ -1089,8 +1141,8 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | Multi-store commerciali in un tenant          | Non supportato — un shop = un tenant                                                                 |
 | Invito utenti / cambio ruolo self-service     | Non in UI — solo provisioning iniziale + richiesta operatore                                         |
 | Sessione assistenza platform admin → tenant   | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                                  |
-| Modulo documenti (DDT, arrivi, trasferimenti) | Implementato — registro, allegati, numerazione, filtri commercialista / pending invoice              |
-| Registro commercialista unificato             | Implementato — KPI documenti + corrispettivi, link filtrati a `/app/documents`                       |
+| Modulo documenti (DDT, arrivi, trasferimenti) | Implementato — registro, allegati, numerazione, filtro DDT da fatturare                              |
+| Registro commercialista unificato             | **Rimosso il 16/08/2026** — classificava i documenti come inviati/da inviare al commercialista       |
 | Incoming su ordini fornitore inviati          | Implementato — stato `incoming` in `InventoryLevel`, sync con ricezione / arrivo merce               |
 | Tracciamento lotti / seriali                  | Implementato — flag tenant + colonne in arrivo merce; consultazione seriali in UI limitata           |
 | Impostazioni operative tenant (lotti/policy)  | Implementato — `tenant_feature_settings`, pannello Impostazioni                                      |
@@ -1100,8 +1152,9 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | Bozze ordine Shopify (draft orders)           | Non in scope — solo ordini confermati in **Vendite**                                                 |
 | Rotazione sedi attive oltre limite piano      | Bloccata lato API — solo **Concedi cambio sede** + salvataggio cliente entro `licensedLocationCount` |
 | Location manuale senza Shopify                | Parziale (location onboarding); sync Shopify consigliato; licensing via `licensedInVf`               |
-| Cassa / corrispettivi IT nativi               | Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)                |
-| Vendita al banco                              | Implementata — `POST /inventory/retail-scans`, UI `/app/sales/register`, tutti i profili             |
+| Cassa / corrispettivi IT nativi               | Non previsti — integrazione esterna; VF registra stock (Vendita al banco, tutti i profili)           |
+| Vendite al banco                              | Implementata — endpoint `store-sales`, UI `/app/vendita-al-banco`, tutti i profili                   |
+| Collegamenti documentali (Includi / Genera)   | Parziale — motore operativo su alcune coppie; matrice completa e divergenze misurate in `docs/12`    |
 | Report server-side avanzati                   | In evoluzione                                                                                        |
 | Coda bulk Shopify persistente (multi-tenant)  | Non implementata — operazioni massicce sincrone HTTP                                                 |
 | Notifiche email custom reset password         | Config Supabase                                                                                      |

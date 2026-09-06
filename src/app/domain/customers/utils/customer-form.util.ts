@@ -35,6 +35,8 @@ export function createCustomerFormGroup(fb: NonNullableFormBuilder) {
       pec: fb.control('', { validators: [Validators.email] }),
       sdiCode: fb.control(''),
       phone: fb.control(''),
+      mobilePhone: fb.control(''),
+      iban: fb.control(''),
       website: fb.control(''),
       contactName: fb.control(''),
       addressLine1: fb.control(''),
@@ -46,6 +48,12 @@ export function createCustomerFormGroup(fb: NonNullableFormBuilder) {
       notes: fb.control(''),
       // Ruolo cliente (dati commerciali)
       code: fb.control(''),
+      /*
+        ⭐ **Lo stato del RUOLO**, acceso di serie: un cliente nasce attivo.
+        Spento, sparisce dalle tendine dei documenti nuovi e resta tutto il
+        resto — scheda, ordini, storico (`ANAGRAFICA-CANONICA-SPEC`).
+      */
+      isActive: fb.control(true),
       customerDiscount: fb.control(''),
       paymentMethod: fb.control(''),
       paymentTerms: fb.control(''),
@@ -72,6 +80,8 @@ export function mapCustomerFormToInput(raw: CustomerFormGroup['value']): Custome
     pec: trimOptional(raw.pec),
     sdiCode: trimOptional(raw.sdiCode),
     phone: trimOptional(raw.phone),
+    mobilePhone: trimOptional(raw.mobilePhone),
+    iban: trimOptional(raw.iban),
     website: trimOptional(raw.website),
     contactName: trimOptional(raw.contactName),
     notes: trimOptional(raw.notes),
@@ -82,6 +92,7 @@ export function mapCustomerFormToInput(raw: CustomerFormGroup['value']): Custome
     postalCode: trimOptional(raw.postalCode),
     countryCode: trimOptional(raw.countryCode),
     code: trimOptional(raw.code),
+    isActive: raw.isActive,
     customerDiscount: trimOptional(raw.customerDiscount),
     paymentMethod: trimOptional(raw.paymentMethod),
     paymentTerms: trimOptional(raw.paymentTerms),
@@ -104,6 +115,8 @@ export function patchCustomerFormGroup(form: CustomerFormGroup, customer: Custom
     pec: customer.pec ?? '',
     sdiCode: customer.sdiCode ?? '',
     phone: customer.phone ?? '',
+    mobilePhone: customer.mobilePhone ?? '',
+    iban: customer.iban ?? '',
     website: customer.website ?? '',
     contactName: customer.contactName ?? '',
     addressLine1: customer.address?.line1 ?? '',
@@ -114,6 +127,7 @@ export function patchCustomerFormGroup(form: CustomerFormGroup, customer: Custom
     countryCode: customer.address?.country ?? 'IT',
     notes: customer.notes ?? '',
     code: customer.code ?? '',
+    isActive: customer.isActive,
     customerDiscount: customer.customerDiscount ?? '',
     paymentMethod: customer.paymentMethod ?? '',
     paymentTerms: customer.paymentTerms ?? '',

@@ -1,0 +1,323 @@
+<!--
+  ⭐ **Il telaio e' `app-list-page`**, non un contenitore proprio: testata,
+  conteggio, ricerca, selettore Colonne, stati di caricamento/errore/vuoto e il
+  pannello filtri sotto `lg` vengono tutti da li'.
+
+  ⛔ Qui c'erano `<header>`, `<h1>`, una riga filtri, un `app-error-state`, un
+  `app-empty-state` e un paragrafo di caricamento scritti a mano: sei pezzi che
+  il telaio porta gia', e che riscritti non avevano il pannello filtri mobile.
+-->
+<app-list-page
+  pageTitle="Operazioni di cassa"
+  pageDescription="Vendite e resi di tutte le sedi che puoi vedere."
+  [count]="pagina() ? pagina()!.summary.operationCount + ' operazioni' : undefined"
+  [loading]="caricamento()"
+  [error]="errore()"
+  [isEmpty]="vuoto()"
+  [skeletonColumns]="colonneVisibili().length"
+  [columnsViewId]="vista"
+  [activeFilterCount]="filtriAttivi()"
+  searchPlaceholder="Numero documento"
+  searchAriaLabel="Cerca per numero documento"
+  [searchValue]="numero()"
+  emptyTitle="Nessuna operazione"
+  emptyDescription="Nel periodo scelto non ci sono vendite né resi di cassa."
+  emptyIcon="pi-shopping-cart"
+  (searchChange)="numero.set($event)"
+  (filtersCleared)="azzeraFiltri()"
+  (retry)="carica()"
+>
+  <!--
+    ⭐ **Le tre aree stanno nella casella `[tabs]` del telaio**, che esiste
+    apposta: «non sono filtri e non sono azioni: sono navigazione».
+
+    ⛔ Erano tre `<a>` sciolti nella testata di ogni registro, con la stessa
+    regola di stile copiata nei due fogli.
+  -->
+  <app-nav-tabs tabs [items]="schede" ariaLabel="Aree della Cassa" />
+
+  <!--
+    ⭐ Il periodo resta in barra a ogni larghezza: e' uno dei due che non
+    entrano nelle colonne (`14` §0.2).
+  -->
+  <div period class="ops__period">
+    <!--
+      ⭐ **Il registro si apre su OGGI, e lo DICE.** Il selettore mostra il
+      periodo attivo ed è azzerabile con «Tutti»: un filtro predefinito che non
+      si vede è un elenco che mente su quanto sta mostrando.
+    -->
+    <app-select-menu
+      chipLabel="Periodo"
+      [options]="periodOptions"
+      [value]="periodo()"
+      ariaLabel="Filtra per periodo"
+      placeholder="Tutto"
+      [compact]="true"
+      [fitContent]="true"
+      (valueChange)="cambiaPeriodo($event ?? '')"
+    />
+    <!--
+      ⛔ **Le due date restano una COPPIA, in un contenitore loro.**
+
+      Il mixin `list-date-period` le dispone in due colonne sotto `md` e calcola
+      la larghezza del calendario come `calc(200% + gap)`, cioè sull'intera
+      coppia. Mettendo il selettore Periodo come terzo figlio dello stesso
+      contenitore quella matematica si rompe: misurato nel browser il
+      06/09/2026, il calendario usciva dallo schermo — visibile solo al **51%**.
+    -->
+    <div class="ops__dates">
+      <app-date-input
+        inputId="ops-da"
+        ariaLabel="Dal"
+        [value]="da()"
+        [compact]="true"
+        (valueChange)="cambiaData('da', $event)"
+      />
+      <app-date-input
+        inputId="ops-a"
+        ariaLabel="Al"
+        [value]="a()"
+        [compact]="true"
+        (valueChange)="cambiaData('a', $event)"
+      />
+    </div>
+  </div>
+
+  <div filters>
+    @if (sediSelezionabili().length > 1) {
+      <app-select-menu
+        [options]="sediSelezionabili()"
+        [value]="sedeId()"
+        ariaLabel="Sede"
+        placeholder="Tutte le sedi"
+        chipLabel="Sede"
+        [compact]="true"
+        [filterChip]="true"
+        (valueChange)="sedeId.set($event); carica()"
+      />
+    }
+
+    <app-select-menu
+      [options]="tipiOperazione"
+      [value]="tipo()"
+      ariaLabel="Tipo di operazione"
+      placeholder="Vendite e resi"
+      chipLabel="Tipo"
+      [compact]="true"
+      [filterChip]="true"
+      (valueChange)="tipo.set($any($event)); carica()"
+    />
+
+    <app-select-menu
+      [options]="opzioniSelezionabili()"
+      [value]="tipoPagamento()"
+      ariaLabel="Tipo pagamento"
+      placeholder="Ogni pagamento"
+      chipLabel="Pagamento"
+      [compact]="true"
+      [filterChip]="true"
+      (valueChange)="tipoPagamento.set($event); carica()"
+    />
+
+    <label class="ops__check">
+      <input
+        type="checkbox"
+        [checked]="soloAnomalie()"
+        (change)="soloAnomalie.set(!soloAnomalie()); carica()"
+      />
+      <span>Solo con anomalie</span>
+    </label>
+
+    <app-button variant="secondary" (click)="apriRichiamo()">Richiama scontrino</app-button>
+  </div>
+
+  <!--
+    ⭐ **Sul motore comune.** Le nove colonne erano nove `<th>` scritti a mano:
+    niente selettore Colonne, niente larghezze regolabili, niente card.
+
+    ⭐ **E l'ordinamento è acceso dal 05/09/2026.** Qui c'era scritto che
+    restava spento «perché l'API non ha un parametro `sort`»: vero, e non
+    più un impedimento — l'elenco ora arriva INTERO (`all=1`), quindi
+    ordinarlo in memoria ordina tutto il risultato, non una pagina.
+  -->
+  <app-data-table
+    data
+    caption="Vendite e resi di cassa"
+    [columns]="colonneVisibili()"
+    [viewId]="vista"
+    [sections]="sezioni()"
+    [rowId]="rowId"
+    [cellText]="cellText"
+    [rowTone]="rowTone"
+    [rowClickable]="true"
+    [rowLabel]="rowLabel"
+    [sortable]="true"
+    [virtualizza]="true"
+    [sort]="ordine()"
+    (sortChange)="ordine.set($event)"
+    (rowClick)="apri($event)"
+  >
+    <!--
+      ⛔ Le uniche due celle che non sono testo. Il resto passa da `cellText`:
+      una cella del motore e' testo, e il dominio lo mette la pagina.
+    -->
+    <ng-template appCell="status" let-riga>
+      <app-badge [flat]="true" [tone]="tonoStato(riga)">{{ statoDi(riga) }}</app-badge>
+    </ng-template>
+
+    <ng-template appCell="source" let-riga>
+      @if (riga.sourceReference) {
+        <button
+          type="button"
+          class="ops__link-cell"
+          (click)="apriOrigine(riga); $event.stopPropagation()"
+        >
+          {{ riga.sourceReference }}
+        </button>
+      } @else {
+        —
+      }
+    </ng-template>
+
+    <!--
+      ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+      tre fasce, «a sinistra le parole, a destra i numeri». La grammatica e'
+      comune (`styles/_list-card.scss`), il contenuto e' di questo registro.
+
+      ⛔ Prima non c'era affatto: sotto `lg` la tabella scritta a mano scorreva
+      in orizzontale.
+    -->
+    <ng-template appRowCard let-riga>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          <span class="list-card__when tabular-nums">{{ cellText(riga, 'createdAt') }}</span>
+          <span class="list-card__what">{{ cellText(riga, 'type') }}</span>
+        </span>
+        <span class="list-card__anchor">{{ cellText(riga, 'reference') }}</span>
+      </div>
+
+      <div class="list-card__words">
+        @if (visibile('location')) {
+          <span>{{ cellText(riga, 'location') }}</span>
+        }
+        @if (visibile('operator')) {
+          <span>{{ cellText(riga, 'operator') }}</span>
+        }
+        @if (visibile('paymentMethod')) {
+          <span>{{ cellText(riga, 'paymentMethod') }}</span>
+        }
+        @if (visibile('status')) {
+          <span>{{ cellText(riga, 'status') }}</span>
+        }
+      </div>
+
+      @if (visibile('total')) {
+        <div class="list-card__figures">
+          <span class="list-card__total">{{ cellText(riga, 'total') }}</span>
+        </div>
+      }
+    </ng-template>
+  </app-data-table>
+
+  <!--
+    ⭐ **Il riepilogo, non la riga totali** — e' la distinzione di
+    `regole-stile-ui`: la riga totali somma le COLONNE VISIBILI e si incolonna
+    sotto di esse, il riepilogo mostra metriche nominate che in tabella non
+    esistono. Qui sei voci su sette non sono colonne — «Contanti»,
+    «Elettronico», «Scontrino medio» — quindi e' la seconda famiglia, come nel
+    Registro Corrispettivi.
+
+    ⛔ **I numeri arrivano dal SERVER**, con lo stesso filtro dell'elenco: non
+    si sommano le righe a schermo, che sarebbero la pagina e non il periodo.
+  -->
+  @if (pagina(); as p) {
+    <section summary class="ops__summary" aria-labelledby="ops-summary-title">
+      <h2 id="ops-summary-title" class="sr-only">Riepilogo del periodo</h2>
+      <dl class="ops__summary-grid">
+        <div class="ops__summary-item">
+          <dt>Vendite lorde</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.grossSalesMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item ops__summary-item--negative">
+          <dt>Resi</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.returnsMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item">
+          <dt>Contanti</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.cashMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item">
+          <dt>Elettronico</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.electronicMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item">
+          <dt>Scontrino medio</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.averageMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item ops__summary-item--highlight">
+          <dt>Vendite nette</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.netSalesMinor) }}</dd>
+        </div>
+      </dl>
+    </section>
+  }
+
+  <!--
+    ⚠️ **Questa nota non e` decorazione**: dice due cose sul comportamento —
+    che gli annullati restano visibili e fuori dai totali, e che la
+    fiscalizzazione non c’è ancora. Due prove la difendono, ed è giusto:
+    era sparita nella migrazione al telaio, e le prove l’hanno ripresa.
+  -->
+  <p summary class="ops__note">
+    Le operazioni annullate restano visibili con il loro stato e non entrano nei totali. La
+    fiscalizzazione non è ancora disponibile in questa versione.
+  </p>
+
+  <!--
+    ⭐ **Il pannello sta in `[overlays]`**: e' `position: fixed`, e un telaio
+    con sole caselle nominate SCARTA il contenuto che non ne trova una — senza
+    errori e senza test rossi (`regole-stile-ui`).
+  -->
+  <app-slide-panel
+    overlays
+    [open]="pannelloReso()"
+    title="Richiama scontrino"
+    (closed)="pannelloReso.set(false)"
+  >
+    <form class="ops__recall" (ngSubmit)="cercaScontrino()">
+      <label class="ops__filter">
+        <span class="ops__filter-label">Numero, articolo o cliente</span>
+        <input
+          type="search"
+          autocomplete="off"
+          [value]="ricercaScontrino()"
+          (input)="ricercaScontrino.set($any($event.target).value)"
+          name="scontrino"
+          placeholder="Es. 42, maglia, Rossi…"
+        />
+      </label>
+      <app-button variant="primary" type="submit" [loading]="cercandoScontrini()">Cerca</app-button>
+    </form>
+
+    @if (scontrini().length === 0 && !cercandoScontrini()) {
+      <p class="ops__recall-hint">
+        Cerca lo scontrino da rendere. Il reso parte sempre da una vendita identificata.
+      </p>
+    }
+
+    <ul class="ops__recall-results">
+      @for (s of scontrini(); track s.documentId) {
+        <li>
+          <button type="button" class="ops__recall-item" (click)="vaiAlReso(s.documentId)">
+            <span class="ops__recall-ref">{{ s.reference }}</span>
+            <span class="ops__recall-meta">
+              {{ s.documentDate }} · {{ s.locationName ?? '—' }} · {{ s.operatorName }}
+            </span>
+            <span class="ops__recall-items">{{ s.itemsPreview }}</span>
+            <span class="ops__recall-total">{{ soldi(s.totalMinor) }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  </app-slide-panel>
+</app-list-page>

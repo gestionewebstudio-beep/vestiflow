@@ -73,6 +73,7 @@ describe('AdminTenantsService', () => {
       config,
       locationLicensing as unknown as LocationLicensingService,
       channelSync as unknown as ChannelSyncFacade,
+      { invalidateTenant: vi.fn() } as never,
     );
 
     return { service, prisma, platformAdmin, supabase, config, locationLicensing, channelSync };
@@ -145,7 +146,18 @@ describe('AdminTenantsService', () => {
         },
       ],
       stores: [{ id: 'store-1', name: 'Negozio' }],
-      locations: [{ id: 'loc-legacy', name: 'Legacy', addressLine1: null, addressLine2: null, city: null, province: null, postalCode: null, countryCode: 'IT' }],
+      locations: [
+        {
+          id: 'loc-legacy',
+          name: 'Legacy',
+          addressLine1: null,
+          addressLine2: null,
+          city: null,
+          province: null,
+          postalCode: null,
+          countryCode: 'IT',
+        },
+      ],
     });
     prisma.location.findMany.mockResolvedValue([
       {
@@ -328,7 +340,18 @@ describe('AdminTenantsService', () => {
         },
       ],
       stores: [{ id: 'store-1', name: 'Negozio' }],
-      locations: [{ id: 'loc-1', name: 'Shop', addressLine1: null, addressLine2: null, city: null, province: null, postalCode: null, countryCode: 'IT' }],
+      locations: [
+        {
+          id: 'loc-1',
+          name: 'Shop',
+          addressLine1: null,
+          addressLine2: null,
+          city: null,
+          province: null,
+          postalCode: null,
+          countryCode: 'IT',
+        },
+      ],
     };
 
     prisma.user.findMany.mockResolvedValue([{ email: 'owner@test.it' }]);

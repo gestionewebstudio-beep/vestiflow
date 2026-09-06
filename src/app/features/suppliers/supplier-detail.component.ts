@@ -1,16 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { Supplier, SupplierVariantLink } from '@core/models/supplier.model';
+import type { Supplier } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { formatMoney } from '@core/utils/money.util';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
@@ -27,7 +26,6 @@ type DetailState =
   | {
       readonly status: 'success';
       readonly supplier: Supplier;
-      readonly links: readonly SupplierVariantLink[];
     }
   | { readonly status: 'not-found' }
   | { readonly status: 'error'; readonly error: AppError };
@@ -89,15 +87,8 @@ export class SupplierDetailComponent {
         if (!id) {
           return of({ status: 'not-found' } satisfies DetailState);
         }
-        return forkJoin({
-          supplier: this.service.getById(id),
-          links: this.service.getVariantLinksBySupplier(id),
-        }).pipe(
-          map(({ supplier, links }): DetailState => ({
-            status: 'success',
-            supplier,
-            links,
-          })),
+        return this.service.getById(id).pipe(
+          map((supplier): DetailState => ({ status: 'success', supplier })),
           startWith<DetailState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
         );
@@ -116,57 +107,126 @@ export class SupplierDetailComponent {
     const current = this.state();
     return current.status === 'success' ? current.supplier : null;
   });
-  protected readonly links = computed(() => {
-    const current = this.state();
-    return current.status === 'success' ? current.links : [];
+  /*
+    ⭐ **La scheda è divisa come la MASCHERA**, non un elenco solo di ventidue
+    voci — proprietario, 01/09/2026: «va sistemata la visualizzazione della
+    scheda dettaglio in modo carino».
+
+    ⚠️ **Gli stessi cinque gruppi, e nello stesso ordine** di
+    `supplier-form-fields`: chi ha appena compilato la scheda ritrova i dati
+    dove li ha scritti. Un raggruppamento diverso fra maschera e dettaglio
+    costringerebbe a cercare due volte.
+
+    ⚠️ **Il pannello e la griglia sono già condivisi** — `detail-page` per il
+    riquadro, `app-detail-facts` per la coppia etichetta/valore: qui non si
+    disegna niente di nuovo, si passano cinque elenchi invece di uno. È la
+    stessa forma che `customer-detail` usa da sempre con due.
+  */
+  protected readonly datiGeneraliFacts = computed((): readonly DetailFact[] => {
+    const s = this.supplier();
+    return !s
+      ? []
+      : [
+          { label: 'Codice', value: s.code ?? '—' },
+          { label: 'P. IVA', value: s.vatNumber ?? '—' },
+          { label: 'Codice fiscale', value: s.taxCode ?? '—' },
+          {
+            label: 'Stato',
+            value: s.isActive
+              ? 'Attivo'
+              : 'Disattivato — fuori dai documenti nuovi, storico intatto',
+          },
+          {
+            label: 'Anche cliente',
+            value: s.linkedCustomerId
+              ? s.linkedCustomerActive
+                ? 'Sì — stesso soggetto in anagrafica clienti'
+                : 'Ruolo cliente disattivato (storico conservato)'
+              : 'No',
+          },
+        ];
   });
 
-  protected readonly facts = computed((): readonly DetailFact[] => {
+  /*
+    ⚠️ **L'indirizzo si mostra a CAMPI, non come riga unica.** Composto
+    («Via Roma 1, 80013 Casalnuovo di Napoli, NA, IT») occupava un pannello
+    intero per una riga sola, e non diceva quale pezzo mancasse quando ne
+    mancava uno. A campi il riquadro è proporzionato e rispecchia la maschera,
+    dove quei cinque campi stanno insieme.
+  */
+  protected readonly indirizzoFacts = computed((): readonly DetailFact[] => {
+    const s = this.supplier();
+    return !s
+      ? []
+      : [
+          { label: 'Indirizzo', value: s.addressLine1 ?? '—' },
+          ...(s.addressLine2 ? [{ label: 'Indirizzo (riga 2)', value: s.addressLine2 }] : []),
+          { label: 'CAP', value: s.postalCode ?? '—' },
+          { label: 'Città', value: s.city ?? '—' },
+          { label: 'Prov.', value: s.province ?? '—' },
+          { label: 'Paese', value: s.countryCode ?? '—' },
+        ];
+  });
+
+  protected readonly contattiFacts = computed((): readonly DetailFact[] => {
+    const s = this.supplier();
+    return !s
+      ? []
+      : [
+          { label: 'Email', value: s.email ?? '—' },
+          { label: 'PEC', value: s.pec ?? '—' },
+          { label: 'Telefono', value: s.phone ?? '—' },
+          { label: 'Cellulare', value: s.mobilePhone ?? '—' },
+          { label: 'Referente', value: s.contactName ?? '—' },
+          { label: 'Sito web', value: s.website ?? '—' },
+        ];
+  });
+
+  protected readonly condizioniFacts = computed((): readonly DetailFact[] => {
+    const s = this.supplier();
+    return !s
+      ? []
+      : [
+          { label: 'Modalità di pagamento', value: s.paymentMethod ?? '—' },
+          { label: 'Condizioni di pagamento', value: s.paymentTerms ?? '—' },
+          { label: 'Sconto', value: s.supplierDiscount ?? '—' },
+          { label: 'Codice IVA', value: this.vatCodeLabel(s.defaultVatCodeId) },
+          { label: 'Incaricato trasporto', value: s.transportResponsible ?? '—' },
+          { label: 'Porto', value: s.freightTerms ?? '—' },
+          { label: 'IBAN', value: s.iban ?? '—' },
+          { label: 'Ns. banca', value: s.ourBankName ?? '—' },
+        ];
+  });
+
+  /*
+    ⚠️ **Questo gruppo si NASCONDE quando è vuoto**, al contrario degli altri:
+    avviso, nota e note sono facoltativi e nella pratica quasi sempre vuoti —
+    tre trattini in fila occupano una fascia per non dire niente. Gli altri
+    quattro gruppi restano sempre: lì il trattino dice «manca», ed è
+    un'informazione.
+  */
+  protected readonly documentiFacts = computed((): readonly DetailFact[] => {
     const s = this.supplier();
     if (!s) {
       return [];
     }
-    return [
-      { label: 'Codice', value: s.code ?? '—' },
-      { label: 'P. IVA', value: s.vatNumber ?? '—' },
-      { label: 'Codice fiscale', value: s.taxCode ?? '—' },
-      { label: 'Email', value: s.email ?? '—' },
-      { label: 'PEC', value: s.pec ?? '—' },
-      { label: 'Telefono', value: s.phone ?? '—' },
-      { label: 'Referente', value: s.contactName ?? '—' },
-      { label: 'Sito web', value: s.website ?? '—' },
-      { label: 'Indirizzo', value: this.formatAddress(s) },
-      { label: 'Modalità di pagamento', value: s.paymentMethod ?? '—' },
-      { label: 'Condizioni di pagamento', value: s.paymentTerms ?? '—' },
-      { label: 'Sconto fornitore', value: s.supplierDiscount ?? '—' },
-      { label: 'Codice IVA predefinito', value: this.vatCodeLabel(s.defaultVatCodeId) },
-      { label: 'Incaricato trasporto', value: s.transportResponsible ?? '—' },
-      { label: 'Porto', value: s.freightTerms ?? '—' },
-      { label: 'Avviso creazione documento', value: s.documentCreationAlert ?? '—' },
-      { label: 'Nota inserita nei documenti', value: s.documentCreationNote ?? '—' },
-      { label: 'Note', value: s.notes ?? '—' },
-      {
-        label: 'Anche cliente',
-        value: s.linkedCustomerId
-          ? s.linkedCustomerActive
-            ? 'Sì — stesso soggetto in anagrafica clienti'
-            : 'Ruolo cliente disattivato (storico conservato)'
-          : 'No',
-      },
-    ];
+    const voci: DetailFact[] = [];
+    if (s.documentCreationAlert) {
+      voci.push({ label: 'Avviso alla creazione documento', value: s.documentCreationAlert });
+    }
+    if (s.documentCreationNote) {
+      voci.push({ label: 'Nota nei documenti', value: s.documentCreationNote });
+    }
+    if (s.notes) {
+      voci.push({ label: 'Note', value: s.notes });
+    }
+    return voci;
   });
 
   protected readonly customerLinkPath = computed(() => {
     const customerId = this.supplier()?.linkedCustomerId;
     return customerId ? `/app/customers/${customerId}` : null;
   });
-
-  protected formatPrice(link: SupplierVariantLink): string {
-    if (link.lastPurchasePriceMinor == null) {
-      return '—';
-    }
-    return formatMoney({ amountMinor: link.lastPurchasePriceMinor, currencyCode: link.currency });
-  }
 
   protected goToList(): void {
     void this.router.navigate([this.listPath]);
@@ -183,16 +243,11 @@ export class SupplierDetailComponent {
     }
   }
 
-  private formatAddress(s: Supplier): string {
-    const parts = [
-      s.addressLine1,
-      s.addressLine2,
-      [s.postalCode, s.city].filter(Boolean).join(' '),
-      s.province,
-      s.countryCode,
-    ].filter((part) => part?.trim());
-    return parts.length ? parts.join(', ') : '—';
-  }
+  /*
+    ⛔ **Qui c'era `formatAddress`**, che univa via, CAP, città, provincia e
+    paese in una riga sola. Tolto il 01/09/2026 con la divisione a campi: era
+    rimasto senza chiamanti, e nessun lint lo dice per un metodo privato.
+  */
 
   private toErrorState(err: unknown): DetailState {
     if (isAppError(err) && err.kind === AppErrorKind.NotFound) {

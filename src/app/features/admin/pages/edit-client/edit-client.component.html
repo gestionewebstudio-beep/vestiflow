@@ -71,7 +71,13 @@
               type="text"
               formControlName="legalName"
               autocomplete="organization"
+              [attr.aria-invalid]="showError('legalName')"
             />
+            @if (showError('legalName')) {
+              <span class="edit-client__field-error"
+                >Accorcia la ragione sociale: massimo 160 caratteri.</span
+              >
+            }
           </label>
         </section>
 
@@ -194,7 +200,13 @@
               class="edit-client__input"
               type="text"
               formControlName="storeName"
+              [attr.aria-invalid]="showError('storeName')"
             />
+            @if (showError('storeName')) {
+              <span class="edit-client__field-error"
+                >Accorcia il nome del negozio: massimo 120 caratteri.</span
+              >
+            }
           </label>
 
           <div
@@ -315,12 +327,16 @@
       </div>
     </section>
 
-    <app-confirm-dialog
+    <!--
+      ⭐ **Due conferme anche qui.** Aveva la conferma singola, e di tutte le
+      eliminazioni dell'app è la più grave: porta via un intero cliente con
+      prodotti, giacenze, ordini, utenti e credenziali. Era l'unica pagina con
+      quella portata e un solo passaggio.
+    -->
+    <app-delete-confirm
       [(open)]="deleteDialogOpen"
       title="Eliminare il cliente?"
-      [message]="deleteConfirmMessage()"
-      confirmLabel="Elimina definitivamente"
-      [danger]="true"
+      [consequence]="deleteConfirmMessage()"
       [busy]="deleteLoading()"
       (confirmed)="confirmDelete()"
     />

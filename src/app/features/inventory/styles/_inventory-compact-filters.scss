@@ -41,6 +41,21 @@
     }
   }
 
+  /*
+    ⚠️ Un select **a contenuto** (`fitContent`) non legge `--select-menu-width`:
+    si dimensiona sull’etichetta più lunga. Qui però il campo può stringersi
+    fino a 9rem quando i filtri vanno a capo, e il trigger ci finisce dentro
+    TAGLIATO — misurato sul registro Movimenti, dove «Ultimi 30 giorni» si
+    leggeva «Ultimi …» e il periodo attivo diventava indecifrabile.
+
+    In una riga di filtri che va a capo, un controllo riempie la propria cella:
+    è la cella a dire quanto è largo, non il suo testo.
+  */
+  .#{$block}__field app-select-menu.select-menu-host--fit {
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+
   .#{$block}__filters-action {
     display: flex;
     flex-direction: column;

@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import {
   INVENTORY_SECTION_PERMISSIONS,
@@ -10,45 +11,46 @@ import {
 export const inventoryRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Magazzino',
+    title: 'Magazzino',
     loadComponent: () =>
       import('./inventory-levels.component').then((m) => m.InventoryLevelsComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS, reuse: true },
   },
   {
     path: 'situation',
-    title: 'VestiFlow · Situazione magazzino',
+    title: 'Situazione magazzino',
     loadComponent: () =>
       import('./inventory-situation.component').then((m) => m.InventorySituationComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS, reuse: true },
   },
   {
     path: 'lookup',
-    title: 'VestiFlow · Cerca giacenza',
+    title: 'Cerca giacenza',
     loadComponent: () => import('./stock-lookup.component').then((m) => m.StockLookupComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS, reuse: true },
   },
   {
     path: 'movements',
-    title: 'VestiFlow · Movimenti di magazzino',
+    title: 'Movimenti di magazzino',
     loadComponent: () =>
       import('./stock-movements.component').then((m) => m.StockMovementsComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: INVENTORY_SECTION_PERMISSIONS, reuse: true },
   },
   {
     path: 'movements/new',
-    title: 'VestiFlow · Registra movimento',
+    title: 'Registra movimento',
     loadComponent: () => import('./movement-form.component').then((m) => m.MovementFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.InventoryManage },
   },
   {
     path: 'import',
-    title: 'VestiFlow · Importa giacenze CSV',
+    title: 'Importa giacenze CSV',
     loadComponent: () =>
       import('./inventory-import.component').then((m) => m.InventoryImportComponent),
     canActivate: [tenantPermissionGuard],
@@ -56,7 +58,7 @@ export const inventoryRoutes: Routes = [
   },
   {
     path: 'counts/new',
-    title: 'VestiFlow · Nuovo inventario',
+    title: 'Nuovo inventario',
     loadComponent: () =>
       import('./inventory-count-new.component').then((m) => m.InventoryCountNewComponent),
     canActivate: [tenantPermissionGuard],
@@ -64,7 +66,7 @@ export const inventoryRoutes: Routes = [
   },
   {
     path: 'counts/:id',
-    title: 'VestiFlow · Inventario',
+    title: 'Dettaglio inventario',
     loadComponent: () =>
       import('./inventory-count-detail.component').then((m) => m.InventoryCountDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -72,10 +74,10 @@ export const inventoryRoutes: Routes = [
   },
   {
     path: 'counts',
-    title: 'VestiFlow · Inventario',
+    title: 'Inventario',
     loadComponent: () =>
       import('./inventory-count-list.component').then((m) => m.InventoryCountListComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.InventoryManage },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.InventoryManage, reuse: true },
   },
 ];

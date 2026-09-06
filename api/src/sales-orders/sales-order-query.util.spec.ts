@@ -62,26 +62,69 @@ describe('sales-order-query.util', () => {
     });
   });
 
-  it('stato «annullato» filtra sugli ordini con cancelledAt', () => {
-    const blocks = andBlocks(buildSalesOrderWhere('tenant-1', { state: 'cancelled' }));
-    expect(blocks).toContainEqual({ cancelledAt: { not: null } });
-  });
+  /**
+   * ⭐ **Due mondi, e restano due** (`18` §2.4-bis). Ogni voce del filtro copre
+   * sia gli ordini manuali — dove l'autorità è `commercialState` — sia quelli di
+   * canale, dove restano i campi del canale. Fonderli reinterpreterebbe dati
+   * Shopify, che è precisamente ciò che la norma vieta.
+   */
+  const ramoStato = (state: string) =>
+    andBlocks(buildSalesOrderWhere('tenant-1', { state })).find((block) =>
+      Array.isArray(block.OR),
+    )?.OR as Record<string, unknown>[] | undefined;
 
-  it('stato «concluso» copre fulfilledAt oppure fulfillmentStatus fulfilled', () => {
-    const blocks = andBlocks(buildSalesOrderWhere('tenant-1', { state: 'concluded' }));
-    const stateBlock = blocks.find((block) => block.cancelledAt === null && Array.isArray(block.OR));
-    expect(stateBlock?.OR).toEqual([
-      { fulfilledAt: { not: null } },
-      { fulfillmentStatus: 'fulfilled' },
+  it('stato «annullato»: manuale dallo stato, canale da cancelledAt', () => {
+    expect(ramoStato('cancelled')).toEqual([
+      { source: 'manual', commercialState: 'cancelled' },
+      { source: { not: 'manual' }, cancelledAt: { not: null } },
     ]);
   });
 
-  it('stato «aperto» esclude annullati e conclusi', () => {
-    const blocks = andBlocks(buildSalesOrderWhere('tenant-1', { state: 'open' }));
+  it('stato «concluso»: manuale dallo stato, canale da fulfillmentStatus', () => {
+    expect(ramoStato('concluded')).toEqual([
+      { source: 'manual', commercialState: 'concluded' },
+      {
+        source: { not: 'manual' },
+        cancelledAt: null,
+        fulfillmentStatus: 'fulfilled',
+      },
+    ]);
+  });
+
+  it('stato «aperto»: manuale Confermato, canale non evaso', () => {
+    expect(ramoStato('open')).toEqual([
+      { source: 'manual', commercialState: 'confirmed' },
+      {
+        source: { not: 'manual' },
+        cancelledAt: null,
+        fulfilledAt: null,
+        NOT: { fulfillmentStatus: 'fulfilled' },
+      },
+    ]);
+  });
+
+  /**
+   * ⭐ Nessun equivalente di canale: un ordine Shopify arriva già piazzato, non
+   * ha una fase «da confermare». La voce filtra i soli manuali, senza `OR`.
+   */
+  it('stato «da confermare» esiste solo per i manuali', () => {
+    const blocks = andBlocks(buildSalesOrderWhere('tenant-1', { state: 'to_confirm' }));
+    expect(blocks).toContainEqual({ source: 'manual', commercialState: 'to_confirm' });
+  });
+
+  /**
+   * ⛔ **L'eleggibilità è passata dallo stato, non più dal collegamento.**
+   * Qui c'era `cancelledAt: null` + `documentId: null`: il commento del codice
+   * dichiarava «è il COLLEGAMENTO a rendere un ordine non più includibile — non
+   * lo stato». Dal 28/08/2026 la regola è lo stato, e `documentId` resta come
+   * guardia d'integrità (`12` §0.4-bis).
+   */
+  it('«includibili»: stato Confermato E nessun collegamento', () => {
+    const blocks = andBlocks(buildSalesOrderWhere('tenant-1', { includable: true }));
     expect(blocks).toContainEqual({
-      cancelledAt: null,
-      fulfilledAt: null,
-      NOT: { fulfillmentStatus: 'fulfilled' },
+      source: 'manual',
+      commercialState: 'confirmed',
+      documentId: null,
     });
   });
 

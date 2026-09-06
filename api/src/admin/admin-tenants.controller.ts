@@ -7,11 +7,14 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { AuthenticatedRequest } from '../common/auth/authenticated-request';
 import { PlatformAdminGuard } from '../common/platform-admin/platform-admin.guard';
+import { actorFromProfile } from '../tenant-users/tenant-users.types';
 import type { LocationLicenseSummaryDto } from '../inventory/location-licensing.service';
 import { AdminTenantsService } from './admin-tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -19,7 +22,11 @@ import type { ProvisionedTenantDto } from './dto/provisioned-tenant.dto';
 import type { TenantDetailDto } from './dto/tenant-detail.dto';
 import type { TenantSummaryDto } from './dto/tenant-summary.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { CreateTenantUserDto, UpdateTenantUserDto, type TenantUserDto } from './dto/tenant-user.dto';
+import {
+  CreateTenantUserDto,
+  UpdateTenantUserDto,
+  type TenantUserDto,
+} from '../tenant-users/dto/tenant-user.dto';
 import { AdminTenantUsersService } from './admin-tenant-users.service';
 
 @Controller('admin/tenants')
@@ -81,8 +88,9 @@ export class AdminTenantsController {
   createTenantUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateTenantUserDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<TenantUserDto> {
-    return this.adminTenantUsers.createUser(id, dto);
+    return this.adminTenantUsers.createUser(id, dto, actorFromProfile(request.appUser));
   }
 
   @Patch(':id/users/:userId')
@@ -90,15 +98,17 @@ export class AdminTenantsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: UpdateTenantUserDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<TenantUserDto> {
-    return this.adminTenantUsers.updateUser(id, userId, dto);
+    return this.adminTenantUsers.updateUser(id, userId, dto, actorFromProfile(request.appUser));
   }
 
   @Delete(':id/users/:userId')
   deleteTenantUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
+    @Req() request: AuthenticatedRequest,
   ): Promise<void> {
-    return this.adminTenantUsers.deleteUser(id, userId);
+    return this.adminTenantUsers.deleteUser(id, userId, actorFromProfile(request.appUser));
   }
 }

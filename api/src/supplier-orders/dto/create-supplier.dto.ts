@@ -1,4 +1,12 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateSupplierDto {
   @IsOptional()
@@ -34,6 +42,40 @@ export class CreateSupplierDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  /**
+   * Stato del RUOLO fornitore. Spento, il fornitore esce dalle tendine dei
+   * documenti nuovi (`listAll` filtra `isActive: true`) e non si perde niente:
+   * ordini, documenti e collegamenti restano — `ANAGRAFICA-CANONICA-SPEC`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  /** Cellulare: secondo recapito del soggetto (Danea: «Cell.»). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  mobilePhone?: string;
+
+  /**
+   * IBAN del fornitore: il conto su cui SI PAGA lui.
+   *
+   * ⚠️ 34 caratteri è il massimo dello standard, ed è l'unico controllo qui: la
+   * forma la verifica il client come AVVISO non bloccante
+   * (`regole-gestionale`), perché un IBAN estero o ancora incompleto deve
+   * poter essere salvato.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(34)
+  iban?: string;
+
+  /** «Ns. banca»: la NOSTRA banca con cui si paga questo fornitore. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  ourBankName?: string;
 
   @IsOptional()
   @IsString()

@@ -17,13 +17,15 @@ import type { AppError } from '@core/models/app-error.model';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord, DocumentRevision } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
-import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import { canManageDocumentType } from '@core/permissions/document-permission.util';
+import { canManageDocFamily } from '@core/permissions/tenant-permissions.util';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
@@ -32,7 +34,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
+import { DocumentLinesTableComponent } from '@domain/documents/components/document-lines-table/document-lines-table.component';
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import {
   documentReferenceLabel,
@@ -41,18 +43,21 @@ import {
   documentStatusLabelForType,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
+import { isGoodsReceiptDocumentType } from '@domain/documents/utils/document-goods-receipt.util';
 import { isPrintableDocumentType } from './models/document-print.util';
-import { documentDuplicateFormRoute, documentEditPath } from './models/document-routing.util';
-import { isTransferDocumentType } from './models/document-transfer.util';
+import {
+  documentDuplicateFormRoute,
+  documentEditPath,
+} from '@domain/documents/utils/document-routing.util';
+import { isTransferDocumentType } from '@domain/documents/utils/document-transfer.util';
 import {
   isAdjustmentDocumentType,
   isManualUnloadDocumentType,
   isStockOperationDocumentType,
-} from './models/document-stock-operation.util';
+} from '@domain/documents/utils/document-stock-operation.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import {
-  isInvoiceDraftDocumentType,
+  isInvoiceDocumentType,
   isProformaDocumentType,
   isQuoteDocumentType,
   isSalesDdtDocumentType,
@@ -66,6 +71,7 @@ import {
 } from '@domain/documents/models/document-transport.util';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
+import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 import { take } from 'rxjs';
 
 type ActionState =
@@ -80,30 +86,8 @@ type DetailState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Tipi documento che espongono l'azione «Inviata al commercialista»
- * (registrazione esterna). Nessun altro tipo mostra azioni di ciclo di vita
- * fiscale: per abilitarne uno nuovo basta aggiungerlo a questo elenco.
- */
-const EXTERNAL_REGISTRATION_DOCUMENT_TYPES: readonly DocumentType[] = [
-  DocumentType.InvoiceDraft,
-  DocumentType.InvoiceAccompanying,
-  DocumentType.Proforma,
-] as const;
-
-function supportsExternalRegistration(type: DocumentType): boolean {
-  return (EXTERNAL_REGISTRATION_DOCUMENT_TYPES as readonly string[]).includes(type);
-}
-
-/** Etichetta dell'azione e testo del dialogo di conferma (unico per tutti i tipi). */
-const EXTERNAL_REGISTRATION_LABEL = 'Inviata al commercialista';
-const EXTERNAL_REGISTRATION_MESSAGE =
-  'Segna questo documento come inviato al commercialista per la registrazione.';
-
-/**
  * Dettaglio documento (smart, sola lettura). Espone le transizioni di stato
  * (conferma, annullamento, eliminazione) con dialogo per le azioni sensibili.
- * L'unica azione di ciclo di vita fiscale è «Inviata al commercialista», e
- * solo per i tipi in EXTERNAL_REGISTRATION_DOCUMENT_TYPES.
  */
 @Component({
   selector: 'app-document-detail',
@@ -113,6 +97,7 @@ const EXTERNAL_REGISTRATION_MESSAGE =
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -232,7 +217,7 @@ export class DocumentDetailComponent {
     if (isStockOperationDocumentType(doc.type)) {
       const locationName = this.locationLabel(doc.locationId);
       if (locationName) {
-        facts.push({ label: 'Location', value: locationName });
+        facts.push({ label: 'Sede', value: locationName });
       }
       if (isAdjustmentDocumentType(doc.type) && doc.adjustmentDirection) {
         facts.push({
@@ -255,6 +240,12 @@ export class DocumentDetailComponent {
     }
     if (doc.billingCause) {
       facts.push({ label: 'Causale', value: doc.billingCause });
+    }
+    // Documento della controparte (tipo + numero + data): una voce sola, e solo
+    // se almeno uno dei tre campi è compilato.
+    const counterpartyDoc = counterpartyDocLabel(doc);
+    if (counterpartyDoc) {
+      facts.push({ label: 'Documento controparte', value: counterpartyDoc });
     }
     if (doc.externalRef && !doc.linkedSalesOrder) {
       facts.push({ label: 'Riferimento collegato', value: doc.externalRef });
@@ -302,9 +293,6 @@ export class DocumentDetailComponent {
         numeric: true,
       });
     }
-    if (doc.externalDocNumber) {
-      facts.push({ label: 'Doc. esterno', value: doc.externalDocNumber });
-    }
     if (doc.registrationDate) {
       facts.push({
         label: 'Registrato il',
@@ -320,28 +308,14 @@ export class DocumentDetailComponent {
     return facts;
   });
 
-  protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
-
   /**
-   * «Inviata al commercialista» (registrazione esterna): unica azione di ciclo
-   * di vita fiscale esposta, e solo per i tipi in
-   * EXTERNAL_REGISTRATION_DOCUMENT_TYPES. Gli altri documenti non mostrano
-   * alcuna azione di stato.
-   *
-   * Gli stati Stampato/Inviato non sono più raggiungibili dall'interfaccia ma
-   * restano ammessi qui per i documenti storici già in quegli stati.
+   * Azioni del documento aperto (modifica, annulla, elimina, converti): la
+   * famiglia del SUO tipo, non «almeno una famiglia». Finché il documento non
+   * è caricato non si promette nulla.
    */
-  protected readonly canRegisterExternal = computed(() => {
-    const doc = this.document();
-    if (!this.canManage() || !doc || !supportsExternalRegistration(doc.type)) {
-      return false;
-    }
-    return (
-      doc.status === DocumentStatus.Confirmed ||
-      doc.status === DocumentStatus.Printed ||
-      doc.status === DocumentStatus.Sent
-    );
-  });
+  protected readonly canManage = computed(() =>
+    canManageDocumentType(this.authService.currentUser(), this.document()?.type ?? null),
+  );
 
   protected readonly canPrintLabels = computed(() => {
     const doc = this.document();
@@ -357,10 +331,12 @@ export class DocumentDetailComponent {
   protected readonly canCancel = computed(() => {
     const doc = this.document();
     if (!doc || isStoreFlowDocumentType(doc.type)) {
-      // Vendite/resi negozio: registro consultabile, gestione solo dalla cassa.
+      // ⛔ Vendita e Reso al banco: **si eliminano, non si annullano**
+      // (`11` A2). Il documento è l'unica evidenza dell'operazione, e un
+      // annullato che resta a storico occuperebbe un numero senza dire nulla.
       return false;
     }
-    // Scarico manuale (prompt Scarico manuale): niente annullamento — si
+    // Vendita manuale (prompt Vendita manuale): niente annullamento — si
     // elimina dall'elenco e le giacenze già scalate NON vengono ripristinate.
     if (isManualUnloadDocumentType(doc.type)) {
       return false;
@@ -369,11 +345,18 @@ export class DocumentDetailComponent {
   });
   protected readonly canDelete = computed(() => {
     const doc = this.document();
-    if (!doc || isStoreFlowDocumentType(doc.type)) {
+    if (!doc) {
       return false;
     }
-    // Scarico manuale: eliminabile in qualunque stato (definitiva solo sul
-    // documento, mai sulle giacenze — prompt Scarico manuale).
+    // ⭐ Vendita e Reso al banco: nascono confermati e si eliminano in
+    // qualunque stato (`11` A2, passo 14). L'API toglie i movimenti collegati
+    // alle righe e restituisce la merce; il Registro Corrispettivi, che li
+    // legge dai documenti, si aggiorna da sé.
+    if (isStoreFlowDocumentType(doc.type)) {
+      return this.canManage();
+    }
+    // Vendita manuale: eliminabile in qualunque stato (definitiva solo sul
+    // documento, mai sulle giacenze — prompt Vendita manuale).
     if (isManualUnloadDocumentType(doc.type)) {
       return this.canManage();
     }
@@ -383,19 +366,25 @@ export class DocumentDetailComponent {
     );
   });
 
-  /** Scarico manuale: l'eliminazione NON ripristina le giacenze già scalate. */
+  /** Vendita manuale: l'eliminazione NON ripristina le giacenze già scalate. */
   protected readonly deleteDialogMessage = computed(() => {
     const doc = this.document();
+    if (doc && isStoreFlowDocumentType(doc.type)) {
+      return (
+        'Il documento verrà eliminato definitivamente e le giacenze che aveva ' +
+        'movimentato torneranno com’erano. Procedere?'
+      );
+    }
     if (doc && isManualUnloadDocumentType(doc.type)) {
       return (
-        'Lo scarico manuale verrà eliminato definitivamente. Le giacenze già ' +
+        'La vendita manuale verrà eliminata definitivamente. Le giacenze già ' +
         'scalate NON verranno ripristinate. Procedere?'
       );
     }
     return 'Il documento verrà eliminato definitivamente. Procedere?';
   });
 
-  /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi negozio. */
+  /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi al banco. */
   protected readonly canDuplicate = computed(() => {
     const doc = this.document();
     return this.canManage() && doc != null && !isStoreFlowDocumentType(doc.type);
@@ -445,10 +434,13 @@ export class DocumentDetailComponent {
     return false;
   });
 
-  protected readonly canConvert = computed(() => {
+  /**
+   * Condizione di documento per la generazione: una proforma già emessa e non
+   * annullata. Il permesso non sta qui — dipende da COSA si genera.
+   */
+  private readonly convertSourceReady = computed(() => {
     const doc = this.document();
     return (
-      this.canManage() &&
       doc != null &&
       isProformaDocumentType(doc.type) &&
       doc.status !== DocumentStatus.Cancelled &&
@@ -456,13 +448,32 @@ export class DocumentDetailComponent {
     );
   });
 
+  /**
+   * Gate storico della generazione (famiglia del documento aperto): resta per
+   * l'anteprima dedicata che eredita da questo componente. Qui i due comandi
+   * usano il permesso della famiglia che verrebbe CREATA — vedi sotto.
+   */
+  protected readonly canConvert = computed(() => this.canManage() && this.convertSourceReady());
+
+  /**
+   * «Converti in fattura»: chi non gestisce le fatture non vede il
+   * comando, anche se la proforma da cui parte è sua.
+   */
+  protected readonly canConvertToInvoice = computed(
+    () =>
+      this.convertSourceReady() && canManageDocFamily(this.authService.currentUser(), 'invoice'),
+  );
+
+  /** «Converti in DDT vendita»: stesso criterio, sulla famiglia DDT di vendita. */
+  protected readonly canConvertToSalesDdt = computed(
+    () =>
+      this.convertSourceReady() && canManageDocFamily(this.authService.currentUser(), 'sales_ddt'),
+  );
+
   protected readonly canOpenPrintPreview = computed(() => {
     const doc = this.document();
     return doc != null && isPrintableDocumentType(doc.type);
   });
-
-  protected readonly registerButtonLabel = EXTERNAL_REGISTRATION_LABEL;
-  protected readonly registerDialogMessage = EXTERNAL_REGISTRATION_MESSAGE;
 
   protected readonly editButtonLabel = computed(() => {
     const doc = this.document();
@@ -480,8 +491,8 @@ export class DocumentDetailComponent {
     if (isProformaDocumentType(doc.type)) {
       return 'Modifica proforma';
     }
-    if (isInvoiceDraftDocumentType(doc.type)) {
-      return 'Modifica bozza fattura';
+    if (isInvoiceDocumentType(doc.type)) {
+      return 'Modifica fattura';
     }
     if (doc.status === DocumentStatus.Draft) {
       return 'Modifica bozza';
@@ -525,7 +536,6 @@ export class DocumentDetailComponent {
     return state.status === 'error' ? state.error : null;
   });
 
-  protected readonly registerDialogOpen = signal(false);
   protected readonly cancelDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
 
@@ -649,8 +659,8 @@ export class DocumentDetailComponent {
     URL.revokeObjectURL(url);
   }
 
-  protected convertToInvoiceDraft(): void {
-    this.runConvert(DocumentType.InvoiceDraft);
+  protected convertToInvoice(): void {
+    this.runConvert(DocumentType.Invoice);
   }
 
   protected convertToSalesDdt(): void {
@@ -672,34 +682,22 @@ export class DocumentDetailComponent {
 
   private convertTargetRoute(targetType: DocumentType): string | null {
     switch (targetType) {
-      case DocumentType.InvoiceDraft:
+      case DocumentType.Invoice:
         return '/app/documents/fattura/new';
       case DocumentType.Proforma:
         return '/app/documents/proforma/new';
       case DocumentType.SalesDdt:
-        return '/app/documents/sales-ddt/new';
+        return '/app/documents/ddt-vendita/new';
       default:
         return null;
     }
   }
 
-  protected requestRegister(): void {
-    this.registerDialogOpen.set(true);
-  }
   protected requestCancel(): void {
     this.cancelDialogOpen.set(true);
   }
   protected requestDelete(): void {
     this.deleteDialogOpen.set(true);
-  }
-
-  /**
-   * Registrazione esterna: numero e data del documento esterno restano quelli
-   * già acquisiti sul documento, il dialogo è una semplice conferma.
-   */
-  protected registerExternal(): void {
-    this.registerDialogOpen.set(false);
-    this.runAction((id) => this.service.registerExternal(id, {}));
   }
 
   protected printLabels(): void {

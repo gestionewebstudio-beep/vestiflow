@@ -15,6 +15,8 @@ export interface CustomerApiRow {
   readonly lastName: string;
   readonly email?: string | null;
   readonly phone?: string | null;
+  readonly mobilePhone?: string | null;
+  readonly iban?: string | null;
   readonly notes?: string | null;
   readonly addressLine1?: string | null;
   readonly addressLine2?: string | null;
@@ -72,6 +74,8 @@ export function mapCustomerApiRow(row: CustomerApiRow): Customer {
     lastName: row.lastName,
     email: row.email ?? undefined,
     phone: row.phone ?? undefined,
+    mobilePhone: row.mobilePhone ?? undefined,
+    iban: row.iban ?? undefined,
     notes: row.notes ?? undefined,
     address: mapAddress(row),
     companyName: row.companyName ?? undefined,

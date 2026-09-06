@@ -1,6 +1,12 @@
 <!-- doc-form--m-ref: adotta la vista mobile di riferimento (Ordine cliente)
      promossa in styles/_document-form-mobile.scss. -->
 <section class="doc-form doc-form--m-ref">
+  <!-- ⭐ **L'avviso comune.** Otto righe byte-identiche vivevano in sei
+       maschere: stesso tono, stesso messaggio, stessa etichetta di congedo.
+  
+       ⚠️ Serve, e il perche' e' nel componente: senza, resta una maschera
+       VUOTA, indistinguibile da un documento nuovo legittimo. -->
+  <app-document-prefill-error [store]="prefillError" />
   <div class="doc-form__head-row">
     <app-back-button />
     <h1 class="doc-form__title">{{ pageTitle() }}</h1>
@@ -11,29 +17,34 @@
       Rettifica di magazzino documentale: alla conferma vengono generati movimenti di tipo
       adjustment con motivo obbligatorio.
     } @else {
-      Scarico manuale di magazzino: alla conferma vengono generate uscite di stock con motivo
+      Vendita manuale di magazzino: alla conferma vengono generate uscite di stock con motivo
       obbligatorio.
     }
   </p>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="2" [rows]="6" />
-  } @else if (loadError()) {
-    <app-error-state
-      description="Impossibile caricare il documento."
-      retryLabel="Riprova"
-      (retry)="reload()"
-    />
-  } @else if (notEditable()) {
-    <app-empty-state
-      icon="pi-lock"
-      title="Documento non modificabile"
-      description="Solo bozze o documenti confermati (non bloccati) possono essere modificati."
-      ctaLabel="Torna al registro"
-      (ctaClick)="cancel()"
-    />
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+  
+         ⛔ Qui c'erano tre rami scritti a mano — scheletro, errore,
+         non modificabile — identici nell'ORDINE in sette maschere su
+         sette, ma con tre descrizioni d'errore diverse e uno scheletro
+         da cinque righe invece di sei.
+  
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui: dipende
+         dal documento, e il livello comune non deve conoscerlo. -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non modificabile"
+        description="Solo bozze o documenti confermati (non bloccati) possono essere modificati."
+        ctaLabel="Torna al registro"
+        (ctaClick)="cancel()"
+      />
+    </app-document-page-state>
   } @else {
     <form
+      appNoImplicitSubmit
       class="doc-form__form"
       [class.doc-form__form--readonly]="formReadOnly()"
       [formGroup]="form"
@@ -42,154 +53,120 @@
       @if (formReadOnly()) {
         <app-edit-lock-banner (unlock)="requestUnlock()" />
       }
+
+      <!-- Stampa: chi modifica una rettifica o uno scarico sta qui, non nel
+           dettaglio. Il foglio esce senza colonne prezzo — le righe di questi
+           documenti nascono con il valore a zero. -->
+      @if (canExportPdf()) {
+        <div class="doc-form__post-actions" aria-label="Azioni documento salvato">
+          <app-document-print-actions
+            [documentId]="editDocumentId()!"
+            [reference]="loadedReference()"
+            [documentDate]="loadedDocumentDate()"
+            (failed)="onPrintFailed($event)"
+          />
+        </div>
+      }
+
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata a celle unite (FASE 1: la forma dell'Ordine cliente). -->
-        <div class="doc-form__header">
-          <!-- Vista mobile (M1): la testata è un solo pannello apribile. Vive
-               nel DOM accanto alla griglia desktop e si accende sotto lg —
-               stesso schema tabella/card delle righe. Aria-label distinti dai
-               gemelli desktop: le query (spec e screen reader) restano uniche. -->
-          <div class="doc-panels">
-            <app-document-mobile-panel
-              [title]="mobilePanelTitle()"
-              [summaryParts]="mobilePanelSummaryParts()"
-              [icon]="isAdjustment() ? 'pi-sliders-h' : 'pi-minus-circle'"
-              [statusText]="mobilePanelStatus()"
-              [statusReady]="mobileHeaderReady()"
-              [initiallyOpen]="true"
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA.** Qui c'erano 163 righe: gli
+             stessi campi scritti due volte, una nel pannello mobile e una nella
+             griglia desktop, con le stesse opzioni e gli stessi gestori.
+             Cambiavano l'identificativo (`so-m-*` contro `so-*`) e la formula
+             dell'aria-label — «Location documento» contro «Location»,
+             «Direzione della rettifica» contro «Direzione rettifica». Non erano
+             due viste: era la stessa vista scritta due volte, e ogni correzione
+             ne raggiungeva una sola. Ora i campi si dichiarano una volta e il
+             componente comune li monta nella veste viva. -->
+        <app-document-header
+          class="doc-form__header"
+          [title]="mobilePanelTitle()"
+          [summaryParts]="mobilePanelSummaryParts()"
+          [icon]="isAdjustment() ? 'pi-sliders-h' : 'pi-minus-circle'"
+          [statusText]="mobilePanelStatus()"
+          [statusReady]="mobileHeaderReady()"
+          sectionTitle="Dati principali"
+          [dense]="true"
+        >
+          <!-- Location: è il campo che tiene ferme le righe, quindi porta il
+               colore del «campo in attesa» finché resta vuoto. Prima lo aveva
+               solo la griglia desktop: sul telefono l'operatore non vedeva
+               quale campo stesse bloccando la tabella. -->
+          <app-document-header-field
+            label="Location"
+            [waiting]="fieldWaiting()"
+            [invalid]="fieldInvalid('locationId')"
+            errorId="so-location-error"
+          >
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Location"
+              placeholder="Seleziona location…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('locationId')"
+              describedBy="so-location-error"
+              (valueChange)="onLocationSelect($event)"
+            />
+          </app-document-header-field>
+
+          @if (isAdjustment()) {
+            <app-document-header-field
+              label="Direzione rettifica"
+              [invalid]="fieldInvalid('adjustmentDirection')"
+              errorId="so-direction-error"
             >
-              <p class="doc-panel__section">Dati principali</p>
-
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Location</span>
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Location documento"
-                    placeholder="Seleziona location…"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('locationId')"
-                    describedBy="so-m-location-error"
-                    (valueChange)="onLocationSelect($event)"
-                  />
-                  @if (fieldInvalid('locationId')) {
-                    <p id="so-m-location-error" class="doc-form__error">Seleziona la location.</p>
-                  }
-                </div>
-
-                @if (isAdjustment()) {
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Direzione rettifica</span>
-                    <app-select-menu
-                      [options]="directionOptions"
-                      [value]="form.controls.adjustmentDirection.value"
-                      ariaLabel="Direzione della rettifica"
-                      placeholder="Seleziona direzione…"
-                      [fullWidth]="true"
-                      [invalid]="fieldInvalid('adjustmentDirection')"
-                      describedBy="so-m-direction-error"
-                      (valueChange)="onDirectionSelect($event)"
-                    />
-                    @if (fieldInvalid('adjustmentDirection')) {
-                      <p id="so-m-direction-error" class="doc-form__error">
-                        Seleziona la direzione.
-                      </p>
-                    }
-                  </div>
-                }
-
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="so-m-date">Data documento</label>
-                  <app-date-input
-                    inputId="so-m-date"
-                    formControlName="documentDate"
-                    ariaLabel="Data documento"
-                    [fullWidth]="true"
-                  />
-                </div>
-
-                <app-document-number-field
-                  numberInputId="so-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="seriesOptions()"
-                  [canManageSeries]="true"
-                  (numberChange)="onDocumentNumberChange($event)"
-                  (seriesChange)="onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-              </div>
-            </app-document-mobile-panel>
-          </div>
-
-          <!-- Griglia classica: solo desktop. Sotto lg la nasconde il foglio
-               del componente (stesso meccanismo di #co-header-details). -->
-          <div class="stock-operation-form__header-desktop">
-            <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-              <div class="doc-form__field">
-                <span class="doc-form__label">Location</span>
-                <app-select-menu
-                  [options]="locationOptions()"
-                  [value]="form.controls.locationId.value"
-                  ariaLabel="Location"
-                  placeholder="Seleziona location…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="fieldInvalid('locationId')"
-                  describedBy="so-location-error"
-                  (valueChange)="onLocationSelect($event)"
-                />
-                @if (fieldInvalid('locationId')) {
-                  <p id="so-location-error" class="doc-form__error">Seleziona la location.</p>
-                }
-              </div>
-
-              @if (isAdjustment()) {
-                <div class="doc-form__field">
-                  <span class="doc-form__label">Direzione rettifica</span>
-                  <app-select-menu
-                    [options]="directionOptions"
-                    [value]="form.controls.adjustmentDirection.value"
-                    ariaLabel="Direzione rettifica"
-                    placeholder="Seleziona direzione…"
-                    [compact]="true"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('adjustmentDirection')"
-                    describedBy="so-direction-error"
-                    (valueChange)="onDirectionSelect($event)"
-                  />
-                  @if (fieldInvalid('adjustmentDirection')) {
-                    <p id="so-direction-error" class="doc-form__error">Seleziona la direzione.</p>
-                  }
-                </div>
-              }
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="so-date">Data documento</label>
-                <app-date-input
-                  inputId="so-date"
-                  formControlName="documentDate"
-                  ariaLabel="Data documento"
-                  [compact]="true"
-                  [fullWidth]="true"
-                />
-              </div>
-
-              <!-- Identificativo del documento: Data + Numero + Serie. -->
-              <app-document-number-field
-                numberInputId="so-number"
-                [number]="form.controls.documentNumber.value"
-                [series]="form.controls.series.value"
-                [seriesOptions]="seriesOptions()"
-                [canManageSeries]="true"
-                (numberChange)="onDocumentNumberChange($event)"
-                (seriesChange)="onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
+              <app-select-menu
+                [options]="directionOptions"
+                [value]="form.controls.adjustmentDirection.value"
+                ariaLabel="Direzione rettifica"
+                placeholder="Seleziona direzione…"
+                [compact]="true"
+                [fullWidth]="true"
+                [invalid]="fieldInvalid('adjustmentDirection')"
+                describedBy="so-direction-error"
+                (valueChange)="onDirectionSelect($event)"
               />
-            </div>
-          </div>
-        </div>
+            </app-document-header-field>
+          }
+
+          <!-- Il messaggio dice il formato atteso e non ripete il segnaposto:
+               è la ragione per cui questo campo sovrascrive il testo d'errore
+               predefinito del componente («Campo obbligatorio.»). -->
+          <app-document-header-field
+            label="Data documento"
+            [invalid]="fieldInvalid('documentDate')"
+            errorId="so-date-error"
+            errorMessage="Inserisci la data del documento nel formato GG/MM/AAAA."
+          >
+            <app-date-input
+              inputId="so-date"
+              formControlName="documentDate"
+              ariaLabel="Data documento"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('documentDate')"
+              describedBy="so-date-error"
+            />
+          </app-document-header-field>
+
+          <!-- Identificativo del documento: Data + Numero + Serie. Sul
+               documento nuovo il numero è dichiarato come proposta finché
+               l'operatore non lo tocca: lo prende chi salva per primo. -->
+          <app-document-number-field
+            numberInputId="so-number"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="numberIsProposal()"
+            [series]="form.controls.series.value"
+            [seriesOptions]="numbering.seriesOptions()"
+            [canManageSeries]="puoConfigurareDocumenti()"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
+            (manageSeries)="seriesDialogOpen.set(true)"
+          />
+        </app-document-header>
 
         <section class="doc-form__lines" aria-labelledby="so-lines-title">
           <div class="doc-form__lines-head">
@@ -201,7 +178,8 @@
               }
             </h2>
             <div class="doc-form__lines-tools">
-              <app-button type="button" (click)="addLine()">
+              <app-table-column-picker [viewId]="lineColumnsView" />
+              <app-button type="button" [disabled]="headerGateActive()" (click)="addLine()">
                 <i class="pi pi-plus" aria-hidden="true"></i>
                 Aggiungi riga
               </app-button>
@@ -209,200 +187,195 @@
           </div>
 
           <!-- Desktop (lg+): righe in tabella, come l'Ordine cliente. -->
-          <div class="doc-form__table-wrap">
-            <table class="doc-form__table">
-              <thead>
-                <tr>
-                  <th scope="col">Variante / SKU</th>
-                  <th scope="col">Descrizione</th>
-                  <th scope="col" class="doc-form__num">Quantità</th>
-                  <th scope="col">Seriali</th>
-                  <th scope="col" class="doc-form__cell--actions">
-                    <span class="sr-only">Azioni</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody formArrayName="lines">
-                @for (line of lines.controls; track line; let i = $index) {
-                  <tr [formGroupName]="i">
-                    <td class="doc-form__cell doc-form__cell--editable">
-                      <app-select-menu
-                        [options]="variantOptions()"
-                        [value]="line.controls.variantId.value"
-                        ariaLabel="Variante"
-                        placeholder="Cerca SKU o articolo…"
-                        [compact]="true"
-                        [fullWidth]="true"
-                        [searchable]="true"
-                        searchPlaceholder="Min. 2 caratteri…"
-                        searchAriaLabel="Cerca variante"
-                        [invalid]="lineFieldInvalid(i, 'variantId')"
-                        (searchChange)="variantSearchDraft.set($event)"
-                        (valueChange)="onVariantSelect(i, $event)"
-                      />
-                      @if (lineFieldInvalid(i, 'variantId')) {
-                        <p class="doc-form__error">Seleziona una variante.</p>
-                      }
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--editable">
-                      <input
-                        class="doc-form__input doc-form__input--table"
-                        type="text"
-                        formControlName="description"
-                        aria-label="Descrizione"
-                      />
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                      <input
-                        class="doc-form__input doc-form__input--table doc-form__input--num"
-                        type="number"
-                        min="1"
-                        step="1"
-                        formControlName="quantity"
-                        aria-label="Quantità"
-                      />
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--editable">
-                      <input
-                        class="doc-form__input doc-form__input--table"
-                        type="text"
-                        formControlName="serialNumbersText"
-                        placeholder="SN001, SN002"
-                        autocomplete="off"
-                        aria-label="Seriali"
-                      />
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--actions">
-                      <button
-                        type="button"
-                        class="doc-form__line-remove"
-                        [disabled]="lines.length <= 1"
-                        aria-label="Rimuovi riga"
-                        (click)="removeLine(i)"
-                      >
-                        <i class="pi pi-trash" aria-hidden="true"></i>
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+          @if (!compactView() && !headerGateActive()) {
+            <div class="doc-form__table-wrap">
+              <table class="doc-form__table">
+                <thead>
+                  <!-- ⭐ **L'intestazione è la COMPONENTE COMUNE**, come nel
+                       Trasferimento: la Rettifica ha la stessa riga campo per
+                       campo, e per questo condivide anche il config colonne
+                       (`stock-movement-line-columns`).
 
-          <!-- Sotto lg la tabella sparisce (doc-form__table-wrap è desktop-only):
-               qui la stessa riga resta editabile come lista di campi. Stessi
-               controlli, stesso FormArray. -->
-          <div class="doc-form__cards" formArrayName="lines">
-            @for (line of lines.controls; track line; let i = $index) {
-              <div class="doc-form__line-block">
-                <div class="doc-form__line" [formGroupName]="i">
-                  <div class="doc-form__line-field doc-form__line-field--variant">
-                    <span class="doc-form__label">Variante / SKU</span>
-                    <app-select-menu
-                      [options]="variantOptions()"
-                      [value]="line.controls.variantId.value"
-                      ariaLabel="Variante"
-                      placeholder="Cerca SKU o articolo…"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Min. 2 caratteri…"
-                      searchAriaLabel="Cerca variante"
-                      [invalid]="lineFieldInvalid(i, 'variantId')"
-                      (searchChange)="variantSearchDraft.set($event)"
-                      (valueChange)="onVariantSelect(i, $event)"
-                    />
-                    @if (lineFieldInvalid(i, 'variantId')) {
-                      <p class="doc-form__error">Seleziona una variante.</p>
-                    }
-                  </div>
-
-                  <div class="doc-form__line-field">
-                    <label class="doc-form__label" [for]="'so-desc-' + i">Descrizione</label>
-                    <input
-                      [id]="'so-desc-' + i"
-                      class="doc-form__input"
-                      type="text"
-                      formControlName="description"
-                    />
-                  </div>
-
-                  <div class="doc-form__line-field doc-form__line-field--qty">
-                    <label class="doc-form__label" [for]="'so-qty-' + i">Quantità</label>
-                    <input
-                      [id]="'so-qty-' + i"
-                      class="doc-form__input doc-form__input--qty"
-                      type="number"
-                      min="1"
-                      step="1"
-                      formControlName="quantity"
-                    />
-                  </div>
-
-                  <div class="doc-form__line-field doc-form__line-field--serials">
-                    <label class="doc-form__label" [for]="'so-serials-' + i">Seriali</label>
-                    <input
-                      [id]="'so-serials-' + i"
-                      class="doc-form__input"
-                      type="text"
-                      formControlName="serialNumbersText"
-                      placeholder="SN001, SN002"
-                      autocomplete="off"
-                    />
-                  </div>
-
-                  @if (lines.length > 1) {
-                    <app-button type="button" variant="ghost" (click)="removeLine(i)">
-                      Rimuovi
-                    </app-button>
+                       ⛔ Qui c'erano 10 `<th>` scritti a mano. -->
+                  <tr
+                    app-document-line-head
+                    [indexColumnWidth]="lineIndexColumnWidth()"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    [columnWidth]="lineColumnWidthFn"
+                    [columnMinWidth]="lineColumnMinWidthFn"
+                    [sortable]="true"
+                    [sortColumn]="lineSort.column()"
+                    [sortDirection]="lineSort.direction()"
+                    (sortToggled)="onRowSortToggled($event)"
+                    (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
+                    (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
+                  ></tr>
+                </thead>
+                <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
+                   spegne qui: il fieldset disabilitato ferma i controlli del form,
+                   non il drag & drop, che controllo non è. -->
+                <tbody
+                  formArrayName="lines"
+                  cdkDropList
+                  [cdkDropListDisabled]="formReadOnly()"
+                  (cdkDropListDropped)="onLineDrop($event)"
+                >
+                  @for (line of lines.controls; track line; let i = $index) {
+                    <!-- ⭐ **La riga è la COMPONENTE COMUNE.** Qui c'erano 9
+                         `<td>` scritti a mano. -->
+                    <tr
+                      app-document-line-row
+                      class="doc-form__table-row"
+                      cdkDrag
+                      [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
+                      [formGroupName]="i"
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      idPrefix="so"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [identityColumnCount]="3"
+                      [dragHandle]="true"
+                      [quantityMin]="1"
+                      (codeChanged)="onRowCodeChanged(i, $event)"
+                      (codeFocused)="onRowCodeFocused(i, $event)"
+                      (codeBlurred)="onLineCodeBlur(i)"
+                      (codeCommitted)="onRowCodeCommitted(i, $event)"
+                      (productNameChanged)="onLineProductNameChange(i, $event)"
+                      (productFocused)="onLineProductFocus(i)"
+                      (productBlurred)="onLineProductBlur(i)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                      (suggestionNavigated)="onRowSuggestionNavigated($event)"
+                      (escapePressed)="onLineSearchEscape(i)"
+                      (fieldKeydown)="lineFocus.handleKeydownIfMine(i, $event.field, $event.value)"
+                      (fieldAdvance)="lineFocus.nextIfMine(i, $event)"
+                      (fieldRetreat)="lineFocus.previousIfMine(i, $event)"
+                      (rowAdvance)="lineFocus.rowDownIfMine(i, $event)"
+                      (rowRetreat)="lineFocus.rowUpIfMine(i, $event)"
+                      (removeRequested)="removeLine(i)"
+                    ></tr>
                   }
-                </div>
-              </div>
-            }
-          </div>
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <!--
+            Vista mobile: le righe come card condivise. Esclusiva della
+            tabella (§4.11): sotto la soglia esiste solo questa.
+          -->
+          @if (compactView() && !headerGateActive()) {
+            <div class="doc-form__cards">
+              @for (line of lines.controls; track line; let i = $index) {
+                <!-- ⭐ **La card è la COMPONENTE COMUNE.** Qui c'era
+                     `app-stock-movement-line-card`, un involucro locale che
+                     riscriveva a mano i campi della riga: al mobile era quello
+                     che le `<td>` scritte a mano erano al desktop.
+
+                     ⚠️ Niente prezzo e niente totale: la striscia si adatta da
+                     sé e resta la sola quantità. Un movimento sposta o corregge
+                     una giacenza, non vende e non compra. -->
+                <app-document-line-card
+                  [lineIndex]="i"
+                  [open]="isLineCardOpen(i)"
+                  [complete]="lineCardHead(i).complete"
+                  [readOnly]="formReadOnly()"
+                  [canRemove]="lines.length > 1"
+                  [title]="lineCardHead(i).title"
+                  [variantLabel]="lineCardHead(i).variantLabel"
+                  [meta]="lineCardHead(i).meta"
+                  [alert]="lineCardHead(i).alert"
+                  (toggled)="toggleLineCard(i)"
+                  (removeRequested)="removeLine(i)"
+                  (removed)="removeLine(i)"
+                >
+                  <app-document-line-card-strip
+                    cardControls
+                    [group]="lineGroup(i)"
+                    [lineIndex]="i"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    [view]="lineRowView(i)"
+                    [readOnly]="formReadOnly()"
+                    [quantityMin]="1"
+                  />
+                  <app-document-line-card-body
+                    cardBody
+                    [group]="lineGroup(i)"
+                    [lineIndex]="i"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    idPrefix="so"
+                    [view]="lineRowView(i)"
+                    [readOnly]="formReadOnly()"
+                    (codeChanged)="onRowCodeChanged(i, $event)"
+                    (codeFocused)="onRowCodeFocused(i, $event)"
+                    (codeBlurred)="onMobileCodeBlur(i, $any($event))"
+                    (codeCommitted)="commitCodeLookup(i, $any($event))"
+                    (productNameChanged)="onLineProductNameChange(i, $event)"
+                    (productFocused)="onLineProductFocus(i)"
+                    (productBlurred)="onLineProductBlur(i)"
+                    (productSearchOpened)="openLineProductSearch(i)"
+                    (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                  />
+                </app-document-line-card>
+              }
+            </div>
+          }
+
+          <!-- Lo stato vuoto delle righe, uno solo per le due viste e per i due
+               motivi per cui le righe non ci sono:
+               · la testata non è completa — e allora la tabella NON si mostra
+                 affatto, invece di stare lì spenta a metà tinta;
+               · la testata c'è ma nessuno ha ancora inserito niente.
+               Il titolo dice cosa manca, il testo dice come si riempie. -->
+          @if (headerGateActive()) {
+            <app-empty-state
+              [title]="linesEmptyTitle()"
+              [description]="linesEmptyDescription()"
+              icon="pi-list"
+            />
+          }
         </section>
 
         <!-- Banda finale: card note + motivo obbligatorio (nessun totale qui). -->
         <div class="doc-form__footer-grid">
           <div class="doc-form__footer-notes">
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="so-notes">Note</label>
-              <textarea
-                id="so-notes"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="notes"
-              ></textarea>
-            </div>
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="so-internal">
-                Motivo (commento interno)
-                <span class="doc-form__required" aria-hidden="true">*</span>
-              </label>
-              <textarea
-                id="so-internal"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="internalComment"
-                [attr.aria-invalid]="fieldInvalid('internalComment')"
-                aria-describedby="so-internal-error"
-              ></textarea>
-              @if (fieldInvalid('internalComment')) {
-                <p id="so-internal-error" class="doc-form__error">
-                  Il motivo è obbligatorio per tracciabilità operativa.
-                </p>
-              }
-            </div>
+            <!-- ⭐ **L'area note comune.**
+          
+                 ⛔ Qui c'erano gli stessi due campi che vivevano in cinque maschere
+                 con CINQUE etichette diverse — «Note», «Note documento», «Note
+                 (visibili in stampa)» — e una sola delle cinque diceva la cosa
+                 utile: quale dei due esce in stampa. Ora la dicono entrambi. -->
+            <app-document-notes
+              [group]="form"
+              notesId="so-notes"
+              internalId="so-internal"
+              [readOnly]="formReadOnly()"
+            />
           </div>
         </div>
 
+        <!-- Motivo del rifiuto (validazione o salvataggio fallito), accanto al
+             pulsante che non ha fatto nulla. role="alert": chi non guarda in
+             fondo alla pagina lo sente comunque. Stessa forma delle maschere
+             gemelle (arrivo merce, ordine cliente). -->
         @if (submitError(); as err) {
-          <app-error-state [description]="err.message" />
+          <p class="doc-form__submit-error" role="alert">{{ err.message }}</p>
         }
       </fieldset>
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+           ⛔ Qui c'erano DUE blocchi, scrivania e telefono, che commutavano
+           alla soglia `lg`. Ora la dichiarazione e' una e la veste la sceglie
+           il componente. -->
+      <app-document-actions
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">
             {{ lines.length }} {{ lines.length === 1 ? 'riga' : 'righe' }}
@@ -410,35 +383,30 @@
           <span class="doc-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
-        <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
-        @if (isConfirmedEdit()) {
-          <app-button type="submit" [disabled]="formReadOnly() || saving()"
-            >Salva modifiche</app-button
-          >
-        } @else {
-          <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
-        }
-      </div>
+      </app-document-actions>
 
-      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
-           fondo al documento, scorre col contenuto. Il submit resta dentro il
-           form: ripristina il salvataggio che sotto md la barra desktop
-           nasconde. -->
-      @if (!formReadOnly()) {
-        <div class="doc-form__mobile-actions">
-          <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          @if (isConfirmedEdit()) {
-            <app-button type="submit" [disabled]="saving()">Salva modifiche</app-button>
-          } @else {
-            <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
-          }
-        </div>
+      <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
+      @if (productPanelOpen()) {
+        <app-document-product-search-panel
+          [launchTerm]="productPanelTerm()"
+          [launchSeq]="productPanelSeq()"
+          [canCreate]="false"
+          (variantSelected)="onProductPanelSelected($event.variantId)"
+          (dismissed)="productPanelOpen.set(false)"
+        />
       }
     </form>
   }
+
+  <!-- Avviso del primo riordino, una volta per documento (specifica §7.1). -->
+  <app-confirm-dialog
+    [open]="lineSort.confirmOpen()"
+    title="Riordino righe"
+    message="L'ordine di inserimento non è registrato da nessuna parte: salvando, non sarà più ricostruibile. Fino al salvataggio puoi chiudere il documento senza salvare per ritrovarlo com'era."
+    confirmLabel="Riordina"
+    (confirmed)="confirmLineSort()"
+    (dismissed)="lineSort.dismiss()"
+  />
 
   <app-confirm-dialog
     [(open)]="confirmDialogOpen"
@@ -458,9 +426,9 @@
   />
 </section>
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e il documento non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"
@@ -477,4 +445,45 @@
   [type]="documentType()"
   [open]="seriesDialogOpen()"
   (closed)="onSeriesManagerClosed()"
+/>
+
+<!-- Uscita con modifiche non salvate (pattern Ordine fornitore): due sole
+     scelte, senza «Salva e chiudi» — il salvataggio passa già dal dialogo di
+     conferma rettifica/scarico e un dialogo sopra l'altro confonde. -->
+<!-- ⭐ **Il dialogo comune, non un guscio scritto a mano.**
+
+     ⛔ Qui c'erano venti righe con un `<div role="dialog">` e uno sfondo
+     proprio: NON un `<dialog>` nativo, quindi senza trappola del fuoco, senza
+     Esc e senza sfondo inerte — contro `regole-architettura`, che li chiede
+     esplicitamente per ogni modale. Lo stesso guscio viveva in undici file.
+
+     ⭐ Questa maschera aveva gia' le DUE azioni giuste: qui cambia il guscio,
+     non il contratto.
+
+     ⚠️ `emphasis="cancel"` non e' un vezzo: senza, «Esci senza salvare»
+     sarebbe il pulsante primario, cioe' quello che il pollice cerca. La
+     scelta che perde lavoro non si veste da scelta consigliata. -->
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>
+
+<!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
+     blocca — «Sì, salva comunque» prosegue col salvataggio. -->
+<app-document-chronology-warning-dialog
+  [open]="chronology.warning.isOpen()"
+  [conflicts]="chronology.warning.conflicts()"
+  [assigningNumber]="form.controls.documentNumber.value"
+  [assigningDate]="form.controls.documentDate.value"
+  [dontShowAgain]="chronology.warning.dontShowAgain()"
+  [busy]="saving()"
+  (dontShowAgainChange)="chronology.warning.toggleDontShowAgain($event)"
+  (confirmed)="chronology.confirm()"
+  (cancelled)="chronology.cancel()"
 />

@@ -23,7 +23,14 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 96,
     minWidthPx: 72,
   },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 320, minWidthPx: 160 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 280, minWidthPx: 160 },
+  // La VARIANTE accanto al nome, non dentro: «M / Rosso».
+  //
+  // ⛔ L'id e' `variantLabel`, NON `variant`: quello e' bruciato dall'alias
+  // legacy in `normalizeGoodsReceiptColumnId` (in fondo a questo file), che lo
+  // rimappa su `product`. Una colonna nuova cosi' chiamata verrebbe dirottata
+  // sul nome prodotto a ogni lettura delle preferenze, senza un errore.
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
   {
     id: 'description',
     label: 'Descrizione',
@@ -68,8 +75,10 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     id: 'unitOfMeasure',
     label: 'U.m.',
     defaultVisible: false,
-    defaultWidthPx: 44,
-    minWidthPx: 36,
+    // Larghezza cresciuta con la cella: era una colonna di sola lettura larga
+    // quanto «pz», ora ospita un campo con il suo indizio di apertura.
+    defaultWidthPx: 60,
+    minWidthPx: 48,
   },
   { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 84, minWidthPx: 56 },
   {
@@ -81,8 +90,19 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   {
     id: 'sellingPrice',
-    label: 'Prezzo al pubblico',
+    label: 'Prezzo di vendita',
     numeric: true,
+    defaultWidthPx: 96,
+    minWidthPx: 72,
+  },
+  // Solo per i tenant col modulo Shopify: la colonna NON viene nemmeno
+  // registrata altrove, quindi non compare nel selettore. Spenta di default:
+  // chi la vuole se l'accende.
+  {
+    id: 'shopifyPrice',
+    label: 'Prezzo Shopify',
+    numeric: true,
+    defaultVisible: false,
     defaultWidthPx: 96,
     minWidthPx: 72,
   },
@@ -96,14 +116,22 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   // IVA a contenuto (da chiusa mostra solo il codice, es. «22»): stretta di
   // default e restringibile fino a 40px; il pannello si allarga da solo.
-  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 56, minWidthPx: 40 },
+  { id: 'vat', label: 'IVA', defaultWidthPx: 56, minWidthPx: 40 },
   { id: 'lot', label: 'Lotto', defaultVisible: false, defaultWidthPx: 88, minWidthPx: 64 },
-  { id: 'expiry', label: 'Scadenza', defaultVisible: false, defaultWidthPx: 104, minWidthPx: 88 },
+  {
+    id: 'expiry',
+    label: 'Scadenza',
+    defaultVisible: false,
+    defaultWidthPx: 104,
+    minWidthPx: 88,
+    filter: 'date',
+  },
   { id: 'serials', label: 'Seriali', defaultVisible: false, defaultWidthPx: 112, minWidthPx: 88 },
   { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 48, minWidthPx: 40 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
-  // Solo duplica + elimina: le frecce di riordino vivono nella colonna indice.
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 72, minWidthPx: 56 },
+  // Un solo pulsante (elimina): le frecce di riordino vivono nella colonna
+  // indice. Stessa misura di `stock-movement-line-columns`.
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44, filter: false },
 ];
 
 export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
@@ -112,6 +140,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -127,6 +156,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'poOrdered',
     'poReceived',
     'poRemaining',
@@ -144,19 +174,29 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'barcode',
     'supplierCode',
     'product',
+    'variantLabel',
     'quantity',
     'unitCost',
     'vat',
     'lineTotal',
     'actions',
   ],
-  [PresetId.Accountant]: ['sku', 'product', 'quantity', 'unitCost', 'vat', 'lineTotal'],
-  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitCost', 'lineTotal'],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'variantLabel',
+    'quantity',
+    'unitCost',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Analysis]: ['sku', 'product', 'variantLabel', 'quantity', 'unitCost', 'lineTotal'],
   [PresetId.Operational]: [
     'articleCode',
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',

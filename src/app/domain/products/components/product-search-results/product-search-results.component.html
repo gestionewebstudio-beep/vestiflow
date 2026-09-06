@@ -1,6 +1,6 @@
 <ul class="psr__list">
   @for (item of results(); track item.variantId) {
-    <li>
+    <li class="psr__row">
       <button
         type="button"
         class="psr__item"
@@ -34,6 +34,21 @@
           <span class="psr__price">{{ price }}</span>
         }
       </button>
+      <!-- Seconda azione: apre la scheda dell'articolo invece di aggiungerlo.
+           La specifica §8 la chiamava «nome cliccabile», ma la riga È già un
+           pulsante e un pulsante dentro un pulsante non è markup valido: stessa
+           idea, due bersagli affiancati. -->
+      @if (canOpenDetail()) {
+        <button
+          type="button"
+          class="psr__open"
+          [attr.aria-label]="'Apri anagrafica di ' + item.title"
+          title="Apri anagrafica"
+          (click)="openDetail(item.productId)"
+        >
+          <i class="pi pi-external-link" aria-hidden="true"></i>
+        </button>
+      }
     </li>
   }
 </ul>

@@ -46,7 +46,7 @@ describe('inventory-labels.util', () => {
       expect(movementOriginLabel(MovementOrigin.Manual)).toBe('Gestionale');
       expect(movementOriginLabel(MovementOrigin.Shopify)).toBe('Shopify');
       expect(movementOriginLabel(MovementOrigin.Tiktok)).toBe('TikTok');
-      expect(movementOriginLabel(MovementOrigin.VestiflowPos)).toBe('Vendita negozio');
+      expect(movementOriginLabel(MovementOrigin.VestiflowPos)).toBe('Vendita al banco');
     });
 
     it('adatta etichetta vendita online al profilo tenant', () => {

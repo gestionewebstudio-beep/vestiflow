@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   HostListener,
   inject,
   input,
@@ -14,6 +15,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
+  filter,
   distinctUntilChanged,
   forkJoin,
   map,
@@ -27,8 +29,6 @@ import type { Observable, Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import { CatalogOrigin } from '@core/models/catalog-origin.model';
-import type { CatalogOrigin as CatalogOriginType } from '@core/models/catalog-origin.model';
 import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import {
@@ -53,6 +53,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
@@ -60,6 +61,7 @@ import { ProductImagesFieldComponent } from './components/product-images-field/p
 import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
 import { ProductQuickVariantFieldsComponent } from './components/product-quick-variant-fields/product-quick-variant-fields.component';
 import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
+import { UnitOfMeasureOptionService } from './services/unit-of-measure-option.service';
 import type { ProductEmbeddedCreatePrefill } from './models/product-form.mapper';
 import {
   emptyProductFormDraft,
@@ -92,7 +94,6 @@ import {
 } from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
 import type { VariantSummary } from './models/variant-summary.model';
-import { SHOPIFY_CATALOG_READONLY_BANNER } from './models/catalog-origin.util';
 import { ProductService } from './services/product.service';
 import type { CatalogCategory } from './services/catalog-category.service';
 import { CatalogCategoryService } from './services/catalog-category.service';
@@ -104,6 +105,19 @@ import { activeListinoSlots } from './models/product-listino.model';
 const EMPTY_FILTER_OPTIONS: ProductFilterOptions = { categories: [], brands: [], seasons: [] };
 
 const PRODUCTS_LIST_PATH = '/app/products';
+
+/**
+ * Ripiego per l'avviso di spegnimento non riuscito (docs/24 §1.10). Il testo che
+ * l'operatore legge di norma arriva dal server dentro `shopify.lastError`, con
+ * il motivo tecnico in coda: questo copre il caso in cui il campo sia stato nel
+ * frattempo sovrascritto da un webhook.
+ *
+ * ⚠️ Gemello di `SYNC_DISABLE_FAILED_MESSAGE` dell'API — stesso pattern di
+ *    `ARTICLE_CODE_REQUIRED_MESSAGE`, che vive già nei due alberi: non c'è un
+ *    pacchetto condiviso fra client e server.
+ */
+export const SYNC_DISABLE_FAILED_MESSAGE =
+  'La sincronizzazione non è stata disattivata. Il prodotto potrebbe essere ancora in vendita su Shopify';
 
 type ProductFormMode = 'create' | 'edit';
 
@@ -141,6 +155,7 @@ type FormLoadState =
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
+    InlineBannerComponent,
     TableSkeletonComponent,
     ProductGeneralStepComponent,
     ProductImagesFieldComponent,
@@ -166,6 +181,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   readonly panelDismissed = output<void>();
 
   private readonly service = inject(ProductService);
+  private readonly unitOptions = inject(UnitOfMeasureOptionService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly catalogCategoryService = inject(CatalogCategoryService);
   private readonly supplierService = inject(SupplierService);
@@ -224,17 +240,22 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   protected readonly pendingImageFiles = signal<readonly File[]>([]);
   protected readonly existingImages = signal<readonly ProductImage[]>([]);
-  protected readonly catalogOrigin = signal<CatalogOriginType>(CatalogOrigin.VestiFlow);
-  protected readonly shopifyCatalogLocked = computed(
-    () => this.mode() === 'edit' && this.catalogOrigin() === CatalogOrigin.Shopify,
-  );
-  protected readonly shopifyCatalogBanner = SHOPIFY_CATALOG_READONLY_BANNER;
   /** Titolo unico ovunque il form sia usato: mai "Nuovo/Modifica prodotto". */
   protected readonly formTitle = 'Anagrafica prodotto';
 
   // Stato submit (dichiarati prima del pipe di load, che usa resetDraft in init).
   private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
   protected readonly submitError = signal<AppError | null>(null);
+  /**
+   * Spegnere «Sincronizza con Shopify» non è arrivato fino a Shopify, quindi la
+   * disattivazione si è annullata da sé (docs/24 §1.10): il prodotto può essere
+   * ancora in vendita.
+   *
+   * ⛔ **Non è `submitError`**, ed è la distinzione che conta: la scheda È stata
+   *    salvata, nome e prezzi compresi. Dire «salvataggio fallito» manderebbe
+   *    l'operatore a rifare un lavoro che c'è già.
+   */
+  protected readonly syncDisableFailed = signal<string | null>(null);
   private readonly embeddedAttachAfterSave = signal(true);
 
   private readonly loadTick = signal(0);
@@ -244,7 +265,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     toObservable(this.loadRequest).pipe(
       switchMap(({ id }) => {
         if (!id) {
-          this.catalogOrigin.set(CatalogOrigin.VestiFlow);
           this.activeTab.set('article');
           const prefill = this.embeddedPrefill();
           const initialDraft = prefill
@@ -261,7 +281,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
             .pipe(catchError(() => of([]))),
         }).pipe(
           tap(({ product, variants, supplierLinks }) => {
-            this.catalogOrigin.set(product.catalogOrigin ?? CatalogOrigin.VestiFlow);
             const draft = productToFormDraft(product, variants);
             // Prefill del campo Fornitore: solo se l'articolo è collegato a un
             // unico fornitore (più fornitori restano gestiti dalla scheda).
@@ -395,6 +414,45 @@ export class ProductFormComponent implements CanComponentDeactivate {
   private priceModeTouched = false;
 
   constructor() {
+    /**
+     * **La predefinita del tenant precompila un articolo NUOVO. Solo quello.**
+     *
+     * ⛔ Non è retroattiva e non riscrive niente: un articolo esistente conserva
+     * la sua U.M., e rinominare o eliminare una voce dell’elenco non tocca
+     * articoli né documenti — deciso dal proprietario il 26/08/2026.
+     *
+     * ⛔ E **non** sostituisce il default della riga documento, che continua a
+     * venire dall’articolo. Sono due sorgenti diverse, e confonderle farebbe
+     * scrivere l’unità dell’azienda su una riga il cui articolo ne ha un’altra.
+     *
+     * ⚠️ Perché un `effect` e non la fabbrica della bozza: l’elenco U.M. si carica
+     * a richiesta e la prima lettura torna vuota. Seminare al momento della
+     * costruzione mancherebbe il bersaglio a freddo, in silenzio.
+     *
+     * ⚠️ E perché il `pristine` si ri-allinea solo se era pulito: seminare non è
+     * una modifica dell’operatore e non deve far comparire «modifiche non
+     * salvate» su una scheda appena aperta — ma se l’operatore aveva già scritto
+     * qualcosa, quelle modifiche non vanno inghiottite dal ri-allineamento.
+     */
+    effect(() => {
+      const predefinita = this.unitOptions.defaultCode();
+      if (!predefinita || this.mode() !== 'create') {
+        return;
+      }
+      const bozza = this.draft();
+      if (bozza.general.unitOfMeasure.trim()) {
+        return;
+      }
+      const eraPulito = this.serialize(bozza) === this.pristine();
+      const seminata = {
+        ...bozza,
+        general: { ...bozza.general, unitOfMeasure: predefinita },
+      };
+      this.draft.set(seminata);
+      if (eraPulito) {
+        this.pristine.set(this.serialize(seminata));
+      }
+    });
     // Preferenza modalità prezzi: vale anche per le schede esistenti (la
     // modalità è di chi guarda, non dell'articolo). Errore = si resta sul netto.
     this.service
@@ -407,6 +465,42 @@ export class ProductFormComponent implements CanComponentDeactivate {
           }
         },
         error: () => undefined,
+      });
+
+    /*
+      ⚠️ **Il Codice IVA di un articolo NUOVO nasce col predefinito aziendale**
+      (18/08/2026) — come valore vero, che si vede scritto nel campo.
+
+      Il predefinito **propone**, non determina: se l'operatore lo svuota,
+      l'articolo resta senza Codice IVA e nessuno glielo rimette. Un articolo
+      senza IVA è legittimo, e questa è la ragione per cui la proposta si fa
+      **una volta sola** — `take(1)` più la guardia sul campo già compilato —
+      invece che con un effetto che sorveglia il campo e lo ripristinerebbe a
+      ogni svuotamento.
+
+      Solo in creazione: in modifica il valore è quello dell'articolo, anche
+      quando è vuoto perché così è stato salvato.
+
+      `pristine` si allinea insieme al draft: la proposta non è una modifica
+      dell'operatore, e se restasse fuori un articolo appena aperto risulterebbe
+      «da salvare» senza che nessuno abbia toccato niente.
+    */
+    toObservable(this.tenantDefaultVatCodeId)
+      .pipe(
+        filter((id): id is string => Boolean(id)),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((predefinito) => {
+        if (this.productId() || this.draft().general.defaultVatCodeId) {
+          return;
+        }
+        const conIva: ProductFormDraft = {
+          ...this.draft(),
+          general: { ...this.draft().general, defaultVatCodeId: predefinito },
+        };
+        this.draft.set(conIva);
+        this.pristine.set(this.serialize(conIva));
       });
   }
 
@@ -537,9 +631,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.articleCodeTakenBy() !== null) {
       return false;
     }
-    if (this.shopifyCatalogLocked()) {
-      return true;
-    }
     // Prezzo/costo a livello articolo: prezzo di vendita obbligatorio e non
     // negativo, barrato e costo di riferimento (se valorizzati) non negativi.
     const { sellingPrice, compareAtPrice, purchasePrice } = this.draft().general;
@@ -566,9 +657,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.isSingleVariant()) {
       return true;
     }
-    if (this.shopifyCatalogLocked()) {
-      return true;
-    }
     if (this.draft().variants.length === 0) {
       return false;
     }
@@ -590,12 +678,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // intra-form + nessuno SKU gia' in uso lato "server".
   private readonly variantsValid = computed(() => {
     const variants = this.draft().variants;
-    if (this.shopifyCatalogLocked()) {
-      return (
-        variants.length > 0 &&
-        variants.every((variant) => variant.purchasePrice == null || variant.purchasePrice >= 0)
-      );
-    }
     if (variants.length === 0) {
       return false;
     }
@@ -745,14 +827,16 @@ export class ProductFormComponent implements CanComponentDeactivate {
     const draft = this.draft();
     const id = this.productId();
     const pendingFiles = [...this.pendingImageFiles()];
-    if (this.shopifyCatalogLocked() && pendingFiles.length > 0) {
-      return;
-    }
-    const baseRequest$ = id
-      ? this.service.updateProduct(id, toUpdateProductDto(draft))
-      : // Alla creazione viaggia anche la modalità con cui l'operatore ha
-        // compilato i listini: serve al backend solo per ricordargliela.
-        this.service.createProduct(toCreateProductDto(draft, this.listinoPricesIncludeVat()));
+    const updateDto = id ? toUpdateProductDto(draft) : null;
+    // Lo spegnimento della sync è l'unica modifica il cui esito si legge nella
+    // RISPOSTA e non nel codice HTTP: il salvataggio riesce comunque.
+    const spegnimentoRichiesto = updateDto?.shopifySyncEnabled === false;
+    const baseRequest$ =
+      id && updateDto
+        ? this.service.updateProduct(id, updateDto)
+        : // Alla creazione viaggia anche la modalità con cui l'operatore ha
+          // compilato i listini: serve al backend solo per ricordargliela.
+          this.service.createProduct(toCreateProductDto(draft));
 
     const supplierId = draft.general.supplierId.trim();
     const request$ = baseRequest$.pipe(
@@ -769,10 +853,23 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
     this._submitState.set('submitting');
     this.submitError.set(null);
+    this.syncDisableFailed.set(null);
 
     this.submitSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (product) => {
         this.saved.set(true);
+        // ⛔ Chiesto spento, tornato acceso: Shopify non ha archiviato e la
+        //    disattivazione si è annullata. Qui NON si naviga e NON si emette
+        //    niente al pannello: qualunque destinazione butterebbe l'avviso, e
+        //    l'operatore resterebbe convinto di aver tolto il prodotto dalla
+        //    vendita. Il ricarico rimette l'interruttore su ACCESO, che è lo
+        //    stato vero — riprovare è allora una scelta esplicita.
+        if (spegnimentoRichiesto && product.shopifySyncEnabled) {
+          this.syncDisableFailed.set(product.shopify?.lastError ?? SYNC_DISABLE_FAILED_MESSAGE);
+          this._submitState.set('idle');
+          this.reload();
+          return;
+        }
         // Carica/Scarica/Rettifica: priorità sul flusso post-salvataggio
         // (anche in embedded si va al movimento, non al dettaglio/documento).
         if (this.postSaveMovement) {

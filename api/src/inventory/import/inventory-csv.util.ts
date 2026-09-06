@@ -107,37 +107,6 @@ export function inventoryImportKey(sku: string, locationName: string): string {
   return `${sku.trim().toLowerCase()}|${locationName.trim().toLowerCase()}`;
 }
 
-export function variantOptionValueLabels(optionValues: unknown): string[] {
-  if (Array.isArray(optionValues)) {
-    return optionValues
-      .map((entry) => {
-        if (!entry || typeof entry !== 'object') {
-          return '';
-        }
-        const candidate = entry as { name?: unknown; value?: unknown };
-        const value = typeof candidate.value === 'string' ? candidate.value.trim() : '';
-        return value;
-      })
-      .filter((value) => value.length > 0);
-  }
-
-  if (optionValues && typeof optionValues === 'object') {
-    return Object.values(optionValues as Record<string, unknown>)
-      .map((value) => (typeof value === 'string' ? value.trim() : ''))
-      .filter((value) => value.length > 0);
-  }
-
-  return [];
-}
-
-export function buildVariantTitle(productName: string, optionValues: unknown): string {
-  const labels = variantOptionValueLabels(optionValues);
-  if (labels.length === 0) {
-    return productName;
-  }
-  return `${productName} — ${labels.join(' / ')}`;
-}
-
 export function parseInventoryImportCsv(content: string): InventoryCsvImportRow[] {
   const matrix = parseCsvText(content);
   if (matrix.length === 0) {

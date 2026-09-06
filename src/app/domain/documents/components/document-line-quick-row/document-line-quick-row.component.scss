@@ -1,0 +1,17 @@
+// La riga di inserimento: le regole vengono dall'Ordine cliente, dove il
+// markup viveva prima dell'estrazione.
+.doc-quick-row__cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.doc-quick-row__input {
+  flex: 1 1 16rem;
+  max-inline-size: 26.875rem;
+  block-size: var(--control-h-field);
+  min-block-size: var(--control-h-field);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}

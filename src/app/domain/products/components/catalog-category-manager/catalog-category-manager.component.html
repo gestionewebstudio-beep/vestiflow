@@ -92,12 +92,10 @@
   </div>
 </div>
 
-<app-confirm-dialog
+<app-delete-confirm
   [(open)]="deleteDialogOpen"
   title="Eliminare la voce?"
-  [message]="deleteMessage()"
-  confirmLabel="Elimina"
-  [danger]="true"
+  [consequence]="deleteMessage()"
   [busy]="busy()"
   (confirmed)="confirmDelete()"
 />

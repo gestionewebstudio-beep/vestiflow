@@ -15,25 +15,35 @@ async function setup(
     items: readonly DocumentLineSuggestionItem[];
     activeIndex: number | null;
     placement: 'below' | 'above';
-    emptyText: string | undefined;
+    tailLabel: string;
   }> = {},
 ) {
   const picked = vi.fn();
+  const tailPicked = vi.fn();
   await render(DocumentLineSuggestionsComponent, {
     inputs: { items: ITEMS, ...inputs },
-    on: { picked },
+    on: { picked, tailPicked },
   });
-  return { picked };
+  return { picked, tailPicked };
 }
 
 describe('DocumentLineSuggestionsComponent', () => {
+  /**
+   * ⚠️ **Qui si contavano gli `<span>` della voce** (`toHaveLength(1)`), ed è
+   * una misura della struttura interna: al primo cambio di markup fallisce anche
+   * se il comportamento è identico — ed è successo il 02/09/2026, quando la voce
+   * è passata a tre zone. `regole-qualita` lo dice: «VIETATO testare
+   * implementation detail. Testa il comportamento osservabile».
+   *
+   * Il comportamento è: chi ha un dettaglio lo mostra, chi non ce l'ha no.
+   */
   it('mostra titolo e dettaglio; il dettaglio manca quando non fornito', async () => {
     await setup();
 
     expect(screen.getByText('Maglietta cotone — M · Rosso')).toBeVisible();
     expect(screen.getByText('SKU-01 · Disp. 7')).toBeVisible();
-    const second = screen.getByText('Maglietta cotone — L · Blu').closest('li');
-    expect(second?.querySelectorAll('span')).toHaveLength(1);
+    expect(screen.getByText('Maglietta cotone — L · Blu')).toBeVisible();
+    expect(screen.queryByText(/SKU-02/)).toBeNull();
   });
 
   it('il click su una voce emette il suo indice', async () => {
@@ -63,16 +73,33 @@ describe('DocumentLineSuggestionsComponent', () => {
     expect(options[1]).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('a lista vuota senza emptyText il pannello non compare', async () => {
+  // Decisione 11/08/2026: senza risultati il pannello NON si apre, e non
+  // mostra nessun messaggio di vuoto. Non trovare nulla non è un errore — si
+  // continua a compilare la riga, e la creazione dell'articolo ha vie proprie.
+  it('a lista vuota il pannello non compare', async () => {
     await setup({ items: [] });
 
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 
-  it('a lista vuota con emptyText mostra il messaggio', async () => {
-    await setup({ items: [], emptyText: 'Nessun articolo trovato a catalogo.' });
+  // §4.3: la voce-comando sta FUORI dall'elenco filtrato. Messa dentro, il
+  // filtro se la mangia al primo carattere — cioè proprio quando serve.
+  it('la coda resta anche quando il filtro ha svuotato l’elenco', async () => {
+    const user = userEvent.setup();
+    const { tailPicked } = await setup({ items: [], tailLabel: '» Altro…' });
 
-    expect(screen.getByRole('listbox')).toBeVisible();
-    expect(screen.getByText('Nessun articolo trovato a catalogo.')).toBeVisible();
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await user.click(screen.getByRole('button', { name: '» Altro…' }));
+
+    expect(tailPicked).toHaveBeenCalled();
+  });
+
+  // Un lettore di schermo annuncerebbe un comando come un valore scegliibile:
+  // la coda è un <button>, e sta fuori dalla listbox.
+  it('la coda non è una voce dell’elenco', async () => {
+    await setup({ tailLabel: '» Altro…' });
+
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: '» Altro…' })).toBeVisible();
   });
 });

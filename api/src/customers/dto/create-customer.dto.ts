@@ -54,6 +54,27 @@ export class CreateCustomerDto {
   @MaxLength(50)
   phone?: string;
 
+  /** Cellulare: secondo recapito del soggetto (Danea: «Cell.»). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  mobilePhone?: string;
+
+  /**
+   * IBAN del soggetto — il conto su cui SI PAGA lui.
+   *
+   * ⚠️ **Sta sul soggetto, quindi è lo STESSO del ruolo fornitore**: se questo
+   * cliente è anche fornitore, l'IBAN è uno solo e si aggiorna da entrambe le
+   * schede. È il conto della persona giuridica, non un patto commerciale.
+   *
+   * 34 caratteri è il massimo dello standard, ed è l'unico controllo qui: la
+   * cifra di verifica è un avviso lato maschera, non un blocco.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(34)
+  iban?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -105,6 +126,15 @@ export class CreateCustomerDto {
   @MinLength(1)
   @MaxLength(50)
   code?: string;
+
+  /**
+   * Stato del RUOLO cliente. Spento, il cliente esce dalle tendine dei
+   * documenti nuovi (`listAll` filtra `isActive: true`) e non si perde niente:
+   * ordini, documenti e collegamenti restano — `ANAGRAFICA-CANONICA-SPEC`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional()
   @IsString()

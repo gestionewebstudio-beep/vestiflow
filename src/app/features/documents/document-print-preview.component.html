@@ -16,14 +16,28 @@
     }
   </div>
 
+  @if (downloadError(); as message) {
+    <app-inline-banner class="no-print" tone="error" [message]="message" />
+  }
+
   @if (loading()) {
     <app-table-skeleton [columns]="4" [rows]="8" />
   } @else if (error()) {
     <app-error-state description="Impossibile caricare il documento per la stampa." />
   } @else if (document(); as doc) {
     <article class="doc-print__sheet">
-      @if (showProformaDisclaimer()) {
-        <p class="doc-print__disclaimer" role="note">{{ proformaDisclaimer }}</p>
+      @if (disclaimer(); as fiscalNotice) {
+        <p class="doc-print__disclaimer" role="note">{{ fiscalNotice }}</p>
+      }
+
+      <!-- Chi emette: la stessa testata che il PDF stampa in cima al foglio. -->
+      @if (printHeader(); as issuer) {
+        <address class="doc-print__issuer">
+          <span class="doc-print__issuer-name">{{ issuer.legalName }}</span>
+          @for (line of issuer.lines; track line) {
+            <span class="doc-print__issuer-line">{{ line }}</span>
+          }
+        </address>
       }
 
       <header class="doc-print__header">
@@ -49,6 +63,32 @@
             @if (locationLabel(doc.locationId); as locationName) {
               <p class="doc-print__meta">Location: {{ locationName }}</p>
             }
+            <!-- Sul carico manuale e su quello iniziale il fornitore manca
+                 spesso: senza causale il foglio non direbbe cos'è entrato. -->
+            @if (doc.causalText) {
+              <p class="doc-print__meta">Causale: {{ doc.causalText }}</p>
+            }
+          }
+          @case ('purchase_invoice') {
+            @if (doc.supplierName) {
+              <p class="doc-print__meta">Fornitore: {{ doc.supplierName }}</p>
+            }
+            @if (doc.registrationDate) {
+              <p class="doc-print__meta">
+                Registrata il
+                <span class="tabular-nums">{{ formatDate(doc.registrationDate) }}</span>
+              </p>
+            }
+          }
+          @case ('stock') {
+            @if (locationLabel(doc.locationId); as locationName) {
+              <p class="doc-print__meta">Location: {{ locationName }}</p>
+            }
+            <!-- Senza il verso, la quantità di una rettifica non dice se la
+                 giacenza sale o scende. -->
+            @if (adjustmentDirectionLabel(); as direction) {
+              <p class="doc-print__meta">Direzione: {{ direction }}</p>
+            }
           }
           @case ('sales') {
             @if (doc.customerName) {
@@ -57,6 +97,12 @@
             @if (doc.billingCause) {
               <p class="doc-print__meta">Causale: {{ doc.billingCause }}</p>
             }
+            @if (showsLocation() && locationLabel(doc.locationId); as locationName) {
+              <p class="doc-print__meta">Location: {{ locationName }}</p>
+            }
+            @if (storePaymentLabel(); as payment) {
+              <p class="doc-print__meta">Pagamento: {{ payment }}</p>
+            }
           }
           @default {
             @if (doc.customerName) {
@@ -64,24 +110,71 @@
             }
           }
         }
+
+        <!-- Movimenti interni di magazzino: chi li ha eseguiti fa parte del
+             foglio (regole-gestionale §Auditabilità). -->
+        @if (showsOperator()) {
+          <p class="doc-print__meta">Eseguito da: {{ doc.createdByName }}</p>
+        }
+
+        <!-- Documento emesso dall'altra parte (DDT fornitore, fattura, ordine
+             cliente): una riga sola, e solo se compilata. -->
+        @if (counterpartyDoc(); as counterpartyRef) {
+          <p class="doc-print__meta">Documento controparte: {{ counterpartyRef }}</p>
+        }
       </header>
 
       @if (doc.lines?.length) {
-        <app-document-lines-table [lines]="doc.lines!" />
-        <dl class="doc-print__totals">
-          <div class="doc-print__total-row">
-            <dt>Imponibile</dt>
-            <dd class="tabular-nums">{{ formatMoney(doc.subtotal) }}</dd>
-          </div>
-          <div class="doc-print__total-row">
-            <dt>IVA</dt>
-            <dd class="tabular-nums">{{ formatMoney(doc.tax) }}</dd>
-          </div>
-          <div class="doc-print__total-row doc-print__total-row--grand">
-            <dt>Totale</dt>
-            <dd class="tabular-nums">{{ formatMoney(doc.total) }}</dd>
-          </div>
-        </dl>
+        <app-document-lines-table [lines]="doc.lines!" [showPrices]="showsValues()" />
+        <!-- Niente blocco totali dove i valori non esistono: su un
+             trasferimento o una rettifica sarebbe «Totale 0,00 €» sotto una
+             colonna di zeri. -->
+        @if (showsValues()) {
+          <dl class="doc-print__totals">
+            <div class="doc-print__total-row">
+              <dt>Imponibile</dt>
+              <dd class="tabular-nums">{{ formatMoney(doc.subtotal) }}</dd>
+            </div>
+            <div class="doc-print__total-row">
+              <dt>IVA</dt>
+              <dd class="tabular-nums">{{ formatMoney(doc.tax) }}</dd>
+            </div>
+            <div class="doc-print__total-row doc-print__total-row--grand">
+              <dt>Totale</dt>
+              <dd class="tabular-nums">{{ formatMoney(doc.total) }}</dd>
+            </div>
+          </dl>
+        }
+      }
+
+      <!-- Registrazione fattura: le stesse sezioni che il PDF stampa in coda. -->
+      @if (installments().length > 0) {
+        <section class="doc-print__notes">
+          <h2 class="doc-print__notes-title">Scadenze</h2>
+          @for (installment of installments(); track installment.id) {
+            <p class="doc-print__meta">
+              <span class="tabular-nums">{{ formatDate(installment.dueDate) }}</span
+              >:
+              <span class="tabular-nums">{{ formatMoney(installment.amount) }}</span>
+              @if (installment.settled) {
+                · saldata
+              }
+            </p>
+          }
+        </section>
+      }
+
+      @if (outstanding(); as residuo) {
+        <p class="doc-print__meta">
+          Ancora da saldare: <span class="tabular-nums">{{ formatMoney(residuo) }}</span>
+        </p>
+      }
+
+      @if (linkedReceiptRefs().length > 0) {
+        <section class="doc-print__notes">
+          <h2 class="doc-print__notes-title">Arrivi merce inclusi</h2>
+          <p class="doc-print__meta">{{ linkedReceiptRefs().join(', ') }}</p>
+        </section>
       }
 
       @if (transportRows().length > 0) {
@@ -114,10 +207,16 @@
       }
 
       @if (doc.notes) {
-        <footer class="doc-print__notes">
+        <section class="doc-print__notes">
           <h2 class="doc-print__notes-title">Note</h2>
           <p>{{ doc.notes }}</p>
-        </footer>
+        </section>
+      }
+
+      <!-- Piede Registro Imprese: obbligatorio per le società (art. 2250 c.c.),
+           assente per chi al registro non è iscritto. Come nel PDF. -->
+      @if (printHeader()?.footer; as registro) {
+        <footer class="doc-print__issuer-footer">{{ registro }}</footer>
       }
     </article>
   }

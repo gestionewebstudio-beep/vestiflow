@@ -1,0 +1,18 @@
+:host {
+  display: block;
+  grid-column: 1 / -1;
+  margin: var(--space-1) 0 0;
+  padding-block: var(--space-1) 0;
+  font-size: var(--text-nano);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-group-fg);
+  border-block-start: var(--border-width) solid var(--color-group-line);
+}
+
+:host(.doc-line-card-group--first) {
+  margin-block-start: 0;
+  padding-block-start: 0;
+  border-block-start: 0;
+}

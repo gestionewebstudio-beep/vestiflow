@@ -2,10 +2,20 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
+import { catchError, forkJoin, map, of, startWith, switchMap, take } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { isAppError } from '@core/models/app-error.model';
-import type { PaymentOption, PaymentOptionKind } from '@core/models/payment-option.model';
+import {
+  PAYMENT_TENDER_KIND_OPTIONS,
+  paymentMethodCodeLabel,
+  paymentTenderKindLabel,
+  type PaymentMethodCode,
+  type PaymentOption,
+  type PaymentOptionKind,
+  type PaymentTenderKind,
+} from '@core/models/payment-option.model';
+import { canManageSettingsCompany } from '@core/permissions/tenant-permissions.util';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
@@ -16,6 +26,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 interface LoadState {
   readonly status: 'loading' | 'ready' | 'error';
   readonly options: readonly PaymentOption[];
+  readonly modalita: readonly PaymentMethodCode[];
 }
 
 /**
@@ -41,6 +52,16 @@ export class PaymentOptionsPageComponent {
   private readonly service = inject(PaymentOptionsService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * Chi non lo ha legge i due elenchi, ma non trova il campo «Nuova voce» né i
+   * comandi Rinomina, Disattiva ed Elimina: l'API riserva ogni scrittura sulle
+   * voci pagamento al permesso «Impostazioni azienda».
+   */
+  protected readonly puoGestireImpostazioniAzienda = computed(() =>
+    canManageSettingsCompany(this.auth.currentUser()),
+  );
 
   protected readonly kinds: readonly {
     readonly kind: PaymentOptionKind;
@@ -49,8 +70,8 @@ export class PaymentOptionsPageComponent {
   }[] = [
     {
       kind: 'method',
-      title: 'Modalità di pagamento',
-      hint: 'Es. Contanti, Bonifico bancario, Carta di pagamento.',
+      title: 'Tipi pagamento',
+      hint: 'I preset aziendali che l’operatore sceglie nei documenti: ognuno può puntare a una modalità normativa FatturaPA.',
     },
     {
       kind: 'terms',
@@ -60,21 +81,48 @@ export class PaymentOptionsPageComponent {
   ];
 
   private readonly reload = signal(0);
+
+  /**
+   * ⛔ Voci del tenant e catalogo normativo si caricano INSIEME, e un errore
+   * dell'uno è un errore della pagina.
+   *
+   * Il catalogo aveva un `catchError` proprio che lo riduceva a elenco vuoto:
+   * le tendine sparivano, e sparendo rendevano indistinguibili quattro cose
+   * diverse — catalogo davvero vuoto, API irraggiungibile, errore del
+   * database, permesso sbagliato. L'operatore vedeva una pagina che sembrava
+   * funzionare, con una funzione in meno e nessuna spiegazione.
+   */
   private readonly loadState = toSignal(
     toObservable(this.reload).pipe(
       switchMap(() =>
-        this.service.list().pipe(
-          map((options): LoadState => ({ status: 'ready', options })),
-          startWith({ status: 'loading', options: [] } satisfies LoadState),
-          catchError(() => of({ status: 'error', options: [] } satisfies LoadState)),
+        forkJoin({
+          options: this.service.list().pipe(take(1)),
+          modalita: this.service.listMethodCodes().pipe(take(1)),
+        }).pipe(
+          map(({ options, modalita }): LoadState => ({ status: 'ready', options, modalita })),
+          startWith({ status: 'loading', options: [], modalita: [] } satisfies LoadState),
+          catchError(() => of({ status: 'error', options: [], modalita: [] } satisfies LoadState)),
         ),
       ),
     ),
-    { initialValue: { status: 'loading', options: [] } satisfies LoadState },
+    { initialValue: { status: 'loading', options: [], modalita: [] } satisfies LoadState },
   );
 
   protected readonly loading = computed(() => this.loadState().status === 'loading');
   protected readonly loadError = computed(() => this.loadState().status === 'error');
+
+  /** Il catalogo normativo FatturaPA (MP01-MP23), globale e immutabile. */
+  protected readonly modalitaNormative = computed(() => this.loadState().modalita);
+  /**
+   * ⭐ Costanti del modello, non un elenco che arriva dalla rete: qui una
+   * tendina vuota per un caricamento fallito non può accadere.
+   */
+  protected readonly classificazioniCassa = PAYMENT_TENDER_KIND_OPTIONS;
+
+  /** «MP05 — Bonifico» per la tendina. */
+  protected etichettaModalita(code: PaymentMethodCode): string {
+    return paymentMethodCodeLabel(code);
+  }
 
   protected readonly saving = signal(false);
   /** Bozze dei campi "nuova voce", per kind. */
@@ -85,6 +133,58 @@ export class PaymentOptionsPageComponent {
 
   protected optionsOf(kind: PaymentOptionKind): readonly PaymentOption[] {
     return this.loadState().options.filter((option) => option.kind === kind);
+  }
+
+  /**
+   * Associa una Modalità normativa al Tipo, o la scollega con la voce vuota.
+   *
+   * ⚠️ La stringa vuota della tendina diventa `null`, non `undefined`: sono
+   * due intenzioni diverse per l'API — `null` scollega, assente non tocca.
+   */
+  protected cambiaModalita(option: PaymentOption, value: string): void {
+    const methodCodeId = value === '' ? null : value;
+    if (methodCodeId === option.methodCodeId || this.saving()) {
+      return;
+    }
+    this.saving.set(true);
+    this.service
+      .update(option.id, { methodCodeId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () =>
+          this.finishMutation(
+            methodCodeId ? 'Modalità normativa associata.' : 'Modalità normativa rimossa.',
+          ),
+        error: (err: unknown) => this.failMutation(err),
+      });
+  }
+
+  /**
+   * Classifica il Tipo per la Cassa, o lo riporta a «non utilizzabile».
+   *
+   * ⭐ A differenza della Modalità normativa, le scelte NON arrivano dalla rete:
+   * sono costanti del modello. Una tendina vuota per un caricamento fallito qui
+   * non può accadere — e il fallimento del SALVATAGGIO resta visibile, perché
+   * passa dallo stesso `failMutation` di ogni altra azione della pagina.
+   */
+  protected cambiaClassificazione(option: PaymentOption, value: string): void {
+    const tenderKind = value === '' ? null : (value as PaymentTenderKind);
+    if (tenderKind === option.tenderKind || this.saving()) {
+      return;
+    }
+    this.saving.set(true);
+    this.service
+      .update(option.id, { tenderKind })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () =>
+          this.finishMutation(
+            tenderKind
+              ? `Classificazione Cassa: ${paymentTenderKindLabel(tenderKind)}.`
+              : 'Tipo non utilizzabile in Cassa.',
+          ),
+        error: (err: unknown) => this.failMutation(err),
+      });
   }
 
   protected add(kind: PaymentOptionKind): void {

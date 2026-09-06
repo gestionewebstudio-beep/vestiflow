@@ -1,0 +1,42 @@
+@use 'list-page' as lp;
+
+/*
+  ⭐ **Da 150 righe a queste.** Il contenitore pagina, la testata, la riga
+  filtri, lo scorrimento con intestazione appiccicata, l'intestazione, le righe
+  e l'allineamento numerico li porta il telaio comune: erano copie.
+
+  Resta il periodo e la nota di piede, che sono di questa schermata.
+*/
+
+/*
+  ⭐ **La catena di altezze**: la pagina elenco cede solo nella zona righe
+  (`regole-stile-ui`). Senza, il contenitore resta alto quanto le righe e il
+  piede non si ancora in fondo.
+*/
+:host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+/*
+  ⚠️ Il mixin governa la COPPIA di date, non tutta la fascia: dentro c'è anche
+  il selettore Periodo, e la larghezza del calendario si calcola sulle due date.
+*/
+.sess__period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.sess__dates {
+  @include lp.list-date-period;
+}
+
+.sess__note {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}

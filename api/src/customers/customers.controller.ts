@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -18,6 +20,7 @@ import {
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
@@ -57,7 +60,7 @@ export class CustomersController {
   }
 
   @Get('export/csv')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([CUSTOMERS_VIEW_PERMISSIONS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,
@@ -93,6 +96,39 @@ export class CustomersController {
     @Body() dto: CreateCustomerDto,
   ): Promise<CustomerView> {
     return this.customers.create(tenantId, dto);
+  }
+
+  /**
+   * ⭐ **Duplica**: una scheda nuova col prossimo codice, che si apre per
+   * rifinirla. Partita IVA e codice fiscale non si copiano — vedi il servizio.
+   *
+   * ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
+   * crearne una copia. Un permesso a sé sarebbe una terza autorità su un'entità
+   * che ne ha già una.
+   */
+  @Post(':id/duplicate')
+  @RequirePermissions(TenantPermission.CustomersManage)
+  duplicate(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ readonly id: string }> {
+    return this.customers.duplicate(tenantId, id);
+  }
+
+  /**
+   * ⭐ **Elimina la scheda cliente.** Lo storico resta: vedi `remove` nel servizio.
+   *
+   * ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
+   * toglierla.
+   */
+  @Delete(':id')
+  @RequirePermissions(TenantPermission.CustomersManage)
+  @HttpCode(204)
+  remove(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.customers.remove(tenantId, id);
   }
 
   @Patch(':id')

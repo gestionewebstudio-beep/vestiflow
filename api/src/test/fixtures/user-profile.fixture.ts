@@ -1,7 +1,7 @@
 import { UserRole } from '@prisma/client';
 
 import type { UserProfileDto } from '../../auth/dto/user-profile.dto';
-import { TenantPermission } from '../../auth/tenant-permission.constants';
+import { ROLE_DEFAULT_PERMISSIONS } from '../../auth/tenant-permission.constants';
 
 
 export function testOwnerUser(overrides: Partial<UserProfileDto> = {}): UserProfileDto {
@@ -10,12 +10,18 @@ export function testOwnerUser(overrides: Partial<UserProfileDto> = {}): UserProf
     tenantId: 'tenant-1',
     tenantName: 'Test Tenant',
     tenantChannelProfile: 'gestionale',
+    // ⚠️ Nei test la Vendita manuale nasce ACCESA, al contrario della
+    //   produzione (default `false`): questi fixture servono a provare la
+    //   logica documentale, non l'interruttore. Chi prova l'interruttore lo
+    //   dichiara, in un verso o nell’altro.
+    manualUnloadEnabled: true,
     email: 'owner@test.it',
     displayName: 'Owner Test',
     avatarUrl: null,
     role: UserRole.owner,
     storeIds: [],
     isActive: true,
+    mustChangePassword: false,
     isPlatformAdmin: false,
     hasAllLocationsAccess: false,
     assignedLocationIds: [],
@@ -35,19 +41,27 @@ export function testClerkUser(overrides: Partial<UserProfileDto> = {}): UserProf
     tenantId: 'tenant-1',
     tenantName: 'Test Tenant',
     tenantChannelProfile: 'gestionale',
+    // ⚠️ Nei test la Vendita manuale nasce ACCESA, al contrario della
+    //   produzione (default `false`): questi fixture servono a provare la
+    //   logica documentale, non l'interruttore. Chi prova l'interruttore lo
+    //   dichiara, in un verso o nell’altro.
+    manualUnloadEnabled: true,
     email: 'clerk@test.it',
     displayName: 'Clerk Test',
     avatarUrl: null,
     role: UserRole.clerk,
     storeIds: [],
     isActive: true,
+    mustChangePassword: false,
     isPlatformAdmin: false,
     hasAllLocationsAccess: false,
     assignedLocationIds: [],
     assignedLocations: [],
     defaultLocationId: null,
     defaultLocation: null,
-    permissions: [TenantPermission.InventoryManage],
+    // Preset clerk materializzato: la fixture rispecchia un commesso reale
+    // (l'array salvato È la verità, i default vivono solo al salvataggio).
+    permissions: [...ROLE_DEFAULT_PERMISSIONS[UserRole.clerk]],
     createdAt: '',
     updatedAt: '',
     ...overrides,

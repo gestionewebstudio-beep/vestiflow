@@ -1,11 +1,21 @@
-@use 'breakpoints' as bp;
+// ⛔ Qui c’era la regola che nascondeva col CSS la griglia desktop della
+// testata (`.stock-operation-form__header-desktop { display: none }`) sotto
+// lg. Non serve più, e non deve tornare: le due vesti della testata sono
+// ora esclusive nel DOM — app-document-header monta il pannello apribile
+// oppure la griglia, mai tutte e due — quindi non resta una seconda copia
+// da spegnere.
 
-// Vista mobile M1 (reference «Ordine cliente»): sotto lg la griglia classica
-// della testata lascia il posto al pannello apribile (doc-panels). Stesso
-// meccanismo di #co-header-details nell'Ordine cliente, nel foglio del
-// componente perché la classe vive solo in questo template.
-@include bp.media-down('lg') {
-  .stock-operation-form__header-desktop {
-    display: none;
-  }
+// Riga non valida nella tabella desktop. `.doc-form__input--invalid` vive in
+// styles/_document-form.scss, ma `.doc-form__input--table` — che azzera bordo e
+// fondo della cella — arriva dopo con la stessa specificita' e la vince: il
+// campo rosso resterebbe identico a uno valido. Qui la coppia di classi
+// (piu' l'attributo di incapsulamento) riporta la tinta dove serve. Nessun
+// valore nudo: gli stessi token della regola condivisa.
+.doc-form__input--table.doc-form__input--invalid {
+  border-color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
 }
+// Il documento della controparte non ha più regole qui: forma, fascia e passo
+// dei campi li porta il componente condiviso
+// domain/documents/components/document-counterparty-ref, e le misure dei
+// controlli gliele danno i selettori di testata di styles/_document-form.scss.

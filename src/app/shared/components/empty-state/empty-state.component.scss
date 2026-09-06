@@ -46,6 +46,13 @@
   margin-block-start: var(--space-3);
 }
 
+// Nessuna CTA e nessun comando proiettato: il contenitore non deve lasciare
+// il proprio margine sotto la descrizione. `:empty` regge perché i segnaposto
+// che Angular lascia dentro sono commenti, e i commenti non contano.
+.empty-state__action:empty {
+  display: none;
+}
+
 // Variante `inline`: riga compatta dentro un pannello che ha gia' un titolo
 // proprio. Icona e testo affiancati, descrizione nascosta — il contesto la
 // rende ridondante e ruberebbe altezza al pannello.

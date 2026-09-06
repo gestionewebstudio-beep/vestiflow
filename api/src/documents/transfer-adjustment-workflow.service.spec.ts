@@ -12,6 +12,7 @@ import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import type { DocumentSettingsService } from './document-settings.service';
+import type { ExternalDocumentTypesService } from './external-document-types.service';
 import type { SaveAdjustmentDto } from './dto/save-adjustment.dto';
 import type { SaveTransferDto } from './dto/save-transfer.dto';
 
@@ -19,11 +20,17 @@ const tenantId = 'tenant-1';
 
 function createPrismaMock() {
   const prisma = {
-    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     document: {
       findFirst: vi.fn().mockResolvedValue(null),
       findFirstOrThrow: vi.fn(),
       update: vi.fn(),
+      // Il massimo della partizione: serve solo quando il numero non è
+      // imposto, ed è lì che si vede se la data del documento viaggia (§2).
+      aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
     },
     documentLine: {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -65,6 +72,10 @@ function createPrismaMock() {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([{ id: variantId }]),
     },
+    // Advisory lock sul contatore: serve solo quando il numero è automatico
+    // (documento senza numero e testata che non ne impone uno), ma la tx dei
+    // test è il mock stesso e la chiamata arriverebbe qui.
+    $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -83,12 +94,21 @@ function createService(prisma: ReturnType<typeof createPrismaMock>, settingOverr
     }),
   };
   const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+  // Documento della controparte: senza tipo scelto la coppia risolta è vuota,
+  // che è il caso di ogni test qui sotto.
+  const externalTypes = {
+    resolveForWrite: vi.fn().mockResolvedValue({
+      externalDocumentTypeId: null,
+      externalDocumentTypeSnapshot: null,
+    }),
+  };
   const service = new TransferAdjustmentWorkflowService(
     prisma as unknown as PrismaService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
+    externalTypes as unknown as ExternalDocumentTypesService,
   );
-  return { service, settings, channelSync };
+  return { service, settings, channelSync, externalTypes };
 }
 
 function existingTransferDocument(overrides: Record<string, unknown> = {}) {
@@ -178,7 +198,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
     const { service } = createService(prisma);
 
     await expect(
-      service.saveTransfer(tenantId, transferDto({ targetLocationId: 'loc-a' })),
+      service.saveTransfer(tenantId, transferDto({ targetLocationId: 'loc-a' }), testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -186,7 +206,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
     const { service } = createService(prisma);
     prisma.document.findFirst.mockResolvedValue(null);
 
-    await expect(service.saveTransfer(tenantId, transferDto())).rejects.toThrow();
+    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toThrow();
   });
 
   it('rifiuta se il documento è ancora in bozza (nessun movimento da preservare)', async () => {
@@ -195,7 +215,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       existingTransferDocument({ status: DocumentStatus.draft }),
     );
 
-    await expect(service.saveTransfer(tenantId, transferDto())).rejects.toBeInstanceOf(
+    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -206,7 +226,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       existingTransferDocument({ status: DocumentStatus.cancelled }),
     );
 
-    await expect(service.saveTransfer(tenantId, transferDto())).rejects.toBeInstanceOf(
+    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -245,6 +265,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
           },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.documentLine.update).toHaveBeenCalledTimes(1);
@@ -277,7 +298,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
     ]);
 
-    await service.saveTransfer(tenantId, transferDto({ number: 9 }));
+    await service.saveTransfer(tenantId, transferDto({ number: 9 }), testOwnerUser());
 
     const data = prisma.document.update.mock.calls[0]?.[0].data;
     expect(data.number).toBe(9);
@@ -298,7 +319,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
     ]);
 
-    await service.saveTransfer(tenantId, transferDto({ number: 2 }));
+    await service.saveTransfer(tenantId, transferDto({ number: 2 }), testOwnerUser());
 
     const data = prisma.document.update.mock.calls[0]?.[0].data;
     expect(data.number).toBe(2);
@@ -344,6 +365,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
           },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.stockMovement.create).not.toHaveBeenCalled();
@@ -434,7 +456,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
     const { service } = createService(prisma);
 
     await expect(
-      service.saveAdjustment(tenantId, adjustmentDto({ internalComment: '  ' })),
+      service.saveAdjustment(tenantId, adjustmentDto({ internalComment: '  ' }), testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -444,7 +466,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
       existingAdjustmentDocument({ status: DocumentStatus.draft }),
     );
 
-    await expect(service.saveAdjustment(tenantId, adjustmentDto())).rejects.toBeInstanceOf(
+    await expect(service.saveAdjustment(tenantId, adjustmentDto(), testOwnerUser())).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -476,6 +498,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
           },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.stockMovement.create).toHaveBeenCalledTimes(1);
@@ -505,6 +528,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
           { variantId, sku: 'SKU-1', description: 'Maglia', quantity: 4, loadsStock: true },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.documentLine.create).toHaveBeenCalledTimes(2);
@@ -563,5 +587,47 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
         ForbiddenException,
       );
     });
+  });
+});
+
+/**
+ * Il numero del §2 è il primo libero sopra il massimo dei documenti di data
+ * ANTERIORE: la data del documento è quindi un ingrediente del calcolo, non
+ * un dato di contorno. Questo servizio la riceveva come parametro e non la
+ * inoltrava — trovato il 13/08 leggendo tutte le maschere sullo stesso asse.
+ *
+ * Senza la data il massimo si legge «a oggi», cioè su una partizione più
+ * grande: un trasferimento datato indietro prendeva un numero più alto di
+ * quello che la testata gli aveva appena mostrato.
+ */
+describe('TransferAdjustmentWorkflowService — la data del documento numera', () => {
+  let prisma: ReturnType<typeof createPrismaMock>;
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+  });
+
+  it('il massimo si legge fra i documenti di data anteriore, non a oggi', async () => {
+    const { service } = createService(prisma, { numberPrefix: 'TR', defaultSeries: 'A' });
+    // Documento senza numero e serie che cambia: è il caso in cui il numero
+    // va assegnato davvero, quindi il massimo si legge.
+    const existing = existingTransferDocument({ series: 'A', number: null, reference: null });
+    prisma.document.findFirst.mockResolvedValue(existing);
+    prisma.document.findFirstOrThrow.mockResolvedValue(existing);
+    prisma.documentLine.findMany.mockResolvedValue([
+      { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
+    ]);
+    prisma.document.aggregate.mockResolvedValue({ _max: { number: 4 } });
+
+    await service.saveTransfer(
+      tenantId,
+      transferDto({ documentDate: '2026-07-13', series: 'B' }),
+      testOwnerUser(),
+    );
+
+    const where = prisma.document.aggregate.mock.calls[0]?.[0]?.where as {
+      documentDate?: { lt?: Date };
+    };
+    expect(where.documentDate?.lt).toEqual(new Date('2026-07-13T00:00:00.000Z'));
   });
 });

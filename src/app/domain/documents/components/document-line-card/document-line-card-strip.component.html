@@ -1,0 +1,64 @@
+@let v = view();
+
+<ng-container [formGroup]="group()">
+  @if (mostraQuantita()) {
+    <app-document-line-card-control label="Quantità">
+      <!-- ⚠️ Sulla riga di RIFERIMENTO non c'è quantità, come già fa la tabella:
+           i più e i meno su un valore che non esiste erano un comando che non
+           comanda. -->
+      @if (!v.isReference) {
+        <div class="doc-line-card-strip__qty">
+          <button
+            type="button"
+            class="doc-line-card-strip__qty-btn"
+            [disabled]="readOnly()"
+            aria-label="Diminuisci quantità"
+            (click)="step(-1)"
+          >
+            <i class="pi pi-minus" aria-hidden="true"></i>
+          </button>
+          <input
+            class="doc-line-card-strip__qty-input tabular-nums"
+            type="number"
+            [min]="quantityMin()"
+            step="1"
+            inputmode="numeric"
+            formControlName="quantity"
+            [attr.aria-label]="'Quantità riga ' + (lineIndex() + 1)"
+          />
+          <button
+            type="button"
+            class="doc-line-card-strip__qty-btn"
+            [disabled]="readOnly()"
+            aria-label="Aumenta quantità"
+            (click)="step(1)"
+          >
+            <i class="pi pi-plus" aria-hidden="true"></i>
+          </button>
+        </div>
+      }
+    </app-document-line-card-control>
+  }
+
+  @if (prezzo(); as colonna) {
+    <app-document-line-card-control [label]="priceLabel()">
+      @if (!v.isReference) {
+        <input
+          class="doc-line-card-strip__price tabular-nums"
+          type="text"
+          inputmode="decimal"
+          [formControlName]="prezzoControl()"
+          placeholder="0,00"
+          [attr.aria-label]="priceLabel() + ' riga ' + (lineIndex() + 1)"
+          (input)="colonna === 'unitCost' && costChanged.emit($any($event.target).value)"
+        />
+      }
+    </app-document-line-card-control>
+  }
+
+  @if (mostraTotale()) {
+    <app-document-line-card-control label="Totale">
+      <span class="doc-line-card-strip__total tabular-nums">{{ v.lineTotal }}</span>
+    </app-document-line-card-control>
+  }
+</ng-container>

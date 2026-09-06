@@ -1,70 +1,85 @@
-@use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
-:host {
-  display: block;
-}
+/*
+  ⭐ **Il telaio della pagina viene dal mixin condiviso**, non riscritto qui —
+  `company-page` (Impostazioni → Azienda) lo usa già per la stessa forma:
+  testata (Indietro + titolo) e barra azioni. `list-page` non è solo per gli
+  elenchi: è il telaio di QUALUNQUE pagina con quella testata, e i nomi di
+  classe nel template (`supplier-form__header`, `__title`, `__actions`) erano
+  già gli stessi che il mixin si aspetta.
 
+  ⛔ **Qui c'erano `.supplier-form__grid`, `__field--full`, `__label`,
+  `__control`, `__textarea`**: cinque regole mai referenziate da
+  `supplier-form.component.html`, che delega da sempre i campi a
+  `<app-supplier-form-fields>` — quello ha le proprie classi
+  (`supplier-fields__*`). CSS morto, rimosso.
+
+  ⛔ **E `.supplier-form__title { font-size: var(--text-xl) }`**: la stessa
+  sovrascrittura che il mixin già segnala come corretta altrove il 29/08/2026
+  — il peso e la taglia dei titoli di pagina sono quelli globali dell'`h1`,
+  non una copia locale libera di divergere.
+*/
+@include lp.list-page('supplier-form');
+
+/*
+  ⭐ **I BOTTONI ALLA STESSA DENSITÀ DEI CAMPI** — proprietario, 01/09/2026: «i
+  tasti di tutte le pagine che riguardano fornitore sono grandi rispetto agli
+  altri».
+
+  Misurato: su questa maschera i campi stanno a **28px** e Indietro, Annulla e
+  Salva a **34** — sei pixel più alti di ogni altro controllo della pagina. Non
+  sono cresciuti i bottoni: sono rimasti al default mentre i campi scendevano,
+  e la pagina ha finito per parlare due densità.
+
+  ⚠️ **La dichiarazione è del CONTENITORE**, come `.doc-form__actions` e la
+  barra azioni degli elenchi: `--button-h` sulla pagina, e ogni `app-button`
+  dentro lo legge — quello della testata compreso, che sta fuori dalla barra.
+
+  ⛔ **Non si corregge dal token globale**: `--btn-min-height` non lo legge
+  nessun `app-button` (vedi il commento su quel token) e girargli la catena
+  romperebbe le venti barre che dichiarano la densità con `--field-height`.
+
+  ⛔ **E sull'ELENCO fornitori non serve**: lì i comandi sono già a 28px come
+  Clienti e Prodotti — misurato. La pagina fuori riga era questa.
+*/
 .supplier-form {
+  --button-h: var(--control-h-button);
+  --button-font-size: var(--text-xs);
+
+  /*
+    ⚠️ **`app-back-button` ha una catena SUA**: legge `--back-button-h` e
+    ripiega su `--field-height`, non su `--button-h`. Senza questa riga
+    «Indietro» resterebbe a 34px accanto a Salva e Annulla a 28 — cioè il
+    difetto segnalato, in piccolo e nella stessa fascia.
+  */
+  --back-button-h: var(--control-h-button);
+  --back-button-font-size: var(--text-xs);
+}
+
+/*
+  ⭐ **Indietro e titolo sulla STESSA riga** — proprietario, 01/09/2026: «il
+  nome va su». Impilati costavano una fascia intera prima del primo campo, su
+  una maschera che si apre per scrivere.
+
+  ⚠️ Il mixin stacca il pulsante dal titolo con un margine sotto, che in fila
+  non serve: lo spazio lo fa il `gap`.
+*/
+.supplier-form__heading {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  max-inline-size: var(--content-default);
+  align-items: center;
+  gap: var(--space-3);
 }
 
-// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
-.supplier-form__header app-back-button {
-  margin-block-end: var(--space-2);
-}
-
-.supplier-form__title {
-  margin: 0;
-  font-size: var(--text-xl);
-}
-
-.supplier-form__grid {
-  display: grid;
-  gap: var(--space-4);
-}
-
-@include bp.media-up('md') {
-  .supplier-form__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.supplier-form__field--full {
-  grid-column: 1 / -1;
-}
-
-.supplier-form__label {
-  display: block;
-  margin-block-end: var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-}
-
-.supplier-form__control {
-  inline-size: 100%;
-  block-size: var(--field-height);
-  padding-inline: var(--space-3);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-}
-
-.supplier-form__textarea {
-  block-size: auto;
-  min-block-size: calc(var(--field-height) * 2);
-  padding-block: var(--space-2);
+.supplier-form__heading app-back-button {
+  margin-block-end: 0;
 }
 
 .supplier-form__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 .supplier-form__error {
   margin: 0;
-  color: var(--status-error-fg);
+  color: var(--color-danger);
   font-size: var(--text-sm);
 }

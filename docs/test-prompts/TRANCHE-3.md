@@ -23,7 +23,7 @@ Tutti gli altri test sono fuori ambito: non eseguirli.
 
 - L'infrastruttura Playwright del repo è già pronta: `.env` contiene URL e credenziali (`E2E_USER_EMAIL`/`E2E_USER_PASSWORD` per il titolare, `E2E_CLERK_*` per il commesso), `E2E_SKIP_WEBSERVER=1` evita l'avvio dei server locali. L'auth setup (`e2e/auth.setup.ts`) salva la sessione in `e2e/.auth/user.json`.
 - Come smoke iniziale puoi lanciare gli spec esistenti pertinenti alla tranche (es. `npx playwright test e2e/sales.spec.ts e2e/sales-detail.spec.ts e2e/customers.spec.ts e2e/reports.spec.ts e2e/accountant-register.spec.ts --project=chromium`). Poi esegui i casi del piano test NON coperti dagli spec guidando tu il browser: scrivi script Playwright usa-e-getta in una cartella `e2e-collaudo/` (non toccare gli spec in `e2e/`), riusando gli helper di `e2e/helpers/` dove utile.
-- Per la cassa (`/app/sales/register`) serve stock disponibile: se il tenant non ha articoli con giacenza, crea prima un prodotto E2E- e un carico (arrivo merce o registra movimento) come da documento funzionale.
+- Per la Vendita al banco (`/app/vendita-al-banco/nuova-vendita-al-banco`) serve stock disponibile: se il tenant non ha articoli con giacenza, crea prima un prodotto E2E- e un carico (arrivo merce o registra movimento) come da documento funzionale.
 - **Attenzione ai registri vuoti per design:** in questo profilo Vendite online (`/app/sales/online`) e Corrispettivi (`/app/sales/corrispettivi`) sono alimentati solo da canali integrati e restano vuoti (documento funzionale §13). L'empty-state è l'esito ATTESO, non un KO.
 - Per ogni test: esegui i passi, confronta con il risultato atteso, cattura uno screenshot in caso di KO.
 

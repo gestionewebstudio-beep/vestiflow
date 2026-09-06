@@ -1,3 +1,20 @@
+/**
+ * ⛔ **NIENTE URL NEI LOG.** Una stringa di connessione porta password, host,
+ * utente e identificativo di progetto: in un registro di CI o in un incolla di
+ * chat diventa pubblica. Si maschera TUTTO cio` che sta fra lo schema e il
+ * percorso, non solo la password.
+ *
+ * ⚠️ Qui c'era, in `run-restore.mjs`, `directUrl.replace(/:[^:@/]+@/, ':***@')`:
+ * copre la password e lascia host e utente. Non basta — il nome del progetto
+ * Supabase e` nell`host.
+ */
+export function mascheraUrl(testo) {
+  return String(testo).replace(
+    /(postgres(?:ql)?:\/\/)[^\s"']*/gi,
+    (_intero, schema) => `${schema}***`,
+  );
+}
+
 /** Parametri query Prisma/pooler non validi per pg_dump. */
 const PG_DUMP_STRIP_QUERY_PARAMS = new Set(['pgbouncer', 'connection_limit', 'pool_timeout']);
 

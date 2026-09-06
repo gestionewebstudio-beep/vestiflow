@@ -19,7 +19,13 @@ fornitore, o entrambi — **senza mai duplicare l'anagrafica**.
 ### `parties` — soggetto canonico
 
 `companyName`, `firstName`, `lastName`, `vatNumber`, `taxCode`, `email`,
-`pec`, `phone`, `website`, `contactName`, indirizzo completo, `notes`.
+`pec`, `sdiCode`, `phone`, `mobilePhone`, `iban`, `website`, `contactName`,
+indirizzo completo, `notes`.
+
+⚠️ **`iban` e `mobilePhone` stanno sul SOGGETTO, non sul ruolo**, e la conseguenza si vede
+in due schede: chi è cliente e fornitore ha **un conto solo**, e lo si aggiorna
+indifferentemente dall'una o dall'altra. È il conto della persona giuridica, non un patto
+commerciale — quello è `ourBankName`, che infatti sta sul ruolo fornitore.
 
 Denominazione minima: **ragione sociale oppure nome e cognome** (validata in
 form e in API).
@@ -46,6 +52,61 @@ Il contratto HTTP resta "piatto": le API espongono i campi del soggetto
 appiattiti nella risposta di ciascun ruolo, più `linkedSupplierId` /
 `linkedCustomerId` e `linkedSupplierActive` / `linkedCustomerActive` per lo
 stato del ruolo gemello.
+
+## ⭐ Perché un soggetto ha DUE ruoli — deciso il 01/09/2026
+
+> _Proprietario: «quello che dovrebbe cambiare rispetto ai fornitori o clienti che non sono
+> entrambe le cose è che posso poter trattare un fornitore da cliente e da fornitore e
+> viceversa. Quindi registrare fatture di un fornitore ma poter vendergli merce e quindi mi
+> compare nei documenti di vendita. Questo è il senso.»_
+
+⭐ **Il doppio ruolo non è un espediente tecnico: è il caso d'uso.** Alla stessa azienda si
+registrano le fatture d'acquisto **e** le si vende merce. Con i due ruoli attivi il soggetto
+compare in **entrambe** le famiglie di tendine — acquisti e vendite — con un'anagrafica sola.
+
+⚠️ **Attivare il secondo ruolo CREA una riga** (`allocateNextSupplierCode` /
+`allocateNextCustomerCode`): non è un interruttore su una riga esistente, è una scheda in più
+nel rispettivo elenco, con codice progressivo proprio. È corretto — i dati commerciali dei
+due ruoli sono diversi — ma va saputo: dopo la spunta, l'elenco fornitori ha una voce in più.
+
+**Verificato sul database il 01/09/2026**, con un soggetto di prova a due ruoli:
+
+```text
+entrambi attivi         tendina fornitori 1 · tendina clienti 1 · elenco fornitori 1
+fornitore disattivato   tendina fornitori 0 · tendina clienti 1 · elenco fornitori 1
+cliente disattivato     tendina fornitori 1 · tendina clienti 0 · elenco fornitori 1
+```
+
+⭐ **I due stati sono indipendenti**: spegnere un ruolo non tocca l'altro, e in nessun caso
+la riga sparisce dal proprio elenco.
+
+## ⭐ Il comando «Attivo» sulla scheda — aggiunto il 01/09/2026
+
+⛔ **Fino a oggi `isActive` del ruolo fornitore non si poteva cambiare da nessuna parte.**
+Cercato in tutta l'API: l'unico scrittore era `setSupplierRoleTx`, cioè la spunta «È anche
+fornitore» **sulla scheda cliente**. Per un fornitore che non fosse anche cliente non
+esisteva alcun percorso — nasceva attivo e restava attivo per sempre, mentre la colonna
+«Stato ruolo» dell'elenco mostrava uno stato che quella pagina non governava.
+
+⭐ **Ora la maschera fornitore ha la spunta «Attivo»**, accanto a «È anche cliente»: i due
+sono entrambi interruttori di ruolo e si leggono insieme. Il proprietario ha scelto questa
+strada fra le due possibili — l'altra era togliere la colonna dall'elenco.
+
+⚠️ **Governano ruoli diversi, e la distinzione va tenuta**: «Attivo» è lo stato di **questo**
+ruolo; «È anche cliente» accende o spegne il ruolo **gemello**. Sono due interruttori, non
+uno doppio.
+
+✅ **E dal 01/09/2026 ce l'ha anche il CLIENTE**, col rifacimento di quell'anagrafica.
+
+⚠️ **Il buco era lo stesso, ma la diagnosi cambia di poco**: `Customer.isActive` esisteva
+nel database e usciva già nella vista API (quindi la colonna «Stato» dell'elenco lo
+mostrava), e `listAll` lo filtrava per le tendine dei documenti — **ma nessun payload di
+scrittura lo portava**. Il campo si poteva leggere e non scrivere, esattamente come sul
+fornitore.
+
+⭐ **Sono state chiuse tutte e tre le tappe**: `CreateCustomerDto.isActive`, l'assegnazione
+in `normalizeRoleWrite` (fuori dall'aiuto che normalizza le stringhe: su un booleano
+`false` è un valore, non un vuoto) e la spunta nella maschera.
 
 ## Spunta "È anche fornitore" / "È anche cliente"
 

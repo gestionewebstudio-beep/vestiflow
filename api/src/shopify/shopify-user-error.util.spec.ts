@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { toShopifyUserMessage } from './shopify-user-error.util';
+import { SYNC_DISABLE_FAILED_MESSAGE, toShopifyUserMessage } from './shopify-user-error.util';
 
 describe('toShopifyUserMessage', () => {
   it('usa messaggi noti per codice', () => {
@@ -43,5 +43,22 @@ describe('toShopifyUserMessage', () => {
     expect(toShopifyUserMessage(undefined, '')).toContain('problema con Shopify');
     expect(toShopifyUserMessage(undefined, 'x'.repeat(600))).toContain('problema con Shopify');
     expect(toShopifyUserMessage(undefined, 'Errore breve custom')).toBe('Errore breve custom');
+  });
+});
+
+describe('la disattivazione fallita non viene riscritta', () => {
+  it('⛔ un TIMEOUT non cancella la conseguenza: senza questo ramo resterebbe «ha impiegato troppo tempo»', () => {
+    const grezzo = `${SYNC_DISABLE_FAILED_MESSAGE}: gateway timeout`;
+
+    expect(toShopifyUserMessage(undefined, grezzo)).toBe(grezzo);
+  });
+
+  it('la causa tecnica resta in coda, per chi deve capire perché', () => {
+    const grezzo = `${SYNC_DISABLE_FAILED_MESSAGE}: Shopify productUpdate: Product cannot be archived`;
+
+    const messaggio = toShopifyUserMessage(undefined, grezzo);
+
+    expect(messaggio).toContain(SYNC_DISABLE_FAILED_MESSAGE);
+    expect(messaggio).toContain('cannot be archived');
   });
 });

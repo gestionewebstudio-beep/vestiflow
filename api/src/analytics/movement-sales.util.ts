@@ -20,8 +20,6 @@ export interface ProductAccumulator {
 export interface SalesAggregate {
   revenueMinor: number;
   costMinor: number;
-  /** Ricavo per cui il costo è noto (denominatore del margine, §cost coverage). */
-  costKnownRevenueMinor: number;
   unitsSold: number;
   transactionCount: number;
   byChannel: Record<ReportChannel, { revenueMinor: number; unitsSold: number }>;
@@ -34,7 +32,7 @@ export interface SalesAggregate {
 export type AggregatableMovement = SaleMovementLike & {
   readonly origin: MovementOrigin;
   readonly sku: string;
-  readonly totalCostMinor: number | null;
+  readonly totalCostMinor: number;
   readonly createdAt: Date;
   readonly productName: string;
 };
@@ -62,7 +60,6 @@ function emptySalesAggregate(dailyDates?: readonly string[]): SalesAggregate {
   return {
     revenueMinor: 0,
     costMinor: 0,
-    costKnownRevenueMinor: 0,
     unitsSold: 0,
     transactionCount: 0,
     byChannel: {
@@ -112,11 +109,11 @@ export function aggregateSalesMovements(
 
     acc.revenueMinor += revenue;
     acc.unitsSold += units;
-    // Costo congelato sul movimento: null = ignoto → fuori dal denominatore del margine.
-    if (movement.totalCostMinor !== null) {
-      acc.costMinor += sign * movement.totalCostMinor;
-      acc.costKnownRevenueMinor += revenue;
-    }
+    // ⛔ Qui c'era un ramo `totalCostMinor !== null` che teneva fuori dal
+    // margine i movimenti «senza costo», e un `costKnownRevenueMinor` che ne
+    // misurava la copertura. Il costo congelato non è più nullable: zero è un
+    // costo, e un movimento a costo zero entra nel margine come ogni altro.
+    acc.costMinor += sign * movement.totalCostMinor;
 
     const channel = channelOfOrigin(movement.origin);
     if (channel) {
@@ -143,9 +140,7 @@ export function aggregateSalesMovements(
 }
 
 /** Top prodotti per ricavo (positivi), ordinati e limitati. */
-export function topProductsOf(
-  map: Map<string, ProductAccumulator>,
-): readonly ProductAccumulator[] {
+export function topProductsOf(map: Map<string, ProductAccumulator>): readonly ProductAccumulator[] {
   return [...map.values()]
     .filter((row) => row.revenueMinor > 0)
     .sort((a, b) => b.revenueMinor - a.revenueMinor)

@@ -1,3 +1,5 @@
+import { OrderState } from './order-state.model';
+
 import type {
   CurrencyCode,
   EntityId,
@@ -63,6 +65,15 @@ export interface SalesOrderLine {
   readonly barcode?: string;
   /** Unità di misura snapshot (es. pz). */
   readonly unitOfMeasure?: string;
+  /**
+   * Etichetta della VARIANTE, fotografata quando l'articolo è entrato nella
+   * riga: «M / Rosso». Vuota = l'articolo non ha varianti.
+   *
+   * ⛔ Non si ricostruisce dalla variante corrente. Prima si faceva, e un
+   * ordine di ieri mostrava la variante di oggi — o niente, se la variante era
+   * uscita dal catalogo.
+   */
+  readonly variantLabel?: string;
   /** Sconto riga in notazione a cascata (es. "10%", "4+10%"). */
   readonly discount?: string;
   /** Codice IVA della riga. */
@@ -80,6 +91,13 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly id: EntityId;
   /** Numero ordine leggibile (Shopify order name, es. '#1001'). */
   readonly orderNumber: string;
+  /**
+   * Numero interno dal numeratore `customer_order`, e la sua serie. Assenti
+   * sugli ordini che arrivano da un canale: quelli portano il numero del
+   * canale, non uno nostro (specifica numerazione §5).
+   */
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly financialStatus: SalesOrderFinancialStatus;
   readonly fulfillmentStatus: SalesOrderFulfillmentStatus;
   readonly source: SalesOrderSource;
@@ -96,15 +114,41 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly lines: readonly SalesOrderLine[];
   readonly subtotal: Money;
   readonly total: Money;
+  /**
+   * Componenti economiche della testata, come le manda il canale.
+   *
+   * Su un ordine online non stanno su nessuna riga — la spedizione non è un
+   * articolo e lo sconto nasce sull'intero ordine — quindi senza di esse il
+   * totale del documento non torna con quello che il cliente ha pagato.
+   * Sugli ordini manuali valgono zero: lì i totali si calcolano dalle righe.
+   */
+  readonly tax?: Money;
+  readonly shipping?: Money;
+  readonly discount?: Money;
   /** Data dell'ordine (Shopify processedAt). */
   readonly placedAt: IsoDateString;
   /** Annullamento comunicato dal canale (impegni rilasciati). */
   readonly cancelledAt?: IsoDateString;
+  /**
+   * Stato del ciclo commerciale, per i soli ordini `manual`.
+   *
+   * ⛔ `null` sugli ordini di CANALE, e non è un dato mancante: un ordine
+   * Shopify non ha un ciclo commerciale VestiFlow, e il suo stato si legge
+   * dai campi del canale come sempre.
+   */
+  readonly commercialState?: OrderState | null;
   /** Evasione completa registrata dal canale (scarico in fase successiva). */
   readonly fulfilledAt?: IsoDateString;
   /** Evasione parziale o anomalia: richiede verifica manuale (fase 1 §7). */
   readonly requiresReview?: boolean;
   readonly reviewReason?: string;
+  /**
+   * Da quando la riconciliazione ha visto che l'ordine non risulta più sul
+   * canale (cancellato su Shopify). È un'osservazione, non un'azione: la
+   * rimozione resta una scelta dell'operatore — ed è l'unico caso in cui un
+   * ordine di canale si può rimuovere.
+   */
+  readonly channelMissingSince?: IsoDateString;
   readonly shopify?: ShopifyLink;
   /** Quantità ancora impegnata dagli impegni attivi dell'ordine (fase 3 §2). */
   readonly committedQuantity?: number;
@@ -117,50 +161,71 @@ export interface SalesOrder extends TenantScoped, Timestamped {
     readonly type: string;
     readonly status: string;
   };
-  /** Vendita online generata dall'evasione (fase 2): scarico + Corrispettivo. */
+  /** Vendita online generata dall'evasione (fase 2): lo scarico di magazzino. */
   readonly onlineSale?: SalesOrderOnlineSaleLink;
   // ── Testata Ordine cliente manuale (source = manual) ──
   /** Location/magazzino di origine degli impegni. */
   readonly locationId?: EntityId;
   /** Rif. ordine cliente esterno (testo libero). */
   readonly externalRef?: string;
+  // ── Documento della controparte: l'ordine emesso dal cliente ──
+  // Trio tipo + numero + data, lo stesso di ogni altra maschera documento.
+  // È altra cosa da `externalRef`, che resta un riferimento libero.
+  /** Tipo del documento emesso dal cliente (tabella tipi del tenant). */
+  readonly externalDocumentTypeId?: EntityId;
+  /**
+   * Etichetta del tipo fotografata sul documento. Sola lettura: la scrive il
+   * backend insieme all'id, e sopravvive all'eliminazione del tipo — è quella
+   * che tiene leggibile un ordine vecchio quando la voce non esiste più.
+   */
+  readonly externalDocumentTypeSnapshot?: string;
+  /** Numero del documento emesso dal cliente. */
+  readonly externalDocNumber?: string;
+  /** Data del documento emesso dal cliente (solo giorno). */
+  readonly externalDocDate?: IsoDateString;
   /** Data prevista consegna (solo giorno). */
   readonly expectedDeliveryDate?: IsoDateString;
   /** Note documento. */
   readonly notes?: string;
+  /**
+   * Nota interna, mai in stampa.
+   *
+   * ⭐ Aggiunta il 25/08/2026: l'ordine cliente ne era privo solo perche' la
+   * colonna non esisteva su `sales_orders`, non per una ragione funzionale.
+   */
+  readonly internalComment?: string;
   /** Condizioni di pagamento (snapshot testo). */
   readonly paymentTerms?: string;
   /** Sconto extra % sull'intero documento, dopo gli sconti riga. */
   readonly documentDiscountPercent?: number;
+  /**
+   * Modalità con cui i prezzi dell'ordine sono stati DIGITATI: netti o ivati.
+   * È una proprietà dell'ordine, non di chi lo apre — due operatori devono
+   * vederlo nello stesso modo. Il prezzo memorizzato resta comunque il netto.
+   */
+  readonly pricesIncludeVat?: boolean;
 }
 
 /**
- * Stato dell'Ordine cliente manuale (§STATI + prompt DDT): stati derivati.
- * Non esiste Bozza: o Confermato, o non esiste. «Parzialmente concluso»
- * nasce quando il DDT che ha incluso l'ordine non copre tutti i prodotti.
+ * Stato commerciale dell'Ordine cliente MANUALE.
+ *
+ * ⭐ **Dal 29/08/2026 lo stato si LEGGE, non si deduce.** L'autorità è
+ * `commercialState`, che l'API persiste in colonna; `cancelledAt`, `fulfilledAt`
+ * e `fulfillmentStatus` conservano il significato che hanno per il canale e per
+ * il Registro, ma non decidono più lo stato di un ordine manuale.
+ *
+ * ⛔ Qui c'era `manualOrderState(order)`, che lo derivava da quei tre campi.
+ * ⛔ Qui c'era anche un quinto valore, `PartiallyConcluded`: **l'evasione
+ * parziale non esiste in
+ * VestiFlow**: il primo Arrivo/DDT conclusivo porta l'ordine a Concluso, e il
+ * residuo resta informazione — non riapre l'ordine (`18` §2.3).
+ *
+ * ⚠️ Il ripiego su `Confirmed` copre un solo caso: una riga salvata PRIMA della
+ * migration `20260828210000`, che il backfill ha già convertito. Non è una
+ * quinta derivazione — è il valore che quell'ordine aveva comunque.
  */
-export const ManualOrderState = {
-  Confirmed: 'confirmed',
-  Cancelled: 'cancelled',
-  Concluded: 'concluded',
-  PartiallyConcluded: 'partially_concluded',
-} as const;
-export type ManualOrderState = (typeof ManualOrderState)[keyof typeof ManualOrderState];
-
-/** Stato derivato: Annullato > Concluso > Parzialmente concluso > Confermato. */
-export function manualOrderState(
-  order: Pick<SalesOrder, 'cancelledAt' | 'fulfilledAt' | 'fulfillmentStatus'>,
-): ManualOrderState {
-  if (order.cancelledAt) {
-    return ManualOrderState.Cancelled;
-  }
-  if (order.fulfilledAt) {
-    return ManualOrderState.Concluded;
-  }
-  if (order.fulfillmentStatus === SalesOrderFulfillmentStatus.Partial) {
-    return ManualOrderState.PartiallyConcluded;
-  }
-  return ManualOrderState.Confirmed;
+export function manualOrderState(order: Pick<SalesOrder, 'commercialState'>): OrderState {
+  return order.commercialState ?? OrderState.Confirmed;
 }
 
 /** Stato magazzino della Vendita online collegata. */
@@ -172,17 +237,6 @@ export const OnlineSaleInventoryStatus = {
 export type OnlineSaleInventoryStatus =
   (typeof OnlineSaleInventoryStatus)[keyof typeof OnlineSaleInventoryStatus];
 
-/** Stato della voce Corrispettivo collegata alla Vendita online. */
-export const CorrispettivoEntryStatus = {
-  ToVerify: 'to_verify',
-  Included: 'included',
-  ExcludedInvoiced: 'excluded_invoiced',
-  Adjusted: 'adjusted',
-  Refunded: 'refunded',
-} as const;
-export type CorrispettivoEntryStatus =
-  (typeof CorrispettivoEntryStatus)[keyof typeof CorrispettivoEntryStatus];
-
 /** Riferimento alla Vendita online collegata a un ordine evaso. */
 export interface SalesOrderOnlineSaleLink {
   readonly id: EntityId;
@@ -190,10 +244,4 @@ export interface SalesOrderOnlineSaleLink {
   readonly fulfilledAt: IsoDateString;
   readonly inventoryStatus: OnlineSaleInventoryStatus;
   readonly refundedAt?: IsoDateString;
-  readonly corrispettivo?: {
-    readonly id: EntityId;
-    readonly reference: string;
-    readonly fiscalDate: IsoDateString;
-    readonly status: CorrispettivoEntryStatus;
-  };
 }

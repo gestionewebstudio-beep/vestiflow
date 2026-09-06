@@ -1,34 +1,51 @@
 import { Routes } from '@angular/router';
 
 import { authGuard, guestGuard } from '@core/auth';
-import { tenantWorkspaceGuard } from '@features/admin/guards/tenant-workspace.guard';
+import { mustChangePasswordGuard } from '@core/guards/must-change-password.guard';
+import { tenantWorkspaceGuard } from '@core/guards/tenant-workspace.guard';
+import { platformAdminGuard } from '@features/admin/guards/platform-admin.guard';
 
 // Routing feature-based con lazy loading. Le route applicative vivono sotto /app,
 // protette da authGuard; /login e' riservata ai guest (guestGuard).
+// Le pagine lista conservate al cambio tab portano `data: { reuse: true }` sulla
+// rotta foglia nel routes della feature (vedi TabRouteReuseStrategy): qui sui
+// mount `loadChildren` il flag non avrebbe effetto, il router non lo legge.
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'app/dashboard' },
   {
     path: 'login',
-    title: 'VestiFlow · Accesso',
+    title: 'Accesso',
     canActivate: [guestGuard],
     loadComponent: () => import('@features/auth/login.component').then((m) => m.LoginComponent),
   },
   {
     path: 'login/forgot-password',
-    title: 'VestiFlow · Recupero password',
+    title: 'Recupero password',
     canActivate: [guestGuard],
     loadComponent: () =>
       import('@features/auth/forgot-password.component').then((m) => m.ForgotPasswordComponent),
   },
   {
+    // Senza guestGuard, a differenza delle sorelle: il link email Supabase
+    // (invito o recupero) stabilisce una sessione prima di arrivare qui, e il
+    // guard rimbalzerebbe l'utente in dashboard senza fargli impostare la password.
     path: 'login/reset-password',
-    title: 'VestiFlow · Nuova password',
+    title: 'Nuova password',
     loadComponent: () =>
       import('@features/auth/reset-password.component').then((m) => m.ResetPasswordComponent),
   },
   {
-    path: 'app',
+    // Fuori dalla shell (come reset-password): l'utente con password iniziale
+    // da cambiare non deve vedere la navigazione finché non ha concluso.
+    path: 'cambia-password',
+    title: 'Cambia password',
     canActivate: [authGuard],
+    loadComponent: () =>
+      import('@features/auth/change-password.component').then((m) => m.ChangePasswordComponent),
+  },
+  {
+    path: 'app',
+    canActivate: [authGuard, mustChangePasswordGuard],
     loadComponent: () =>
       import('./layout/shell-layout.component').then((m) => m.ShellLayoutComponent),
     children: [
@@ -36,49 +53,118 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         canActivate: [tenantWorkspaceGuard],
-        data: { reuse: true },
         loadChildren: () =>
           import('@features/dashboard/dashboard.routes').then((m) => m.dashboardRoutes),
       },
       {
         path: 'products',
         canActivate: [tenantWorkspaceGuard],
-        data: { reuse: true },
         loadChildren: () =>
           import('@features/products/products.routes').then((m) => m.productsRoutes),
       },
       {
         path: 'inventory',
         canActivate: [tenantWorkspaceGuard],
-        data: { reuse: true },
         loadChildren: () =>
           import('@features/inventory/inventory.routes').then((m) => m.inventoryRoutes),
       },
       {
         path: 'orders',
         canActivate: [tenantWorkspaceGuard],
-        data: { reuse: true },
         loadChildren: () => import('@features/orders/orders.routes').then((m) => m.ordersRoutes),
       },
       {
         path: 'suppliers',
         canActivate: [tenantWorkspaceGuard],
-        data: { reuse: true },
         loadChildren: () =>
           import('@features/suppliers/suppliers.routes').then((m) => m.suppliersRoutes),
       },
       {
         path: 'documents',
         canActivate: [tenantWorkspaceGuard],
-        data: { reuse: true },
         loadChildren: () =>
           import('@features/documents/documents.routes').then((m) => m.documentsRoutes),
       },
       {
+        // ⭐ La Cassa: tre aree — Vendita · Operazioni · Sessioni. Reso e
+        // chiusura sono SUBORDINATI a un'operazione e a una sessione, quindi
+        // stanno dentro queste rotte e non nel menu (`docs/25` §3).
+        path: 'cassa',
+        canActivate: [tenantWorkspaceGuard],
+        loadChildren: () => import('@features/cash/cash.routes').then((m) => m.cashRoutes),
+      },
+      {
+        // Area Vendite: composizione di tre feature. Le pagine di online-sales
+        // e store-sales vivono sotto /app/sales ma appartengono ad altre
+        // feature: montarle qui (il composition root può importare le feature)
+        // evita gli import cross-feature nei routes di sales-orders.
+        // Ordine: i segmenti statici prima del catch-all '' di sales-orders,
+        // il cui ':id' altrimenti li catturerebbe.
         path: 'sales',
         canActivate: [tenantWorkspaceGuard],
+        children: [
+          {
+            path: 'online',
+            loadChildren: () =>
+              import('@features/online-sales/online-sales.routes').then((m) => m.onlineSalesRoutes),
+          },
+          {
+            // «Corrispettivi» della sidebar porta al registro DERIVATO da
+            // vendite e rettifiche. Quello costruito su `corrispettivo_entries`
+            // — che mostrava aliquote inventate sugli ordini multi-aliquota
+            // (registro difetti 3.12) — è caduto il 17/08/2026 con le sue
+            // tabelle: l'indirizzo e la voce di menu non sono mai cambiati.
+            //
+            // Il componente vive sotto `features/reports/` e la rotta si
+            // dichiara qui, alla radice, perché una feature non importa da
+            // un'altra feature.
+            path: 'corrispettivi',
+            loadChildren: () =>
+              import('@features/reports/reports.routes').then((m) => m.corrispettiviRegisterRoutes),
+          },
+          // ⛔ Qui c'era il reindirizzamento dal vecchio indirizzo della maschera
+          // Vendita al banco (`/app/sales/register`), uscito da /app/sales il
+          // 19/08/2026. Tolto il 25/08/2026 con l'altro, per decisione del
+          // proprietario: niente seconde strade verso la stessa pagina.
+          {
+            path: '',
+            loadChildren: () =>
+              import('@features/sales-orders/sales-orders.routes').then((m) => m.salesOrdersRoutes),
+          },
+        ],
+      },
+      {
+        // Vendite al banco: modulo proprio, non più un segmento di /app/sales.
+        // Compone due feature — l'elenco e il dettaglio sono
+        // `DocumentListComponent`/`SalesDocumentDetailComponent` di documents,
+        // le due creazioni sono di store-sales — e la composizione la fa questo
+        // file, perché una feature non importa da un'altra feature.
+        //
+        // ⛔ `tenantWorkspaceGuard` è RIPETUTO qui, e non è ridondante: prima
+        // la maschera lo ereditava da `sales` e l'elenco da `documents`. Un
+        // mount nuovo in cima ad /app non eredita niente, e senza questa riga
+        // un operatore di piattaforma entrerebbe nel gestionale di un cliente.
+        //
+        // Ordine: i due segmenti statici PRIMA del `:id` del dettaglio, che
+        // altrimenti li catturerebbe come identificativi di documento.
+        path: 'vendita-al-banco',
+        canActivate: [tenantWorkspaceGuard],
+        // ⛔ UN SOLO `loadChildren` che compone un array PIATTO, non due figli
+        // `path: ''` fratelli: quelli funzionerebbero solo grazie al
+        // backtracking del router, che è un dettaglio su cui non vale la pena
+        // appoggiare l'indirizzo di un modulo.
+        //
+        // ⚠️ L'ORDINE è la cosa che conta: le due creazioni PRIMA di elenco e
+        // dettaglio, perché il `:id` del dettaglio catturerebbe
+        // «nuova-vendita-al-banco» come identificativo di documento.
         loadChildren: () =>
-          import('@features/sales-orders/sales-orders.routes').then((m) => m.salesOrdersRoutes),
+          Promise.all([
+            import('@features/store-sales/store-sales.routes'),
+            import('@features/documents/documents.routes'),
+          ]).then(([banco, documenti]) => [
+            ...banco.storeSalesRegisterRoutes,
+            ...documenti.storeSaleDocumentRoutes,
+          ]),
       },
       {
         path: 'customers',
@@ -94,7 +180,6 @@ export const routes: Routes = [
       {
         path: 'guide',
         canActivate: [tenantWorkspaceGuard],
-        data: { reuse: true },
         loadChildren: () => import('@features/guide/guide.routes').then((m) => m.guideRoutes),
       },
       {
@@ -105,7 +190,22 @@ export const routes: Routes = [
       },
       {
         path: 'admin',
-        loadChildren: () => import('@features/admin/admin.routes').then((m) => m.adminRoutes),
+        children: [
+          {
+            // Variante admin della guida: il componente vive in features/guide,
+            // quindi la monta il composition root — admin non può importarlo.
+            path: 'guide',
+            title: 'Guida tecnica',
+            canActivate: [platformAdminGuard],
+            loadComponent: () =>
+              import('@features/guide/guide.component').then((m) => m.GuideComponent),
+            data: { guideVariant: 'admin' },
+          },
+          {
+            path: '',
+            loadChildren: () => import('@features/admin/admin.routes').then((m) => m.adminRoutes),
+          },
+        ],
       },
     ],
   },

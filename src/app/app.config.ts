@@ -7,17 +7,21 @@ import {
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
-import { provideRouter, RouteReuseStrategy } from '@angular/router';
+import { provideRouter, RouteReuseStrategy, TitleStrategy } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
 import { map, tap } from 'rxjs';
 
 import { AUTH_GATEWAY, AuthService, authInterceptor } from '@core/auth';
 import { MockAuthGateway } from '@core/auth/mock-auth.gateway';
+import { ProfileRefreshService } from '@core/auth/profile-refresh.service';
 import { SupabaseAuthGateway } from '@core/auth/supabase-auth.gateway';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { GlobalErrorHandler } from '@core/handlers/global-error.handler';
 import { errorInterceptor } from '@core/interceptors/error.interceptor';
 import { loadingInterceptor } from '@core/interceptors/loading.interceptor';
+import { installNumberInputWheelGuard } from '@core/services/number-input-wheel-guard';
+import { PageTitleStrategy } from '@core/routing/page-title.strategy';
+import { reuseInvalidationInterceptor } from '@core/routing/reuse-invalidation.interceptor';
 import { TabRouteReuseStrategy } from '@core/routing/tab-route-reuse.strategy';
 import { supportSessionInterceptor } from '@core/support/support-session.interceptor';
 import { SupportSessionService } from '@core/support/support-session.service';
@@ -28,10 +32,15 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    { provide: RouteReuseStrategy, useClass: TabRouteReuseStrategy },
-    // Ordine: loading → support session → auth → error (Bearer JWT Supabase).
+    // useExisting: la stessa istanza serve il Router e l'interceptor di
+    // invalidazione (una scrittura HTTP svuota la cache delle pagine).
+    TabRouteReuseStrategy,
+    { provide: RouteReuseStrategy, useExisting: TabRouteReuseStrategy },
+    { provide: TitleStrategy, useClass: PageTitleStrategy },
+    // Ordine: reuse → loading → support session → auth → error (Bearer JWT Supabase).
     provideHttpClient(
       withInterceptors([
+        reuseInvalidationInterceptor,
         loadingInterceptor,
         supportSessionInterceptor,
         authInterceptor,
@@ -50,8 +59,15 @@ export const appConfig: ApplicationConfig = {
       },
     },
     provideAppInitializer(() => {
+      // La rotella del mouse non deve cambiare un numero: un ascoltatore solo,
+      // in cattura sul documento, invece di una direttiva da importare in venti
+      // componenti (e nel ventunesimo dimenticare).
+      installNumberInputWheelGuard();
       const supportSessions = inject(SupportSessionService);
       const auth = inject(AuthService);
+      // Istanziato qui perché nessuno lo inietta per usarlo: vive per l'effect
+      // che tiene aggiornati i permessi a sessione aperta.
+      inject(ProfileRefreshService);
       supportSessions.restoreFromStorage();
       return auth.initialize().pipe(
         tap(() => {

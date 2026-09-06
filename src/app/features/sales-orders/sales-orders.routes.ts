@@ -1,110 +1,70 @@
 import { Routes } from '@angular/router';
 
+import { shopifyOrdersGuard } from '@core/guards/retail-sales.guard';
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
-import { TenantPermission } from '@core/models/tenant-permission.model';
-import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
-
 import {
-  retailSalesRegisterGuard,
-  salesHistoryGuard,
-  shopifyOrdersGuard,
-} from './guards/retail-sales.guard';
+  REQUIRED_TENANT_PERMISSION_GROUPS_KEY,
+  SALES_ORDERS_MANAGE_GROUPS,
+  SALES_ORDERS_VIEW_GROUPS,
+} from '@core/permissions/tenant-permissions.util';
 
+// Le sorelle /app/sales/online, /app/sales/corrispettivi e /app/sales/register
+// appartengono alle feature online-sales e store-sales: le monta il composition
+// root (app.routes.ts), non questo file — nessun import cross-feature.
 export const salesOrdersRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Ordini cliente',
+    title: 'Ordini cliente',
     loadComponent: () =>
       import('./sales-order-list.component').then((m) => m.SalesOrderListComponent),
-    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS,
       salesListProfile: 'customer-orders',
+      reuse: true,
     },
   },
   {
     path: 'shopify',
-    title: 'VestiFlow · Ordini Shopify',
+    title: 'Ordini Shopify',
     loadComponent: () =>
       import('./sales-order-list.component').then((m) => m.SalesOrderListComponent),
     canActivate: [shopifyOrdersGuard, tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS,
       salesListProfile: 'shopify-orders',
+      reuse: true,
     },
   },
   {
-    path: 'online',
-    title: 'VestiFlow · Vendite online',
-    loadComponent: () =>
-      import('@features/online-sales/online-sale-list.component').then(
-        (m) => m.OnlineSaleListComponent,
-      ),
-    canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
-  },
-  {
-    path: 'online/:id',
-    title: 'VestiFlow · Dettaglio vendita online',
-    loadComponent: () =>
-      import('@features/online-sales/online-sale-detail.component').then(
-        (m) => m.OnlineSaleDetailComponent,
-      ),
-    canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
-  },
-  {
-    path: 'corrispettivi',
-    title: 'VestiFlow · Corrispettivi',
-    loadComponent: () =>
-      import('@features/online-sales/corrispettivi-register.component').then(
-        (m) => m.CorrispettiviRegisterComponent,
-      ),
-    canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
-  },
-  {
-    path: 'register',
-    title: 'VestiFlow · Vendita/Reso in negozio',
-    canActivate: [retailSalesRegisterGuard],
-    // Uscita con carrello/reso in corso: conferma a tre scelte (salva, esci,
-    // annulla) delegata al componente tramite CanComponentDeactivate.
-    canDeactivate: [unsavedChangesGuard],
-    // Fase 3 §7: cassa a carrello (sostituisce lo scan singolo per il negozio).
-    loadComponent: () =>
-      import('@features/store-sales/store-sale-register.component').then(
-        (m) => m.StoreSaleRegisterComponent,
-      ),
-  },
-  {
     path: 'new',
-    title: 'VestiFlow · Nuovo ordine cliente',
+    title: 'Nuovo ordine cliente',
     loadComponent: () =>
       import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
-    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_MANAGE_GROUPS },
   },
   {
     path: ':id/edit',
-    title: 'VestiFlow · Ordine cliente',
+    title: 'Ordine cliente',
     loadComponent: () =>
       import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
-    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     // Vista consentita a chi consulta i report; la modifica è gated nel form
     // (sblocco solo per chi gestisce i documenti). Sostituisce la vecchia
     // schermata Dettaglio: ogni ordine si apre nel form (bloccato).
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS },
   },
   {
     path: ':id',
-    title: 'VestiFlow · Ordine cliente',
+    title: 'Ordine cliente',
     loadComponent: () =>
       import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
-    canActivate: [salesHistoryGuard, tenantPermissionGuard],
+    canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS },
   },
 ];

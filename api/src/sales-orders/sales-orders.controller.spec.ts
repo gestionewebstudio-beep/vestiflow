@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { TenantPermission } from '../auth/tenant-permission.constants';
 import { TENANT_PERMISSIONS_KEY } from '../common/auth/tenant-permissions.decorator';
 import type { AttachmentsService } from '../attachments/attachments.service';
 import type { ManualSalesOrdersService } from './manual-sales-orders.service';
@@ -35,7 +34,7 @@ describe('SalesOrdersController', () => {
     attachments as unknown as AttachmentsService,
   );
 
-  it('protegge list e getById con permesso reports.view', () => {
+  it('protegge list e getById con la consultazione dell’ordine cliente', () => {
     const listPerms = Reflect.getMetadata(
       TENANT_PERMISSIONS_KEY,
       SalesOrdersController.prototype.list,
@@ -44,33 +43,42 @@ describe('SalesOrdersController', () => {
       TENANT_PERMISSIONS_KEY,
       SalesOrdersController.prototype.getById,
     ) as string[];
-    expect(listPerms).toContain(TenantPermission.ReportsView);
-    expect(detailPerms).toContain(TenantPermission.ReportsView);
+    expect(listPerms).toContain('doc.sales_order.view');
+    expect(detailPerms).toContain('doc.sales_order.view');
   });
 
   it('list delega al service', async () => {
     const query = { page: 1, pageSize: 10 };
     salesOrders.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10 });
 
-    await controller.list(tenantId, query);
+    const user = { id: 'user-1', role: 'owner' } as never;
+    await controller.list(tenantId, user, query);
 
-    expect(salesOrders.list).toHaveBeenCalledWith(tenantId, query);
+    expect(salesOrders.list).toHaveBeenCalledWith(tenantId, query, user);
   });
 
   it('getById delega al service', async () => {
     salesOrders.getById.mockResolvedValue({ id: 'order-1' });
 
-    await expect(controller.getById(tenantId, 'order-1')).resolves.toEqual({ id: 'order-1' });
+    const user = { id: 'user-1', role: 'owner' } as never;
+    await expect(controller.getById(tenantId, user, 'order-1')).resolves.toEqual({
+      id: 'order-1',
+    });
   });
 
-  it('exportCsv restituisce StreamableFile CSV', async () => {
-    const file = await controller.exportCsv(tenantId, {});
+  it('exportCsv restituisce StreamableFile CSV e INOLTRA l’utente', async () => {
+    // ⛔ Qui c'era `controller.exportCsv(tenantId, {})` con
+    //    `toHaveBeenCalledWith(tenantId, {})`: asseriva la firma SENZA utente,
+    //    cioè il contratto bucato. L'export non riceveva lo scope sede che
+    //    l'elenco applica, e il CSV usciva dal perimetro dell'operatore.
+    const user = { id: 'user-1', role: 'clerk' } as never;
+    const file = await controller.exportCsv(tenantId, user, {});
 
-    expect(salesOrdersExport.exportCsv).toHaveBeenCalledWith(tenantId, {});
+    expect(salesOrdersExport.exportCsv).toHaveBeenCalledWith(tenantId, {}, user);
     expect(file.options.disposition).toContain('vendite-vestiflow');
   });
 
-  it('protegge le rotte ordine manuale con permesso documents.manage', () => {
+  it('protegge le rotte ordine manuale con la gestione dell’ordine cliente', () => {
     for (const handler of [
       SalesOrdersController.prototype.getManualMeta,
       SalesOrdersController.prototype.saveManual,
@@ -78,7 +86,7 @@ describe('SalesOrdersController', () => {
       SalesOrdersController.prototype.concludeManualPrefill,
     ]) {
       const perms = Reflect.getMetadata(TENANT_PERMISSIONS_KEY, handler) as string[];
-      expect(perms).toContain(TenantPermission.DocumentsManage);
+      expect(perms).toContain('doc.sales_order.manage');
     }
   });
 

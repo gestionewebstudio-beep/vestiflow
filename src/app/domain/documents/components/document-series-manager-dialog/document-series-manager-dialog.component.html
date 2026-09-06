@@ -10,7 +10,11 @@
     @if (loading()) {
       <app-table-skeleton [columns]="2" [rows]="4" />
     } @else {
-      <app-document-counters [type]="type()" [counters]="counters()" (changed)="reload()" />
+      <app-document-counters
+        [type]="numberingType()"
+        [counters]="counters()"
+        (changed)="reload()"
+      />
     }
   }
 </app-slide-panel>

@@ -2,7 +2,6 @@ import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 import {
   ALL_TENANT_PERMISSIONS,
-  ROLE_DEFAULT_PERMISSIONS,
   type TenantPermissionKey,
   isTenantPermissionKey,
 } from '@core/models/tenant-permission.model';
@@ -21,6 +20,11 @@ export function hasFullTenantAccess(user: PermissionUser | null | undefined): bo
   return user.role === UserRole.Owner;
 }
 
+/**
+ * Permessi effettivi (specchio della regola API): titolare = tutti; per gli
+ * altri ruoli l'array salvato È la verità, anche vuoto. I default di ruolo
+ * servono solo come preset negli editor, mai come fallback a runtime.
+ */
 export function resolveEffectivePermissions(
   user: PermissionUser | null | undefined,
 ): readonly TenantPermissionKey[] {
@@ -30,11 +34,27 @@ export function resolveEffectivePermissions(
   if (hasFullTenantAccess(user)) {
     return ALL_TENANT_PERMISSIONS;
   }
-  const stored = user.permissions ?? [];
-  if (stored.length > 0) {
-    return stored.filter(isTenantPermissionKey);
+  return withImpliedDocumentViews((user.permissions ?? []).filter(isTenantPermissionKey));
+}
+
+/**
+ * «Gestisci» implica «Consulta» (specchio della regola API): l'implicazione si
+ * applica una volta sola qui, così ogni `can*` la eredita.
+ */
+function withImpliedDocumentViews(
+  permissions: readonly TenantPermissionKey[],
+): readonly TenantPermissionKey[] {
+  const result = new Set<TenantPermissionKey>(permissions);
+  for (const permission of permissions) {
+    const family =
+      permission.startsWith('doc.') && permission.endsWith('.manage')
+        ? permission.slice('doc.'.length, -'.manage'.length)
+        : null;
+    if (family) {
+      result.add(`doc.${family}.view` as TenantPermissionKey);
+    }
   }
-  return ROLE_DEFAULT_PERMISSIONS[user.role] ?? [];
+  return [...result];
 }
 
 export function hasTenantPermission(

@@ -1,3 +1,4 @@
+import { UnitOfMeasureSelectComponent } from '../unit-of-measure-select/unit-of-measure-select.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -18,16 +19,19 @@ import type { Subscription } from 'rxjs';
 
 import { PRODUCT_KIND_LABELS, ProductKind, ProductStatus } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
-import { formatVatRate, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { type VatCode } from '@core/models/vat-code.model';
 import {
   DEFAULT_CURRENCY,
   moneyFromMajorExact,
   moneyToMajor,
   roundToMinor,
 } from '@core/utils/money.util';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
+import { vatCodeSelectOption } from '@domain/documents/utils/document-vat-options.util';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 // Aritmetica IVA: una sola implementazione in tutta l'app (stesse formule e
@@ -83,11 +87,22 @@ const STATUS_OPTIONS: readonly StatusOption[] = [
 const CUSTOM_OPTION_VALUE = '__custom__';
 
 /**
- * I prezzi della sezione Listini. Il draft li porta sempre NETTI; nei campi si
- * vedono netti o ivati a seconda di come l'operatore preferisce lavorare.
+ * Tutti i valori commerciali di VENDITA dell'articolo. Il draft li porta sempre
+ * NETTI; nei campi si vedono netti o ivati a seconda di come l'operatore
+ * preferisce lavorare, e il selettore è UNO per tutti e sei.
+ *
+ * ⚠️ `compareAtPrice` è entrato qui il 17/08/2026, ed era l'unica eccezione:
+ * si inseriva «come va mostrato al cliente» e ignorava il selettore **in
+ * silenzio**. La conseguenza usciva dal gestionale — verso Shopify la stessa
+ * riga variante portava `price` netto e `compare_at_price` ivato, cioè uno
+ * sconto mostrato al cliente gonfiato dell'aliquota.
+ *
+ * Il **costo di riferimento** resta fuori di proposito: appartiene al dominio
+ * costi, che è sempre netto e ha una convenzione sua.
  */
 type PriceField =
   | 'sellingPrice'
+  | 'compareAtPrice'
   | 'shopifyPrice'
   | 'listino1Price'
   | 'listino2Price'
@@ -95,6 +110,7 @@ type PriceField =
 
 const PRICE_FIELDS: readonly PriceField[] = [
   'sellingPrice',
+  'compareAtPrice',
   'shopifyPrice',
   'listino1Price',
   'listino2Price',
@@ -126,12 +142,15 @@ function minorToMajor(minor: number): number {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    ButtonComponent,
     HoverTooltipComponent,
     SegmentedComponent,
+    DocumentLineSelectCellComponent,
     SelectMenuComponent,
     ShopifyTaxonomyPickerComponent,
     ShopifyCategoryAttributesComponent,
     CatalogCategoryManagerComponent,
+    UnitOfMeasureSelectComponent,
   ],
   templateUrl: './product-general-step.component.html',
   styleUrl: './product-general-step.component.scss',
@@ -162,7 +181,6 @@ export class ProductGeneralStepComponent implements OnInit {
    * anche la connessione attiva, usato per la tassonomia).
    */
   readonly shopifyActive = input(false);
-  readonly catalogReadOnly = input(false);
   /**
    * Mostra il campo Costo di riferimento (prezzo d'acquisto dell'articolo).
    * Permesso catalog.view_purchase_costs: senza, il campo resta nascosto e il
@@ -214,18 +232,65 @@ export class ProductGeneralStepComponent implements OnInit {
     (value) => ({ value, label: value }),
   );
 
+  /**
+   * ⚠️ **Le stesse opzioni delle righe documento** (18/08/2026), costruite da
+   * `vatCodeSelectOption`: `label` è **il codice**, `detail` la spiegazione.
+   *
+   * Prima l'etichetta era la specifica intera (`22 · 22% · Imponibile 22%`) e
+   * il valore scelto si mostrava con `triggerLabel` (`22%`). Quella forma non
+   * si può cercare per codice: il filtro dà la precedenza a chi *comincia* con
+   * ciò che si digita, e digitando `1` nessuna voce comincia per 1 — cominciano
+   * tutte col proprio codice, sì, ma preceduto da nient'altro solo in questa
+   * forma. Con `label` = codice, `1` porta a `10` come in Danea e come nelle
+   * righe.
+   *
+   * L'aliquota non si perde: sta in `detail`, accanto alla voce nell'elenco.
+   */
   protected readonly vatSelectOptions = computed((): readonly SelectMenuOption[] => {
     const currentId = this.value().defaultVatCodeId;
     return this.vatCodes()
       .filter((entry) => entry.isActive || entry.id === currentId)
-      .map((entry) => ({
-        value: entry.id,
-        // Specifica completa solo nella tendina; a selezione avvenuta il
-        // trigger mostra la sola aliquota (es. "22%").
-        label: vatCodeOptionLabel(entry),
-        triggerLabel: formatVatRate(entry.ratePercent),
-      }));
+      .map((entry) => vatCodeSelectOption(entry));
   });
+
+  /**
+   * Il campo mostra **l'aliquota, e basta** — la stessa cosa che mostra quando
+   * un codice è scelto esplicitamente (`triggerLabel`).
+   *
+   * ⚠️ Diceva «Predefinito aziendale», che è vero e inutile: guardando la
+   * scheda non si sapeva se quell'articolo sarebbe uscito al 22% o al 10%, e
+   * per saperlo si doveva aprire Impostazioni — un altro pezzo di applicazione,
+   * per un dato che sta a due centimetri dal campo.
+   *
+   * ⚠️ E non basta aggiungerla accanto: «Predefinito aziendale · 22%» dice due
+   * cose dove ne serve una, e la parola lunga si prende il campo per spiegare
+   * un meccanismo che all'operatore non serve conoscere mentre compila. Chi
+   * vuole sapere DA DOVE viene quell'aliquota apre la tendina, dove la voce lo
+   * dice per esteso.
+   *
+   * Il valore salvato resta **vuoto**, e non è un dettaglio: vuoto significa
+   * «segui la convenzione aziendale», quindi il giorno in cui l'azienda cambia
+   * predefinita questo articolo la segue. Scrivere il codice dentro al campo lo
+   * congelerebbe — è la stessa distinzione fra convenzione e memoria di
+   * `regole-gestionale`. A cambiare è ciò che si LEGGE, non ciò che si salva.
+   */
+  /**
+   * ⚠️ **A campo vuoto non c'è scritto NIENTE** (18/08/2026, decisione del
+   * proprietario del progetto).
+   *
+   * Il predefinito aziendale serve a **precompilare** un articolo nuovo con un
+   * valore vero — se l'azienda lavora al 22%, l'articolo nasce al 22% e lo si
+   * vede scritto. Non serve a riempire il vuoto di un articolo che l'IVA non
+   * ce l'ha: **un articolo senza Codice IVA è legittimo**, e il predefinito non
+   * lo tocca.
+   *
+   * Da cui: niente segnaposto. Ci sono passate due diciture sbagliate, e
+   * dicevano entrambe la stessa cosa falsa — che il vuoto «vale» il
+   * predefinito: prima l'aliquota nuda («22%»), che faceva sembrare l'articolo
+   * al 22%; poi «Nessuno (propone 22%)», che spiegava un meccanismo di cui in
+   * questa schermata non si deve sapere niente. Vuoto è vuoto.
+   */
+  protected readonly vatPlaceholder = '';
 
   protected readonly trackingSelectOptions: readonly SelectMenuOption[] = (
     Object.values(InventoryTrackingMode) as InventoryTrackingMode[]
@@ -329,12 +394,38 @@ export class ProductGeneralStepComponent implements OnInit {
   private readonly subcategoryValue = signal('');
   private readonly seasonValue = signal('');
 
+  /**
+   * ⭐ Riallinea il «Nome Shopify» al nome interno, su richiesta esplicita.
+   *
+   * ⚠️ È un COMANDO, non un automatismo: i due campi sono indipendenti apposta,
+   *    e riallinearli da soli a ogni modifica del nome interno rimetterebbe il
+   *    nome di magazzino sulla vetrina — cioè il difetto da cui nascono due
+   *    campi invece di uno (docs/24 §1.9).
+   */
+  protected copyNameToOnlineTitle(): void {
+    const nome = this.form.controls.name.value.trim();
+    if (!nome) {
+      return;
+    }
+    this.form.controls.shopifyTitle.setValue(nome);
+    this.form.controls.shopifyTitle.markAsDirty();
+  }
+
+  /** Spento quando non c'è niente da copiare, o quando i due già coincidono. */
+  protected canCopyNameToOnline(): boolean {
+    const nome = this.form.controls.name.value.trim();
+    return nome !== '' && nome !== this.form.controls.shopifyTitle.value.trim();
+  }
+
   protected readonly form = this.fb.group({
     // Primo campo dell'anagrafica (§POSIZIONE): identificatore principale.
     // `required` viene aggiunto in ngOnInit solo in modifica (in creazione
     // vuoto = progressivo generato dal backend).
     articleCode: this.fb.control('', [Validators.pattern(ARTICLE_CODE_PATTERN)]),
     name: this.fb.control('', [Validators.required]),
+    // ⚠️ Nessun `required`: vuoto è uno stato legittimo — significa «lo decide
+    //    la prima sincronizzazione», non «l'operatore ha dimenticato qualcosa».
+    shopifyTitle: this.fb.control(''),
     brand: this.fb.control(''),
     category: this.fb.control(''),
     subcategory: this.fb.control(''),
@@ -347,7 +438,10 @@ export class ProductGeneralStepComponent implements OnInit {
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
     shopifySyncEnabled: this.fb.control(true),
-    unitOfMeasure: this.fb.control('pz'),
+    // ⚠️ Nasce VUOTO, non `pz`: se partisse compilato la predefinita del tenant
+    //   non avrebbe niente da seminare, e non si distinguerebbe «pz scelto» da
+    //   «pz per inerzia». Il ripiego tecnico resta al salvataggio.
+    unitOfMeasure: this.fb.control(''),
     defaultVatCodeId: this.fb.control(''),
     inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),
     managesStock: this.fb.control(true),
@@ -400,6 +494,7 @@ export class ProductGeneralStepComponent implements OnInit {
   // scelta di visualizzazione.
   private readonly netPrices = signal<NetPrices>({
     sellingPrice: 0,
+    compareAtPrice: null,
     shopifyPrice: 0,
     listino1Price: null,
     listino2Price: null,
@@ -439,29 +534,6 @@ export class ProductGeneralStepComponent implements OnInit {
   private initialArticleCode = '';
 
   constructor() {
-    effect(() => {
-      if (this.catalogReadOnly()) {
-        this.form.disable({ emitEvent: false });
-        this.form.controls.season.enable({ emitEvent: false });
-        // Il codice articolo e' una proprieta' SOLO VestiFlow: resta
-        // modificabile anche quando il catalogo e' gestito da Shopify.
-        this.form.controls.articleCode.enable({ emitEvent: false });
-        // Anche sottocategoria, note interne e fornitore sono proprietà solo
-        // VestiFlow: mai gestite da Shopify, sempre modificabili.
-        this.form.controls.subcategory.enable({ emitEvent: false });
-        this.form.controls.internalNotes.enable({ emitEvent: false });
-        this.form.controls.supplierId.enable({ emitEvent: false });
-        // Stessa ragione per i listini aggiuntivi: sono prezzi del gestionale,
-        // nessun canale li conosce. Un catalogo gestito da Shopify non è un
-        // motivo per non poter dare a un articolo il suo prezzo all'ingrosso.
-        this.form.controls.listino1Price.enable({ emitEvent: false });
-        this.form.controls.listino2Price.enable({ emitEvent: false });
-        this.form.controls.listino3Price.enable({ emitEvent: false });
-      } else {
-        this.form.enable({ emitEvent: false });
-      }
-    });
-
     // La vista dei prezzi segue modalità e aliquota. Anche il primo passaggio è
     // qui: preferenza operatore e codici IVA arrivano dal server, quindi dopo
     // `ngOnInit`. Nessun `emit`: il draft non cambia, cambia solo come lo si legge.
@@ -494,6 +566,7 @@ export class ProductGeneralStepComponent implements OnInit {
     // server e possono presentarsi dopo questo momento).
     this.netPrices.set({
       sellingPrice: initial.sellingPrice,
+      compareAtPrice: initial.compareAtPrice,
       shopifyPrice: initial.shopifyPrice,
       listino1Price: initial.listino1Price,
       listino2Price: initial.listino2Price,
@@ -594,6 +667,9 @@ export class ProductGeneralStepComponent implements OnInit {
       // Sostituirlo con 0 salverebbe un prezzo che nessuno ha digitato.
       sellingPrice: prices.sellingPrice as number,
       shopifyPrice: prices.shopifyPrice as number,
+      // Il barrato e' facoltativo: `null` significa «nessun prezzo barrato», e
+      // non va confuso con zero — zero direbbe «esiste e vale zero».
+      compareAtPrice: prices.compareAtPrice,
     };
   }
 

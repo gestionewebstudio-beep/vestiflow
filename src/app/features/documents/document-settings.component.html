@@ -9,6 +9,23 @@
     </div>
   </header>
 
+  <!-- Tipi documento della controparte: configurazione trasversale, non una
+       proprieta' di un singolo tipo documento — per questo sta in una card a
+       larghezza piena sopra la griglia per-tipo. Sta anche fuori dai rami
+       loading/errore sotto, perche' il pannello si carica per conto suo: un
+       errore sulle impostazioni per-tipo non deve portarsi via anche questo. -->
+  <section class="doc-settings__panel">
+    <div class="doc-settings__panel-head">
+      <h2 class="doc-settings__panel-title">Tipi documento</h2>
+      <p class="doc-settings__panel-subtitle">
+        Le voci della tendina «Documento della controparte» — il DDT del fornitore, la fattura,
+        l'ordine del cliente — disponibili in ogni maschera documento.
+      </p>
+    </div>
+
+    <app-external-document-type-manager />
+  </section>
+
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
   } @else if (error(); as appError) {

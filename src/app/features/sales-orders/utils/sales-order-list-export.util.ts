@@ -25,8 +25,8 @@ function orderStateLabel(order: SalesOrder): string {
         return 'Annullato';
       case 'concluded':
         return 'Concluso';
-      case 'partially_concluded':
-        return 'Parzialmente concluso';
+      case 'to_confirm':
+        return 'Da confermare';
       default:
         return 'Confermato';
     }

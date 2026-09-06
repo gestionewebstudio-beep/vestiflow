@@ -9,6 +9,19 @@
 @include fields.admin-client-form-fields(create-client);
 @include page.admin-client-page(create-client);
 
+// L'elenco clienti è una tabella a sette colonne: il limite di leggibilità che
+// il mixin impone alle pagine cliente serve ai FORM — un campo largo tutto lo
+// schermo non si legge meglio — ma su una tabella lascia solo spazio vuoto a
+// destra e comprime le colonne. Qui la pagina si allarga e sono i pannelli di
+// form a tenere la misura, invece del contrario.
+.create-client {
+  max-inline-size: none;
+}
+
+.create-client__panel:not(.create-client__panel--list) {
+  max-inline-size: var(--content-wide);
+}
+
 .create-client__panel-header {
   display: flex;
   flex-wrap: wrap;
@@ -139,6 +152,16 @@
   cursor: pointer;
 }
 
+// La tabella non ha larghezze di colonna fisse: il browser distribuisce lo
+// spazio residuo proporzionalmente, e su questa colonna — poco testo di per
+// sé — finiva per allargarla ben oltre il bottone, lasciando un vuoto fra
+// «Assistenza» e «Apri gestionale» qualunque fosse l'allineamento del testo.
+// `width: 1%` la costringe alla larghezza del suo contenuto più largo (il
+// bottone): titolo e bottone restano vicini, e allineati a destra — l'unico
+// contenuto non testuale della riga — restano leggibili l'uno sopra l'altro.
+.create-client__table th:last-child,
 .create-client__table td:last-child {
+  width: 1%;
+  white-space: nowrap;
   text-align: end;
 }

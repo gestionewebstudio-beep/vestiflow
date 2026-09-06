@@ -320,6 +320,11 @@ function buildVariants(
       });
     }
 
+    // Il costo è facoltativo: la colonna può mancare del tutto o essere vuota
+    // su una riga. Solo un valore scritto davvero diventa un costo — uno zero
+    // implicito sarebbe un dato inventato, e falserebbe i margini.
+    const costRaw = row.variantCost.trim();
+
     return {
       sku,
       optionValues,
@@ -327,6 +332,14 @@ function buildVariants(
         amountMinor: shopifyDecimalToMinor(row.variantPrice || '0'),
         currency: DEFAULT_CURRENCY,
       },
+      ...(costRaw
+        ? {
+            purchasePrice: {
+              amountMinor: shopifyDecimalToMinor(costRaw),
+              currency: DEFAULT_CURRENCY,
+            },
+          }
+        : {}),
       barcode: row.variantBarcode.trim() || undefined,
     } satisfies CreateVariantDto;
   });

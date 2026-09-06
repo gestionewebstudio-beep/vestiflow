@@ -159,6 +159,32 @@ export class ChannelSyncFacade {
   }
 
   /**
+   * «Sincronizza con Shopify» appena SPENTO su un prodotto collegato → il
+   * prodotto Shopify va in ARCHIVED (docs/24 §1.10). Non passa dal push
+   * ordinario, che a flag spento non fa nulla per costruzione.
+   *
+   * ⛔ **Attesa, non accodata.** Era un `enqueue*` fire-and-forget: la risposta
+   *    al salvataggio partiva prima che Shopify avesse confermato, quindi la
+   *    scheda mostrava «sincronizzazione spenta» mentre l'annullamento arrivava
+   *    dopo — e chi aveva appena salvato non lo sapeva. Lo spegnimento è una
+   *    delle due operazioni il cui esito l'operatore deve leggere subito, come
+   *    l'eliminazione qui sotto.
+   *
+   * ⚠️ Tenant senza Shopify: `not_linked`, non `not_connected`. Il chiamante
+   *    deve distinguere «non c'era niente da archiviare» — che lascia lo
+   *    spegnimento valido — da «Shopify ha rifiutato», che lo annulla.
+   */
+  async archiveProductOnSyncDisabled(
+    tenantId: string,
+    productId: string,
+  ): Promise<ShopifyProductPushResult> {
+    if (!(await this.isShopifyTenant(tenantId))) {
+      return { pushed: false, reason: 'not_linked' };
+    }
+    return this.shopifyProductPush.archiveOnSyncDisabled(tenantId, productId);
+  }
+
+  /**
    * Eliminazione prodotto sul canale: bloccante, perché l'eliminazione locale
    * non deve avvenire se il canale non ha confermato.
    */

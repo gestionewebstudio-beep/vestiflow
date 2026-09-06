@@ -73,7 +73,7 @@ const MOVEMENT_ORIGIN_LABELS: Record<MovementOrigin, string> = {
   [MovementOrigin.Manual]: 'Gestionale',
   [MovementOrigin.Shopify]: 'Shopify',
   [MovementOrigin.Tiktok]: 'TikTok',
-  [MovementOrigin.VestiflowPos]: 'Vendita negozio',
+  [MovementOrigin.VestiflowPos]: 'Vendita al banco',
   [MovementOrigin.VestiflowOnline]: 'Vendita online esterna',
 };
 

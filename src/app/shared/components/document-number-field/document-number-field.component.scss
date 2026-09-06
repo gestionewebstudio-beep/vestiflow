@@ -51,6 +51,14 @@
   line-height: var(--leading-normal);
 }
 
+// Il numero e' ancora una proposta: si legge come un'informazione di stato, non
+// come una nota di aiuto. Piu' tenue del testo del campo, mai un allarme —
+// non c'e' niente da correggere, e' il normale funzionamento con piu' operatori.
+.doc-number__hint--proposal {
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
 // Serie con una sola voce: stessa altezza del campo accanto, senza bordo.
 .doc-number__series-static {
   display: flex;

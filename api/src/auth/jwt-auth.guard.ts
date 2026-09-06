@@ -80,7 +80,13 @@ export class JwtAuthGuard implements CanActivate {
       where: { authUserId: verified.authUserId },
       include: {
         stores: true,
-        tenant: { select: { name: true, channelProfile: true } },
+        tenant: {
+          select: {
+            name: true,
+            channelProfile: true,
+            featureSettings: { select: { manualUnloadEnabled: true } },
+          },
+        },
         locations: {
           include: { location: { select: { id: true, name: true } } },
         },
@@ -117,7 +123,13 @@ export class JwtAuthGuard implements CanActivate {
 
     const targetTenant = await this.prisma.tenant.findUnique({
       where: { id: session.targetTenantId },
-      select: { name: true, channelProfile: true },
+      // ⚠️ Anche qui il flag, o in sessione assistenza si vedrebbe quello del
+      //   tenant SBAGLIATO — quello di chi assiste, non quello assistito.
+      select: {
+        name: true,
+        channelProfile: true,
+        featureSettings: { select: { manualUnloadEnabled: true } },
+      },
     });
     if (!targetTenant) {
       throw new UnauthorizedException('Cliente della sessione assistenza non trovato');
@@ -130,6 +142,7 @@ export class JwtAuthGuard implements CanActivate {
       tenantId: session.targetTenantId,
       tenantName: targetTenant.name,
       tenantChannelProfile: targetTenant.channelProfile,
+      manualUnloadEnabled: targetTenant.featureSettings?.manualUnloadEnabled === true,
       supportSession: session,
     };
   }

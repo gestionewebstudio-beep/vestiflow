@@ -1,0 +1,99 @@
+<div class="list-actions" role="toolbar" aria-label="Azioni dell'elenco">
+  <!--
+    ⭐ **Qui resta SOLO «Deseleziona»** — 30/08/2026.
+
+    ⛔ C'erano anche il conteggio della selezione e il totale, e dal momento in cui
+    ogni elenco ha la sua **riga totali** dicevano la stessa cosa a quattro
+    centimetri di distanza:
+
+        riga totali      3 voci        1.157,26 €
+        barra comandi    selezionati 3   Totale 1.157,26 €   [Deseleziona]
+
+    `regole-stile-ui` lo vieta con queste parole: «non serve un secondo indicatore
+    "3 selezionati" accanto ai comandi: direbbe la stessa cosa due volte, e per
+    dirla spostava i comandi».
+
+    ⚠️ **«Deseleziona» invece non sta altrove**, ed è un comando, non un dato: la
+    riga totali dice quante righe sono scelte, non offre di lasciarle andare.
+
+    ⚠️ Sta prima dei comandi e non fra loro, così i pulsanti non si spostano di un
+    pixel quando si spunta una casella.
+  -->
+  @if (count() > 0) {
+    <div class="list-actions__selection">
+      <app-button variant="ghost" (click)="cleared.emit()">{{ clearLabel() }}</app-button>
+    </div>
+  }
+
+  @for (action of azioniInBarra(); track action.id) {
+    @let stato = stateOf(action);
+
+    @if (action.items) {
+      <app-action-menu
+        [items]="menuItems(action)"
+        [triggerLabel]="action.label"
+        [triggerIcon]="action.icon ?? 'pi-download'"
+        [ariaLabel]="action.ariaLabel || action.label"
+        [disabled]="stato.disabled"
+        [busy]="action.busy === true"
+        [disabledReason]="stato.reason ?? ''"
+        (actionSelected)="runItem(action, $event)"
+      />
+    } @else if (stato.disabled && stato.reason) {
+      <!--
+        Spenta CON la ragione: il tooltip reagisce a mouse e a fuoco
+        (`:focus-within`), e il pulsante resta raggiungibile col Tab grazie a
+        `softDisabled` — un `disabled` nativo lo toglierebbe dal giro, e la
+        ragione non sarebbe leggibile da tastiera in nessun modo (`14` §11).
+      -->
+      <app-hover-tooltip [text]="stato.reason" [bubbleId]="reasonId(action)">
+        <app-button
+          [variant]="action.variant ?? 'secondary'"
+          [softDisabled]="true"
+          [ariaLabel]="action.ariaLabel"
+          [ariaDescribedBy]="reasonId(action)"
+          (click)="run(action)"
+        >
+          @if (action.icon) {
+            <i class="pi {{ action.icon }}" aria-hidden="true"></i>
+          }
+          {{ action.label }}
+        </app-button>
+      </app-hover-tooltip>
+    } @else {
+      <app-button
+        [variant]="action.variant ?? 'secondary'"
+        [softDisabled]="stato.disabled"
+        [loading]="action.busy === true"
+        [ariaLabel]="action.ariaLabel"
+        (click)="run(action)"
+      >
+        @if (action.icon) {
+          <i class="pi {{ action.icon }}" aria-hidden="true"></i>
+        }
+        {{ action.label }}
+      </app-button>
+    }
+  }
+
+  <!--
+    ⭐ **Sul telefono i comandi oltre il primo stanno in un menu.**
+
+    ⛔ La barra sfondava: «Importa CSV» e «Importa catalogo» andavano a capo
+    dentro il pulsante, «Duplica» ed «Elimina» si sovrapponevano, «Stampa
+    etichette» finiva tagliata fuori dallo schermo. Sette comandi non stanno in
+    390px nemmeno a padding zero.
+
+    ⚠️ **Nessun comando sparisce**: cambia da dove si raggiunge. Sopra `lg`
+    `azioniNelMenu()` è vuoto e la barra è quella di sempre.
+  -->
+  @if (vociAltro().length > 0) {
+    <app-action-menu
+      [items]="vociAltro()"
+      triggerLabel="Altro"
+      triggerIcon="pi-ellipsis-h"
+      ariaLabel="Altri comandi dell'elenco"
+      (actionSelected)="eseguiDaAltro($event)"
+    />
+  }
+</div>

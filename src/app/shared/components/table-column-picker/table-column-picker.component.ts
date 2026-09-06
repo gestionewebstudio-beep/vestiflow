@@ -31,6 +31,34 @@ export class TableColumnPickerComponent {
 
   readonly viewId = input.required<TableViewId>();
 
+  /*
+    ⛔ **QUI C'ERA `reorderable`, e con lui le frecce ↑↓** — tolte il
+    01/09/2026 su decisione del proprietario: «lasciamo solo default e
+    personalizzata, e queste incidono solo su quali sono attive e quali no».
+
+    Il commento che stava qui difendeva una distinzione — «sui sei elenchi che
+    leggono l'ordine funzionano, altrove sono inerti» — e il principio era
+    giusto: «un comando che finge di funzionare è peggio di un comando che
+    manca». ⚠️ **Ma anche dove "funzionavano" fingevano a metà**: le righe di
+    questo pannello sono sempre in ordine di DEFINIZIONE, mentre la freccia
+    spostava la colonna in `columnOrder`, cioè nella tabella dietro il
+    pannello. Si premeva e nel pannello non si muoveva niente. E poiché
+    `columnOrder` contiene anche le colonne nascoste, una pressione su due
+    scambiava con una colonna invisibile: nessun effetto nemmeno nella tabella.
+
+    ⭐ Ora l'ordine è quello dichiarato ovunque, e non c'è più niente da
+    spegnere: le spunte mostra/nascondi e il blocco a sinistra restano.
+  */
+
+  /*
+    ⭐ **A sola icona**, per le barre strette. Il nome resta nell'`aria-label`:
+    sparisce alla vista, non a chi legge con uno screen reader.
+
+    ⚠️ L'icona è `pi-table` e il pannello si intitola «Colonne visibili»: chi la
+    preme trova subito la parola, quindi il simbolo non deve indovinarsi da solo.
+  */
+  readonly iconOnly = input(false);
+
   protected readonly open = signal(false);
 
   protected readonly presetOptions = computed((): readonly SelectMenuOption[] =>
@@ -70,14 +98,6 @@ export class TableColumnPickerComponent {
 
   protected toggleColumn(columnId: string): void {
     this.preferences.toggleColumn(this.viewId(), columnId);
-  }
-
-  protected moveUp(columnId: string): void {
-    this.preferences.moveColumn(this.viewId(), columnId, -1);
-  }
-
-  protected moveDown(columnId: string): void {
-    this.preferences.moveColumn(this.viewId(), columnId, 1);
   }
 
   protected togglePin(columnId: string): void {

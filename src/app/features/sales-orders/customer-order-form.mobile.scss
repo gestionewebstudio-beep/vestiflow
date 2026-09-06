@@ -1,12 +1,5 @@
 @use 'breakpoints' as bp;
 
-// Tap target ≥44×44 sui pochi controlli icona ancora sotto soglia (il cestino
-// della riga «documento collegato» usa l'altezza densa da desktop).
-.co-form__mobile-source-row .doc-form__line-remove {
-  min-block-size: 2.75rem;
-  min-inline-size: 2.75rem;
-}
-
 // Rispetto di «riduci animazioni».
 @media (prefers-reduced-motion: reduce) {
   .co-form__header-summary,
@@ -61,22 +54,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // F2 — totali a lista, footer ridotto, menu azioni ⋯.
 // ═══════════════════════════════════════════════════════════════════════════
-
-// «+ Aggiungi sconto»: link inline al posto dell'input finché lo sconto è vuoto.
-.co-form__add-discount {
-  padding: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-link);
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.co-form__add-discount:disabled {
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
 
 // Menu ⋯: nascosto su desktop (là c'è la barra azioni), visibile su mobile.
 .co-form__header-menu {
@@ -149,52 +126,42 @@
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// F3 — sezione righe disabilitata finché mancano cliente/location.
+// F3 — sezione righe a testata incompleta.
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// Qui c'era l'«aspetto in attesa»: opacità ridotta, bordi tratteggiati, testi
+// pallidi sulle card. Non serve più — a testata incompleta le righe non si
+// mostrano affatto, e al loro posto c'è lo stato vuoto che dice cosa manca.
+// Vestire di grigio una cosa che non c'è è lavoro per nessuno.
 @include bp.media-down('lg') {
-  // Aspetto chiaramente «in attesa»: opacità ridotta, bordi tenui tratteggiati,
-  // testi pallidi. Torna normale quando il gate si sblocca (fieldset non più
-  // disabled). Il cosa-fare è nel banner warning sopra la sezione.
-  .co-form .doc-form__gate-fields:disabled {
-    opacity: var(--opacity-disabled);
-  }
-
   .co-form .doc-form__gate-fields:disabled .co-form__mobile-quick {
     border-style: dashed;
     border-color: var(--color-border);
     box-shadow: none;
   }
-
-  // Finche' manca il cliente le righe non si toccano: le card lo dicono con il
-  // bordo tratteggiato e il testo smorzato, configurate da qui.
-  .co-form .doc-form__gate-fields:disabled .co-form__cards {
-    --co-card-border: var(--border-width) dashed var(--color-border);
-    --co-card-shadow: none;
-    --co-card-fg: var(--color-text-muted);
-  }
-
-  .co-form .doc-form__gate-fields:disabled .doc-form__subtitle {
-    color: var(--color-text-muted);
-  }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Ingresso prodotti su mobile: blocco «Nuovo prodotto» e «Aggiungi riga» in
-// fondo alla lista. Nascosti su desktop, dove restano la toolbar righe e la
-// ricerca inline per riga. La veste del dock (doc-form__sticky-bar) è
-// promossa in styles/_document-form-mobile.scss.
-// ═══════════════════════════════════════════════════════════════════════════
-.co-form__mobile-tools,
-.co-form__mobile-add-line,
-.co-form__header-include {
-  display: none;
-}
+// ⛔ **Qui c'era una SECONDA barra strumenti, solo mobile**
+// (`co-form__mobile-tools` con «Nuovo prodotto» e «Aggiungi riga»), spenta su
+// desktop e accesa sotto `lg`. Non esiste più in nessun template: i suoi
+// comandi vivono nella barra righe comune, che ora è responsive.
+//
+// ⚠️ Due barre con gli stessi comandi sono due stati da tenere allineati, e la
+// forma in cui divergono è sempre la stessa — una impara una condizione nuova
+// e l'altra no.
 
 @include bp.media-down('lg') {
-  // Toolbar desktop fuori: i suoi comandi sono ricollocati.
-  .co-form .co-form__lines-tools {
-    display: none;
-  }
+  // ⛔ **Qui c'era `display: none` sulla barra strumenti**, e la ragione era
+  // giusta allora: il selettore Colonne non raggiungeva le card, quindi era un
+  // comando che non comandava. Da quando il corpo della card è guidato dal
+  // catalogo, quel selettore governa anche la vista compatta — e la barra la
+  // adatta la regola COMUNE, in `_document-form.scss`, per tutte e sette le
+  // maschere insieme.
+  //
+  // ⚠️ Convivevano anche due regole locali in contraddizione: questa la
+  // nascondeva, e `mobile-cards.scss` la disegnava a due colonne. Stessa
+  // specificità, quindi decideva l'ordine dei file — un difetto che non si
+  // vede finché qualcuno non riordina gli import.
 
   // Azione rara, quindi ghost compatto a destra (non a piena larghezza).
   .co-form .co-form__mobile-tools {
@@ -223,3 +190,8 @@
     border-block-start: var(--border-width) solid var(--color-border);
   }
 }
+
+// ⛔ Qui c'erano le regole della banda «Documento collegato» su schermo
+// compatto. Erano scritte due volte, in due maschere, con due prefissi diversi
+// sullo stesso markup: ora sono un componente comune
+// (`app-document-line-card-reference`), che porta il suo foglio.

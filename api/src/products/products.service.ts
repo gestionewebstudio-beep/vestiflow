@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,12 +17,23 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { sameAmountAtCent } from '../common/money.util';
-import { canViewPurchaseCosts } from '../auth/user-permissions.util';
+import { sameUnitAmountAtContract } from '../common/money.util';
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import {
+  canViewPurchaseCosts,
+  hasFullTenantAccess,
+  hasTenantPermission,
+} from '../auth/user-permissions.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant-search.util';
-import { buildVariantTitle } from '../inventory/import/inventory-csv.util';
+import {
+  NOT_IN_TRASH,
+  ONLY_IN_TRASH,
+  VARIANT_COMMERCIALLY_SELECTABLE,
+} from './product-lifecycle.util';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
+import { variantLabel, variantTitle } from '../common/variant-label.util';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import type { ShopifyProductPushResult } from '../shopify/shopify-product-push.service';
@@ -38,8 +50,6 @@ import {
 } from './article-code.util';
 import {
   assertShopifyCatalogDeleteAllowed,
-  assertShopifyCatalogManualSyncAllowed,
-  assertShopifyCatalogUpdateAllowed,
 } from './catalog-origin.util';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import {
@@ -54,6 +64,7 @@ import type { ProductFacetsDto } from './dto/product-facets.dto';
 import type { VariantSummaryDto } from './dto/variant-summary.dto';
 import type { UpdateProductDto } from './dto/update-product.dto';
 import type { UpdateVariantDto } from './dto/update-variant.dto';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 export type ProductWithVariants = Product & {
   variants: ProductVariant[];
@@ -65,12 +76,21 @@ const PRODUCT_INCLUDE = {
   images: { orderBy: { sortOrder: 'asc' as const } },
 } satisfies Prisma.ProductInclude;
 
+/**
+ * Quanti collegamenti fornitore leggere per variante quando NON si filtra per
+ * fornitore: servono a trovare quale codice ha fatto scattare la ricerca. Un
+ * articolo con più di così tanti fornitori diversi non esiste in pratica, e il
+ * limite evita che una variante patologica pesi sull'intera pagina.
+ */
+const SUPPLIER_LINKS_SCANNED = 20;
+
 /** Select leggero per GET /products (lista catalogo): niente varianti né immagini. */
 const PRODUCT_LIST_SELECT = {
   id: true,
   tenantId: true,
   articleCode: true,
   name: true,
+  shopifyTitle: true,
   description: true,
   brand: true,
   category: true,
@@ -92,6 +112,12 @@ const PRODUCT_LIST_SELECT = {
   shopifyCollections: true,
   shopifyMetafields: true,
   status: true,
+  // Cestino (docs/24 §4.1): la riga d'elenco si spalma in ProductWithVariants,
+  // quindi ogni scalare del modello va selezionato. Non è un filtro: chi è nel
+  // cestino qui si vede ancora — è la Tranche 1B a escluderlo.
+  deletedAt: true,
+  deletedById: true,
+  deletionReason: true,
   shopifySyncEnabled: true,
   catalogOrigin: true,
   shopifyCatalogLinkKind: true,
@@ -131,9 +157,24 @@ export class ProductsService {
   async list(
     tenantId: string,
     query: ListProductsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<ProductWithVariants>> {
+    const showPurchaseCosts = canViewPurchaseCosts(user);
+    // Il Cestino è una vista AMMINISTRATIVA (docs/24 §6): lo stesso permesso
+    // che governa l'eliminazione, verificato qui e non solo nella rotta del
+    // client — il parametro arriva in querystring da chiunque.
+    if (
+      query.trash &&
+      !hasFullTenantAccess(user) &&
+      !hasTenantPermission(user, TenantPermission.CatalogDelete)
+    ) {
+      throw new ForbiddenException('Non sei autorizzato a consultare il cestino dei prodotti.');
+    }
     const where: Prisma.ProductWhereInput = {
       tenantId,
+      // L'elenco ordinario ESCLUDE il cestino; `trash=true` è la vista Cestino e
+      // mostra SOLO quello (docs/24 §6). Il predicato è uno, in product-lifecycle.util.
+      ...(query.trash ? ONLY_IN_TRASH : NOT_IN_TRASH),
       ...(query.status ? { status: query.status } : {}),
       ...(query.category ? { category: { equals: query.category, mode: 'insensitive' } } : {}),
       ...(query.brand ? { brand: { equals: query.brand, mode: 'insensitive' } } : {}),
@@ -145,16 +186,23 @@ export class ProductsService {
               { name: { contains: query.search, mode: 'insensitive' } },
               { brand: { contains: query.search, mode: 'insensitive' } },
               { variants: { some: { sku: { contains: query.search, mode: 'insensitive' } } } },
+              // Barcode/EAN: criterio primario in magazzino (scanner alla mano).
+              { variants: { some: { barcode: { contains: query.search, mode: 'insensitive' } } } },
             ],
           }
         : {}),
     };
 
+    /*
+      ⚠️ **`pageWindow`, non `skip`/`take` scritti a mano**: con `all=1` deve
+      sparire la finestra, non diventare una finestra grande. È la stessa funzione
+      che usano documenti, ordini cliente e ordini fornitore — quattro modi di
+      dire «tutto» sarebbero quattro modi di sbagliarlo.
+    */
     const paging = {
       where,
       orderBy: { updatedAt: 'desc' as const },
-      skip: (query.page - 1) * query.pageSize,
-      take: query.pageSize,
+      ...pageWindow(query),
     };
 
     const [items, total] = await Promise.all([
@@ -167,15 +215,39 @@ export class ProductsService {
     await this.taxonomyLocalization.prepareProductLocalization();
 
     return {
-      items: items.map((item) =>
-        withReadableShopifyErrors(
+      items: items.map((item) => {
+        const mapped = withReadableShopifyErrors(
           this.taxonomyLocalization.localizeProductForResponseSync(normalizeListProductRow(item)),
-        ),
-      ),
+        );
+        // Costo d'acquisto (dato sensibile §permessi): stessa regola dei
+        // riepiloghi varianti — senza permesso il campo non entra in risposta.
+        return showPurchaseCosts ? mapped : this.stripPurchaseCosts(mapped);
+      }),
       total,
       page: query.page,
       pageSize: query.pageSize,
     };
+  }
+
+  /** Azzera i costi d'acquisto (articolo e varianti) in una risposta prodotto. */
+  private stripPurchaseCosts<
+    T extends {
+      readonly purchasePriceMinor?: unknown;
+      readonly variants?: readonly { readonly purchasePriceMinor?: unknown }[];
+    },
+  >(product: T): T {
+    return {
+      ...product,
+      purchasePriceMinor: null,
+      ...(product.variants
+        ? {
+            variants: product.variants.map((variant) => ({
+              ...variant,
+              purchasePriceMinor: null,
+            })),
+          }
+        : {}),
+    } as T;
   }
 
   /** Facets distinti per filtri lista prodotti (intero catalogo tenant). */
@@ -224,18 +296,42 @@ export class ProductsService {
    * perché il costo, se serializzato, resterebbe leggibile nella risposta HTTP
    * anche quando l'interfaccia non lo mostra.
    *
-   * `user` è opzionale per non rompere i chiamanti interni; quando è assente
-   * il costo NON viene esposto (default prudente).
+   * ⚠️ **Qui c'era «`user` è opzionale per non rompere i chiamanti interni;
+   * quando è assente il costo NON viene esposto».** Descriveva un contratto che
+   * non esiste più — `user` è obbligatorio dal 28/08/2026 — e i chiamanti
+   * interni che giustificavano l'opzionalità **non c'erano**: l'unico chiamante
+   * è la rotta, e l'utente lo passa. Un commento che dichiara opzionale un
+   * parametro obbligatorio insegna a passare `undefined` dove il tipo lo vieta.
    */
   async listVariantSummaries(
     tenantId: string,
     query: ListVariantSummariesQueryDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<Paginated<VariantSummaryDto>> {
+    // Il gate della rotta chiede la sola sezione «Prodotti», ma il `locationId`
+    // della query sposta la lettura sulle giacenze di UNA sede: senza questo
+    // controllo un commesso assegnato al solo negozio di Milano leggeva
+    // giacenza e disponibilità di Napoli aggiungendo l'id alla querystring,
+    // dalla stessa maschera documento che ha il diritto di usare. La sede
+    // arriva nel corpo della richiesta, quindi si verifica qui — prima della
+    // query, non dopo aver già letto i numeri.
+    // Titolare, `hasAllLocationsAccess` e `inventory.view_all_locations`
+    // continuano a vedere ogni sede; senza utente (chiamate interne) non si
+    // decide nulla, e senza `locationId` la risposta resta il totale
+    // multi-sede di sempre.
+    assertLocationReadableInUserScope(
+      user,
+      query.locationId,
+      'Non sei autorizzato a consultare le giacenze di questo magazzino.',
+    );
     const showPurchaseCosts = canViewPurchaseCosts(user);
     const search = query.search?.trim();
     const where: Prisma.ProductVariantWhereInput = {
       tenantId,
+      // Selezione COMMERCIALE (docs/24 §3.4): fuori prodotto Non attivo o nel
+      // cestino, variante Non attiva o nel cestino. Giacenze e movimenti NON
+      // passano di qui: sono contesti storici e vedono tutto (§6.1).
+      ...VARIANT_COMMERCIALLY_SELECTABLE,
       ...(query.variantId ? { id: query.variantId } : {}),
       ...(query.productId ? { productId: query.productId } : {}),
       ...(search ? buildInventoryVariantSearchWhere(search) : {}),
@@ -259,6 +355,7 @@ export class ProductsService {
           optionValues: true,
           currency: true,
           sellingPriceMinor: true,
+          shopifyPriceMinor: true,
           purchasePriceMinor: true,
           product: {
             select: {
@@ -282,18 +379,27 @@ export class ProductsService {
               },
             },
           },
-          ...(query.supplierId
-            ? {
-                supplierLinks: {
-                  where: { supplierId: query.supplierId },
-                  select: {
-                    supplierSku: true,
-                    lastPurchasePriceMinor: true,
-                  },
-                  take: 1,
-                },
-              }
-            : {}),
+          // Codici fornitore: SEMPRE selezionati, non solo quando si filtra per
+          // fornitore. Il campo «Cod. fornitore» della riga documento confronta
+          // il valore digitato col catalogo intero, senza filtri di contesto: se
+          // il codice tornasse solo passando `supplierId`, lo stesso codice
+          // sarebbe riconosciuto in un documento e ignorato in un altro — che è
+          // peggio di non riconoscerlo mai.
+          //
+          // Con `supplierId` si resta al solo collegamento di quel fornitore,
+          // perché `lastPurchasePriceMinor` è il suo prezzo e non quello di un
+          // altro. Senza, si prendono i primi collegamenti in ordine
+          // deterministico (preferito prima, poi il più vecchio) e la scelta di
+          // QUALE codice restituire avviene nel mapper, sotto.
+          supplierLinks: {
+            ...(query.supplierId ? { where: { supplierId: query.supplierId } } : {}),
+            select: {
+              supplierSku: true,
+              lastPurchasePriceMinor: true,
+            },
+            orderBy: [{ isPreferred: 'desc' as const }, { createdAt: 'asc' as const }],
+            take: query.supplierId ? 1 : SUPPLIER_LINKS_SCANNED,
+          },
           // Con locationId: giacenza della sola sede. Senza: tutte le righe,
           // sommate a valle (totale multi-sede invece di nessun dato).
           inventoryLevels: {
@@ -308,8 +414,34 @@ export class ProductsService {
       this.prisma.productVariant.count({ where }),
     ]);
 
+    const searchLower = search?.toLowerCase();
+
     const items: VariantSummaryDto[] = rows.map((row) => {
-      const supplierLink = 'supplierLinks' in row ? row.supplierLinks?.[0] : undefined;
+      // Quando si cerca, il codice fornitore restituito è QUELLO CHE HA FATTO
+      // SCATTARE la corrispondenza. Un articolo può avere più fornitori con
+      // codici diversi: restituirne uno a caso farebbe confrontare al filtro
+      // esatto della riga la stringa sbagliata, e il caso ambiguo non si
+      // aprirebbe quando deve. Senza ricerca vale il primo dell'ordine
+      // deterministico (preferito, poi il più vecchio).
+      const supplierLinks = row.supplierLinks ?? [];
+
+      // Il collegamento da cui leggere il CODICE fornitore: quello che ha fatto
+      // scattare la corrispondenza, così il confronto esatto lato riga è sulla
+      // stringa giusta. Senza ricerca è il primo dell'ordine deterministico —
+      // ATTENZIONE: in quel caso è uno ARBITRARIO fra i fornitori dell'articolo,
+      // non «il» codice fornitore dell'articolo, che non esiste. Non usarlo come
+      // se lo fosse.
+      const codeSupplierLink =
+        (searchLower
+          ? supplierLinks.find((link) => link.supplierSku?.toLowerCase().includes(searchLower))
+          : undefined) ?? supplierLinks[0];
+
+      // Il collegamento da cui leggere il PREZZO, che è un'altra cosa: solo
+      // quando il fornitore è stato chiesto esplicitamente. Senza, il prezzo
+      // resta quello della variante — leggere il «last purchase» di un
+      // fornitore arbitrario significherebbe seminare nella riga il costo
+      // pattuito con qualcun altro.
+      const pricingSupplierLink = query.supplierId ? supplierLinks[0] : undefined;
       const levels = row.inventoryLevels ?? [];
       // Con location: giacenza puntuale della sede. Senza: totale multi-sede;
       // null solo se la variante non ha alcuna riga giacenza (mai movimentata).
@@ -332,16 +464,18 @@ export class ProductsService {
           ? levels.reduce((sum, level) => sum + level.minThreshold, 0)
           : null;
       // Senza permesso il costo non entra proprio nella risposta.
-      const purchaseMinor = showPurchaseCosts
-        ? (supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
-        : null;
+      // Valore di RISPOSTA: il confine verso il client è `number` (Blocco 1).
+      // `Number(...)` converte, non arrotonda: la coda resta.
+      const costoGrezzo = pricingSupplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor;
+      const purchaseMinor = showPurchaseCosts ? Number(costoGrezzo) : null;
       return {
         variantId: row.id,
         productId: row.productId,
         sku: row.sku ?? '',
         articleCode: row.product.articleCode,
         productName: row.product.name,
-        title: buildVariantTitle(row.product.name, row.optionValues),
+        title: variantTitle(row.product.name, row.optionValues),
+        variantLabel: variantLabel(row.optionValues),
         barcode: row.barcode,
         sellingPrice: {
           // Colonna a sei decimali: il numero esce come tale, chi lo mostra
@@ -349,18 +483,22 @@ export class ProductsService {
           amountMinor: Number(row.sellingPriceMinor),
           currencyCode: row.currency,
         },
+        shopifyPrice: {
+          amountMinor: Number(row.shopifyPriceMinor),
+          currencyCode: row.currency,
+        },
         purchasePrice:
           purchaseMinor != null ? { amountMinor: purchaseMinor, currencyCode: row.currency } : null,
         compareAtPrice:
           row.product.compareAtPriceMinor != null
-            ? { amountMinor: row.product.compareAtPriceMinor, currencyCode: row.currency }
+            ? { amountMinor: Number(row.product.compareAtPriceMinor), currencyCode: row.currency }
             : null,
         listinoPrices: {
           1: listinoMoney(row.product.listino1PriceMinor, row.currency),
           2: listinoMoney(row.product.listino2PriceMinor, row.currency),
           3: listinoMoney(row.product.listino3PriceMinor, row.currency),
         },
-        supplierSku: supplierLink?.supplierSku ?? null,
+        supplierSku: codeSupplierLink?.supplierSku ?? null,
         stockOnHand,
         stockAvailable,
         stockMinThreshold,
@@ -376,7 +514,16 @@ export class ProductsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(tenantId: string, id: string): Promise<ProductWithVariants> {
+  async getById(tenantId: string, id: string, user?: UserProfileDto): Promise<ProductWithVariants> {
+    const normalized = await this.loadProductOrThrow(tenantId, id);
+    // Costo d'acquisto (dato sensibile §permessi): mascherato come nella lista.
+    // Si può fare senza perdere dati perché il salvataggio ignora i costi di
+    // chi non li vede (vedi `canWriteCosts` in create/update).
+    return canViewPurchaseCosts(user) ? normalized : this.stripPurchaseCosts(normalized);
+  }
+
+  /** Prodotto completo SENZA mascheramento: uso interno (confronti, mutazioni). */
+  private async loadProductOrThrow(tenantId: string, id: string): Promise<ProductWithVariants> {
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId },
       include: PRODUCT_INCLUDE,
@@ -393,7 +540,15 @@ export class ProductsService {
     return normalized;
   }
 
-  async create(tenantId: string, dto: CreateProductDto): Promise<ProductWithVariants> {
+  async create(
+    tenantId: string,
+    dto: CreateProductDto,
+    user?: UserProfileDto,
+  ): Promise<ProductWithVariants> {
+    // Costo d'acquisto: chi non lo vede non lo scrive. Senza questo, il form
+    // di chi ha il costo mascherato rimanderebbe indietro un valore assente e
+    // azzererebbe il costo salvando l'articolo.
+    const canWriteCosts = canViewPurchaseCosts(user);
     this.assertNoDuplicateSkusInPayload(dto.variants);
     this.assertNoDuplicateBarcodesInPayload(dto.variants);
     await this.assertSkusAvailable(
@@ -421,39 +576,43 @@ export class ProductsService {
             catalogOrigin: CatalogOrigin.vestiflow,
             shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
             name: dto.name,
-          description: normalizeProductDescription(dto.description),
-          brand: dto.brand,
-          category: dto.category,
-          subcategory: dto.subcategory,
-          internalNotes: dto.internalNotes,
-          shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
-          shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
-          shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
-            []) as unknown as Prisma.InputJsonValue,
-          tiktokCategoryId: dto.tiktokCategoryId?.trim() || null,
-          season: dto.season,
-          tags: this.normalizeTags(dto.tags),
-          status: dto.status,
-          shopifySyncEnabled: dto.shopifySyncEnabled ?? true,
-          unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
-          defaultVatCodeId: dto.defaultVatCodeId ?? null,
-          sellingPriceMinor: dto.sellingPrice.amountMinor,
-          // Prezzo Shopify: valore proprio (§B). Se il form lo invia (Shopify
-          // attivo, operatore che lo tocca) si usa quello; altrimenti nasce
-          // precompilato dal prezzo articolo.
-          shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
-          compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
-          purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
-          // Listini aggiuntivi (§B): netti, valore unico articolo. Assenti = null.
-          listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
-          listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
-          listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
-          inventoryTracking: dto.inventoryTracking ?? undefined,
-          managesStock: dto.managesStock ?? true,
-          kind: dto.kind ?? undefined,
+            // Vuoto = si inizializza da solo alla prima sincronizzazione.
+            shopifyTitle: dto.shopifyTitle?.trim() || null,
+            description: normalizeProductDescription(dto.description),
+            brand: dto.brand,
+            category: dto.category,
+            subcategory: dto.subcategory,
+            internalNotes: dto.internalNotes,
+            shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
+            shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
+            shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
+              []) as unknown as Prisma.InputJsonValue,
+            tiktokCategoryId: dto.tiktokCategoryId?.trim() || null,
+            season: dto.season,
+            tags: this.normalizeTags(dto.tags),
+            status: dto.status,
+            shopifySyncEnabled: dto.shopifySyncEnabled ?? true,
+            unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
+            defaultVatCodeId: dto.defaultVatCodeId ?? null,
+            sellingPriceMinor: dto.sellingPrice.amountMinor,
+            // Prezzo Shopify: valore proprio (§B). Se il form lo invia (Shopify
+            // attivo, operatore che lo tocca) si usa quello; altrimenti nasce
+            // precompilato dal prezzo articolo.
+            shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
+            compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
+            purchasePriceMinor: canWriteCosts ? (dto.purchasePrice?.amountMinor ?? 0) : 0,
+            // Listini aggiuntivi (§B): netti, valore unico articolo. Assenti = null.
+            listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
+            listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
+            listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
+            inventoryTracking: dto.inventoryTracking ?? undefined,
+            managesStock: dto.managesStock ?? true,
+            kind: dto.kind ?? undefined,
             options: dto.options as unknown as Prisma.InputJsonValue,
             variants: {
-              create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
+              create: dto.variants.map((variant) =>
+                this.toVariantCreateInput(tenantId, variant, canWriteCosts),
+              ),
             },
           },
           include: PRODUCT_INCLUDE,
@@ -469,7 +628,7 @@ export class ProductsService {
       });
 
     await this.pushProductToShopifySafe(tenantId, created.id);
-    return this.getById(tenantId, created.id);
+    return this.getById(tenantId, created.id, user);
   }
 
   /**
@@ -483,7 +642,11 @@ export class ProductsService {
    * articolo nuovo, mai sincronizzato, e non viene pushata automaticamente
    * per evitare di pubblicare online una scheda ancora da rivedere.
    */
-  async duplicateProduct(tenantId: string, id: string): Promise<ProductWithVariants> {
+  async duplicateProduct(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<ProductWithVariants> {
     const original = await this.prisma.product.findFirst({
       where: { id, tenantId },
       include: PRODUCT_INCLUDE,
@@ -519,33 +682,37 @@ export class ProductsService {
           catalogOrigin: CatalogOrigin.vestiflow,
           shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
           name: `${original.name} (copia)`,
-        description: original.description,
-        brand: original.brand,
-        category: original.category,
-        subcategory: original.subcategory,
-        internalNotes: original.internalNotes,
-        shopifyTaxonomyCategoryId: original.shopifyTaxonomyCategoryId,
-        shopifyTaxonomyCategoryFullName: original.shopifyTaxonomyCategoryFullName,
-        shopifyCategoryMetafields: original.shopifyCategoryMetafields as Prisma.InputJsonValue,
-        tiktokCategoryId: original.tiktokCategoryId,
-        season: original.season,
-        tags: [...original.tags],
-        seoTitle: original.seoTitle,
-        seoDescription: original.seoDescription,
-        status: original.status,
-        unitOfMeasure: original.unitOfMeasure,
-        defaultVatCodeId: original.defaultVatCodeId,
-        sellingPriceMinor: original.sellingPriceMinor,
-        shopifyPriceMinor: original.shopifyPriceMinor,
-        compareAtPriceMinor: original.compareAtPriceMinor,
-        purchasePriceMinor: original.purchasePriceMinor,
-        // Listini aggiuntivi: copiati tali e quali (netti).
-        listino1PriceMinor: original.listino1PriceMinor,
-        listino2PriceMinor: original.listino2PriceMinor,
-        listino3PriceMinor: original.listino3PriceMinor,
-        inventoryTracking: original.inventoryTracking,
-        managesStock: original.managesStock,
-        kind: original.kind,
+          // ⛔ Il «Nome Shopify» non si duplica: due prodotti con lo stesso titolo
+          //    sulla vetrina sono indistinguibili per chi compra. La copia se lo
+          //    ricostruisce alla prima sincronizzazione, dal proprio nome.
+          shopifyTitle: null,
+          description: original.description,
+          brand: original.brand,
+          category: original.category,
+          subcategory: original.subcategory,
+          internalNotes: original.internalNotes,
+          shopifyTaxonomyCategoryId: original.shopifyTaxonomyCategoryId,
+          shopifyTaxonomyCategoryFullName: original.shopifyTaxonomyCategoryFullName,
+          shopifyCategoryMetafields: original.shopifyCategoryMetafields as Prisma.InputJsonValue,
+          tiktokCategoryId: original.tiktokCategoryId,
+          season: original.season,
+          tags: [...original.tags],
+          seoTitle: original.seoTitle,
+          seoDescription: original.seoDescription,
+          status: original.status,
+          unitOfMeasure: original.unitOfMeasure,
+          defaultVatCodeId: original.defaultVatCodeId,
+          sellingPriceMinor: original.sellingPriceMinor,
+          shopifyPriceMinor: original.shopifyPriceMinor,
+          compareAtPriceMinor: original.compareAtPriceMinor,
+          purchasePriceMinor: original.purchasePriceMinor,
+          // Listini aggiuntivi: copiati tali e quali (netti).
+          listino1PriceMinor: original.listino1PriceMinor,
+          listino2PriceMinor: original.listino2PriceMinor,
+          listino3PriceMinor: original.listino3PriceMinor,
+          inventoryTracking: original.inventoryTracking,
+          managesStock: original.managesStock,
+          kind: original.kind,
           options: original.options as Prisma.InputJsonValue,
           variants: { create: variantsData },
           images: {
@@ -564,7 +731,7 @@ export class ProductsService {
       });
     });
 
-    return this.getById(tenantId, created.id);
+    return this.getById(tenantId, created.id, user);
   }
 
   /**
@@ -599,9 +766,17 @@ export class ProductsService {
     throw new ConflictException("Impossibile generare uno SKU univoco per la copia dell'articolo.");
   }
 
-  async update(tenantId: string, id: string, dto: UpdateProductDto): Promise<ProductWithVariants> {
-    const existing = await this.getById(tenantId, id);
-    assertShopifyCatalogUpdateAllowed(existing, dto);
+  async update(
+    tenantId: string,
+    id: string,
+    dto: UpdateProductDto,
+    user?: UserProfileDto,
+  ): Promise<ProductWithVariants> {
+    // Vedi create(): senza permesso il costo non si scrive e quello a
+    // database resta quello che è.
+    const canWriteCosts = canViewPurchaseCosts(user);
+    // Confronto interno: serve il costo VERO, non quello mascherato.
+    const existing = await this.loadProductOrThrow(tenantId, id);
 
     // Shopify ATTIVO: prezzo articolo e prezzo Shopify sono indipendenti (il form
     // invia entrambi, B3). Shopify DISATTIVO: l'operatore non vede il prezzo
@@ -615,7 +790,7 @@ export class ProductsService {
 
     await this.prisma.$transaction(async (tx) => {
       if (dto.variants) {
-        await this.syncVariants(tx, tenantId, id, dto.variants, shopifyActive);
+        await this.syncVariants(tx, tenantId, id, dto.variants, shopifyActive, canWriteCosts);
       }
 
       // Codice articolo: undefined = non toccare; vuoto = bloccato (il campo
@@ -638,6 +813,12 @@ export class ProductsService {
         data: {
           ...(articleCode !== undefined ? { articleCode } : {}),
           name: dto.name,
+          // ⭐ Svuotarlo NON è un errore: azzerato, il «Nome Shopify» torna a
+          //    inizializzarsi da solo al push successivo (docs/24 §1.9). Assente
+          //    dal payload, invece, non si tocca.
+          ...(dto.shopifyTitle !== undefined
+            ? { shopifyTitle: dto.shopifyTitle?.trim() || null }
+            : {}),
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,
           category: dto.category,
@@ -652,7 +833,9 @@ export class ProductsService {
             ? {
                 sellingPriceMinor: dto.sellingPrice.amountMinor,
                 compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
-                purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
+                ...(canWriteCosts
+                  ? { purchasePriceMinor: dto.purchasePrice?.amountMinor ?? 0 }
+                  : {}),
                 // Prezzo Shopify (§B). Shopify ATTIVO: valore indipendente inviato
                 // dal form, persistito così com'è (assente = non toccare). Shopify
                 // SPENTO: il campo non esiste in UI e segue il prezzo articolo solo
@@ -663,7 +846,13 @@ export class ProductsService {
                     : {}
                   : // «Cambiato» si valuta al centesimo: una coda decimale
                     // diversa non è un prezzo nuovo (§sei decimali).
-                    !sameAmountAtCent(dto.sellingPrice.amountMinor, Number(existing.sellingPriceMinor))
+                    // ⭐ Copia fra due valori unitari INTERNI: confronto alla
+                    // precisione del contratto, non al centesimo. Il canale
+                    // arrotonda al SUO confine, non qui.
+                    !sameUnitAmountAtContract(
+                        dto.sellingPrice.amountMinor,
+                        Number(existing.sellingPriceMinor),
+                      )
                     ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
                     : {}),
               }
@@ -722,8 +911,27 @@ export class ProductsService {
       await this.mirrorSimpleProductPrice(tx, tenantId, id);
     });
 
-    await this.pushProductToShopifySafe(tenantId, id);
-    return this.getById(tenantId, id);
+    // ⭐ Spegnere «Sincronizza con Shopify» su un prodotto collegato lo porta in
+    //    ARCHIVED su Shopify (docs/24 §1.10): è l'unica transizione che il push
+    //    ordinario non può fare, perché a flag spento non parte per costruzione.
+    //    Riaccenderlo passa invece dal push ordinario, che riallinea tutto.
+    //
+    // ⛔ **Si ATTENDE**, a differenza di ogni altro push di questo metodo: se la
+    //    risposta parte prima della conferma di Shopify, la scheda dichiara
+    //    «spenta» una sincronizzazione che un istante dopo si riaccende da sé, e
+    //    chi ha appena salvato non lo sa. `getById` qui sotto rilegge lo stato
+    //    EFFETTIVO — flag e messaggio compresi — quindi la risposta dice quello
+    //    che è successo davvero, senza bisogno di un secondo giro.
+    //
+    // ⚠️ **E non solleva**: le altre modifiche della scheda sono già in database,
+    //    quindi un'eccezione qui direbbe «salvataggio fallito» di un salvataggio
+    //    riuscito. L'esito viaggia nel prodotto restituito.
+    if (existing.shopifySyncEnabled && dto.shopifySyncEnabled === false) {
+      await this.channelSync.archiveProductOnSyncDisabled(tenantId, id);
+    } else {
+      await this.pushProductToShopifySafe(tenantId, id);
+    }
+    return this.getById(tenantId, id, user);
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
@@ -813,7 +1021,11 @@ export class ProductsService {
       },
       select: { name: true },
     });
-    return { articleCode: normalized, available: existing === null, takenBy: existing?.name ?? null };
+    return {
+      articleCode: normalized,
+      available: existing === null,
+      takenBy: existing?.name ?? null,
+    };
   }
 
   /** Verifica disponibilità barcode per la validazione live del form. */
@@ -854,9 +1066,12 @@ export class ProductsService {
       throw new NotFoundException('Variante non trovata');
     }
 
+    // Anche lo scanner è una selezione commerciale (docs/24 §3.4): un codice di
+    // un articolo nel cestino o Non attivo non entra in un documento nuovo.
     let variant = await this.prisma.productVariant.findFirst({
       where: {
         tenantId,
+        ...VARIANT_COMMERCIALLY_SELECTABLE,
         OR: [
           { sku: { equals: trimmed, mode: 'insensitive' } },
           { barcode: { equals: trimmed, mode: 'insensitive' } },
@@ -867,13 +1082,23 @@ export class ProductsService {
 
     // Codice articolo come criterio di scan (specifica §DOVE VIENE USATO 4a),
     // dopo SKU/barcode: identifica il prodotto, quindi risolve una variante
-    // solo se il prodotto ne ha una sola (altrimenti la scelta resta alla
-    // ricerca contestuale, che ora include il codice articolo).
+    // solo se il prodotto ne ha una sola. Con più varianti questo endpoint
+    // TACE apposta, perché non gli spetta indovinare quale taglia.
+    //
+    // Chi risolve l'ambiguità (aggiornato 08/2026): non più «la ricerca
+    // contestuale» — quella non esiste più, i campi codice hanno smesso di
+    // cercare mentre si digita. È la riga documento che, alla conferma,
+    // interroga `listVariantSummaries`, filtra per corrispondenza esatta e
+    // apre un pannello «di questo articolo, quale variante».
     if (!variant) {
       const byArticleCode = await this.prisma.productVariant.findMany({
         where: {
           tenantId,
-          product: { articleCode: { equals: trimmed, mode: 'insensitive' } },
+          ...VARIANT_COMMERCIALLY_SELECTABLE,
+          product: {
+            ...VARIANT_COMMERCIALLY_SELECTABLE.product,
+            articleCode: { equals: trimmed, mode: 'insensitive' },
+          },
         },
         include: { product: { select: { id: true, name: true, managesStock: true } } },
         take: 2,
@@ -883,8 +1108,38 @@ export class ProductsService {
       }
     }
 
+    // Codice fornitore: quando si ordina, il fornitore manda il suo listino con
+    // i SUOI codici, e quello è il codice che si ha sotto gli occhi mentre si
+    // compila. È una chiave di ricerca come le altre, non un dato da guardare.
+    //
+    // Ultimo della catena e solo se non è ambiguo: lo stesso codice può essere
+    // usato da fornitori diversi per articoli diversi, e in quel caso indovinare
+    // sarebbe peggio che tacere.
+    //
+    // Chi risolve l'ambiguità (aggiornato 08/2026): la riga documento, come per
+    // il codice articolo — con la differenza che qui la scelta è fra ARTICOLI
+    // diversi, non fra varianti dello stesso. Vedi `listVariantSummaries`, che
+    // dal 08/2026 restituisce sempre il codice fornitore, e restituisce quello
+    // che ha fatto scattare la ricerca.
     if (!variant) {
-      throw new NotFoundException('Variante non trovata per SKU, barcode o codice articolo');
+      const bySupplierSku = await this.prisma.productVariant.findMany({
+        where: {
+          tenantId,
+          ...VARIANT_COMMERCIALLY_SELECTABLE,
+          supplierLinks: { some: { supplierSku: { equals: trimmed, mode: 'insensitive' } } },
+        },
+        include: { product: { select: { id: true, name: true, managesStock: true } } },
+        take: 2,
+      });
+      if (bySupplierSku.length === 1) {
+        variant = bySupplierSku[0]!;
+      }
+    }
+
+    if (!variant) {
+      throw new NotFoundException(
+        'Variante non trovata per SKU, barcode, codice articolo o codice fornitore',
+      );
     }
 
     return {
@@ -904,6 +1159,7 @@ export class ProductsService {
     productId: string,
     variants: readonly UpdateVariantDto[],
     shopifyActive: boolean,
+    canWriteCosts: boolean,
   ): Promise<void> {
     this.assertNoDuplicateSkusInPayload(variants);
     this.assertNoDuplicateBarcodesInPayload(variants);
@@ -925,9 +1181,16 @@ export class ProductsService {
 
     for (const variant of variants) {
       if (variant.id) {
-        await this.updateVariantInTx(tx, tenantId, productId, variant, shopifyActive);
+        await this.updateVariantInTx(
+          tx,
+          tenantId,
+          productId,
+          variant,
+          shopifyActive,
+          canWriteCosts,
+        );
       } else {
-        await this.createVariantInTx(tx, tenantId, productId, variant);
+        await this.createVariantInTx(tx, tenantId, productId, variant, canWriteCosts);
       }
     }
   }
@@ -937,11 +1200,12 @@ export class ProductsService {
     tenantId: string,
     productId: string,
     variant: CreateVariantDto,
+    canWriteCosts: boolean,
   ): Promise<void> {
     await assertVariantSkuAvailableInTx(tx, tenantId, variant.sku);
     await assertVariantBarcodeAvailableInTx(tx, tenantId, variant.barcode);
     await tx.productVariant.create({
-      data: this.toVariantCreateData(tenantId, productId, variant),
+      data: this.toVariantCreateData(tenantId, productId, variant, canWriteCosts),
     });
   }
 
@@ -951,6 +1215,7 @@ export class ProductsService {
     productId: string,
     variant: UpdateVariantDto,
     shopifyActive: boolean,
+    canWriteCosts: boolean,
   ): Promise<void> {
     const id = variant.id;
     if (!id) {
@@ -982,10 +1247,16 @@ export class ProductsService {
           ? variant.shopifyPrice !== undefined
             ? { shopifyPriceMinor: variant.shopifyPrice.amountMinor }
             : {}
-          : !sameAmountAtCent(variant.sellingPrice.amountMinor, Number(current.sellingPriceMinor))
+          : // ⭐ Stesso criterio dell'articolo: valori unitari interni.
+            !sameUnitAmountAtContract(
+                variant.sellingPrice.amountMinor,
+                Number(current.sellingPriceMinor),
+              )
             ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
             : {}),
-        purchasePriceMinor: variant.purchasePrice?.amountMinor,
+        // Costo mascherato = costo non scrivibile: il valore a database resta
+        // quello che è, invece di essere azzerato da un form che non lo vede.
+        ...(canWriteCosts ? { purchasePriceMinor: variant.purchasePrice?.amountMinor } : {}),
       },
     });
   }
@@ -1021,6 +1292,9 @@ export class ProductsService {
     tenantId: string,
     productId: string,
     variant: CreateVariantDto,
+    // Obbligatorio: un default silenzioso qui deciderebbe al posto del
+    // chiamante se il costo si scrive, e i due builder avevano default opposti.
+    canWriteCosts: boolean,
   ): Prisma.ProductVariantUncheckedCreateInput {
     return {
       tenantId,
@@ -1033,13 +1307,16 @@ export class ProductsService {
       // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
       // altrimenti nasce precompilato dal prezzo variante.
       shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
-      purchasePriceMinor: variant.purchasePrice?.amountMinor,
+      purchasePriceMinor: canWriteCosts ? (variant.purchasePrice?.amountMinor ?? 0) : 0,
     };
   }
 
   private toVariantCreateInput(
     tenantId: string,
     variant: CreateVariantDto,
+    // Obbligatorio: un default silenzioso qui deciderebbe al posto del
+    // chiamante se il costo si scrive, e i due builder avevano default opposti.
+    canWriteCosts: boolean,
   ): Prisma.ProductVariantCreateWithoutProductInput {
     return {
       tenant: { connect: { id: tenantId } },
@@ -1051,7 +1328,7 @@ export class ProductsService {
       // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
       // altrimenti nasce precompilato dal prezzo variante.
       shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
-      purchasePriceMinor: variant.purchasePrice?.amountMinor,
+      purchasePriceMinor: canWriteCosts ? (variant.purchasePrice?.amountMinor ?? 0) : 0,
     };
   }
 
@@ -1188,9 +1465,7 @@ export class ProductsService {
     skus: readonly (string | undefined)[],
   ): Promise<void> {
     const normalized = [
-      ...new Set(
-        skus.map((sku) => sku?.trim()).filter((sku): sku is string => Boolean(sku)),
-      ),
+      ...new Set(skus.map((sku) => sku?.trim()).filter((sku): sku is string => Boolean(sku))),
     ];
     if (normalized.length === 0) {
       return;
@@ -1228,9 +1503,7 @@ export class ProductsService {
         select: { name: true },
       });
       return new ConflictException(
-        owner
-          ? articleCodeTakenMessage(owner.name)
-          : `Codice articolo già in uso: ${providedCode}`,
+        owner ? articleCodeTakenMessage(owner.name) : `Codice articolo già in uso: ${providedCode}`,
       );
     }
     const skus = dto.variants
@@ -1282,8 +1555,10 @@ export class ProductsService {
   }
 
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
-    const product = await this.getById(tenantId, id);
-    assertShopifyCatalogManualSyncAllowed(product.catalogOrigin);
+    // Resta il 404 su prodotto inesistente o di un altro tenant. La guardia
+    // sull'origine Shopify non c'è più: l'origine è provenienza, non un vincolo
+    // (docs/24 §1.8), e il sync manuale di un importato è proprio il push GraphQL.
+    await this.loadProductOrThrow(tenantId, id);
     return this.channelSync.pushProductNow(tenantId, id);
   }
 }
@@ -1326,4 +1601,3 @@ function normalizeListProductRow(item: ProductWithVariants | ProductListRow): Pr
     images: [],
   };
 }
-

@@ -47,7 +47,7 @@ test.describe('Arrivo merce — verifica funzionale', () => {
     await expect(page.getByText('Confermato', { exact: true })).toBeVisible({ timeout: 30_000 });
 
     // Nessuna riga valida: resta la riga vuota di lavoro, senza articolo.
-    await expect(page.locator('.gr-product-cell--linked')).toHaveCount(0);
+    await expect(page.locator('.doc-product-cell--linked')).toHaveCount(0);
   });
 
   test('§7 ricerca contestuale: digitazione nel nome, suggerimenti, Esc chiude', async ({
@@ -83,7 +83,9 @@ test.describe('Arrivo merce — verifica funzionale', () => {
     await expect(nameInput).toHaveValue(term);
   });
 
-  test('§8 creazione implicita: nessun badge/toggle, il nome digitato resta', async ({ page }) => {
+  test('§8 creazione implicita: il nome digitato resta e la cella espone i controlli attesi', async ({
+    page,
+  }) => {
     test.setTimeout(90_000);
     await openNewGoodsReceipt(page);
     await unlockGoodsReceiptCompilation(page);
@@ -92,10 +94,21 @@ test.describe('Arrivo merce — verifica funzionale', () => {
     await nameInput.click();
     await nameInput.fill('Articolo inesistente E2E');
 
-    // Cella essenziale: niente badge né toggle magazzino — il nome digitato
-    // basta e l'articolo nasce al click su "Salva documento".
-    await expect(page.locator('.gr-product-cell__create-badge')).toHaveCount(0);
-    await expect(page.locator('.gr-product-cell__stock-toggle')).toHaveCount(0);
+    // Cella essenziale: il nome digitato basta, l'articolo nasce al click su
+    // "Salva documento" senza azioni dedicate.
+    //
+    // La guardia è l'ELENCO DI CIÒ CHE DEVE ESSERCI, non di ciò che non deve:
+    // col fuoco nel campo la cella non collegata espone il campo, la lente e
+    // l'azione di anagrafica — e nient'altro. Quando la striscia di icone fisse
+    // sostituirà l'azione a comparsa, si aggiorna questo elenco descrivendo lo
+    // stato nuovo, invece di rimuovere un divieto: il test fallirà dicendo
+    // "i controlli non sono quelli attesi", non "c'è un elemento in più".
+    const cell = page.locator('.doc-product-cell').first();
+    await expect(cell.getByRole('textbox', { name: 'Nome prodotto' })).toBeVisible();
+    await expect(cell.getByRole('button', { name: 'Cerca prodotto' })).toBeVisible();
+    await expect(cell.getByRole('button', { name: 'Completa anagrafica' })).toBeVisible();
+    await expect(cell.getByRole('button')).toHaveCount(2);
+
     await expect(nameInput).toHaveValue('Articolo inesistente E2E');
   });
 

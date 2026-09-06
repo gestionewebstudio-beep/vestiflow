@@ -18,9 +18,12 @@ import {
 import { StoreSalesService, type StoreSaleResult } from './store-sales.service';
 
 /**
- * Cassa negozio (fase 3 §7-§9): vendita immediata non fiscale a carrello e
- * reso collegato. Nessuna schermata modifica quantità direttamente: tutti gli
- * effetti passano da documenti + movimenti creati in transazione dal servizio.
+ * Vendita e Reso al banco: due documenti non fiscali, entrambi AUTONOMI — il
+ * Reso non ha documento origine (`11` A11), perche' la vendita reale puo'
+ * essere stata battuta su una cassa esterna e non esistere in VestiFlow.
+ *
+ * Nessuna schermata modifica quantita' direttamente: tutti gli effetti passano
+ * da documenti + movimenti riconciliati in transazione dal servizio.
  */
 @Controller('store-sales')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -35,20 +38,13 @@ export class StoreSalesController {
   @RequirePermissions(TenantPermission.RetailRegister)
   lookupItem(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: LookupStoreSaleItemQueryDto,
   ): Promise<StoreSaleItemLookupResult[]> {
-    return this.lookup.lookupItems(tenantId, query);
-  }
-
-  /** Vendite negozio recenti (per collegare un reso alla vendita origine). */
-  @Get('recent')
-  @RequirePermissions(TenantPermission.RetailRegister)
-  recentSales(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Query('search') search?: string,
-  ) {
-    return this.storeSales.listRecentSales(tenantId, search?.trim() || undefined, user);
+    // ⛔ La sede arriva dalla QUERYSTRING: senza l’utente, chi ha «usa la
+    // cassa» in un negozio leggeva giacenza e disponibilita di qualunque
+    // altra sede del tenant.
+    return this.lookup.lookupItems(tenantId, query, user);
   }
 
   /** Concludi vendita: documento + movimenti negativi in una transazione. */
@@ -62,7 +58,7 @@ export class StoreSalesController {
     return this.storeSales.createSale(tenantId, dto, user);
   }
 
-  /** Reso vendita negozio: carico solo per la merce rientrata vendibile. */
+  /** Reso al banco: carico solo per la merce rientrata vendibile. */
   @Post('returns')
   @RequirePermissions(TenantPermission.RetailRegister)
   createReturn(

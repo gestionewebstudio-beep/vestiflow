@@ -2,6 +2,18 @@ import type { EntityId, Money } from './common.model';
 import type { SelectedOption } from './product.model';
 
 /**
+ * Stato LOCALE della variante (docs/24 §3.3): «Attiva» / «Non attiva».
+ * Indipendente dal prodotto e da Shopify; non si deduce da quantità o
+ * pubblicazione. Etichette e predicati in `product-lifecycle.util`.
+ */
+export const VariantLifecycleStatus = {
+  Active: 'active',
+  Inactive: 'inactive',
+} as const;
+export type VariantLifecycleStatus =
+  (typeof VariantLifecycleStatus)[keyof typeof VariantLifecycleStatus];
+
+/**
  * Variante = unita' minima di inventario (regole-gestionale).
  * Definita da 1-3 opzioni (es. Taglia/Colore) via `optionValues`, con SKU
  * univoco. La forma `optionValues` è allineata a `selectedOptions` di Shopify.
@@ -29,4 +41,20 @@ export interface ProductVariant {
   readonly purchasePrice?: Money;
   readonly shopifyVariantId?: string;
   readonly shopifyInventoryItemId?: string;
+  /**
+   * Stato locale proprio della variante (§3.3), **obbligatorio**: chi costruisce
+   * una `ProductVariant` dichiara in che stato è.
+   *
+   * ⛔ Era opzionale, «così le fixture non vanno aggiornate». Indebolire il
+   *    modello per non toccare i costruttori è il modo in cui uno stato nuovo
+   *    resta invisibile: `undefined` si legge come «attiva» in ogni confronto
+   *    scritto distrattamente, e una variante Non attiva passa per attiva senza
+   *    che niente fallisca. L'opzionalità vive SOLO in `ProductVariantApiRow`,
+   *    che è il tipo della risposta HTTP e deve reggere un server più vecchio.
+   */
+  readonly lifecycleStatus: VariantLifecycleStatus;
+  /** Cestino (§4.1): valorizzato = «Nel cestino». Non è «eliminata definitivamente». */
+  readonly deletedAt?: string | null;
+  readonly deletedById?: string | null;
+  readonly deletionReason?: string | null;
 }

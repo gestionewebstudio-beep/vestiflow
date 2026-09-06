@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentType, type Prisma } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   fromPrismaSource,
@@ -11,6 +13,7 @@ import {
 } from '../sales-orders/sales-order.enum-mapper';
 import { vatSnapshotDisplayLabel, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import type { ListOnlineSalesQueryDto } from './dto/list-online-sales.query.dto';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 export interface OnlineSaleRow {
   readonly id: string;
@@ -26,8 +29,6 @@ export interface OnlineSaleRow {
   readonly totalMinor: number;
   readonly paymentStatus: string;
   readonly inventoryStatus: string;
-  readonly corrispettivoReference: string | null;
-  readonly corrispettivoStatus: string | null;
   readonly refundedAt: string | null;
   /** Location di scarico principale (fase 3 §4). */
   readonly locationName: string | null;
@@ -74,12 +75,6 @@ export interface OnlineSaleDetail extends OnlineSaleRow {
   readonly taxMinor: number;
   readonly lines: readonly OnlineSaleLineRow[];
   readonly movements: readonly OnlineSaleMovementRow[];
-  readonly corrispettivo: {
-    readonly id: string;
-    readonly reference: string;
-    readonly fiscalDate: string;
-    readonly status: string;
-  } | null;
   readonly linkedDocuments: readonly {
     readonly id: string;
     readonly type: string;
@@ -103,13 +98,12 @@ export class OnlineSalesService {
       this.prisma.onlineSale.findMany({
         where,
         include: {
-          corrispettivo: { select: { reference: true, status: true } },
           location: { select: { name: true } },
           documents: { select: { type: true, reference: true } },
         },
         orderBy: { fulfilledAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ Con `all=1` la finestra deve SPARIRE, non diventare grande.
+        ...pageWindow(query),
       }),
     ]);
 
@@ -121,14 +115,26 @@ export class OnlineSalesService {
     };
   }
 
-  async getDetail(tenantId: string, id: string): Promise<OnlineSaleDetail> {
+  /**
+   * Dettaglio di una vendita online.
+   *
+   * ⛔ **La sede si verifica sul record, non sull'elenco.** `OnlineSale.locationId`
+   * è la sede di scarico: senza questo controllo, conoscere un id bastava a
+   * leggere righe, movimenti e perfino il NOME della sede di un magazzino non
+   * proprio. Filtrare un elenco è ergonomia; autorizzare è rifiutare la
+   * richiesta diretta per id (`12` §0.8).
+   *
+   * ⚠️ `user` NON è opzionale: un parametro saltabile è come non averlo.
+   */
+  async getDetail(
+    tenantId: string,
+    id: string,
+    user: UserProfileDto,
+  ): Promise<OnlineSaleDetail> {
     const sale = await this.prisma.onlineSale.findFirst({
       where: { id, tenantId },
       include: {
         lines: { orderBy: { lineNumber: 'asc' } },
-        corrispettivo: {
-          select: { id: true, reference: true, fiscalDate: true, status: true },
-        },
         location: { select: { name: true } },
         documents: {
           select: { id: true, type: true, reference: true, status: true },
@@ -138,6 +144,11 @@ export class OnlineSalesService {
     if (!sale) {
       throw new NotFoundException('Vendita online non trovata');
     }
+    assertLocationReadableInUserScope(
+      user,
+      sale.locationId,
+      'Non sei autorizzato ad accedere a questa vendita.',
+    );
 
     const movements = await this.prisma.stockMovement.findMany({
       where: {
@@ -183,14 +194,6 @@ export class OnlineSalesService {
         locationName: movement.location.name,
         createdAt: movement.createdAt.toISOString(),
       })),
-      corrispettivo: sale.corrispettivo
-        ? {
-            id: sale.corrispettivo.id,
-            reference: sale.corrispettivo.reference,
-            fiscalDate: sale.corrispettivo.fiscalDate.toISOString().slice(0, 10),
-            status: sale.corrispettivo.status,
-          }
-        : null,
       linkedDocuments: sale.documents.map((doc) => ({
         id: doc.id,
         type: doc.type,
@@ -204,12 +207,13 @@ export class OnlineSalesService {
   async findByOrder(
     tenantId: string,
     salesOrderId: string,
+    user: UserProfileDto,
   ): Promise<OnlineSaleDetail | null> {
     const sale = await this.prisma.onlineSale.findFirst({
       where: { tenantId, salesOrderId },
       select: { id: true },
     });
-    return sale ? this.getDetail(tenantId, sale.id) : null;
+    return sale ? this.getDetail(tenantId, sale.id, user) : null;
   }
 
   private buildWhere(
@@ -221,6 +225,20 @@ export class OnlineSalesService {
     const channel = toPrismaSource(query.channel);
     if (channel) {
       where.channel = channel;
+    }
+    /*
+      ⭐ **Il periodo del registro è la data d'ORDINE** (01/09/2026): «vendita
+      online vale la data d'ordine».
+
+      ⚠️ **L'estremo superiore arriva a fine giornata**: con `T00:00:00Z` un
+      «fino al 31» escluderebbe tutto ciò che è stato ordinato il 31 dopo la
+      mezzanotte, cioè quasi tutto quel giorno.
+    */
+    if (query.placedFrom || query.placedTo) {
+      where.orderPlacedAt = {
+        ...(query.placedFrom ? { gte: new Date(`${query.placedFrom}T00:00:00Z`) } : {}),
+        ...(query.placedTo ? { lte: new Date(`${query.placedTo}T23:59:59.999Z`) } : {}),
+      };
     }
     if (query.fulfilledFrom || query.fulfilledTo) {
       where.fulfilledAt = {
@@ -243,7 +261,6 @@ export class OnlineSalesService {
   private toRow(
     sale: Prisma.OnlineSaleGetPayload<{
       include: {
-        corrispettivo: { select: { reference: true; status: true } };
         location: { select: { name: true } };
         documents: { select: { type: true; reference: true } };
       };
@@ -266,8 +283,6 @@ export class OnlineSalesService {
       totalMinor: sale.totalMinor,
       paymentStatus: sale.paymentStatus,
       inventoryStatus: sale.inventoryStatus,
-      corrispettivoReference: sale.corrispettivo?.reference ?? null,
-      corrispettivoStatus: sale.corrispettivo?.status ?? null,
       refundedAt: sale.refundedAt?.toISOString() ?? null,
       locationName: sale.location?.name ?? null,
       ddtReference: ddt?.reference ?? null,

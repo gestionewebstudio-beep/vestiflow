@@ -78,6 +78,22 @@
   color: var(--color-text-muted);
 }
 
+// Numeri liberi della serie: seconda riga a tutta larghezza, tono muted.
+// Non è uno stato d'errore, quindi niente tinta di allerta.
+.counters__free {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.counters__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-text-muted);
+}
+
 .counters__badge {
   padding: 0 var(--space-2);
   font-size: var(--text-xs);

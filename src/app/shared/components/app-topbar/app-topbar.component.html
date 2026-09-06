@@ -64,10 +64,14 @@
     <button
       type="button"
       class="app-topbar__company"
-      [title]="'Profilo e impostazioni — ' + companyName()"
-      [attr.aria-label]="'Profilo e impostazioni — ' + companyName()"
+      [title]="'Profilo e impostazioni — ' + companyName() + ' · ' + companyLocationLabel()"
+      [attr.aria-label]="
+        'Profilo e impostazioni — ' + companyName() + ' · ' + companyLocationLabel()
+      "
       (click)="onSettingsClick()"
     >
+      <!-- Solo l'avatar: nome azienda e location vivono nel title/aria-label,
+           lo spazio risparmiato va a ricerca e selettore location. -->
       @if (user(); as currentUser) {
         <app-user-avatar
           size="md"
@@ -76,10 +80,6 @@
           [avatarUrl]="currentUser.avatarUrl"
         />
       }
-      <span class="app-topbar__company-copy">
-        <strong class="app-topbar__company-name">{{ companyName() }}</strong>
-        <span class="app-topbar__company-sub">{{ companyLocationLabel() }}</span>
-      </span>
     </button>
 
     @if (user(); as currentUser) {

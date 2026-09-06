@@ -17,6 +17,46 @@ export interface ShopifyConnectionDto {
   readonly lastSyncAt?: string | null;
   readonly webhooksActivatedAt?: string | null;
   readonly webhooksActiveCount?: number | null;
+  /**
+   * Indirizzo a cui le sottoscrizioni risultano registrate. `null` = mai osservato.
+   * VestiFlow deve sapere a chi ha detto di consegnare senza doverlo chiedere a Shopify.
+   */
+  readonly webhookAddress?: string | null;
+  /**
+   * `false` = l'indirizzo osservato non e' quello configurato adesso, quindi ci sono
+   * sottoscrizioni che consegnano altrove e VestiFlow non le riconosce piu' (la deduplica
+   * Shopify confronta per uguaglianza esatta). E' un fatto, non un'inferenza: e' l'unica
+   * di queste spie che puo' essere un rosso senza incertezza.
+   * `null` = non confrontabile: indirizzo mai osservato, oppure SHOPIFY_APP_URL assente.
+   */
+  readonly webhookAddressMatchesConfigured?: boolean | null;
+  /**
+   * `false` = il confronto non e' possibile da qui, perche' l'indirizzo configurato in
+   * questo ambiente non e' uno a cui Shopify potrebbe consegnare (tipicamente `localhost`).
+   * Va **mostrato**, non solo usato per tacere: un controllo spento in silenzio e' peggio
+   * del falso allarme che evita.
+   */
+  readonly webhookAddressComparable?: boolean;
+  /** I topic osservati sul negozio. Vuoto NON vuol dire «nessuno»: vedi `webhookTopicsKnown`. */
+  readonly webhookTopics?: readonly string[];
+  /**
+   * `false` = nessuna osservazione e' mai stata fatta su questa connessione.
+   * E' la distinzione fra «non lo sappiamo» e «zero attivi», e deve arrivare fino alla UI:
+   * sostituire una bugia con un'altra sarebbe peggio che non dire niente.
+   */
+  readonly webhookTopicsKnown?: boolean;
+  /** Attesi meno osservati, con i nomi. Sempre vuoto quando `webhookTopicsKnown` e' `false`. */
+  readonly webhookMissingTopics?: readonly string[];
+  /** Osservati che VestiFlow non si aspetta piu': residui di versioni precedenti. */
+  readonly webhookUnexpectedTopics?: readonly string[];
+  /** Quando l'osservazione qui sopra e' stata fatta. Senza data non si sa quando era vera. */
+  readonly webhooksCheckedAt?: string | null;
+  /**
+   * Ultimo evento webhook ACCOLTO. Distinto da `lastSyncAt`, che si muove anche quando
+   * qualcuno preme un pulsante: e' l'unica cosa che separa «non e' cambiato niente» da
+   * «non arriva piu' niente». `null` = nessun evento da quando esiste questo campo.
+   */
+  readonly lastWebhookEventAt?: string | null;
   readonly autoSyncEnabled?: boolean;
   readonly lastError?: {
     readonly message: string;
@@ -34,6 +74,9 @@ export interface ShopifyScopeDiagnosticsDto {
   readonly missingFromGrant: readonly string[];
   readonly missingForCatalogImport: readonly string[];
   readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
+  /** Ambiti publication mancanti (canali di vendita, Tranche 2A). */
+  readonly missingForPublications: readonly string[];
+  readonly publicationsBlockedReason: 'none' | 'not_requested' | 'not_granted';
 }
 
 @Injectable()
@@ -58,14 +101,19 @@ export class ShopifyConfigService {
     return this.config.get<string>('SHOPIFY_API_SECRET');
   }
 
+  /**
+   * Versione Admin API fissata: `2026-07` (docs/24 §1.6). ⛔ Mai `latest`,
+   * `unstable` o implicita. `2025-01` è fuori supporto: chi la lascia in `.env`
+   * sta puntando a un'API che non risponde più come si aspetta.
+   */
   get apiVersion(): string {
-    return this.config.get<string>('SHOPIFY_API_VERSION') ?? '2025-01';
+    return this.config.get<string>('SHOPIFY_API_VERSION') ?? '2026-07';
   }
 
   get scopes(): string {
     return (
       this.config.get<string>('SHOPIFY_SCOPES') ??
-      'read_orders,read_customers,read_inventory,write_inventory,read_locations,read_products,write_products,read_metaobject_definitions,write_metaobjects'
+      'read_orders,read_customers,read_inventory,write_inventory,read_locations,read_products,write_products,read_metaobject_definitions,write_metaobjects,read_publications,write_publications'
     );
   }
 

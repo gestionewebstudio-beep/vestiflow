@@ -1,131 +1,203 @@
-<section class="po-list">
-  <header class="po-list__header">
-    <div class="po-list__heading">
-      <!-- Pagina fuori sidebar: il ritorno esplicito è l'hub «Documenti», da
-           cui la si raggiunge, coerente con la lista Ordini cliente. -->
-      <app-back-button fallbackLink="/app/documents" />
-      <div class="po-list__title-row">
-        <h1 class="po-list__title">Ordini Fornitori</h1>
-        @if (!loading()) {
-          <span class="po-list__count tabular-nums">
-            {{ meta().total }} {{ meta().total === 1 ? 'ordine' : 'ordini' }}
-          </span>
-        }
-      </div>
-      <p class="po-list__subtitle">
-        Ordini di acquisto verso i fornitori: l'ordine nasce confermato e si conclude quando viene
-        incluso in un arrivo merce.
-      </p>
-    </div>
-    @if (canManageSupplierOrders()) {
-      <app-button (click)="createOrder()">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Nuovo ordine
-      </app-button>
-    }
-  </header>
-
-  <div class="po-list__toolbar po-list__toolbar--card">
-    <!-- Riga 1: ricerca (cresce) + azioni a destra. -->
-    <div class="po-list__toolbar-main">
-      <div class="po-list__search">
-        <i class="pi pi-search po-list__search-icon" aria-hidden="true"></i>
-        <input
-          id="po-search"
-          class="po-list__input"
-          type="search"
-          [value]="searchDraft()"
-          placeholder="Cerca per riferimento o fornitore…"
-          aria-label="Cerca ordini fornitori"
-          (input)="onSearchInput($event)"
-        />
-      </div>
-
-      <div class="po-list__toolbar-actions">
-        <button type="button" class="po-list__mobile-filters" (click)="mobileFiltersOpen.set(true)">
-          <i class="pi pi-sliders-h" aria-hidden="true"></i>
-          Filtri
-          @if (activeFilterCount() > 0) {
-            <span class="po-list__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
-          }
-        </button>
-      </div>
-    </div>
-
-    <!-- Riga 2: chip filtro a piena larghezza, su mobile spariscono a favore
-         del pulsante «Filtri». -->
-    <div class="po-list__filters po-list__filters--inline">
-      <div class="po-list__field">
-        <app-select-menu
-          chipLabel="Stato"
-          [options]="statusOptions"
-          [value]="query().status ?? ''"
-          ariaLabel="Filtra per stato ordine"
-          placeholder="Tutti"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onStatusFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      @if (hasActiveFilters()) {
-        <button type="button" class="po-list__clear" (click)="resetFilters()">Azzera filtri</button>
-      }
+<app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
+  class="po-list"
+  pageTitle="Ordini Fornitori"
+  [showBack]="true"
+  backFallback="/app/documents"
+  [count]="loading() ? undefined : meta().total + (meta().total === 1 ? ' ordine' : ' ordini')"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="tableViewId"
+  [skeletonRows]="6"
+  searchPlaceholder="Cerca per riferimento o fornitore…"
+  searchAriaLabel="Cerca ordini fornitori"
+  [searchValue]="searchDraft()"
+  emptyTitle="Nessun ordine fornitore"
+  emptyDescription="Nessun ordine corrisponde ai filtri attuali. Modifica i criteri o azzera i filtri."
+  emptyIcon="pi-truck"
+  [activeFilterCount]="activeFilterCount()"
+  (searchChange)="searchDraft.set($event)"
+  (filtersCleared)="resetFilters()"
+  (retry)="reload()"
+>
+  <div period>
+    <div class="po-list__field">
+      <!-- Il segnaposto NON nomina un preset: qui c'era «Ultimi 30 giorni»,
+         che e' gia' una scelta vera dell'elenco, e la voce vuota la
+         ripeteva con l'effetto OPPOSTO — azzerare il filtro invece di
+         applicarlo. Ad azzerare pensa «Tutti», che ha un nome suo. Stessa
+         forma del filtro periodo dei Movimenti di magazzino. -->
+      <app-select-menu
+        chipLabel="Periodo"
+        [options]="periodOptions"
+        [value]="periodPreset()"
+        ariaLabel="Filtra per periodo"
+        placeholder="Periodo"
+        [includeEmptyOption]="false"
+        [compact]="true"
+        [fullWidth]="true"
+        [labelOnly]="true"
+        (valueChange)="onPeriodPresetChange($event)"
+      />
     </div>
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun ordine fornitore"
-      description="Nessun ordine corrisponde ai filtri attuali. Modifica i criteri o azzera i filtri."
-      icon="pi-truck"
-    />
-  } @else {
-    <app-supplier-order-table [orders]="orders()" (rowClick)="openOrder($event)" />
-    <app-pagination
-      label="Paginazione ordini fornitori"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
+  <div filters>
+    <div class="po-list__field">
+      <app-select-menu
+        chipLabel="Stato"
+        [options]="statusOptions"
+        [value]="query().status ?? ''"
+        ariaLabel="Filtra per stato ordine"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onStatusFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
 
-  <!-- Pannello filtri mobile: lo stesso filtro della toolbar, a tutta
-       larghezza. Scrive su query() come la chip, quindi restano allineati. -->
-  <app-slide-panel
-    [open]="mobileFiltersOpen()"
-    title="Filtri"
-    size="narrow"
-    (closed)="mobileFiltersOpen.set(false)"
-  >
-    @if (mobileFiltersOpen()) {
-      <div class="po-list__panel-filters">
-        <div class="po-list__field">
-          <span class="po-list__label">Stato</span>
-          <app-select-menu
-            [options]="statusOptions"
-            [value]="query().status ?? ''"
-            ariaLabel="Filtra per stato ordine"
-            placeholder="Tutti"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onStatusFilterChange($event)"
-          />
-        </div>
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="po-list__field">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
+    </div>
+  </div>
 
-        <div class="po-list__panel-actions">
-          @if (hasActiveFilters()) {
-            <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
-          }
-          <app-button (click)="mobileFiltersOpen.set(false)">Vedi risultati</app-button>
-        </div>
-      </div>
+  <!--
+    ⚠️ L'errore di AZIONE non è l'errore di caricamento: quello lo rende il
+    telaio al posto della tabella, questo si affianca ai dati che restano
+    visibili.
+  -->
+  <div warnings>
+    @if (actionError(); as err) {
+      <app-error-state [description]="err.message" />
     }
-  </app-slide-panel>
-</section>
+  </div>
+
+  <app-data-table
+    [rowClickSelects]="modoSelezione.perTocco()"
+    data
+    caption="Ordini fornitore"
+    [columns]="tableColumns()"
+    [viewId]="tableViewId"
+    [sections]="tableSections()"
+    [totals]="totals()"
+    [rowId]="rowId"
+    [cellText]="cellText"
+    [rowClickable]="true"
+    [sortable]="true"
+    [sort]="query().sort ?? []"
+    [rowLabel]="rowLabel"
+    selectionMode="multiple"
+    [selectedIds]="selectedIds()"
+    [selectionLabel]="selectionLabel"
+    selectAllLabel="Seleziona tutti gli ordini"
+    (rowClick)="openOrder($event)"
+    (sortChange)="onSortChange($event)"
+    (selectionChange)="onToggleSelection($event)"
+    (selectAllChange)="onToggleSelectAll($event)"
+  >
+    <!-- L'unica cella che non è testo: lo stato, con la sua pill. -->
+    <ng-template appCell="status" let-order>
+      <app-badge [flat]="true" [tone]="statusTone(order.status)">{{
+        statusLabel(order.status)
+      }}</app-badge>
+    </ng-template>
+
+    <!--
+      Le tre celle vestite di tipografia. Il TESTO resta uno solo (`cellText`):
+      il template aggiunge il vestito, non una seconda verità.
+    -->
+    <ng-template appCell="reference" let-order>
+      <span class="po-list__riferimento">{{ cellText(order, 'reference') }}</span>
+    </ng-template>
+
+    <ng-template appCell="expected" let-order>
+      <span class="po-list__attesa">{{ cellText(order, 'expected') }}</span>
+    </ng-template>
+    <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+    <ng-template appRowCard let-order>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          <!--
+            ⭐ **In cima alla card va la data dell'ORDINE**, non la consegna
+            prevista: quella è facoltativa, e dove manca lasciava un trattino
+            nudo in cima alla card — un segnaposto che in tabella ha senso
+            (sotto un'intestazione che lo nomina) e su una card no.
+
+            ⚠️ **Ed è la stessa data del raggruppamento per giornata**: se le due
+            divergessero, l'intestazione del gruppo direbbe un giorno e la card
+            dentro un altro.
+          -->
+          <span class="list-card__when tabular-nums">{{ cellText(order, 'documentDate') }}</span>
+          <span class="list-card__what">{{ cellText(order, 'supplier') }}</span>
+        </span>
+        <span class="list-card__anchor">{{ cellText(order, 'reference') }}</span>
+      </div>
+
+      <div class="list-card__words">
+        <span>{{ statusLabel(order.status) }}</span>
+      </div>
+
+      @if (visibile('total')) {
+        <div class="list-card__figures">
+          <span class="list-card__total">{{ cellText(order, 'total') }}</span>
+        </div>
+      }
+    </ng-template>
+  </app-data-table>
+
+  <!--
+    ⭐ La barra azioni sta SOTTO i dati (`14` §21.1: dati → totali → funzioni).
+    Qui stava sopra la tabella: la posizione è del telaio, e la regola esisteva
+    già.
+  -->
+  <div listActions>
+    <!--
+    ⭐ **Il riepilogo nella forma del Registro Corrispettivi** — proprietario,
+    31/08/2026: «per i riepiloghi dei documenti la struttura dei totali dovrebbe
+    essere come quella dei corrispettivi, per coerenza di visualizzazione».
+
+    ⛔ **Sostituisce la riga totali del motore**, che su questo elenco è spenta:
+    insieme direbbero gli stessi numeri due volte.
+  -->
+    <!--
+    ⛔ **Qui c'era la fascia riepilogo alla Corrispettivi**, e il proprietario
+    l'ha rivista il 31/08/2026 guardando i Prodotti: «sotto alle righe hai creato
+    la riga dei totali e i totali si spostano in base alla colonna. Non sarebbe
+    meglio creare la riga sotto ai documenti come quella dei prodotti?».
+
+    ⭐ **Sì, ed è anche più corretta qui**: su un elenco documentale TUTTE le voci
+    sono colonne — Imponibile, IVA, Totale — quindi ognuna ha la propria
+    intestazione sopra. La fascia esiste per il Registro Corrispettivi, dove metà
+    delle voci colonne non sono («Annullamenti 2», «Rettifiche (4)»).
+
+    ⚠️ **E la riga in tabella scorre ORIZZONTALMENTE con le colonne**: il totale
+    resta sotto la sua intestazione anche su un elenco largo. Una fascia esterna
+    sta ferma, e con dieci colonne il numero non si sa più a cosa appartiene.
+  -->
+
+    <app-list-actions-bar
+      [count]="selectionCount()"
+      [ids]="[...selectedIds()]"
+      [actions]="selectionActions()"
+      labelSingular="ordine selezionato"
+      labelPlural="ordini selezionati"
+      (cleared)="clearSelection()"
+    />
+  </div>
+</app-list-page>

@@ -5,6 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
+import { DecimalSerializationInterceptor } from './common/interceptors/decimal-serialization.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { createValidationExceptionFactory } from './common/validation/validation-exception.factory';
 import { SUPPORT_SESSION_HEADER } from './support/support-session.constants';
@@ -28,6 +29,11 @@ async function bootstrap(): Promise<void> {
 
   // Filtro errori globale: niente stack trace o dettagli interni al client.
   app.useGlobalFilters(new AllExceptionsFilter());
+
+  // ⛔ Il confine fra Prisma.Decimal e il JSON: una colonna NUMERIC serializzata
+  // grezza esce come STRINGA, e nessun compilatore se ne accorge. Qui diventa
+  // number una volta per tutte le risposte, comprese quelle non ancora scritte.
+  app.useGlobalInterceptors(new DecimalSerializationInterceptor());
 
   // CORS: solo origini in lista bianca, mai wildcard con credenziali.
   const config = app.get(ConfigService);

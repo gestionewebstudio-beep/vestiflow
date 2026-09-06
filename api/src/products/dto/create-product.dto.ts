@@ -104,6 +104,15 @@ export class CreateProductDto {
   @MaxLength(200)
   name!: string;
 
+  /**
+   * «Nome Shopify»: il titolo con cui il prodotto si vende su Shopify. Vuoto =
+   * si inizializza dal nome interno alla prima sincronizzazione (docs/24 §1.9).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  shopifyTitle?: string;
+
   // ── Prezzi/costo a livello articolo ──
   /** Prezzo di vendita dell'articolo (dato vero, seed delle nuove varianti). */
   @ValidateNested()
@@ -151,16 +160,10 @@ export class CreateProductDto {
   @Type(() => MoneyDto)
   listino3Price?: MoneyDto | null;
 
-  /**
-   * Modalità netto/ivato con cui l'operatore ha compilato la sezione Listini.
-   * NON è un dato dell'articolo e non viene persistito su di esso: serve solo a
-   * ricordare la preferenza di CHI salva, riproposta alla scheda successiva
-   * (`UserProductPriceModePreference`, gemella dei documenti). La forma
-   * memorizzata dei prezzi resta sempre netta.
-   */
-  @IsOptional()
-  @IsBoolean()
-  listinoPricesIncludeVat?: boolean;
+  // ⚠️ Qui viaggiava la modalità netto/ivato con cui l'operatore aveva
+  // compilato la sezione Listini, per farsela ricordare come preferenza
+  // personale. Ritirata il 17/08/2026: l'anagrafica segue la convenzione
+  // aziendale. La forma memorizzata dei prezzi resta comunque sempre netta.
 
   @IsOptional()
   @IsString()

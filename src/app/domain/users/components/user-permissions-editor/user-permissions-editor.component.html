@@ -1,0 +1,169 @@
+@if (isOwnerRole()) {
+  <p class="permissions-editor__owner-note" role="note">
+    Il titolare ha sempre accesso completo al gestionale. Puoi creare più profili titolare.
+  </p>
+} @else {
+  <div
+    class="permissions-editor"
+    [class.permissions-editor--compact]="compact()"
+    [class.permissions-editor--busy]="disabled()"
+  >
+    <div class="permissions-editor__toolbar">
+      <span class="permissions-editor__toolbar-label">Permessi personalizzati</span>
+      <button
+        type="button"
+        class="permissions-editor__reset"
+        [disabled]="disabled()"
+        (click)="requestReset()"
+      >
+        Ripristina preset ruolo
+      </button>
+    </div>
+
+    <fieldset class="permissions-editor__group">
+      <legend class="permissions-editor__group-title">Sezioni</legend>
+      <p class="permissions-editor__group-hint">
+        Le porte della navigazione: senza la sezione, l'area non si apre.
+      </p>
+      <ul class="permissions-editor__list permissions-editor__list--sections">
+        @for (definition of sectionDefinitions; track definition.key) {
+          <li class="permissions-editor__item">
+            <app-hover-tooltip [text]="definition.hint">
+              <label class="permissions-editor__label">
+                <input
+                  type="checkbox"
+                  class="permissions-editor__checkbox"
+                  [checked]="isChecked(definition.key)"
+                  [disabled]="disabled()"
+                  (change)="onToggle(definition.key, $any($event.target).checked)"
+                />
+                <span class="permissions-editor__name">{{ definition.label }}</span>
+              </label>
+            </app-hover-tooltip>
+          </li>
+        }
+      </ul>
+    </fieldset>
+
+    <fieldset class="permissions-editor__group">
+      <legend class="permissions-editor__group-title">Documenti</legend>
+      <p class="permissions-editor__group-hint">
+        Quali documenti può consultare e quali gestire (creare, modificare, stampare, annullare).
+        «Gestisci» comprende «Consulta».
+      </p>
+      <div class="permissions-editor__matrix-wrap">
+        <table class="permissions-editor__matrix">
+          <thead>
+            <tr>
+              <th scope="col">Documento</th>
+              <th scope="col" class="permissions-editor__matrix-check-col">Consulta</th>
+              <th scope="col" class="permissions-editor__matrix-check-col">Gestisci</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (family of families; track family) {
+              <tr>
+                <th scope="row" class="permissions-editor__matrix-row-title">
+                  {{ familyLabels[family] }}
+                </th>
+                <td class="permissions-editor__matrix-check-col">
+                  <input
+                    type="checkbox"
+                    class="permissions-editor__checkbox"
+                    [attr.aria-label]="'Consulta ' + familyLabels[family]"
+                    [checked]="familyViewChecked(family)"
+                    [disabled]="disabled()"
+                    (change)="onFamilyViewToggle(family, $any($event.target).checked)"
+                  />
+                </td>
+                <td class="permissions-editor__matrix-check-col">
+                  @if (familyHasManage(family)) {
+                    <input
+                      type="checkbox"
+                      class="permissions-editor__checkbox"
+                      [attr.aria-label]="'Gestisci ' + familyLabels[family]"
+                      [checked]="familyManageChecked(family)"
+                      [disabled]="disabled()"
+                      (change)="onFamilyManageToggle(family, $any($event.target).checked)"
+                    />
+                  } @else {
+                    <span class="permissions-editor__matrix-na">
+                      <span aria-hidden="true">—</span>
+                      <span class="sr-only">{{ manageNotAvailableLabel(family) }}</span>
+                    </span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </fieldset>
+
+    <div class="permissions-editor__grid">
+      @for (group of actionGroups; track group.label) {
+        <fieldset class="permissions-editor__group">
+          <legend class="permissions-editor__group-title">{{ group.label }}</legend>
+          <ul class="permissions-editor__list">
+            @for (definition of group.definitions; track definition.key) {
+              <li class="permissions-editor__item">
+                <app-hover-tooltip [text]="definition.hint">
+                  <label class="permissions-editor__label">
+                    <input
+                      type="checkbox"
+                      class="permissions-editor__checkbox"
+                      [checked]="isChecked(definition.key)"
+                      [disabled]="disabled()"
+                      (change)="onToggle(definition.key, $any($event.target).checked)"
+                    />
+                    <span class="permissions-editor__name">{{ definition.label }}</span>
+                  </label>
+                </app-hover-tooltip>
+              </li>
+            }
+          </ul>
+        </fieldset>
+      }
+    </div>
+
+    <fieldset class="permissions-editor__group permissions-editor__group--sensitive">
+      <legend class="permissions-editor__group-title">Azioni sensibili</legend>
+      <p class="permissions-editor__group-hint">
+        Dati e operazioni delicate: concedile con attenzione. «Visualizza costi d'acquisto» nasconde
+        costi e margini solo dove sono un'informazione accessoria — catalogo, magazzino, report. Nei
+        documenti d'acquisto (arrivo merce, fatture e ordini fornitore) i prezzi sono il contenuto
+        del documento e restano visibili a chi ha quelle righe nella matrice Documenti: per
+        nasconderli, togli quelle righe.
+      </p>
+      <ul class="permissions-editor__list">
+        @for (definition of sensitiveDefinitions; track definition.key) {
+          <li class="permissions-editor__item">
+            <app-hover-tooltip [text]="definition.hint">
+              <label class="permissions-editor__label">
+                <input
+                  type="checkbox"
+                  class="permissions-editor__checkbox"
+                  [checked]="isChecked(definition.key)"
+                  [disabled]="disabled()"
+                  (change)="onToggle(definition.key, $any($event.target).checked)"
+                />
+                <span class="permissions-editor__name">{{ definition.label }}</span>
+              </label>
+            </app-hover-tooltip>
+          </li>
+        }
+      </ul>
+    </fieldset>
+
+    <!-- Il ripristino butta via tutte le spunte messe a mano e — dalla riga
+         utente — salva subito: come l'eliminazione di un account, prima chiede. -->
+    <app-confirm-dialog
+      [(open)]="resetDialogOpen"
+      title="Ripristinare i permessi del ruolo?"
+      [message]="resetDialogMessage()"
+      confirmLabel="Ripristina preset"
+      cancelLabel="Annulla"
+      (confirmed)="resetToRoleDefaults()"
+    />
+  </div>
+}

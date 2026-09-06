@@ -6,7 +6,6 @@ import { UserRole } from '@core/models/user.model';
 import {
   hasActiveSupportSession,
   isPlatformOperator,
-  isTenantWorkspaceUrl,
   PLATFORM_OPERATOR_HOME,
   resolvePlatformOperatorReturnUrl,
 } from './platform-operator.util';
@@ -22,6 +21,7 @@ const baseUser: User = {
   isActive: true,
   isPlatformAdmin: true,
   tenantChannelProfile: 'gestionale',
+  manualUnloadEnabled: true,
   tenantName: 'Cliente test',
   hasAllLocationsAccess: true,
   assignedLocationIds: [],
@@ -62,12 +62,6 @@ describe('platform-operator.util', () => {
         },
       }),
     ).toBe(true);
-  });
-
-  it('isTenantWorkspaceUrl distingue area admin', () => {
-    expect(isTenantWorkspaceUrl('/app/settings')).toBe(true);
-    expect(isTenantWorkspaceUrl('/app/admin/clients')).toBe(false);
-    expect(isTenantWorkspaceUrl('/app/admin/clients/new')).toBe(false);
   });
 
   it('resolvePlatformOperatorReturnUrl manda operatore alla home admin', () => {

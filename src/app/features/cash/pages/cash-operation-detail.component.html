@@ -1,0 +1,101 @@
+<div class="op">
+  <header class="op__head">
+    <app-back-button fallbackLink="/app/cassa/operazioni">Operazioni</app-back-button>
+    @if (operazione(); as o) {
+      <div class="op__identity">
+        <h1 class="op__title">{{ o.kind === 'sale' ? 'Vendita' : 'Reso' }} {{ o.reference }}</h1>
+        <p class="op__meta">
+          {{ o.createdAt | date: 'dd/MM/yyyy HH:mm' }} · {{ o.locationName ?? '—' }} ·
+          {{ o.operatorName }}
+          @if (o.status === 'cancelled') {
+            <span class="op__cancelled">· Annullata</span>
+          }
+        </p>
+      </div>
+
+      @if (o.kind === 'sale' && o.status !== 'cancelled' && puoRendere()) {
+        <a class="op__action" [routerLink]="['/app/cassa/operazioni', o.id, 'reso']">
+          Esegui reso
+        </a>
+      }
+    }
+  </header>
+
+  @if (errore(); as messaggio) {
+    <app-error-state [description]="messaggio" retryLabel="Riprova" (retry)="ricarica()" />
+  } @else if (caricamento()) {
+    <p class="op__loading" role="status">Lettura dell'operazione…</p>
+  } @else if (operazione(); as o) {
+    @if (o.anomalies.length > 0) {
+      <app-inline-banner tone="warning" [message]="testoAnomalie()" />
+    }
+
+    <!-- ── Righe ────────────────────────────────────────────────────────── -->
+    <!-- ⭐ La stessa tabella in sola lettura del Dettaglio documento e
+         dell'anteprima di stampa: articolo, quantità, prezzo, sconto, IVA e
+         totale, con le card su schermo stretto. -->
+    <app-form-section title="Righe" [flat]="true">
+      <app-document-lines-table [lines]="o.lines" />
+    </app-form-section>
+
+    <!-- ── Totali ───────────────────────────────────────────────────────── -->
+    <!-- ⭐ Il riepilogo totali di TUTTE le maschere: non calcola, rende. -->
+    <app-form-section title="Totali" [flat]="true">
+      <app-document-totals [rows]="righeTotali()" />
+    </app-form-section>
+
+    <!-- ── Incasso ──────────────────────────────────────────────────────── -->
+    <app-form-section [title]="o.kind === 'sale' ? 'Incasso' : 'Rimborso'" [flat]="true">
+      <ul class="op__quotas">
+        @for (q of o.payments; track q.optionName) {
+          <li class="op__quota">
+            <span class="op__quota-name">{{ q.optionName ?? 'Tipo eliminato' }}</span>
+            <span class="op__quota-kind">
+              {{
+                q.tenderKind === 'cash'
+                  ? 'contanti'
+                  : q.tenderKind === 'electronic'
+                    ? 'elettronico'
+                    : '—'
+              }}
+            </span>
+            <span class="op__quota-amount">{{ soldi(q.amountMinor) }}</span>
+            @if (q.tenderedMinor !== null) {
+              <span class="op__quota-tendered">ricevuto {{ soldi(q.tenderedMinor) }}</span>
+            }
+          </li>
+        }
+      </ul>
+      @if (o.changeMinor > 0) {
+        <p class="op__change">Resto reso al cliente: {{ soldi(o.changeMinor) }}</p>
+      }
+      <!-- ⛔ C5 non esiste: si dice, non si simula uno stato fiscale. -->
+      <p class="op__note">Fiscalizzazione non ancora disponibile in questa versione.</p>
+    </app-form-section>
+
+    <!-- ── Collegamenti ─────────────────────────────────────────────────── -->
+    <!-- ⭐ L'elenco fatti del Dettaglio, non un `<dl>` scritto qui. -->
+    <app-form-section title="Collegamenti" [flat]="true">
+      <app-detail-facts [facts]="fatti()" />
+    </app-form-section>
+
+    <!-- ── Movimenti ────────────────────────────────────────────────────── -->
+    @if (o.stockMovements.length > 0) {
+      <app-form-section title="Movimenti di magazzino" [flat]="true">
+        <ul class="op__movements">
+          @for (m of o.stockMovements; track m.id) {
+            <li>
+              {{ m.type }} · {{ m.sku ?? '—' }} · {{ m.quantity }} pezzi ·
+              {{ m.createdAt | date: 'dd/MM/yyyy HH:mm' }}
+            </li>
+          }
+        </ul>
+      </app-form-section>
+    }
+
+    <p class="op__note">
+      Una vendita di cassa conclusa non si modifica e non si cancella: si corregge con un reso
+      collegato.
+    </p>
+  }
+</div>

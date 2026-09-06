@@ -1,0 +1,613 @@
+<!-- ⛔ L'intestazione della riga CONDIVISA: stesse colonne, stesse classi di
+     gruppo, stesse larghezze. Il markup è quello dell'Ordine cliente, spostato.
+
+     ⚠️ L'ordine delle celle deve restare quello di `document-line-row`: sono la
+     stessa griglia vista da sopra. -->
+<th
+  scope="col"
+  class="doc-form__cell--index"
+  aria-label="Numero riga"
+  [style.width]="indexColumnWidth() || null"
+>
+  <span class="doc-form__th-label" title="#">#</span>
+</th>
+@if (isColumnVisible()('articleCode')) {
+  <th scope="col" [style.width]="columnWidth()('articleCode')">
+    @if (sortable()) {
+      <button
+        type="button"
+        class="doc-form__th-sort"
+        [disabled]="!sortAvailable()"
+        [attr.aria-label]="sortAriaLabel('articleCode', 'Cod. articolo')"
+        [attr.title]="sortDisabledReason() ?? 'Cod. articolo'"
+        (click)="sortToggled.emit('articleCode')"
+      >
+        Cod. articolo
+        @if (sortColumn() === 'articleCode') {
+          <i
+            class="pi"
+            [class.pi-sort-up]="sortDirection() === 'asc'"
+            [class.pi-sort-down]="sortDirection() === 'desc'"
+            aria-hidden="true"
+          ></i>
+        }
+      </button>
+    } @else {
+      <span class="doc-form__th-label" title="Cod. articolo">Cod. articolo</span>
+    }
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('articleCode')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'articleCode', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'articleCode', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('sku')) {
+  <th scope="col" [style.width]="columnWidth()('sku')">
+    @if (sortable()) {
+      <button
+        type="button"
+        class="doc-form__th-sort"
+        [disabled]="!sortAvailable()"
+        [attr.aria-label]="sortAriaLabel('sku', 'SKU')"
+        [attr.title]="sortDisabledReason() ?? 'SKU'"
+        (click)="sortToggled.emit('sku')"
+      >
+        SKU
+        @if (sortColumn() === 'sku') {
+          <i
+            class="pi"
+            [class.pi-sort-up]="sortDirection() === 'asc'"
+            [class.pi-sort-down]="sortDirection() === 'desc'"
+            aria-hidden="true"
+          ></i>
+        }
+      </button>
+    } @else {
+      <span class="doc-form__th-label" title="SKU">SKU</span>
+    }
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('sku')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'sku', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'sku', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('barcode')) {
+  <th scope="col" [style.width]="columnWidth()('barcode')">
+    @if (sortable()) {
+      <button
+        type="button"
+        class="doc-form__th-sort"
+        [disabled]="!sortAvailable()"
+        [attr.aria-label]="sortAriaLabel('barcode', 'EAN')"
+        [attr.title]="sortDisabledReason() ?? 'EAN'"
+        (click)="sortToggled.emit('barcode')"
+      >
+        EAN
+        @if (sortColumn() === 'barcode') {
+          <i
+            class="pi"
+            [class.pi-sort-up]="sortDirection() === 'asc'"
+            [class.pi-sort-down]="sortDirection() === 'desc'"
+            aria-hidden="true"
+          ></i>
+        }
+      </button>
+    } @else {
+      <span class="doc-form__th-label" title="EAN">EAN</span>
+    }
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('barcode')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'barcode', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'barcode', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('supplierCode')) {
+  <th scope="col" [style.width]="columnWidth()('supplierCode')">
+    <span class="doc-form__th-label" title="Cod. fornitore">Cod. fornitore</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('supplierCode')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'supplierCode', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'supplierCode', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('product')) {
+  <th
+    scope="col"
+    class="doc-form__th--product doc-form__col--sep"
+    [style.width]="columnWidth()('product')"
+  >
+    @if (sortable()) {
+      <button
+        type="button"
+        class="doc-form__th-sort"
+        [disabled]="!sortAvailable()"
+        [attr.aria-label]="sortAriaLabel('product', 'Nome prodotto')"
+        [attr.title]="sortDisabledReason() ?? 'Nome prodotto'"
+        (click)="sortToggled.emit('product')"
+      >
+        Nome prodotto
+        @if (sortColumn() === 'product') {
+          <i
+            class="pi"
+            [class.pi-sort-up]="sortDirection() === 'asc'"
+            [class.pi-sort-down]="sortDirection() === 'desc'"
+            aria-hidden="true"
+          ></i>
+        }
+      </button>
+    } @else {
+      <span class="doc-form__th-label" title="Articolo">Articolo</span>
+    }
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('product')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'product', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'product', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('variantLabel')) {
+  <!-- Non ordinabile: la variante è un'etichetta composta, e ordinare per
+       «M / Rosso» ordinerebbe per taglia solo dove la taglia è la prima
+       opzione. -->
+  <th scope="col" [style.width]="columnWidth()('variantLabel')">
+    <span class="doc-form__th-label" title="Variante">Variante</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('variantLabel')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'variantLabel', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'variantLabel', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('description')) {
+  <th scope="col" [style.width]="columnWidth()('description')">
+    <span class="doc-form__th-label" title="Descrizione">Descrizione</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('description')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'description', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'description', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('poOrdered')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('poOrdered')"
+  >
+    <span class="doc-form__th-label" title="Ord.">Ord.</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('poOrdered')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'poOrdered', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'poOrdered', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('poReceived')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('poReceived')"
+  >
+    <span class="doc-form__th-label" title="Ric.">Ric.</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('poReceived')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'poReceived', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'poReceived', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('poRemaining')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('poRemaining')"
+  >
+    <span class="doc-form__th-label" title="Residuo">Residuo</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('poRemaining')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'poRemaining', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'poRemaining', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('quantity')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('quantity')"
+  >
+    <span class="doc-form__th-label" title="Quantità">Q.tà</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('quantity')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'quantity', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'quantity', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('stockOnHand')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('stockOnHand')"
+  >
+    <span class="doc-form__th-label" title="Q.tà giacenza">Q.tà giacenza</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('stockOnHand')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'stockOnHand', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'stockOnHand', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('stockAvailable')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('stockAvailable')"
+  >
+    <span class="doc-form__th-label" title="Quantità disponibile">Q.tà disp.</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('stockAvailable')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'stockAvailable', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'stockAvailable', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('unitOfMeasure')) {
+  <th
+    scope="col"
+    class="doc-form__col--stock doc-form__col--sep"
+    [style.width]="columnWidth()('unitOfMeasure')"
+  >
+    <span class="doc-form__th-label" title="Unità di misura">U.M.</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('unitOfMeasure')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'unitOfMeasure', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'unitOfMeasure', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('purchaseCost')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--calc"
+    [style.width]="columnWidth()('purchaseCost')"
+  >
+    <span class="doc-form__th-label" title="Costo di acquisto">Costo</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('purchaseCost')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'purchaseCost', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'purchaseCost', widthPx: $event })"
+    ></span>
+  </th>
+}
+<!-- ⛔ Il costo ha il SUO menu netto/ivato, distinto da quello del prezzo:
+     un acquisto sceglie come digitare il costo, una vendita come digitare il
+     prezzo, e un Arrivo merce può avere entrambe le colonne insieme. Con un
+     menu solo, cambiare l'uno cambierebbe l'altro. -->
+@if (isColumnVisible()('unitCost')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--calc doc-form__th--menu"
+    [style.width]="columnWidth()('unitCost')"
+  >
+    <!-- ⛔ Un trigger SOLO: `app-price-mode-menu` ne ha gia' uno suo, e
+         affiancargliene un secondo con lo stesso nome accessibile lascia
+         all'operatore due comandi identici di cui uno non apre niente. E' il
+         difetto che il test dell'intestazione fotografa gia' per il prezzo. -->
+    <span class="doc-form__th-menu-wrap">
+      <span class="doc-form__th-label" [title]="costLabel()">{{ costLabel() }}</span>
+      <app-price-mode-menu
+        [pricesIncludeVat]="costsIncludeVat()"
+        netLabel="Usa costi netti"
+        grossLabel="Usa costi ivati"
+        ariaLabel="Modalità costi del documento"
+        [disabled]="readOnly()"
+        (modeChange)="costModeChanged.emit($event)"
+      />
+    </span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('unitCost')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'unitCost', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'unitCost', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('discountedCost')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--calc"
+    [style.width]="columnWidth()('discountedCost')"
+  >
+    <span class="doc-form__th-label" title="Costo scontato">Costo scontato</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('discountedCost')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'discountedCost', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'discountedCost', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('sellingPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale doc-form__th--menu"
+    [style.width]="columnWidth()('sellingPrice')"
+  >
+    <!-- ⭐ Il menu netto/ivato compare sulla colonna che QUESTO documento usa come
+         prezzo: sull'Arrivo merce e' `sellingPrice`, altrove `unitPrice`. Ogni
+         colonna resta al suo posto nella fila — spostare il menu in un <th> a se
+         sfalserebbe le intestazioni dalle celle. -->
+    @if (priceColumn() === 'sellingPrice') {
+      <span class="doc-form__th-menu-wrap">
+        <span class="doc-form__th-label" [title]="priceLabel()">{{ priceLabel() }}</span>
+        <app-price-mode-menu
+          [pricesIncludeVat]="pricesIncludeVat()"
+          netLabel="Usa prezzi netti"
+          grossLabel="Usa prezzi ivati"
+          ariaLabel="Scegli la modalità prezzo"
+          [disabled]="readOnly()"
+          (modeChange)="priceModeChanged.emit($event)"
+        />
+      </span>
+    } @else {
+      <span class="doc-form__th-label" title="Prezzo di vendita">Prezzo di vendita</span>
+    }
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('sellingPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'sellingPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'sellingPrice', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('shopifyPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale"
+    [style.width]="columnWidth()('shopifyPrice')"
+  >
+    <span class="doc-form__th-label" title="Prezzo Shopify">Prezzo Shopify</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('shopifyPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'shopifyPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'shopifyPrice', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('compareAtPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale"
+    [style.width]="columnWidth()('compareAtPrice')"
+  >
+    <span class="doc-form__th-label" title="Prezzo barrato">Prezzo barrato</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('compareAtPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'compareAtPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'compareAtPrice', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('unitPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale doc-form__th--menu"
+    [style.width]="columnWidth()('unitPrice')"
+  >
+    <!-- Modalità prezzo netto/ivato integrata nell'header di colonna (`11` A4):
+         l'etichetta riflette la modalità corrente e il menu la cambia. -->
+    <span class="doc-form__th-menu-wrap">
+      <button
+        type="button"
+        class="doc-form__th-sort doc-form__th-sort--num"
+        aria-haspopup="menu"
+        [attr.aria-expanded]="priceMenuOpen()"
+        aria-label="Modalità prezzo del documento"
+        (click)="priceMenuToggled.emit()"
+      >
+        {{ priceLabel() }}
+      </button>
+      <app-price-mode-menu
+        [pricesIncludeVat]="pricesIncludeVat()"
+        netLabel="Usa prezzi netti"
+        grossLabel="Usa prezzi ivati"
+        ariaLabel="Scegli la modalità prezzo"
+        [disabled]="readOnly()"
+        (modeChange)="priceModeChanged.emit($event)"
+      />
+    </span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('unitPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'unitPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'unitPrice', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('discount')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale"
+    [style.width]="columnWidth()('discount')"
+  >
+    <span class="doc-form__th-label" title="Sconto di riga">Sconto</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('discount')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'discount', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'discount', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('discountedPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--calc"
+    [style.width]="columnWidth()('discountedPrice')"
+  >
+    <span class="doc-form__th-label" title="Prezzo scontato">Prezzo scontato</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('discountedPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'discountedPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'discountedPrice', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('vat')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--tax doc-form__col--sep"
+    [style.width]="columnWidth()('vat')"
+  >
+    <span class="doc-form__th-label" title="Codice IVA">IVA</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('vat')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'vat', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'vat', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('lot')) {
+  <th scope="col" [style.width]="columnWidth()('lot')">
+    <span class="doc-form__th-label" title="Lotto">Lotto</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('lot')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'lot', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'lot', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('expiry')) {
+  <th scope="col" [style.width]="columnWidth()('expiry')">
+    <span class="doc-form__th-label" title="Scadenza">Scadenza</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('expiry')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'expiry', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'expiry', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('serials')) {
+  <th scope="col" [style.width]="columnWidth()('serials')">
+    <span class="doc-form__th-label" title="Numeri di serie">Seriali</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('serials')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'serials', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'serials', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('commitsStock')) {
+  <th scope="col" class="doc-form__col--stock" [style.width]="columnWidth()('commitsStock')">
+    <span class="doc-form__th-label">
+      {{ stockToggleLabel() }}
+      @if (stockToggleTooltip()) {
+        <app-hover-tooltip [text]="stockToggleTooltip()" position="bottom">
+          <i
+            class="pi pi-info-circle doc-form__th-info"
+            [attr.aria-label]="'Info colonna ' + stockToggleLabel()"
+          ></i>
+        </app-hover-tooltip>
+      }
+    </span>
+  </th>
+}
+<!-- ⛔ **Etichetta PROPRIA, non quella di `commitsStock`.** Le due colonne
+     possono comparire insieme, e con la stessa etichetta sarebbero
+     indistinguibili — a schermo e per uno screen reader.
+
+       commitsStock   «Impegna magazzino»   la merce resta, ma è promessa
+       loadsStock     «Carica»/«Scarica»    la merce si muove davvero
+
+     Chi mostra la colonna decide la parola, perché lo stesso campo dice
+     «Carica giacenze» su un reso e «Scarica» su un DDT. -->
+@if (isColumnVisible()('loadsStock')) {
+  <th scope="col" class="doc-form__col--stock" [style.width]="columnWidth()('loadsStock')">
+    <span class="doc-form__th-label">
+      {{ loadToggleLabel() }}
+      @if (loadToggleTooltip()) {
+        <app-hover-tooltip [text]="loadToggleTooltip()" position="bottom">
+          <i
+            class="pi pi-info-circle doc-form__th-info"
+            [attr.aria-label]="'Info colonna ' + loadToggleLabel()"
+          ></i>
+        </app-hover-tooltip>
+      }
+    </span>
+  </th>
+}
+@if (isColumnVisible()('lineTotal')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--total"
+    [style.width]="columnWidth()('lineTotal')"
+  >
+    <span class="doc-form__th-label" title="Totale di riga">Totale</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('lineTotal')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'lineTotal', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'lineTotal', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('actions')) {
+  <th scope="col" [style.width]="columnWidth()('actions')">
+    <span class="sr-only">Azioni</span>
+  </th>
+}

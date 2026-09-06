@@ -1,0 +1,41 @@
+-- Rinomina del valore di enum `invoice_draft` in `invoice`.
+--
+-- ⭐ PERCHE'. Quel valore non significa piu' «bozza» da tempo: lo schema stesso
+-- lo commenta «Fattura (fiscale, da trasmettere al commercialista)», l'etichetta
+-- a schermo e' «Fattura», e il 25/08/2026 sono state tolte le ultime sei
+-- stringhe che facevano leggere «Bozza fattura» all'operatore. Restava il nome
+-- tecnico, che chi scrive codice legge ogni giorno.
+--
+-- ⭐ COSTO REALE. `ALTER TYPE ... RENAME VALUE` e' un aggiornamento di CATALOGO:
+-- nessuna riscrittura delle sette colonne che portano il tipo, nessun lock su
+-- di esse, transazionale e reversibile. L'indice unico `documents_number_unique`
+-- porta `'invoice_draft'::"DocumentType"` dentro la propria espressione e
+-- sopravvive senza ricostruzione, perche' i letterali enum negli indici sono
+-- legati all'OID e non alla stringa.
+--
+-- ⛔ NESSUN UPDATE SUI DATI, e va detto: e' la misura che rende questa migration
+-- economica. Tutte e sette le colonne sono ENUM — documents, document_counters,
+-- document_sequences, document_type_settings, stock_movements.source_document_type
+-- e le due preferenze utente per tipo — quindi il rename le copre tutte senza
+-- toccare una riga.
+--
+-- ⚠️ QUELLO CHE IL RENAME NON COPRE, e che percio' NON si tocca:
+--   · `user_table_view_preferences.view_id` = 'invoice_draft_documents_list' e'
+--     un id di vista scritto a mano, TESTO sotto vincolo unico, e NON deriva
+--     dall'enum. Rinominarlo orfanerebbe la disposizione colonne di ogni
+--     operatore, e il frontend ingoia il 400. La riga accanto —
+--     'purchase_invoice_documents_list' — porta gia' il nome della FAMIGLIA e
+--     non del tipo: quegli id sono disaccoppiati per costruzione.
+--   · gli archivi di backup tenant, che portano il nome vecchio come testo:
+--     TENANT_BACKUP_FORMAT_VERSION e' passato a 2 e li rifiuta al cancello,
+--     con un messaggio che dice perche'.
+--
+-- ⛔ E LE MIGRATION GIA' APPLICATE NON SI TOCCANO: sette file nominano
+-- 'invoice_draft', e modificarli cambierebbe il checksum in `_prisma_migrations`
+-- bloccando `prisma migrate deploy` a tutti. Restano la storia.
+--
+-- ⚠️ Qualunque migration FUTURA che ricostruisca `documents_number_unique` deve
+-- usare il nome nuovo: e' gia' stata riscritta due volte, e sarebbe la terza a
+-- fallire se nessuno lo annotasse.
+
+ALTER TYPE "DocumentType" RENAME VALUE 'invoice_draft' TO 'invoice';

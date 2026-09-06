@@ -31,7 +31,7 @@ describe('movement-cost.util', () => {
     it('mappa il costo corrente per variante (una query, id deduplicati)', async () => {
       tx.productVariant.findMany.mockResolvedValue([
         { id: 'var-1', purchasePriceMinor: 1200 },
-        { id: 'var-2', purchasePriceMinor: null },
+        { id: 'var-2', purchasePriceMinor: 0 },
       ]);
 
       const map = await currentVariantCostMap(tx as never, 'tenant-1', ['var-1', 'var-2', 'var-1']);
@@ -42,13 +42,17 @@ describe('movement-cost.util', () => {
         select: { id: true, purchasePriceMinor: true },
       });
       expect(map.get('var-1')).toBe(1200);
-      expect(map.get('var-2')).toBeNull();
+      // Un costo non valorizzato vale ZERO, e zero è un costo: la mappa non
+      // restituisce più `null` per nessuna variante trovata.
+      expect(map.get('var-2')).toBe(0);
     });
   });
 
   describe('frozenTotalCostMinor', () => {
-    it('null se il costo unitario manca', () => {
-      expect(frozenTotalCostMinor(null, 5)).toBeNull();
+    // ⛔ Qui c'era «null se il costo unitario manca»: non può più mancare, e
+    // un costo zero produce un totale zero — non un'assenza.
+    it('zero per zero: un costo nullo dà un totale nullo, non assente', () => {
+      expect(frozenTotalCostMinor(0, 5)).toBe(0);
     });
 
     it('unitario × quantità', () => {
@@ -94,8 +98,11 @@ describe('movement-cost.util', () => {
       });
     });
 
-    it('ricade sul fallback se la vendita originale non porta il costo (storico)', async () => {
-      tx.stockMovement.findFirst.mockResolvedValue({ unitCostMinor: null });
+    // ⛔ Qui il fallback scattava quando la vendita originale aveva costo NULL.
+    // Ora una vendita costata zero fa rientrare il reso a zero: il fallback vale
+    // solo se quella vendita non esiste affatto (prova successiva).
+    it('una vendita originale a costo zero fa rientrare il reso a zero', async () => {
+      tx.stockMovement.findFirst.mockResolvedValue({ unitCostMinor: 0 });
 
       const cost = await originalSaleUnitCostMinor(
         tx as never,
@@ -106,7 +113,7 @@ describe('movement-cost.util', () => {
         750,
       );
 
-      expect(cost).toBe(750);
+      expect(cost).toBe(0);
     });
 
     it('ricade sul fallback se la vendita originale non è trovata', async () => {

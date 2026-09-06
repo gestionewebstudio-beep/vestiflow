@@ -93,3 +93,38 @@
   white-space: nowrap;
   color: var(--color-text);
 }
+
+// Due bersagli sulla stessa riga: la riga aggiunge, l'icona apre l'anagrafica.
+// La riga resta il bersaglio grande (è il gesto frequente), l'icona sta in coda
+// con il suo spazio riservato — non compare al passaggio del mouse, che
+// sposterebbe il testo sotto le dita mentre si legge.
+.psr__row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.psr__row .psr__item {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.psr__open {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  padding: 0;
+  color: var(--color-text-muted);
+  background: none;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.psr__open:hover {
+  color: var(--color-link);
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-border);
+}

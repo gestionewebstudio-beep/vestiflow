@@ -9,6 +9,127 @@ Aree non architetturali ma indispensabili per la qualità nel tempo di VestiFlow
 
 ---
 
+# ⛔ DATABASE — Due comandi VIETATI
+
+Il database di VestiFlow è **condiviso**, e la sua storia delle migration può essere più
+avanti del ramo su cui si sta lavorando: chi sta su un altro ramo applica le proprie
+migration allo stesso database. Non è un'ipotesi — è già successo, con sei migration
+presenti nel database e assenti in locale.
+
+Con le storie divergenti:
+
+- **`prisma migrate dev`** — **VIETATO**. Non applica e basta: propone di **azzerare il
+  database** per riallinearlo. Si perde il lavoro degli altri rami, e i dati.
+- **`prisma db push`** — **VIETATO**. Allinea il database allo schema locale, quindi
+  **cancella** le tabelle che il ramo corrente non conosce.
+- **`prisma migrate reset`** — **VIETATO**, fa quello che dice.
+
+Al loro posto, sempre e solo:
+
+| Devi…                           | Comando                     |
+| ------------------------------- | --------------------------- |
+| applicare le migration mancanti | `npm run prisma:deploy`     |
+| rigenerare il client            | `npm run prisma:generate`   |
+| vedere cosa manca               | `npx prisma migrate status` |
+
+⛔ **Mai** `prisma migrate diff --from-schema-datasource` per generare una migration
+nuova: su questo database condiviso propone di cancellare le tabelle degli altri
+rami. Vedi sotto.
+
+Una **migration nuova** si scrive **a mano**, davvero a mano: si modifica
+`prisma/schema.prisma`, si scrive l'SQL in
+`prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento che dica
+perché**, e lo si applica con `npm run prisma:deploy`.
+
+### ⛔ Un quarto comando vietato: `prisma migrate diff --from-schema-datasource`
+
+**Questa regola diceva di generare l'SQL così. Era sbagliato, e il 11/08/2026 quel
+comando ha proposto di cancellare mezzo database.** Chiesto di generare l'SQL per
+aggiungere UNA colonna, ha risposto con oltre quaranta istruzioni: `DROP` di
+`cash_sessions`, `fiscal_receipts`, `pos_terminals`, `store_sale_payments`,
+`corrispettivo_entries.document_id`, i campi documento esterno degli ordini…
+
+**Perché succede, e perché succederà ancora.** Quel comando fa una domanda
+**dichiarativa**: «quale SQL rende il database identico a questo file di schema?».
+Il tribunale è il file, e tutto ciò che sta nel database e non sta nel file è, per
+definizione dello strumento, roba da togliere. Non esiste il concetto di «questo è
+di un altro ramo, lascialo stare».
+
+Ma su un database condiviso **il proprio schema è una descrizione parziale**: le
+tabelle della cassa e dei documenti fiscali esistono nel database e non stanno né
+nello `schema.prisma` di questo ramo né fra le sue migration — le ha applicate il
+ramo del collega. Uno strumento dichiarativo non può lavorare contro una
+descrizione parziale, e finché due rami condividono un database la descrizione è
+parziale **per costruzione**.
+
+**Il campanello non suona.** `prisma migrate status` in quel momento rispondeva
+«Database schema is up to date!»: controlla che le migration locali siano
+applicate, non si accorge che il database ne ha altre. Non è una rete.
+
+**La variante innocua esiste**, e se un giorno servirà è questa:
+`--from-migrations <cartella> --to-schema-datamodel` confronta la storia delle
+migration con lo schema, quindi ciò che vive nel database non entra mai nel
+confronto. Richiede però un **database ombra** (`--shadow-database-url`), che qui
+non è configurato: finché non lo sarà, l'SQL si scrive a mano.
+
+**`npm run prisma:deploy` non ha mai avuto questo rischio**: applica i file e
+basta, non confronta niente. Il pericolo stava nel _generare_ il file.
+
+`.claude/settings.json` blocca quei comandi via permessi, e `npm run prisma:migrate` è
+una guardia che spiega — ma **nessuna delle due ferma un terminale**, quindi la regola
+resta scritta qui.
+
+Se `prisma generate` dà `EPERM`: è il watcher dell'API che tiene bloccato il query
+engine. Fermare `npm run start:dev` e rilanciare.
+
+## Lo schema e la sua migration sono una coppia
+
+`prisma generate` da solo **rompe l'applicazione**. Il client rigenerato seleziona le
+colonne dello schema, e se una di quelle nel database non c'è ancora, ogni lettura di
+quella tabella va in 500 — anche le letture che con la colonna nuova non c'entrano
+niente, perché `include` prende tutti gli scalari.
+
+È già successo: colonna aggiunta allo schema, migration scritta ma non applicata «per
+prudenza, il database è condiviso», `generate` lanciato — e l'elenco ordini è andato giù.
+La prudenza ha prodotto lo stato peggiore dei due.
+
+Quindi: **o tutti e tre insieme — schema, migration, `npm run prisma:deploy` — oppure
+nessuno dei tre.** Non esiste una via di mezzo sicura. Se applicare non si può in quel
+momento, non si tocca nemmeno lo schema.
+
+---
+
+# ⛔ FORMATTAZIONE — Mai su un albero intero
+
+`lint-staged` copre `src/**` ed `e2e/**`, **non `api/**`**. Il backend è quindi fuori dal
+cancello di formattazione, e un `prettier --write` su quell'albero non «sistema qualche
+file»: **li riscrive tutti**. È già successo — 157 file riformattati, un commit da 177
+file in cui la modifica vera era invisibile.
+
+Il danno non è estetico. Sono conflitti fantasma con i rami degli altri su file che
+nessuno ha cambiato davvero, e una revisione impossibile da fare.
+
+- **VIETATO** `prettier --write` con un glob che copre una cartella (`api/**`, `**`, `.`).
+- Si formatta **solo quello che si è toccato**, file per file.
+- Sul frontend non serve nemmeno: ci pensa `lint-staged` al commit.
+
+`.claude/settings.json` blocca le forme più grossolane (`.`, `api`, `api/src`), ma **non
+può fare di più**: i permessi confrontano glob con il testo del comando, quindi un pattern
+su `api/**` bloccherebbe anche `prettier --write api/src/un-file.ts`, che è il caso giusto.
+Una guardia che impedisce il lavoro legittimo viene aggirata, non rispettata — per questo
+il divieto vero è quello scritto qui, e la soluzione vera è `lint-staged` (sotto).
+
+**Deciso e rimandato (08/2026): `api/**` entrerà in `lint-staged`, ma non adesso.** È la
+soluzione alla radice — ogni file API si formatterebbe quando lo si mette in staging, e
+nessuno avrebbe più motivo di lanciare Prettier in grande.
+
+Si aspetta che questo ramo sia **unito con quello della cassa**. Il motivo è pratico: una
+riformattazione di massa mentre due rami vanno in parallelo complica l'unione, ed è lo
+stesso danno che la regola vuole evitare — solo distribuito nel tempo invece che in un
+commit solo. Fino ad allora vale il divieto qui sopra.
+
+---
+
 # NODE & PACKAGE MANAGER
 
 - **Pinna la versione Node**: file `.nvmrc` (o `engines.node` in `package.json`) con la versione LTS attiva. Aggiorna almeno una volta all'anno alla nuova LTS.
@@ -112,6 +233,75 @@ npx lint-staged
 
 ---
 
+# UNIONE DEI RAMI — chi prevale in caso di contesa
+
+Decisione del proprietario del progetto (08/2026): **in caso di conflitto prevale
+l'implementazione di `feature/listini`.** È il ramo che porta le decisioni di prodotto
+prese esplicitamente, e il criterio è deciso prima proprio per non doverlo discutere nel
+momento in cui il conflitto si presenta.
+
+In pratica:
+
+- si unisce **il ramo dell'altro dentro `feature/listini`**, stando su `feature/listini`:
+  così la parte che deve prevalere è già «ours»;
+- nei punti in conflitto vero — le stesse righe toccate da entrambi — si tiene la versione
+  di `feature/listini`, senza aprire una discussione.
+
+## Prevalere non è scartare, e la differenza è tutta qui
+
+**VIETATO `-X ours` alla cieca.** Quell'opzione risolve i conflitti _in silenzio_, e il
+silenzio è il difetto che questo progetto combatte ovunque — dai fallimenti del
+precompilato al tetto delle ripubblicazioni. Le modifiche dell'altro ramo **in punti
+diversi devono sopravvivere**: la regola arbitra le contese, non cancella il lavoro altrui.
+
+Due cose che nessuna strategia di merge risolve, e che vanno verificate a mano dopo:
+
+- **I conflitti che git non vede.** Una rinomina da una parte e una chiamata dall'altra non
+  producono conflitto testuale: il merge riesce e il codice si rompe. Li trovano solo
+  `tsc --noEmit` e i test, che vanno eseguiti **dopo** ogni merge, mai prima soltanto.
+- **Il database è uno solo e porta le migration di entrambi i rami.** Scartare il codice
+  dell'altro lasciando applicate le sue migration produce esattamente lo stato rotto
+  descritto sopra in «Lo schema e la sua migration sono una coppia». Se si scarta del
+  codice, va verificato cosa resta appeso nel database.
+
+Al termine di un merge con conflitti: **riportare cosa è stato scartato e perché**, invece
+di risolvere e passare oltre.
+
+---
+
+# DUPLICAZIONE E PERIMETRO
+
+Nasce da una regola scritta tre volte, in due grafie diverse, che nessun test aveva colto.
+Non è una guardia automatica: nessuno script la applica, la CI non la verifica.
+
+## Mentre si lavora
+
+- Al **secondo** punto che applica la stessa decisione: fermarsi e verificare se
+  centralizzarla in una funzione, un servizio o un mapper.
+- **Sintassi diversa non significa regola diversa.** Due scritture che decidono la stessa
+  cosa sono una duplicazione.
+- Differenze reali possono restare separate, ma vanno **motivate** nel codice.
+- Un percorso fuori dal perimetro concordato si **segnala** e non si modifica.
+
+## Prima del commit
+
+- Revisione **separata** del diff: duplicazioni, ampliamenti del perimetro, codice morto.
+  Serve quando la modifica applica una regola in **più punti** — non per una correzione
+  circoscritta a un file solo.
+- Cercare con `rg` **tutte** le scritture dei simboli nuovi, non a memoria.
+- Centralizzare prima di committare, o motivare perché no.
+
+## Due avvertenze
+
+I **test verdi dimostrano il comportamento, non l'assenza di duplicazione**: tre copie della
+stessa regola passano tutte e tre.
+
+Per una modifica distribuita su più punti la forma è **un implementatore e un revisore
+strutturale**, non un censimento esteso: più esplorazione allarga il perimetro invece di
+restringere la soluzione.
+
+---
+
 # COMMIT CONVENTION — Conventional Commits
 
 - USA il formato [Conventional Commits](https://www.conventionalcommits.org/):
@@ -183,7 +373,7 @@ describe('formatPrice', () => {
 | ----------------- | ---------------------------------------------------------------- |
 | `test`            | esegue tutti i test del frontend e dice se passano. Nient'altro. |
 | `test:watch`      | lo stesso, in watch, per lavorarci                               |
-| `test:coverage`   | **il gate di copertura**: soglie 80/75 sul codice non-componente |
+| `test:coverage`   | **il gate di copertura**: soglie 76/69/71/76 sul non-componente  |
 | `test:components` | i soli test di componente, senza copertura                       |
 | `test:everything` | i tre sopra più l'API — è quello che gira al push                |
 
@@ -193,10 +383,135 @@ righe eseguite dice poco. Misurarla sull'unione dei due mondi darebbe un 55%
 che non significa niente e farebbe fallire per sempre il comando più ovvio —
 che è il modo migliore per insegnare a ignorarlo.
 
+### ⚠️ `tsc --noEmit` non verifica i template Angular
+
+**Misurato il 16/08/2026, due volte nello stesso lavoro.** `npx tsc --noEmit`
+è passato pulito mentre nei template c'erano **errori veri** — un componente non
+importato, un binding a un input inesistente, una proprietà mancante su un tipo
+di controlli. Li ha trovati `npm test`, che invoca il compilatore Angular.
+
+**Quindi «type-check pulito» non vuol dire «l'applicazione compila».** Per
+qualunque modifica che tocchi un `.html` di componente — o un tipo che un
+template legge — il controllo minimo è un comando che accenda il **template
+compiler**: oggi `npm test`, o `npm run build`.
+
+Vale soprattutto per chi rifattorizza tipi condivisi: un campo aggiunto a
+un'interfaccia di controlli si vede nei template, non in `tsc`.
+
+_Registrato come **requisito di verifica**, non come modifica alla
+configurazione: rendere il controllo più esplicito (un `typecheck` che includa i
+template, o un passo di build in CI) è una scelta separata, da fare quando si
+decide — non un effetto collaterale di questa nota._
+
+### ⛔ I test girano tutti in CONTESTO SICURO. L'applicazione no _(01/09/2026)_
+
+> **Le API che il browser espone solo in contesto sicuro non esistono su
+> `http://192.168.…`, e VestiFlow ci si apre: è il gestionale in mano a chi sta
+> in magazzino.**
+
+Misurato in Chrome sulla build di questa applicazione:
+
+```text
+http://127.0.0.1:4212      isSecureContext true    crypto.randomUUID  function
+http://192.168.1.50:4212   isSecureContext FALSE   crypto.randomUUID  undefined
+                                                    crypto.getRandomValues  function
+```
+
+⛔ **Non restituiscono un valore sbagliato: LANCIANO.** E se la chiamata sta
+dentro un'azione sincrona, l'eccezione non la raccoglie nessun gestore d'errore:
+a chi preme sembra che non succeda niente. È la causa di «la nuova Vendita al
+banco non si salva» — `crypto.randomUUID()` chiamata da «Concludi vendita» per
+generare l'intento di creazione, **prima** che partisse la richiesta.
+
+⚠️ **Nessuna suite può prenderlo, ed è il punto**: jsdom e Chrome headless su
+`localhost` sono **entrambi contesti sicuri**. Il difetto esiste solo dove
+l'applicazione si usa davvero, e lì non gira nessun test.
+
+⭐ **Quindi la rete non è un test, è una guardia statica**:
+`npm run check:contesto-sicuro` rifiuta `crypto.randomUUID` e `crypto.subtle`
+nei sorgenti. L'alternativa per gli identificativi è `nuovoId()`
+(`@core/utils/uuid.util`), che ripiega su `getRandomValues` — che invece c'è.
+
+⚠️ **La stessa domanda va fatta a ogni API di piattaforma nuova**: fotocamera
+(lo scanner!), geolocalizzazione, notifiche, service worker, appunti. Se serve
+il contesto sicuro e la si usa in magazzino, o si serve l'app in HTTPS o si
+prevede il ripiego — e in entrambi i casi si decide, non si scopre.
+
+### ⛔ `npm run e2e` da solo NON basta, e fallisce dove non guardi _(01/09/2026)_
+
+> **Gli e2e vogliono due cose che nessuno script ricorda: la variabile
+> `E2E_USE_MOCK_AUTH=1` e la porta 4200 LIBERA.**
+
+```bash
+E2E_USE_MOCK_AUTH=1 npx playwright test e2e/filtri-colonna.spec.ts
+```
+
+⚠️ **Senza la variabile**, `playwright.config.ts` avvia il frontend **normale** invece della
+build `e2e` — che è l'unica a contenere l'auth finta. Il login va allora all'API vera con
+`owner@vestiflow.test`, che lì non esiste, e il **setup** fallisce prima di arrivare al test:
+
+```text
+Error: expect(page).toHaveURL(/\/app\/dashboard/) failed
+       unexpected value "http://localhost:4200/login"
+```
+
+⛔ **E con un `ng serve` già in ascolto sulla 4200 la variabile non serve a niente**:
+`reuseExistingServer: true` riusa quel server — che è la build normale — e il sintomo è
+identico. È il caso peggiore, perché il comando _sembra_ giusto.
+
+⭐ **Il sintomo non nomina la causa**: si vede «Email o password non corretti» nella schermata
+di fallimento, e sembra un problema di credenziali. Non lo è.
+
+⚠️ **Gli e2e NON girano in `npm run test:everything`** (che fa copertura, componenti e API), né
+al `pre-push`. Un test e2e aggiunto può quindi restare **non eseguito** con tutto verde — e
+succede: `e2e/filtri-colonna.spec.ts` è stato scritto il 01/09/2026 e lanciato per la prima
+volta lo stesso giorno, a lavoro finito. Era sano — 7 prove verdi in 35s — ma non lo sapeva
+nessuno.
+
 ## Coverage Reporting
 
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).
-- Soglia minima totale: 80%.
+- Soglia minima: **76% statement e righe, 69% branch, 71% funzioni**, con
+  `coverageExclude` sui componenti — **`.ts` e `.html` insieme**.
+
+### ⚠️ Il gate misurava i template, ed era rosso da sempre _(17/08/2026)_
+
+Qui c’era scritto «soglia minima totale: 80%». Non è mai stata applicata, perché
+`angular.json` aveva le soglie ma **nessun `coverageExclude`**: il `--exclude` sulla riga di
+comando toglie i **test** dei componenti dall’esecuzione, non i loro **file** dal denominatore.
+
+Risultato: si misurava la copertura di codice i cui test non venivano eseguiti, **template
+inclusi** — ogni `.component.html` a 0%. Il totale usciva **14,37%**, il gate falliva sempre, e
+siccome sta nell’hook `pre-push`, **non si riusciva a pushare**.
+
+```text
+con i template dentro          14,37%   ← quello che si misurava
+esclusi solo i .component.ts   22,56%
+esclusi anche i .component.html 76,44%  ← la prima misura vera
+```
+
+**Le soglie sono state portate alla misura reale, non abbassate.** Un gate sempre rosso è un
+gate spento: non ferma niente, e chi lo incontra impara ad aggirarlo. A 76/69/71/76 comincia a
+fare il suo mestiere — **da lì può solo salire**, e una regressione la ferma davvero.
+
+⚠️ **Alzarle è lavoro dichiarato, non un ritocco al numero.** Misurato il 17/08: **167 file
+non-componente su 325 non hanno un proprio test**, così distribuiti —
+
+```text
+32  core/models        in gran parte interfacce e tipi: poco da coprire
+18  domain/documents
+13  domain/products
+13  core/auth
+11  features/documents
+```
+
+— mentre le aree che contano di più sono già alte: `core/api` 91%, `core/auth` 97%,
+`core/interceptors` 100%, `core/guards` 90%.
+
+⚠️ **E i componenti restano fuori dal numero per scelta**, non per pigrizia: i loro test
+esistono (`npm run test:components`, 451 prove) ma sono test di **comportamento**, dove le righe
+eseguite dicono poco. Misurarli qui rimetterebbe il gate a 14%.
+
 - Nuovo codice DEVE avere coverage ≥ 80% (regola "diff coverage").
 
 ---
@@ -213,39 +528,83 @@ che è il modo migliore per insegnare a ignorarlo.
 
 # LIGHTHOUSE CI
 
-- `@lhci/cli` come devDependency. Script in `package.json`:
+## ⚠️ Qui c'era una configurazione che il progetto aveva già smentito _(corretto 19/08/2026)_
+
+Questa sezione prescriveva soglie e un `.lighthouserc.json` che **non sono quelli reali**.
+È lo scarto più insidioso fra tutti: la regola sembra autorevole, il file la contraddice,
+e nessun controllo automatico se ne accorge.
+
+|                | la regola diceva | `.lighthouserc.json` reale |
+| -------------- | ---------------- | -------------------------- |
+| performance    | **error** 0.85   | **warn** 0.75              |
+| accessibility  | error 0.95       | error **0.9**              |
+| best-practices | error 0.95       | **warn** 0.9               |
+| seo            | «non si misura»  | `"off"` ✅ concordava      |
+
+⛔ **Le soglie qui sotto sono ora quelle vere.** Non sono state abbassate: sono state
+_lette_. Alzarle è lavoro dichiarato, come per la copertura — non un ritocco al numero.
+
+## ⭐ Il pezzo che la regola non nominava, e che è ciò che lo fa funzionare
+
+L'app è **interamente dietro login**: Lighthouse puntato su `/app/dashboard` misurerebbe
+la pagina di redirect al login. Il file reale lo risolve così, e chi tocca questa
+configurazione deve saperlo:
 
 ```json
-"audit:lhci": "lhci autorun"
+"startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1 --proxy 'http://127.0.0.1:4210?'",
+"puppeteerScript": "./scripts/lhci-mock-auth.cjs",
+"url": ["…/login", "…/app/dashboard", "…/app/products"],
+"numberOfRuns": 1
 ```
 
-- File `.lighthouserc.json` in root:
+Il `puppeteerScript` autentica con l'auth mock prima della misura; la build `e2e` è
+quella che quell'auth mock la contiene. **Senza uno dei due, i numeri sono di un'altra
+pagina** — e sarebbero pure buoni, il che è il difetto peggiore.
+
+⭐ **E `--proxy 'http://127.0.0.1:4210?'` non è un dettaglio**: senza, `http-server`
+risponde **404** a `/login` e a ogni altra rotta Angular, e Lighthouse misura la pagina
+d'errore. Misurato il 03/09/2026, prima di scriverlo.
+
+### ⛔ Lo script è invocato UNA VOLTA PER URL, sullo STESSO browser _(03/09/2026)_
+
+> **Le tre invocazioni non sono indipendenti: quello che la prima lascia nel browser, la
+> seconda se lo trova davanti.**
+
+`@lhci/cli/src/collect/puppeteer-manager.js` tiene **una sola** istanza (`_getBrowser()`),
+e Lighthouse fra una misura e l'altra **non azzera `localStorage`** — `clearStorageTypes`
+vale `['file_systems', 'shader_cache', 'service_workers', 'cache_storage']`
+(`lighthouse/core/config/constants.js`). `mock-auth.gateway` la sessione la scrive anche
+lì, quindi sopravvive.
+
+Ne discendono due obblighi per `lhci-mock-auth.cjs`, e sono l'uno il rovescio dell'altro:
+
+| Obbligo                                                  | Perché                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **non autenticarsi** quando l'URL da misurare è `/login` | autenticati, `guestGuard` rimanda alla dashboard: si misurerebbe la dashboard chiamandola `/login`     |
+| **tollerare** un browser già autenticato                 | dalla seconda invocazione in poi il modulo non c'è più, e attenderlo faceva uscire `lhci` con codice 1 |
+
+⚠️ **Il secondo non è teorico**: è il fallimento della PR #1 — «TimeoutError: Waiting for
+selector `#login-email` failed», che si legge come un selettore sbagliato mentre è una
+sessione ancora viva.
+
+## Le soglie
 
 ```json
-{
-  "ci": {
-    "collect": {
-      "url": ["http://localhost:4200/app/dashboard", "http://localhost:4200/app/products"],
-      "numberOfRuns": 3,
-      "settings": { "preset": "desktop" }
-    },
-    "assert": {
-      "assertions": {
-        "categories:performance": ["error", { "minScore": 0.85 }],
-        "categories:accessibility": ["error", { "minScore": 0.95 }],
-        "categories:best-practices": ["error", { "minScore": 0.95 }]
-      }
-    },
-    "upload": { "target": "filesystem", "outputDir": "./lighthouse-reports" }
-  }
-}
+"categories:performance":    ["warn",  { "minScore": 0.75 }],
+"categories:accessibility":  ["error", { "minScore": 0.9  }],
+"categories:best-practices": ["warn",  { "minScore": 0.9  }],
+"categories:seo": "off"
 ```
 
-- Aggiungi `lighthouse-reports/` a `.gitignore`.
-- Esegui in CI su PR (con build di staging) e blocca merge se sotto soglia.
-- La categoria **SEO non si misura**: l'app è dietro login, non è indicizzabile e non ha traffico organico. Contano performance, accessibility e best-practices.
+- **Accessibility è l'unica `error`**, ed è la scelta giusta per un gestionale usato tutto
+  il giorno da chi ci lavora: le altre due avvisano, questa ferma.
+- **SEO è `off`**: l'app è dietro login, non è indicizzabile, non ha traffico organico.
+- `@lhci/cli` è devDependency, lo script è `npm run audit:lhci`, e `lighthouse-reports/`
+  sta in `.gitignore`.
 
----
+⚠️ **Se cambi le soglie, cambiale nel FILE**: questa sezione le rispecchia, non le
+comanda. Una regola che diverge dalla configurazione insegna a non fidarsi di nessuna
+delle due.
 
 # PERFORMANCE BUDGETS — Build Time
 
@@ -254,12 +613,74 @@ che è il modo migliore per insegnare a ignorarlo.
 ```json
 [
   { "type": "initial", "maximumWarning": "800kB", "maximumError": "1.5MB" },
-  { "type": "anyComponentStyle", "maximumWarning": "12kB", "maximumError": "26kB" }
+  { "type": "anyComponentStyle", "maximumWarning": "20kB", "maximumError": "40kB" }
 ]
 ```
 
 - Sono i valori attualmente in `angular.json`: alzarli richiede una motivazione, non è la reazione di default a un budget sforato.
 - Ogni superamento del budget deve generare un'analisi: `npx source-map-explorer dist/.../main-*.js` per capire cosa pesa.
+
+## ⛔ `anyComponentStyle` PREMIA LA DUPLICAZIONE — misurato il 01/09/2026
+
+> **Il budget per-componente guarda un componente alla volta, quindi vede crescere il
+> contenitore e non vede crollare tutto il resto.** In un progetto che sta accorpando
+> motori, segnala come problema il risultato del lavoro.
+
+⚠️ **Non è un'opinione.** Presi i tredici fogli degli elenchi, prima e dopo il loro
+ingresso nel motore tabella comune:
+
+```text
+30/08, prima dell'unificazione    66.874 byte
+oggi                              40.436 byte      −26.438,  −40%
+```
+
+| foglio                     | prima  | dopo       |
+| -------------------------- | ------ | ---------- |
+| product-table              | 8.502  | **134**    |
+| situation-table            | 6.408  | **488**    |
+| inventory-level-table      | 5.925  | **375**    |
+| customer-table             | 5.338  | **134**    |
+| supplier-table             | 4.528  | **134**    |
+| **data-table** (il motore) | 10.690 | **14.303** |
+
+⭐ **Il motore è cresciuto di 3,6 kB e ne ha fatti sparire 30.** L'avviso a 12 kB ha
+cominciato a suonare **proprio perché l'accorpamento ha funzionato**: con tredici copie da
+5 kB non diceva niente, con una da 14 sì.
+
+### Che cosa misura, e che cosa costa davvero
+
+```text
+CSS del motore, non compresso   14.303 byte   ← quello che il budget conta
+in gzip                          2.464 byte   ← quello che viaggia
+l'app intera, initial          155.150 byte   trasferiti  (635 kB raw su 800 di soglia)
+```
+
+⚠️ **E il motore sta in un chunk _lazy_**: non è nel primo caricamento. Il costo reale è
+2,4 kB, una volta, sulla prima pagina di elenco.
+
+### Perché 20 e 40, e non 16 e 26
+
+|                   |                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **warning 20 kB** | il motore crescerà ancora: gli elenchi ci sono già tutti e dodici, ma non le tabelle di **configurazione** (Utenti, Codici IVA, Sedi) né quelle della dashboard — e ogni funzione nuova gli costa, come sono costati i filtri di colonna e la riga totali. A 16 risuonerebbe in poche settimane. Resta **5× il default Angular** (4 kB) |
+| **errore 40 kB**  | a 26 il motore ci arriva con la crescita normale, e `npm run build` gira nell'hook `pre-push`: bloccherebbe il push per una crescita fisiologica, costringendo ad alzarlo di corsa                                                                                                                                                      |
+
+⛔ **Qui c'era «Fornitori e Inventario devono entrarci», e non era vero già mentre lo
+scrivevo**: la tabella tre righe sopra li elenca fra i fogli **già** crollati —
+`supplier-table` 4.528 → 134, `inventory-level-table` 5.925 → 375. Due righe della stessa
+sezione che si smentivano a vicenda, e la motivazione di un numero non può reggersi su una
+premessa che il proprio dato contraddice.
+
+⚠️ **Il costo dell'alzata, dichiarato**: un componente-schermata può ora quasi raddoppiare
+senza avvisare. È accettabile solo perché **il controllo vero è `initial`**, che misura il
+costo reale ed è a 635 kB su 800.
+
+⛔ **E la storia dice perché serviva scriverlo.** Il valore nasce **8/16 kB** nel commit di
+setup del 05/06/2026 — già il doppio del default Angular, messo con l'impalcatura — e da
+allora è stato alzato due volte **dentro commit di feature** (`ca15df3c` il 10/07,
+`450a5fbc` il 15/07), senza una riga che dicesse perché. La regola qui sopra è stata scritta
+dopo. Questa volta la motivazione c'è, con i numeri: chi la trova fra sei mesi non deve
+rialzarla al buio.
 
 ---
 
@@ -267,15 +688,46 @@ che è il modo migliore per insegnare a ignorarlo.
 
 Una pipeline CI deve eseguire (in ordine, fail-fast):
 
-1. **Install**: `npm ci` (riproducibilità dal lockfile).
-2. **Lint**: `npm run lint`.
-3. **Type-check**: `tsc --noEmit` (se non già coperto da `ng build`).
-4. **Test unit/component**: `npm run test:everything` (è quello che gira anche al push).
-5. **Build**: `npm run build` con `--configuration=production`.
-6. **E2E** (su PR/staging): `npm run e2e:headless`.
-7. **Lighthouse CI** (su PR/staging): `npm run audit:lhci`.
-8. **Audit dipendenze**: `npm audit --audit-level=high`.
-9. **Deploy** (solo su `main` / tag): provider-specific.
+1. **Install**: `npm ci` in root **e** `npm ci --prefix api` (riproducibilità dal lockfile).
+2. **Genera il client Prisma**: `npm run prisma:generate --prefix api`.
+3. **Lint**: `npm run lint`.
+4. **Type-check**: `npm run check:types` (frontend e spec), `npm run build --prefix api` (codice applicativo API) e `npm run typecheck:test --prefix api` (test API).
+5. **Test unit/component**: frontend con copertura, componenti ATL, API con copertura.
+6. **Build**: `npm run build` con `--configuration=production`.
+7. **E2E** (su PR/staging): `npm run e2e:headless`.
+8. **Lighthouse CI** (su PR/staging): `npm run audit:lhci`.
+9. **Audit dipendenze**: `npm audit --audit-level=high`.
+10. **Deploy** (solo su `main` / tag): provider-specific.
+
+## ⛔ I due passi che non si possono spostare — allineato al file il 06/09/2026
+
+⚠️ **Qui c'erano nove passi che cominciavano con «Install: `npm ci`» e mettevano il
+lint al secondo posto.** Non descrivevano `ci.yml`, e la divergenza non era innocua:
+seguita alla lettera, la pipeline non parte proprio.
+
+|                                                            |                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Le installazioni sono DUE**                              | `npm run lint` di root include `lint:api`: senza `npm ci --prefix api` il terzo passo fallisce per dipendenze mancanti, non per un difetto del codice                                                                                    |
+| **`prisma:generate` viene PRIMA di lint e type-check**     | il lint API e la build API compilano contro i tipi **generati** da Prisma. Misurato il 03/09/2026 su una macchina pulita: 1107 errori `TS2305`/`TS2694`/`TS2339`, tutti della stessa causa. `npm ci` non lo genera, e in locale non si vede |
+
+⭐ **E i test vengono DOPO i controlli statici**, non prima: un errore di
+compilazione deve fallire dicendo che cos'è, non tramite un test che esplode per
+cause apparentemente ignote. Fino al 06/09/2026 i due passi di test del frontend
+stavano prima di lint e type-check — mentre il commento di «Build API
+(type-check)», nello stesso file, dichiarava già l'ordine giusto.
+
+⚠️ **Il passo 5 non è `npm run test:everything`.** Quel comando esiste, gira
+nell'hook `pre-push` ed è la stessa copertura; in CI i tre pezzi sono passi
+separati perché un fallimento dica **quale** dei tre è rosso senza aprire il log.
+
+⭐ **Oltre a `lint-and-test` ci sono altri quattro job**, e non sono opzionali:
+`cassa-integration` (migration, integrazione API, browser reale e regressioni UI
+isolate su PostgreSQL effimero), `e2e`, `lighthouse` e `audit`.
+
+⛔ **La verifica RLS dell'ambiente reale sta FUORI da questa pipeline**, in
+`security.yml`, e resta obbligatoria: `npm run lint` contiene solo la fase
+statica (`check:rls:static`), che legge le migration e non può dire se in
+produzione le revoche sono davvero applicate.
 
 GitHub Actions / GitLab CI / Bitbucket Pipelines: scegli uno e mantieni un solo file `.yml` di pipeline. Documenta in README come riprodurre i passi localmente.
 
@@ -301,6 +753,51 @@ Ogni repository DEVE avere:
 - **CONTRIBUTING.md** se altri sviluppatori toccano il repo (regole branch, PR, code review).
 
 Per architetture non banali (> 1 service, decisioni di design discutibili): cartella `docs/adr/` con [Architecture Decision Records](https://adr.github.io/) numerati. Una decisione importante = un ADR. Mai più "boh, perché si è sempre fatto così".
+
+---
+
+# ⛔ TESTO MORTO NELLE SPECIFICHE — misurato il 20/08/2026
+
+Le regole qui sotto valgono per il codice. **Per i documenti non esisteva la regola
+corrispondente**, e si vede nella misura:
+
+```text
+ultimi 30 commit su docs/     4332 righe aggiunte · 263 tolte   → 1 tolta ogni 16
+una giornata di lavoro         593 righe aggiunte ·  13 tolte   → 1 tolta ogni 45
+```
+
+⛔ **Le specifiche crescono, non si potano.** Il risultato non è un archivio: è che chi apre un
+documento per sapere una cosa attraversa la cronaca di come si è arrivati a saperla, trova la
+stessa decisione in otto punti, e **richiede quello che è già scritto**. È successo, ed è il
+sintomo che ha fatto misurare.
+
+> **Quando una decisione ne sostituisce un'altra, il testo vecchio SI CANCELLA.** Resta al suo
+> posto **una riga** che dice che cosa è cambiato — e solo se serve a qualcuno che verrà.
+
+## Il criterio: valore preventivo, non archivistico
+
+| Si conserva                                                    | Si cancella                                                |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| l'errore **rischia di tornare** («qui c'era X, e portava a Y») | la versione precedente di una decisione, per intero        |
+| la **misura** che ha smentito un'ipotesi (numeri, date, file)  | il ragionamento che ha portato alla decisione vecchia      |
+| ciò che **non si deve rifare**, con la ragione                 | sezioni marcate «(testo originale)», «superato da», «-bis» |
+
+⭐ **Git è l'archivio**, e non serve un secondo archivio dentro il documento: la versione
+precedente si recupera con `git log -p`, mentre una sezione morta lasciata nel testo la legge
+chi cerca la risposta di oggi.
+
+⚠️ **Il primo taglio è stato fatto su `docs/14`**: due sezioni che il documento stesso
+dichiarava superate («§6-bis (testo originale, superato dalla sezione qui sopra)», «§7-bis»)
+sono state tolte e sostituite da una riga che dice **che cosa dicevano di sbagliato**. Il resto
+dei documenti non è stato toccato: la potatura si fa quando si lavora su un documento, non in
+un passaggio unico che nessuno rivedrebbe.
+
+## E se un documento ha smesso di rispondere: prima la testata
+
+⭐ Prima di riorganizzare duemila righe, **una tabella delle decisioni vigenti in cima** —
+una riga per decisione, il puntatore alla sezione che la argomenta, e la dichiarazione che in
+caso di contrasto vince la tabella. Costa poco, è additiva e reversibile, e toglie il sintomo
+peggiore: quello di dover rileggere tutto per sapere cosa vale oggi.
 
 ---
 

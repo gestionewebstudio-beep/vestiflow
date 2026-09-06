@@ -1,19 +1,209 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
 import type { Supplier } from '@core/models/supplier.model';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { colonnaVisibile, valoreCard } from '@shared/models/list-card-fields.util';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableSection,
+  DataTableSort,
+  DataTableTotals,
+} from '@shared/components/data-table/data-table.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
+/**
+ * Tabella fornitori (dumb puro).
+ *
+ * ⭐ **Sul motore comune** dal 31/08/2026, ultimo dei dodici elenchi. Qui resta
+ * solo come si legge il testo di ogni colonna: nessuna cella è altro che testo.
+ */
 @Component({
   selector: 'app-supplier-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DataTableComponent, DataTableRowCardDirective],
   templateUrl: './supplier-table.component.html',
   styleUrl: './supplier-table.component.scss',
 })
 export class SupplierTableComponent {
   readonly suppliers = input.required<readonly Supplier[]>();
+
+  /**
+   * ⭐ **Sotto `lg` il tocco SELEZIONA invece di aprire**, quando la modalità
+   * «Seleziona» del telaio è accesa.
+   *
+   * ⚠️ Input di passaggio: la tabella non decide, inoltra al motore. La modalità
+   * la possiede la pagina (`createSelectionMode`), che è anche l'unica a poter
+   * azzerare la selezione quando si spegne.
+   */
+  readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
 
+  /**
+   * ⭐ **La vista, e con essa i filtri di colonna** (`14` §0.2).
+   *
+   * Un input solo: lo stato dei filtri vive nello store per vista, quindi non
+   * c'è niente da cablare fra pagina, tabella e motore.
+   */
+  readonly viewId = input<TableViewId>();
+  readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+
   readonly rowClick = output<Supplier>();
+  readonly selectionToggle = output<{ readonly supplierId: string; readonly selected: boolean }>();
+  readonly selectAllToggle = output<boolean>();
+
+  /*
+    ⚠️ **Si filtra QUI, una volta sola**, e da qui discendono sezioni, riga totali
+    e card. Filtrare nel motore lascerebbe i totali sulle righe intere: la regola
+    chiede il totale del risultato filtrato.
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.suppliers,
+    cellText: (supplier, columnId) => this.cellText(supplier, columnId),
+  });
+
+  /**
+   * ⭐ **L'ordinamento è della PAGINA, non del motore** — il motore emette la
+   * pressione, chi ha le righe le riordina. Qui in memoria, perché l'elenco è
+   * caricato tutto (`all=1`).
+   */
+  readonly sortState = signal<readonly DataTableSort[]>([]);
+
+  /*
+    ⚠️ **Si ordina DOPO aver filtrato**, e sulle stesse tre funzioni: il
+    confronto è quello condiviso di `sortByKeys` — collatore italiano, denaro,
+    date — e la mappa colonna→valore è quella con cui la tabella si disegna.
+  */
+  private readonly ordinate = computed(() =>
+    ordinaPerColonne(this.righe(), this.sortState(), {
+      cellText: (riga, columnId) => this.cellText(riga, columnId),
+    }),
+  );
+
+  /** Lista piatta: una sezione senza intestazione né piede. */
+  protected readonly sections = computed<readonly DataTableSection<Supplier>[]>(() => [
+    { id: 'fornitori', rows: this.ordinate() },
+  ]);
+
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return colonnaVisibile(this.columns(), columnId);
+  }
+
+  protected readonly rowId = (supplier: Supplier): string => supplier.id;
+
+  protected readonly rowLabelFor = (supplier: Supplier): string => this.rowLabel(supplier);
+
+  protected readonly selectionLabel = (supplier: Supplier): string => `Seleziona ${supplier.name}`;
+
+  /*
+    ⚠️ **Nessuna colonna dei fornitori si somma**, e la riga totali resta comunque:
+    dice «N voci», che su un'anagrafica filtrata è il dato che si cerca per primo.
+  */
+  protected readonly totals = computed<DataTableTotals>(() =>
+    totaliDiElenco(this.righe(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.columns(),
+      campi: {},
+    }),
+  );
+
+  /*
+    ⭐ **Tutte le colonne sono testo**, e stanno tutte qui: dare a ognuna un
+    `ng-template` sarebbe ripetere venticinque volte la stessa riga.
+
+    ⚠️ **Ogni colonna dichiarata nel catalogo DEVE avere il suo ramo**, o cade
+    nel `default` e resta una colonna vuota che si accende e non mostra niente:
+    è il difetto che `check:colonne-rese` esiste per prendere, e che nessun
+    test trova da solo.
+  */
+  protected readonly cellText = (supplier: Supplier, columnId: string): string => {
+    switch (columnId) {
+      // ── Identità ────────────────────────────────────────────────────────
+      case 'code':
+        return this.displayCode(supplier);
+      case 'name':
+        return supplier.name;
+      case 'vatNumber':
+        return this.displayVat(supplier);
+      case 'taxCode':
+        return supplier.taxCode?.trim() || '—';
+
+      // ── Dove ────────────────────────────────────────────────────────────
+      case 'addressLine1':
+        return supplier.addressLine1?.trim() || '—';
+      case 'postalCode':
+        return supplier.postalCode?.trim() || '—';
+      case 'city':
+        return this.displayCity(supplier);
+      case 'province':
+        return supplier.province?.trim() || '—';
+      case 'countryCode':
+        return supplier.countryCode?.trim() || '—';
+
+      // ── Contatti ────────────────────────────────────────────────────────
+      case 'email':
+        return supplier.email ?? '—';
+      case 'pec':
+        return supplier.pec?.trim() || '—';
+      case 'phone':
+        return supplier.phone?.trim() || '—';
+      case 'mobilePhone':
+        return supplier.mobilePhone?.trim() || '—';
+      case 'contactName':
+        return supplier.contactName?.trim() || '—';
+      case 'website':
+        return supplier.website?.trim() || '—';
+
+      // ── Condizioni commerciali ──────────────────────────────────────────
+      case 'paymentMethod':
+        return supplier.paymentMethod?.trim() || '—';
+      case 'paymentTerms':
+        return supplier.paymentTerms?.trim() || '—';
+      case 'supplierDiscount':
+        return supplier.supplierDiscount?.trim() || '—';
+      case 'transportResponsible':
+        return supplier.transportResponsible?.trim() || '—';
+      case 'freightTerms':
+        return supplier.freightTerms?.trim() || '—';
+      case 'iban':
+        return supplier.iban?.trim() || '—';
+      case 'ourBankName':
+        return supplier.ourBankName?.trim() || '—';
+
+      // ── Stato e ruoli ───────────────────────────────────────────────────
+      case 'roleStatus':
+        return supplier.isActive ? 'Attivo' : 'Disattivato';
+      /*
+        ⚠️ **Tre risposte, non due.** «No» e «sì ma disattivato» sono cose
+        diverse: la seconda dice che il ruolo cliente c'è ed è stato ritirato,
+        e appiattirle su «No» nasconderebbe uno storico che esiste.
+      */
+      case 'alsoCustomer':
+        return supplier.linkedCustomerId
+          ? supplier.linkedCustomerActive
+            ? 'Sì'
+            : 'Disattivato'
+          : 'No';
+
+      case 'supplierNotes':
+        return supplier.notes?.trim() || '—';
+
+      default:
+        return '';
+    }
+  };
+
+  /** ⚠️ Il trattino lungo per il vuoto è la convenzione già in uso qui. */
+  /** ⚠️ In cima a una card un trattino è un segno nudo: si omette. */
+  protected readonly valoreCard = valoreCard;
 
   protected displayCode(supplier: Supplier): string {
     return supplier.code?.trim() || '—';
@@ -27,7 +217,7 @@ export class SupplierTableComponent {
     return supplier.city?.trim() || '—';
   }
 
-  protected rowLabel(supplier: Supplier): string {
+  private rowLabel(supplier: Supplier): string {
     return `Apri fornitore ${supplier.name}`;
   }
 }

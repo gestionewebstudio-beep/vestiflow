@@ -19,7 +19,7 @@
 <li><a href="#12-anagrafica-fornitori">Anagrafica fornitori</a></li>
 <li><a href="#13-documenti-fiscali-e-operativi">Documenti fiscali e operativi</a></li>
 <li><a href="#14-vendite-e-clienti">Vendite e clienti</a></li>
-<li><a href="#15-report-dashboard-e-registro-commercialista">Report, dashboard e registro commercialista</a></li>
+<li><a href="#15-report-dashboard-e-corrispettivi">Report, dashboard e corrispettivi</a></li>
 <li><a href="#16-usare-vestiflow-da-smartphone">Usare VestiFlow da smartphone</a></li>
 <li><a href="#17-negozio-fisico-vendite-al-banco">Negozio fisico: vendite al banco</a></li>
 <li><a href="#18-profilo-foto-e-sicurezza-account">Profilo, foto e sicurezza account</a></li>
@@ -36,7 +36,7 @@
 <li>registrare <strong>carichi, scarichi, trasferimenti e rettifiche</strong> con storico;</li>
 <li>creare e ricevere <strong>ordini fornitori</strong>;</li>
 <li>gestire <strong>documenti</strong> (arrivi merce, DDT, trasferimenti, rettifiche, proforma e bozze fattura);</li>
-<li>consultare il <strong>registro commercialista</strong> con i documenti da fatturare o registrare;</li>
+<li>consultare i <strong>Corrispettivi</strong>, e i <strong>DDT da fatturare</strong> dalla lista Documenti;</li>
 <li><strong>registrare vendite e resi al banco</strong> con scansione barcode (profilo <strong>Solo gestionale</strong>);</li>
 <li>consultare <strong>vendite e clienti</strong> importati da Shopify (profilo Shopify);</li>
 <li>tenere <strong>catalogo e stock allineati</strong> al canale e-commerce collegato, se presente.</li>
@@ -135,8 +135,8 @@
 <td>Indicatori e riepiloghi</td>
 </tr>
 <tr>
-<td><strong>Registro commercialista</strong></td>
-<td>Riepilogo documenti fiscali e corrispettivi per periodo (collegato a <strong>Documenti</strong>)</td>
+<td><strong>Corrispettivi</strong></td>
+<td>Quadro economico di vendite e rettifiche per periodo, con filtri e stampa/export</td>
 </tr>
 <tr>
 <td><strong>Impostazioni</strong></td>
@@ -220,13 +220,65 @@
 <h4 id="magazzino-e-documenti-impostazioni-operative">Magazzino e documenti (impostazioni operative)</h4>
 <p>Pannello visibile a <strong>Titolare</strong> e <strong>Amministratore</strong> (accesso completo al tenant). Consente di attivare:</p>
 <ul>
+<li><strong>Prezzi di vendita: Netti o Ivati</strong> — come la tua azienda ragiona sui prezzi (vedi sotto)</li>
 <li><strong>Gestione lotti e scadenze</strong> — colonne lotto/scadenza in arrivo merce</li>
 <li><strong>Gestione numeri seriali</strong> — colonna seriali in arrivo merce</li>
 <li><strong>Policy aggiornamento prezzo fornitore</strong> in carico: sempre / chiedi conferma / mai</li>
 <li><strong>Unità di misura</strong> e <strong>IVA predefinita</strong> per nuovi articoli</li>
-<li>Avvisi e blocco su <strong>giacenze negative</strong></li>
 </ul>
 <p>Le modifiche si applicano a tutti gli utenti del negozio.</p>
+<blockquote>
+<p><strong>Le giacenze negative non si configurano, ed è una scelta.</strong> Qui c’era «Avvisi e
+blocco su giacenze negative»: due caselle che non facevano niente, tolte il
+26/08/2026. Il comportamento è uno solo e vale sempre: se scarichi più di quanto
+hai, VestiFlow <strong>ti avvisa e ti lascia proseguire</strong> — Giacenza e Disponibile
+possono diventare negative. Non esiste un blocco, e non è disattivabile.</p>
+</blockquote>
+<h5 id="prezzi-di-vendita-netti-o-ivati-dal-16-agosto-2026">Prezzi di vendita: Netti o Ivati <em>(dal 16 agosto 2026)</em></h5>
+<p>Dice come la tua azienda <strong>normalmente</strong> esprime i prezzi di vendita. Non è una regola rigida:
+è il punto di partenza.</p>
+<table>
+<thead>
+<tr>
+<th>Se vendi…</th>
+<th>Scegli</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>al <strong>dettaglio</strong>, al pubblico</td>
+<td><strong>Ivati</strong> — il prezzo che il cliente paga</td>
+</tr>
+<tr>
+<td>all&#39;<strong>ingrosso</strong>, ad altre aziende</td>
+<td><strong>Netti</strong> — imponibile, l&#39;IVA si aggiunge</td>
+</tr>
+</tbody></table>
+<p><strong>Dove si vede:</strong></p>
+<ul>
+<li>ogni <strong>documento di vendita nuovo</strong> (preventivo, ordine cliente, DDT, fattura) parte da qui;</li>
+<li>l&#39;<strong>anagrafica articoli</strong> mostra i prezzi di listino nello stesso modo.</li>
+</ul>
+<p><strong>Cosa NON cambia:</strong></p>
+<ul>
+<li>i <strong>documenti già salvati</strong> restano come sono. Ognuno si ricorda la modalità con cui è stato
+compilato, e riaprendolo la ritrovi — anche se nel frattempo l&#39;impostazione è cambiata, e
+anche se lo apre un tuo collega;</li>
+<li>il <strong>valore</strong> dei documenti non si tocca mai: cambia solo come il prezzo si scrive e si legge.</li>
+</ul>
+<p><strong>Sul singolo documento puoi sempre cambiare modalità</strong>, con il menu sull&#39;intestazione della
+colonna Prezzo. VestiFlow <strong>si ricorda la tua ultima scelta per quel tipo di documento</strong>: se fai
+sempre le fatture in netto, le tue fatture nuove partiranno nette anche se l&#39;azienda è impostata
+su ivato.</p>
+<p>⚠️ <strong>Se cambi l&#39;impostazione aziendale, quelle memorie si azzerano</strong> e tutti ripartono dalla
+scelta nuova. È voluto: altrimenti cambieresti l&#39;impostazione e non succederebbe niente a chi ha
+già lavorato.</p>
+<p><strong>E i costi di acquisto?</strong> Partono <strong>sempre netti</strong> — arrivo merce e ordine fornitore. Puoi
+passare alla vista ivata sul singolo documento quando ti conviene (per esempio per confrontare
+con la fattura del fornitore), e quel documento se la ricorda; ma il documento successivo
+riparte netto. Non c&#39;è un&#39;impostazione aziendale per i costi, perché per un&#39;azienda che detrae
+l&#39;IVA il costo <strong>è</strong> l&#39;imponibile.</p>
+<p><strong>La cassa (vendita al banco)</strong> resta sempre ivata: al banco il prezzo esposto è quello che il
+cliente paga.</p>
 <h4 id="sede-fisica-anagrafica-cliente">Sede fisica (anagrafica cliente)</h4>
 <p>Pannello <strong>Sede fisica</strong> in Impostazioni: mostra i dati commerciali registrati da VestiFlow all’attivazione (ragione sociale, negozio, P.IVA, indirizzo, contatti). È <strong>indipendente</strong> dalle sedi operative Shopify elencate sotto <strong>Integrazione Shopify → Location</strong>. I dettagli fiscali e di contatti opzionali sono in un riquadro espandibile <strong>Dati fiscali e contatti</strong>. Il pannello è visibile se il tuo account ha il permesso <strong>Impostazioni azienda</strong> (tipico per Titolare e Amministratore).</p>
 <h3 id="messaggi-comuni">Messaggi comuni</h3>
@@ -283,7 +335,7 @@
 </tr>
 <tr>
 <td><strong>Import/export e sync giacenze</strong></td>
-<td>Export/import CSV giacenze e pulsante <strong>Sincronizza giacenze da Shopify</strong>.</td>
+<td>Export/import CSV giacenze e pulsante <strong>Riallinea le giacenze su Shopify</strong>.</td>
 </tr>
 <tr>
 <td><strong>Gestire catalogo</strong></td>
@@ -307,7 +359,7 @@
 </tr>
 <tr>
 <td><strong>Consultare documenti</strong></td>
-<td>Lista e dettaglio <strong>Documenti</strong>; filtri registro commercialista e DDT da fatturare.</td>
+<td>Lista e dettaglio <strong>Documenti</strong>; filtro <strong>DDT da fatturare</strong>.</td>
 </tr>
 <tr>
 <td><strong>Gestire documenti</strong></td>
@@ -440,7 +492,7 @@
 <td>Consultazione</td>
 </tr>
 <tr>
-<td>Registro commercialista</td>
+<td>Corrispettivi</td>
 <td>Sì</td>
 <td>Sì</td>
 <td>Sì</td>
@@ -677,6 +729,11 @@
 <td>Riceve prodotti, giacenze, ordini e clienti in tempo reale</td>
 </tr>
 <tr>
+<td><strong>Verifica ora</strong></td>
+<td>Impostazioni</td>
+<td>Chiede a Shopify quali notifiche sono davvero attive</td>
+</tr>
+<tr>
 <td><strong>Importa catalogo da Shopify</strong></td>
 <td>Impostazioni</td>
 <td>Scarica i prodotti già presenti online</td>
@@ -708,6 +765,14 @@
 <tr>
 <td><strong>Disattiva aggiornamenti automatici</strong></td>
 <td>Pausa sync temporanea</td>
+</tr>
+<tr>
+<td><strong>Verifica ora</strong></td>
+<td>Per sapere cosa risulta davvero su Shopify adesso</td>
+</tr>
+<tr>
+<td><strong>Registra le notifiche mancanti</strong></td>
+<td>Dopo una verifica, se ne manca qualcuna</td>
 </tr>
 <tr>
 <td><strong>Importa catalogo da Shopify</strong></td>
@@ -838,8 +903,8 @@
 </tr>
 <tr>
 <td><strong>Prodotti importati da Shopify</strong> (<code>Fonte: Shopify</code>)</td>
-<td>Solo dati operativi</td>
-<td>Titolo, prezzi vendita, varianti e immagini in <strong>Shopify Admin</strong>; in VestiFlow: <strong>stagione</strong> e <strong>prezzo di acquisto</strong></td>
+<td>Sì — catalogo completo</td>
+<td>Si modificano come gli altri; restano <strong>non eliminabili</strong> da VestiFlow</td>
 </tr>
 <tr>
 <td><strong>Giacenze</strong></td>
@@ -854,7 +919,7 @@
 <tr>
 <td><strong>Vendite al banco</strong></td>
 <td>Sì — <strong>Registra vendita</strong></td>
-<td>Tutti i profili; movimento magazzino (origine <strong>Vendita negozio</strong>), non ordine di vendita</td>
+<td>Tutti i profili; movimento magazzino (origine <strong>Vendita al banco</strong>), non ordine di vendita</td>
 </tr>
 <tr>
 <td><strong>Vendite (lista ordini)</strong></td>
@@ -890,12 +955,15 @@
 <tr>
 <td><strong>Shopify</strong></td>
 <td>Prodotto importato dal negozio online</td>
-<td>Catalogo in sola lettura; modifica solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong>; elimina da <strong>Shopify Admin</strong></td>
+<td><strong>Modifica completa</strong>, come un prodotto nato nel gestionale; l’eliminazione resta su <strong>Shopify Admin</strong></td>
 </tr>
 </tbody></table>
-<p>L’etichetta <strong>Fonte</strong> è distinta dallo <strong>stato sync Shopify</strong> (colonna <strong>Shopify</strong> in lista, se visibile): la Fonte dice <em>chi possiede il catalogo</em>; lo stato sync dice se l’ultimo invio verso Shopify è riuscito (solo per prodotti <strong>Fonte: VestiFlow</strong> collegati).</p>
+<p>L’etichetta <strong>Fonte</strong> è distinta dallo <strong>stato sync Shopify</strong> (colonna <strong>Shopify</strong> in lista, se visibile): la Fonte dice <em>da dove viene</em> il prodotto; lo stato sync dice se l’ultimo invio verso Shopify è riuscito.</p>
+<blockquote>
+<p><strong>La Fonte è una provenienza, non un lucchetto.</strong> Fino a settembre 2026 i prodotti importati si potevano modificare solo in due campi; ora si modificano per intero. La Fonte serve a sapere chi li ha creati, e su quali resta il vincolo di eliminazione.</p>
+</blockquote>
 <h3 id="badge-sync-sul-prodotto">Badge sync sul prodotto</h3>
-<p>Nel dettaglio prodotto (solo prodotti <strong>Fonte: VestiFlow</strong> collegati a Shopify):</p>
+<p>Nel dettaglio prodotto, con Shopify connesso:</p>
 <table>
 <thead>
 <tr>
@@ -924,7 +992,12 @@
 <td>Shopify non connesso o prodotto mai sync</td>
 </tr>
 </tbody></table>
-<p>I prodotti <strong>Fonte: Shopify</strong> si allineano automaticamente da Shopify Admin: non compare il pulsante <strong>Sincronizza con Shopify</strong>.</p>
+<h3 id="la-casella-sincronizza-con-shopify">La casella «Sincronizza con Shopify»</h3>
+<p>Nella scheda prodotto, con Shopify connesso, ogni prodotto ha una casella <strong>Sincronizza con Shopify</strong>. Spuntata, le modifiche che salvi vengono inviate al negozio online. Togliendo la spunta il prodotto smette di essere aggiornato: VestiFlow lo <strong>archivia su Shopify</strong>, così non resta in vendita, e le sue giacenze non vengono più pubblicate.</p>
+<blockquote>
+<p><strong>Se lo spegnimento non riesce, te lo dice subito.</strong> Può capitare che Shopify non risponda o rifiuti. In quel caso VestiFlow <strong>riaccende</strong> la sincronizzazione — perché il prodotto è ancora online — e mostra l’avviso <em>«La sincronizzazione non è stata disattivata. Il prodotto potrebbe essere ancora in vendita su Shopify»</em>, seguito dal motivo tecnico. <strong>Le altre modifiche che avevi fatto restano salvate</strong>: non è il salvataggio ad essere fallito, è solo lo spegnimento. Riprova, oppure controlla il prodotto su Shopify Admin.</p>
+</blockquote>
+<p>Rimettendo la spunta e salvando, il prodotto torna disponibile online.</p>
 <hr>
 <h2 id="9-prodotti-e-catalogo">9. Prodotti e catalogo</h2>
 <h3 id="concetti-base">Concetti base</h3>
@@ -965,7 +1038,7 @@
 <td>Opzionale; pulsante <strong>Genera</strong> per codice EAN-13</td>
 </tr>
 <tr>
-<td><strong>Prezzo vendita</strong></td>
+<td><strong>Prezzo di vendita</strong></td>
 <td>Sì</td>
 <td></td>
 </tr>
@@ -1019,11 +1092,29 @@
 <p>Per chiudere un menu a più valori, clicca fuori dal pannello. I valori scelti compaiono nel trigger (nomi o «N selezionati») e nel <strong>Riepilogo</strong> prima del salvataggio.</p>
 <p>Al <strong>salvataggio</strong>, VestiFlow invia categoria e attributi a Shopify insieme al resto del catalogo (prodotti <strong>Fonte: VestiFlow</strong>). In <strong>dettaglio prodotto</strong> e nel riepilogo del form gli attributi sono elencati per nome con i valori separati da virgola.</p>
 <p><strong>Nota:</strong> <strong>Tipo prodotto</strong> (campo testuale locale) e <strong>Categoria Shopify</strong> sono distinti: la categoria taxonomy è quella usata per sync e metafield di categoria.</p>
+<h3 id="i-due-nomi-nome-prodotto-e-nome-shopify">I due nomi: «Nome prodotto» e «Nome Shopify»</h3>
+<p>Con Shopify connesso la scheda prodotto mostra <strong>due</strong> campi per il nome, e servono a due cose diverse:</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>A cosa serve</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Nome prodotto</strong></td>
+<td>il nome con cui <strong>cerchi e riconosci</strong> l’articolo in magazzino. Può essere breve, e Shopify non lo cambia mai</td>
+</tr>
+<tr>
+<td><strong>Nome Shopify</strong></td>
+<td>il titolo con cui il prodotto <strong>si vende online</strong>, di solito più lungo e descrittivo</td>
+</tr>
+</tbody></table>
+<p>Se lasci <strong>Nome Shopify</strong> vuoto, alla prima sincronizzazione viene copiato dal nome prodotto. Da quel momento i due restano <strong>indipendenti</strong>: puoi accorciare il nome interno senza toccare la vetrina, e un cambio di titolo fatto su Shopify Admin aggiorna solo il Nome Shopify.</p>
+<p>Il pulsante <strong>Copia nome VestiFlow</strong> riallinea i due nomi quando lo decidi tu — non succede da solo.</p>
 <h3 id="modificare-o-eliminare">Modificare o eliminare</h3>
-<ul>
-<li><strong>Fonte: VestiFlow</strong> — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.</li>
-<li><strong>Fonte: Shopify</strong> — il pulsante diventa <strong>Modifica dati operativi</strong>: puoi aggiornare solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> delle varianti. Nome, descrizione, prezzi di vendita, opzioni, SKU, barcode e immagini vanno modificati in <strong>Shopify Admin</strong>; VestiFlow si allinea con import catalogo o aggiornamenti automatici.</li>
-</ul>
+<p>Tutti i prodotti si modificano dalla lista o dal dettaglio, <strong>compresi quelli importati da Shopify</strong>. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati al negozio online, se la casella <strong>Sincronizza con Shopify</strong> è spuntata.</p>
+<p>L’unica differenza rimasta fra le due Fonti riguarda l’<strong>eliminazione</strong>, qui sotto.</p>
 <h4 id="eliminazione-prodotto">Eliminazione prodotto</h4>
 <table>
 <thead>
@@ -1157,8 +1248,8 @@
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Sincronizza giacenze da Shopify</strong></td>
-<td>Allinea quantità da Shopify</td>
+<td><strong>Riallinea le giacenze su Shopify</strong></td>
+<td>Riporta il negozio online al valore di VestiFlow</td>
 <td>Import/export e sync <strong>giacenze</strong></td>
 </tr>
 <tr>
@@ -1210,7 +1301,7 @@
 <td>Correzione quantità (motivo obbligatorio)</td>
 </tr>
 </tbody></table>
-<p>Le <strong>vendite</strong> e i <strong>resi al banco</strong> non si registrano nel form <strong>Registra movimento</strong>: usa <strong>Registra vendita</strong> in sidebar. Nello <strong>storico movimenti</strong> compaiono come tipo <strong>Vendita</strong> o <strong>Reso</strong> con origine <strong>Vendita negozio</strong>.</p>
+<p>Le <strong>vendite</strong> e i <strong>resi al banco</strong> non si registrano nel form <strong>Registra movimento</strong>: usa <strong>Registra vendita</strong> in sidebar. Nello <strong>storico movimenti</strong> compaiono come tipo <strong>Vendita</strong> o <strong>Reso</strong> con origine <strong>Vendita al banco</strong>.</p>
 <p>Ogni movimento resta nello <strong>storico</strong> con data, operatore e origine (gestionale, Shopify o vendita negozio).</p>
 <h3 id="cercare-giacenze-sku-o-barcode">Cercare giacenze (SKU o barcode)</h3>
 <ol>
@@ -1248,8 +1339,8 @@
 <h3 id="flusso-tipico">Flusso tipico</h3>
 <ol>
 <li><strong>Ordini Fornitori → Nuovo ordine</strong> — fornitore, destinazione merce, righe (variante, quantità, costo unitario)</li>
-<li><strong>Invia ordine</strong> — tracciamento interno; le quantità compaiono in <strong>In arrivo</strong> in Giacenze</li>
-<li>All&#39;arrivo merce: dal dettaglio ordine <strong>Registra arrivo merce</strong> (crea bozza in Documenti collegata all&#39;ordine) <strong>oppure</strong> <strong>Documenti → Arrivo merce</strong> manuale — incrementa giacenze, azzera <em>in arrivo</em> e crea movimenti di carico tracciati</li>
+<li><strong>Confermato</strong> — è lo stato con cui l’ordine nasce, ed è l’unico che lo rende includibile in un Arrivo merce. ⛔ L’Ordine fornitore <strong>non muove nessuna quantità</strong>: né giacenza, né impegnata, né «In arrivo»</li>
+<li>All&#39;arrivo merce: dal dettaglio ordine <strong>Registra arrivo merce</strong> (crea in Documenti un Arrivo merce collegato all&#39;ordine) <strong>oppure</strong> <strong>Documenti → Arrivo merce</strong> manuale — è <strong>qui</strong> che le giacenze si incrementano e nascono i movimenti di carico</li>
 </ol>
 <p>Il pulsante <strong>Registra arrivo merce</strong> sull&#39;ordine apre il form <strong>Documenti → Arrivo merce</strong> con righe e quantità residue già precompilate; non esiste più una ricezione «silenziosa» senza documento.</p>
 <h3 id="compilare-un-ordine">Compilare un ordine</h3>
@@ -1261,34 +1352,64 @@
 <li>Puoi creare un <strong>nuovo fornitore</strong> inline dal form (<strong>Nuovo fornitore</strong>).</li>
 </ul>
 <h3 id="stati-e-azioni">Stati e azioni</h3>
+<p>Un Ordine fornitore ha <strong>quattro stati</strong>. Servono a una cosa sola: decidere se
+l&#39;ordine compare fra quelli <strong>includibili</strong> in un Arrivo merce.</p>
 <table>
 <thead>
 <tr>
-<th>Stato ordine</th>
-<th>Cosa puoi fare (Manager e superiori, salvo dove indicato)</th>
+<th>Stato</th>
+<th>Compare in «Includi» dell&#39;Arrivo merce</th>
+<th>Come ci si arriva</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Bozza</strong></td>
-<td>Modifica bozza, Invia ordine, Annulla ordine</td>
+<td><strong>Da confermare</strong></td>
+<td>No</td>
+<td>lo imposti tu</td>
 </tr>
 <tr>
-<td><strong>Inviato</strong></td>
-<td>Annulla ordine, <strong>Registra arrivo merce</strong> (tutti i ruoli operativi)</td>
+<td><strong>Confermato</strong></td>
+<td><strong>Sì</strong></td>
+<td>è lo stato con cui l&#39;ordine nasce</td>
+</tr>
+<tr>
+<td><strong>Concluso</strong></td>
+<td>No</td>
+<td>ci va da solo quando lo colleghi a un Arrivo merce</td>
 </tr>
 <tr>
 <td><strong>Annullato</strong></td>
-<td><strong>Elimina ordine</strong> — rimozione definitiva dall&#39;elenco</td>
-</tr>
-<tr>
-<td><strong>Ricevuto</strong> / parz.</td>
-<td>Solo consultazione</td>
+<td>No</td>
+<td>lo imposti tu, e puoi tornare indietro</td>
 </tr>
 </tbody></table>
-<p>L&#39;<strong>Annulla ordine</strong> segna l&#39;ordine come annullato ma lo lascia in lista. <strong>Elimina ordine</strong> (solo su ordini già annullati) lo rimuove in modo irreversibile.</p>
+<p><strong>Lo stato non ti impedisce di lavorare sull&#39;ordine.</strong> In qualunque stato l&#39;ordine
+si apre, si modifica, si salva, si stampa e si elimina secondo i tuoi permessi: lo
+stato dice se l&#39;ordine è pronto per l&#39;arrivo merce, non se puoi toccarlo.</p>
 <ul>
-<li>Creazione e modifica: <strong>Manager</strong> e superiori</li>
-<li>Ricezione merce: tutti i ruoli operativi (verifica con il titolare le regole interne)</li>
+<li><strong>Da confermare, Confermato e Annullato</strong> li scegli tu, e li cambi quando vuoi in
+qualsiasi direzione: annullare non è definitivo.</li>
+<li><strong>Concluso non si sceglie.</strong> L&#39;ordine ci finisce quando lo colleghi a un Arrivo
+merce, e finché quel collegamento esiste <strong>lo stato resta fermo</strong>. Per sbloccarlo
+annulli o elimini l&#39;Arrivo merce: l&#39;ordine torna Confermato da solo.</li>
+<li><strong>Eliminare</strong> un ordine è una questione di permessi, non di stato. Se elimini un
+ordine già collegato, <strong>l&#39;Arrivo merce resta</strong>, con la sua merce e le sue
+quantità: perde solo il riferimento all&#39;ordine che l&#39;ha originato.</li>
+</ul>
+<p>L&#39;Ordine fornitore <strong>non muove il magazzino in nessuno stato</strong>: né giacenza, né
+impegnata, né quantità in arrivo. La merce entra con l&#39;Arrivo merce, non con l&#39;ordine.</p>
+<p>⚠️ <strong>Quello che il programma non fa ancora.</strong> Il modello qui sopra è la decisione del
+28/08/2026; l&#39;applicazione oggi è indietro su due punti, e sono in lavorazione:</p>
+<ul>
+<li><p><strong>«Da confermare» non c&#39;è ancora</strong>: gli stati disponibili sono tre, e un ordine
+nuovo nasce Confermato.</p>
+</li>
+<li><p><strong>«Annullato» non è ancora reversibile</strong>, e oggi si imposta solo da Confermato.</p>
+</li>
+<li><p>Creazione e modifica: <strong>Manager</strong> e superiori</p>
+</li>
+<li><p>Ricezione merce: tutti i ruoli operativi (verifica con il titolare le regole interne)</p>
+</li>
 </ul>
 <hr>
 <h2 id="12-anagrafica-fornitori">12. Anagrafica fornitori</h2>
@@ -1319,7 +1440,7 @@
 <h3 id="dove-trovarli">Dove trovarli</h3>
 <ul>
 <li><strong>Documenti</strong> — registro completo con filtri, colonne personalizzabili e azioni di creazione</li>
-<li><strong>Registro commercialista</strong> — riepilogo KPI per periodo con link ai filtri preimpostati (vedi <a href="#15-report-dashboard-e-registro-commercialista">§15</a>)</li>
+<li><strong>Corrispettivi</strong> — quadro economico per periodo, con filtri e stampa/export (vedi <a href="#15-report-dashboard-e-corrispettivi">§15</a>)</li>
 </ul>
 <h3 id="tipi-di-documento">Tipi di documento</h3>
 <table>
@@ -1346,7 +1467,7 @@
 <td>Consegna merce al cliente; base per successiva fatturazione</td>
 </tr>
 <tr>
-<td><strong>Bozza fattura</strong></td>
+<td><strong>Fattura</strong></td>
 <td>Dati per emissione fattura (anche da conversione DDT)</td>
 </tr>
 <tr>
@@ -1358,8 +1479,8 @@
 <td>Spostamento stock tra sedi (origine → destinazione)</td>
 </tr>
 <tr>
-<td><strong>Scarico manuale</strong></td>
-<td>Uscita merce (campionario, deteriorata, …)</td>
+<td><strong>Vendita manuale</strong></td>
+<td>Vendita registrata a mano; riduce la giacenza senza movimenti</td>
 </tr>
 <tr>
 <td><strong>Rettifica</strong></td>
@@ -1380,12 +1501,8 @@
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Bozza</strong></td>
-<td>Modificabile; <strong>nessun</strong> movimento di magazzino</td>
-</tr>
-<tr>
 <td><strong>Confermato</strong></td>
-<td>Numero assegnato; movimenti applicati</td>
+<td><strong>Lo stato con cui il documento nasce</strong>: salvato e numerato. ⛔ <strong>Non</strong> significa «movimenta magazzino»: gli effetti fisici li decide il <strong>tipo</strong> e il contratto delle righe</td>
 </tr>
 <tr>
 <td><strong>Stampato</strong> / <strong>Inviato</strong></td>
@@ -1400,6 +1517,25 @@
 <td>Documento invalidato (con regole di reversibilità stock)</td>
 </tr>
 </tbody></table>
+<p>⛔ <strong>«Bozza» non esiste — deciso il 28/08/2026.</strong> Un documento <strong>nasce Confermato</strong>: non c’è
+uno stato intermedio in cui esiste ma non conta. È la stessa regola già in vigore per gli
+ordini (<code>17</code> §2.4, <code>18</code> §2.1) e il progetto la chiama <strong>nascita-confermato</strong>.</p>
+<p>⚠️ <strong>Il codice è indietro</strong>: <code>DocumentStatus.draft</code> esiste ancora nello schema e governa
+la modifica libera, l’anteprima del numero e l’eliminazione. La decisione vale; l’allineamento
+è lavoro (indice <code>00</code>).</p>
+<p>⛔ <strong>«Confermato» NON vuol dire «movimenta magazzino».</strong> Vuol dire <strong>documento salvato</strong>.
+Gli effetti fisici appartengono al <strong>tipo</strong> e alle sue righe, non al valore dello stato:</p>
+<pre><code class="language-text">Arrivo merce            Salva → Confermato + carichi delle righe abilitate
+DDT                     Salva → Confermato + scarichi pertinenti
+Proforma                Salva → Confermato,  nessun movimento: il tipo non movimenta
+Registrazione fattura   Salva → Confermato,  nessun movimento: il tipo non movimenta
+</code></pre>
+<p>⚠️ <strong>La vecchia equazione «Bozza = niente movimenti / Confermato = movimenti» cade insieme
+alla Bozza.</strong> Era quella a far sembrare necessario un doppio passaggio Salva → Conferma.</p>
+<p>⭐ <strong>E «Confermato» non obbliga a mostrare nulla.</strong> Lo stato può restare <strong>tecnico e interno</strong>
+quando il tipo non ha un ciclo di stato che riguardi l’operatore: un Preventivo è un documento
+salvato e operativo senza bisogno di un selettore o di un badge «Confermato». ⛔ Non si
+aggiunge interfaccia solo perché il record internamente è confermato.</p>
 <p>Le azioni disponibili nel <strong>dettaglio documento</strong> dipendono da tipo e stato (conferma, stampa, invio, registrazione esterna, conversione DDT → bozza fattura, annullamento).</p>
 <h3 id="registro-documenti--filtri-utili">Registro documenti — filtri utili</h3>
 <table>
@@ -1422,8 +1558,8 @@
 <td>Documenti vendita per anagrafica</td>
 </tr>
 <tr>
-<td><strong>Vista commercialista</strong></td>
-<td>Solo tipi rilevanti per contabilità (da link Registro commercialista)</td>
+<td><strong>DDT da fatturare</strong></td>
+<td>DDT con «Seguirà doc. di vendita» che nessuna fattura viva ha incluso</td>
 </tr>
 <tr>
 <td><strong>DDT da fatturare</strong></td>
@@ -1453,33 +1589,151 @@
 <td><strong>Documenti → Trasferimento</strong></td>
 </tr>
 <tr>
-<td>Scarico / Rettifica</td>
-<td><strong>Documenti → Scarico manuale</strong> / <strong>Rettifica</strong></td>
+<td>Vendita manuale / Rettifica</td>
+<td><strong>Documenti → Vendita manuale</strong> / <strong>Rettifica</strong></td>
 </tr>
 <tr>
-<td>DDT / Proforma / Bozza fattura</td>
+<td>DDT / Proforma / Fattura</td>
 <td><strong>Documenti → Nuovo</strong> (tipo vendita)</td>
 </tr>
 </tbody></table>
 <p><strong>Arrivo merce — schermata e campi principali</strong></p>
 <ul>
 <li><strong>Testata:</strong> tipo documento (<strong>Arrivo merce</strong>, DDT fornitore, Fattura accompagnatoria, <strong>Carico manuale</strong>, <strong>Carico iniziale</strong>), fornitore (obbligatorio per arrivo/DDT/fattura accomp.; opzionale per carichi manuali), sede destinazione, data documento VestiFlow, numero/data <strong>documento fornitore</strong> (es. DDT 242/2026), <strong>causale di carico</strong>, flag <strong>Seguirà fattura</strong>, riferimento fattura fornitore, note.</li>
-<li><strong>Numero interno VestiFlow:</strong> in bozza vedi l&#39;<strong>anteprima</strong> (es. <code>CAR-2026-0045</code>); il numero definitivo viene assegnato alla <strong>conferma</strong> (distinto dal documento del fornitore).</li>
+<li><strong>Numero interno VestiFlow:</strong> assegnato <strong>al salvataggio</strong>, insieme allo stato Confermato.</li>
 <li><strong>Righe in griglia:</strong> menu <strong>Colonne</strong> (preset, resize intestazioni, <strong>Ripristina colonne</strong>); cerca articolo per <strong>nome, SKU o barcode/EAN</strong>; <strong>Crea articolo rapido</strong> o <strong>Crea anagrafica completa</strong> (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag <strong>Carica magazzino</strong>, totale riga.</li>
 <li><strong>Ordine fornitore collegato:</strong> se apri l&#39;arrivo da <strong>Registra arrivo merce</strong> sull&#39;ordine, compaiono anche colonne <strong>Ordinato / Già ricevuto / Residuo</strong> per ogni riga.</li>
 <li><strong>Conferma:</strong> se il costo differisce dall&#39;ultimo prezzo fornitore e la policy lo prevede, compare un dialog per <strong>aggiornare i prezzi fornitore</strong>.</li>
+<li><strong>Prezzi articolo:</strong> due spunte in testata decidono cosa il carico scrive in anagrafica — vedi qui sotto.</li>
 <li><strong>Documento già confermato:</strong> dal form restano disponibili <strong>Anteprima stampa</strong> e il download del PDF. L&#39;arrivo merce non ha azioni di ciclo di vita fiscale: la copertura contabile è tracciata dal collegamento alla fattura fornitore.</li>
 <li>Opzionali per riga: <strong>lotto</strong>, <strong>scadenza lotto</strong>, <strong>numeri seriali</strong> (testo separato da virgola).</li>
 </ul>
 <p>Alla <strong>conferma</strong> dell&#39;arrivo merce (o carico manuale/iniziale) VestiFlow registra i <strong>carichi</strong> in magazzino, aggiorna le giacenze e, se collegato, l&#39;ordine fornitore e l&#39;<strong>in arrivo</strong> (e Shopify/TikTok se collegati).</p>
+<h4 id="cosa-il-carico-scrive-in-anagrafica-dal-16-agosto-2026">Cosa il carico scrive in anagrafica <em>(dal 16 agosto 2026)</em></h4>
+<p>In fondo alla testata trovi <strong>due spunte</strong>, tutte e due accese di default. Fanno cose diverse,
+e vale la pena saperlo:</p>
+<table>
+<thead>
+<tr>
+<th>Spunta</th>
+<th>Cosa decide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aggiorna costo in anagrafica</strong></td>
+<td>se il costo che digiti diventa il costo dell&#39;<strong>articolo</strong></td>
+</tr>
+<tr>
+<td><strong>Aggiorna prezzi in anagrafica</strong></td>
+<td>se i prezzi che scrivi sulle righe aggiornano l&#39;anagrafica</td>
+</tr>
+</tbody></table>
+<p>⭐ <strong>Le trovi accanto a «Seguirà registrazione fattura»</strong>, nella fascia dei dati del
+documento ricevuto — spostate lì il 2 settembre 2026. Prima stavano in fondo alla pagina,
+sotto le note: e «Aggiorna prezzi» è proprio la spunta che <strong>rende scrivibili i campi
+prezzo delle righe</strong>, quindi si decideva dopo aver compilato le righe che comanda.</p>
+<p>Il <strong>costo</strong> funziona <strong>riga per riga</strong>: se richiami tre taglie dello stesso articolo hai
+tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.</p>
+<ul>
+<li><strong>spunta accesa</strong> → il costo che digiti diventa il costo di quella taglia in anagrafica;</li>
+<li><strong>spunta spenta</strong> → resta un <strong>costo del documento</strong>, buono per report e contabilità, e in
+anagrafica non va nulla.</li>
+</ul>
+<p>⚠️ <strong>Fino al 19/08/2026 faceva un&#39;altra cosa</strong>, e vale la pena saperlo se hai caricato merce
+prima di quella data: il costo della taglia si aggiornava <strong>sempre</strong>, spunta o no. Chi la
+toglieva credeva di registrare un costo solo documentale e stava riscrivendo il costo
+effettivo di ogni taglia caricata — quello che alimenta valorizzazione e margini.</p>
+<p><strong>L&#39;ultimo prezzo pagato al fornitore si aggiorna comunque</strong>, con o senza spunta: non è
+anagrafica, è la memoria di quanto ti costa da quel fornitore. È il dato che fa comparire
+l&#39;avviso «lo pagavi X, ora paghi Y» al carico successivo.</p>
+<p>⚠️ <strong>Un articolo NUOVO creato dal carico è un altro caso</strong>: nasce con i dati che stai
+inserendo in quel momento, spunta o no. Alla nascita non c&#39;è nessun valore da sovrascrivere —
+quei dati <strong>sono</strong> i dati dell&#39;articolo.</p>
+<p>⚠️ <strong>Costo e prezzo non funzionano allo stesso modo, e la differenza si vede.</strong></p>
+<p>Il <strong>prezzo di vendita</strong> invece <strong>non è un dato del documento</strong>: è il prezzo di listino
+dell&#39;articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:</p>
+<ul>
+<li><strong>spunta accesa</strong> → il campo si scrive, e quello che scrivi aggiorna il prezzo della taglia
+in anagrafica;</li>
+<li><strong>spunta spenta</strong> → il campo resta <strong>visibile ma non modificabile</strong>.</li>
+</ul>
+<p>Non è una limitazione: prima quella casella si poteva scrivere sempre, e per gli articoli già
+esistenti <strong>il valore digitato non andava da nessuna parte</strong>. Meglio un campo che dice
+chiaramente «adesso non si tocca» di uno che accetta un numero e lo butta via.</p>
+<p><strong>Se hai Shopify collegato</strong> compare anche la colonna <strong>Prezzo Shopify</strong>, che puoi accendere
+o spegnere dal menu <strong>Colonne</strong> (di default è spenta). Segue la stessa spunta: si scrive solo
+a spunta accesa.</p>
+<p>⚠️ <strong>Prezzo di vendita e Prezzo Shopify restano due prezzi distinti</strong>, ed è voluto: quello
+che pubblichi online può essere diverso da quello del tuo listino. Con Shopify collegato,
+cambiare uno <strong>non</strong> cambia l’altro. Senza Shopify collegato la colonna non c’è, e il prezzo
+del canale segue quello di listino solo quando questo cambia davvero.</p>
 <p><strong>Modifica di un documento già confermato:</strong> apri il documento in modifica, clicca <strong>Sblocca modifica</strong> e conferma l&#39;avviso — VestiFlow aggiorna movimenti e giacenze e salva lo storico revisioni.</p>
 <h3 id="allegati">Allegati</h3>
-<p>Nel <strong>form arrivo merce</strong> (dopo il primo salvataggio bozza) e nel <strong>dettaglio documento</strong>, pannello <strong>Allegati</strong>: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.</p>
+<p>Nel <strong>form arrivo merce</strong> (dopo il primo salvataggio) e nel <strong>dettaglio documento</strong>, pannello <strong>Allegati</strong>: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.</p>
 <h3 id="colonne-personalizzabili">Colonne personalizzabili</h3>
 <p>Usa <strong>Colonne</strong> sopra le tabelle principali per mostrare/nascondere campi, scegliere un <strong>preset</strong> (Completo, Magazzino, Fornitore, …) e <strong>Ripristina colonne</strong>. Le preferenze si <strong>sincronizzano</strong> con il tuo account.</p>
 <p>Viste con column picker: <strong>Documenti</strong>, <strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Fornitori</strong>, <strong>Prodotti</strong>, <strong>Clienti</strong>, righe <strong>Ordine fornitore</strong> e righe <strong>Arrivo merce</strong>. Su mobile molte liste passano a <strong>card</strong> con etichette campo.</p>
+<h3 id="numerazione-dei-documenti">Numerazione dei documenti</h3>
+<p><strong>In testata di ogni documento</strong> trovi <strong>Data, Serie e Numero</strong>.</p>
+<ul>
+<li>Il <strong>numero</strong> che vedi aprendo un documento nuovo è una <strong>proposta</strong>: è il primo libero
+in quel momento, e se lo prende chi salva per primo. Puoi lasciarlo com&#39;è — al
+salvataggio il sistema assegna il primo libero di allora — oppure <strong>scriverne uno tuo</strong>,
+per esempio per tappare un buco nella numerazione.</li>
+<li>Se il numero che hai scritto risulta già preso, un avviso te lo dice, <strong>mette in testata
+il primo numero libero</strong> e aspetta che tu prema Salva: nessun numero viene cambiato alle
+tue spalle.</li>
+<li>La <strong>serie</strong> si sceglie da una tendina, non si scrive. Contiene le serie utilizzabili
+nella sede del documento (vedi sotto). Se non la tocchi, il documento prende la serie
+predefinita.</li>
+<li>L&#39;icona <strong>⚙</strong> accanto alla serie apre la gestione delle numerazioni senza uscire dal
+documento.</li>
+</ul>
+<p><strong>Duplicando un documento</strong> il numero <strong>non</strong> si eredita: il duplicato prende il primo
+libero e la data di oggi.</p>
+<p><strong>Il numero proposto tiene conto della data.</strong> Se hai preparato un documento datato la
+settimana prossima e gli hai dato un numero alto, quel numero non brucia la numerazione di
+oggi: aprendo un documento con la data di oggi ti viene proposto il primo libero fra i
+documenti che lo precedono. È anche il motivo per cui, a volte, il numero proposto <strong>tappa
+un buco</strong> invece di andare in coda — succede solo quando la data lo consente.</p>
+<h3 id="se-la-numerazione-va-fuori-ordine">Se la numerazione va fuori ordine</h3>
+<p>Dentro la stessa serie, a un numero più alto deve corrispondere una data uguale o
+successiva. Nella stessa giornata l&#39;ordine non conta: numerare 3, poi 1, poi 2 tutti dello
+stesso giorno va benissimo.</p>
+<p>Quando l&#39;ordine si rompe — di solito perché un numero è stato scritto a mano, o perché è
+stata cambiata la data di un documento già salvato — al salvataggio compare un avviso con
+<strong>l&#39;elenco dei documenti fuori posto</strong>, non solo quello che stai salvando.</p>
+<ul>
+<li><strong>Non è un blocco</strong>: «Sì, salva comunque» prosegue.</li>
+<li><strong>Continua a comparire</strong> finché la serie resta fuori ordine, anche sui documenti
+successivi che sono in ordine. È voluto: un buco non giustificato va sistemato, e un
+avviso che sparisce da solo si dimentica.</li>
+<li>La casella <strong>«Non mostrare più»</strong> lo spegne <strong>solo per quel tipo di documento</strong>: chi
+sistema le fatture continua a vederlo sui DDT. Una volta spento <strong>non si riaccende</strong>, e
+non c&#39;è un pannello per riattivarlo — quindi spuntala solo se sei sicuro.</li>
+</ul>
+<h3 id="la-sede-in-testata">La sede in testata</h3>
+<p>Ogni documento porta la <strong>Sede</strong> — il magazzino o il negozio a cui appartiene.</p>
+<ul>
+<li>Se l&#39;amministratore ti ha assegnato una <strong>sede predefinita</strong>, il campo esce già
+compilato con quella: non devi confermarla a ogni documento.</li>
+<li>Se non ce l&#39;hai — è il caso di chi lavora su più sedi — il campo parte <strong>vuoto</strong> e la
+sede va scelta. È voluto: è l&#39;unico caso in cui la scelta non è ovvia.</li>
+<li>Nei <strong>Trasferimenti</strong> si precompila solo la sede di <strong>partenza</strong>; la destinazione la
+scegli tu.</li>
+<li>Fanno eccezione la <strong>Registrazione fattura fornitore</strong>, che non ha il campo perché la
+fattura è intestata all&#39;azienda e non a una sede, e la <strong>Vendita al banco</strong>, che prende
+la sede dal selettore in alto.</li>
+</ul>
+<p><strong>La sede decide quali serie puoi usare</strong>: una serie assegnata a una sede è utilizzabile
+solo lì, una serie senza sede vale ovunque. Cambiando sede la tendina si aggiorna.</p>
 <h3 id="impostazioni-numerazione">Impostazioni numerazione</h3>
-<p><strong>Documenti → Impostazioni documenti</strong> (solo <strong>Gestire documenti</strong>): prefissi e serie per tipo (es. prefisso DDT vendita, arrivo merce). I numeri progressivi vengono assegnati alla <strong>conferma</strong>.</p>
+<p><strong>Documenti → Impostazioni documenti</strong> (solo <strong>Gestire documenti</strong>): prefissi per tipo
+documento e gestione delle serie (i <strong>Numeratori</strong>). Qui si crea una serie, le si assegna
+una sede e si sceglie quale è la predefinita del tipo.</p>
+<p>Il riferimento di un documento ha la forma <code>PREFISSO-SERIE-NUMERO</code> (es. <code>AM-A-0042</code>), o
+<code>PREFISSO-NUMERO</code> se la serie non c&#39;è. Chi vuole ricominciare da 1 ogni anno crea una
+serie chiamata come l&#39;anno.</p>
 <h3 id="permessi">Permessi</h3>
 <table>
 <thead>
@@ -1541,7 +1795,7 @@
 <li><strong>Pistola barcode USB</strong> — funziona come tastiera: focus nel campo, scan, Invio o pulsante.</li>
 <li><strong>Sessione corrente</strong> — ultime operazioni della sessione (non sostituisce lo storico movimenti).</li>
 </ul>
-<p>Ogni scansione valida genera un movimento in <strong>Magazzino → Movimenti</strong> con origine <strong>Vendita negozio</strong>. Se lo stock <strong>disponibile</strong> è insufficiente, la vendita viene rifiutata.</p>
+<p>Ogni scansione valida genera un movimento in <strong>Magazzino → Movimenti</strong> con origine <strong>Vendita al banco</strong>. Se lo stock <strong>disponibile</strong> è insufficiente, la vendita viene rifiutata.</p>
 <h3 id="vendite-solo-profilo-shopify">Vendite (solo profilo Shopify)</h3>
 <ul>
 <li>Provengono da <strong>Shopify Online</strong> o <strong>Shopify POS</strong>.</li>
@@ -1567,6 +1821,14 @@
 <td><strong>Esportare dati</strong></td>
 </tr>
 </tbody></table>
+<h4 id="️-resi-e-rimborsi-con-più-sedi--cosa-controllare-su-shopify">⚠️ Resi e rimborsi con più sedi — cosa controllare su Shopify</h4>
+<p>Se hai <strong>più di una sede</strong>, quando elabori un reso o un rimborso con ricarica di magazzino <strong>controlla la sede proposta da Shopify prima di confermare</strong>: non è quella da cui la merce è partita.</p>
+<p>Verificato il 14/08/2026 su ordini reali: un ordine spedito da «Shop location» proponeva il rientro su un&#39;altra sede. Shopify segue la <strong>priorità delle sedi</strong> configurata, non l&#39;evasione — quindi il default è quasi sempre da correggere a mano, e nessuno te lo segnala.</p>
+<p>Il posto dove guardare è la tendina <strong>«Restituisci articolo a inventario presso: …»</strong>, nella schermata del rimborso o dell&#39;elaborazione del reso. Cambiala sulla sede da cui la merce era realmente uscita.</p>
+<p>Con <strong>una sola sede</strong> questo non ti riguarda: non c&#39;è niente da scegliere.</p>
+<blockquote>
+<p>Esiste anche un difetto di VestiFlow sullo stesso tema, già registrato e da correggere: la sede da cui il gestionale scarica non è sempre quella che ha spedito. Finché non è chiuso, con più sedi le giacenze per sede vanno lette con prudenza — il totale resta corretto, la ripartizione no.</p>
+</blockquote>
 <h3 id="clienti-profilo-shopify">Clienti (profilo Shopify)</h3>
 <ul>
 <li>Anagrafica da Shopify, <strong>sola lettura</strong> in VestiFlow.</li>
@@ -1593,35 +1855,99 @@
 </tr>
 </tbody></table>
 <hr>
-<h2 id="15-report-dashboard-e-registro-commercialista">15. Report, dashboard e registro commercialista</h2>
+<h2 id="15-report-dashboard-e-corrispettivi">15. Report, dashboard e corrispettivi</h2>
 <h3 id="dashboard">Dashboard</h3>
 <p>Pagina iniziale dopo il login: vendite recenti, ordini fornitore in attesa e indicatori sintetici del negozio.</p>
 <h3 id="report">Report</h3>
-<p>Tabelle e KPI su prodotti, giacenze e ordini. I filtri <strong>periodo</strong> (da / a) usano un <strong>selettore data con calendario</strong>, coerente con la data attesa negli ordini fornitori e con il <strong>Registro commercialista</strong>.</p>
-<h3 id="registro-commercialista">Registro commercialista</h3>
-<p>Voce dedicata in sidebar (<strong>Registro commercialista</strong>, sotto <strong>Report</strong>): riepilogo per <strong>periodo</strong> di documenti fiscali e corrispettivi vendite online.</p>
+<p>Tabelle e KPI su prodotti, giacenze e ordini. I filtri <strong>periodo</strong> (da / a) usano un <strong>selettore data con calendario</strong>, coerente con la data attesa negli ordini fornitori e con i <strong>Corrispettivi</strong>.</p>
+<h3 id="corrispettivi">Corrispettivi</h3>
+<p>Voce dedicata in sidebar, sotto <strong>Vendite</strong>: il <strong>quadro economico</strong> delle vendite e delle rettifiche che VestiFlow conosce, per periodo.</p>
+<blockquote>
+<p>⚠️ <strong>Cambiato il 16 agosto 2026.</strong> Qui c&#39;era il <strong>Registro commercialista</strong>, con dei contatori che dividevano i documenti fra «già inviati» e «da inviare» al commercialista, e un pulsante «Segna consegnato». <strong>Non ci sono più</strong>, e non torneranno: VestiFlow non tiene traccia di cosa hai già mandato.</p>
+</blockquote>
+<p><strong>Come si usa, in tre passi:</strong></p>
+<ol>
+<li>scegli il <strong>periodo</strong> — preset rapidi, oppure Mese / Trimestre / Anno, oppure un intervallo tuo;</li>
+<li>restringi con i <strong>filtri</strong> se ti serve un sottoinsieme: <strong>ambito</strong> (Tutti · Online · Fisico/POS) e <strong>tipo</strong> (vendite, resi, rimborsi);</li>
+<li><strong>stampa o esporta</strong> quel sottoinsieme — CSV, foglio Excel o PDF.</li>
+</ol>
+<p>Fine. <strong>Non c&#39;è un «dopo».</strong> Puoi esportare lo stesso periodo dieci volte: non cambia niente, non resta traccia, nessuna vendita viene marcata. Se il commercialista ti richiede marzo a settembre, rifai marzo.</p>
+<p><strong>Le vendite in negozio con Shopify POS ci sono</strong>, classificate come <strong>Fisico/POS</strong>. Che le abbia già certificate il registratore di cassa non è un motivo per nasconderle: nel quadro economico interno devono comparire, una volta sola e riconoscibili. Se ti serve il solo ecommerce, metti <strong>ambito = Online</strong>.</p>
+<p><strong>Per i DDT ancora da fatturare</strong> non usi questa pagina: vai in <strong>Documenti → DDT vendita</strong> e spunti il filtro <strong>«DDT da fatturare»</strong>. Ti mostra quelli su cui hai messo «Seguirà doc. di vendita» e che nessuna fattura ha ancora incluso — e se una fattura viene annullata, il suo DDT ricompare lì.</p>
+<h4 id="come-leggere-i-corrispettivi-agosto-2026">Come leggere i corrispettivi <em>(agosto 2026)</em></h4>
+<p><strong>Il periodo si sceglie per calendario, non a mano.</strong> Oltre ai preset rapidi (ultimi 7 o 30 giorni, mese corrente, mese scorso, anno corrente) trovi <strong>Mese…</strong>, <strong>Trimestre…</strong> e <strong>Anno…</strong>: scegliendoli compaiono i selettori che servono — il mese e l&#39;anno, il trimestre e l&#39;anno, l&#39;anno soltanto. Per il 2° trimestre 2026 non devi scrivere <code>01/04</code> e <code>30/06</code>: lo scegli.</p>
+<p>I selettori compaiono <strong>solo</strong> dove hanno senso: «mese corrente» non chiede l&#39;anno, perché è il mese di adesso. <strong>Personalizzato</strong> resta per i periodi che non sono di calendario, tipo dal 15 marzo al 18 maggio.</p>
+<p><strong>Una vendita entra nel registro quando la merce parte, non quando l&#39;ordine arriva.</strong> Un ordine ricevuto il 30 luglio e spedito il 2 agosto è un corrispettivo di <strong>agosto</strong>. Un ordine mai spedito non compare in nessun periodo, e un ordine annullato prima della spedizione non compare mai — la vendita non è avvenuta.</p>
+<p><strong>I resi e i rimborsi compaiono come righe a sé, con l&#39;importo in negativo</strong>, alla data in cui sono avvenuti — non a quella della vendita. Quindi in un elenco puoi trovare:</p>
 <table>
 <thead>
 <tr>
-<th>Tab</th>
-<th>Contenuto</th>
+<th>Data</th>
+<th>Tipo</th>
+<th>Ordine</th>
+<th>Totale</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Documenti</strong></td>
-<td>KPI: totale documenti, bozze fattura da emettere, inviate al commercialista, emesse/registrate esternamente, <strong>DDT vendita in attesa fattura</strong>, documenti fornitore da registrare</td>
+<td>14/08</td>
+<td>Vendita</td>
+<td>#1008</td>
+<td>130,01</td>
 </tr>
 <tr>
-<td><strong>Corrispettivi</strong></td>
-<td>Riepilogo vendite ecommerce nel periodo (profilo Shopify) con link al dettaglio</td>
+<td>14/08</td>
+<td>Reso</td>
+<td>#1008</td>
+<td>−80,01</td>
+</tr>
+<tr>
+<td>14/08</td>
+<td>Rimborso</td>
+<td>#1008</td>
+<td>−5,00</td>
 </tr>
 </tbody></table>
-<p><strong>Collegamenti rapidi</strong> (tab Documenti):</p>
+<p><strong>«Reso» e «Rimborso» sono cose diverse</strong>: nel primo caso la merce è tornata in magazzino, nel secondo sono tornati solo i soldi (un capo rovinato, uno sconto concesso dopo la vendita).</p>
+<p><strong>Il totale in fondo si ricostruisce sommando la colonna.</strong> È voluto: se il numero non torna, lo vedi riga per riga senza dover chiedere a nessuno. La vendita originale <strong>non viene mai cancellata né corretta</strong> — resta alla sua data, e il reso la rettifica alla propria. È anche ciò che permette a chi tiene la contabilità di collegare il reso alla vendita da cui viene.</p>
+<p><strong>Gli annullamenti non tolgono niente al totale.</strong> Li vedi contati nel riepilogo, ma valgono zero: annullano una vendita che non era mai stata registrata.</p>
+<p>Se qualche vendita risulta <strong>evasa senza data</strong>, il riepilogo te lo dice: non è conteggiata in nessun periodo, e va sistemata. Non sparisce in silenzio.</p>
+<p><strong>Il file che esporti contiene le stesse righe che vedi.</strong> CSV, Excel e PDF portano vendite e rettifiche con una colonna <strong>Tipo</strong>, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.</p>
+<h4 id="aggiungere-un-corrispettivo-a-mano-dal-17-agosto-2026">Aggiungere un corrispettivo a mano <em>(dal 17 agosto 2026)</em></h4>
+<p>A volte il dato economico è certo ma la vendita analitica non c&#39;è e non è ricostruibile: la cassa esterna ha battuto mentre il gestionale non era disponibile, hai una chiusura di cassa da recuperare, o stai riportando importi vecchi di cui sai quanto e con che IVA, ma non cosa è stato venduto.</p>
+<p>Per questi casi c&#39;è il pulsante <strong>«+ Aggiungi corrispettivo»</strong>, in alto nella pagina Corrispettivi.</p>
+<blockquote>
+<p>⚠️ <strong>È una registrazione solo economica.</strong> Non crea prodotti, non crea clienti, e <strong>non tocca il magazzino</strong>: giacenza, impegnata e disponibile restano come sono. Non poteva essere altrimenti — una registrazione che non sa quali articoli sono usciti non può togliere pezzi da nessuna parte, e se lo facesse starebbe inventando merce.</p>
+</blockquote>
+<p><strong>Cosa si compila:</strong></p>
 <ul>
-<li><strong>Apri registro documenti filtrato</strong> — apre <strong>Documenti</strong> con vista commercialista e date del periodo</li>
-<li><strong>DDT da fatturare</strong> — elenco DDT vendita confermati senza bozza fattura collegata</li>
+<li>la <strong>data</strong> — è quella economica, e decide in che periodo la registrazione entra;</li>
+<li>la <strong>sede</strong> — obbligatoria: un corrispettivo appartiene sempre a un punto vendita o a un magazzino;</li>
+<li>gli <strong>importi ivati o netti</strong> — un solo selettore per tutta la registrazione, che parte da <strong>Ivati</strong> perché è il verso in cui arrivano i numeri di una chiusura di cassa;</li>
+<li>le <strong>righe</strong>: descrizione, importo e <strong>Codice IVA</strong>. Più righe, anche con aliquote diverse:</li>
 </ul>
-<p>Usa questi link per preparare il pacchetto mensile per il commercialista senza ricostruire i filtri a mano.</p>
+<pre><code class="language-text">70,00   IVA 22%   Vendite cassa esterna
+30,00   IVA 10%   Vendite cassa esterna
+</code></pre>
+<p><strong>Il selettore Ivati/Netti converte, non reinterpreta.</strong> Passando da Ivati a Netti i 70,00 diventano 57,38 e il totale resta 70,00: stai guardando lo stesso importo da un&#39;altra parte. Puoi passare avanti e indietro quante volte vuoi senza perdere un centesimo.</p>
+<p><strong>Il numero lo assegna VestiFlow al salvataggio</strong>, e si vede nudo: 1, 2, 3. Non è un numero fiscale — il documento commerciale lo emette il registratore di cassa, che è un&#39;altra cosa — serve solo a ritrovare la registrazione.</p>
+<p><strong>Si corregge e si elimina.</strong> Una registrazione digitata a mano si può sbagliare: aprila dal suo numero nell&#39;elenco e modificala, oppure eliminala. ⚠️ <strong>Eliminando resta un buco nella numerazione</strong> — dopo il 12 eliminato si passa da 11 a 13 — ed è normale: i numeri successivi non si rinumerano. E un export di questo mese, ristampato fra un mese, non conterrà più la registrazione eliminata.</p>
+<p><strong>Nel Registro si riconosce dall&#39;origine</strong>, che dice «Corrispettivo manuale». Senza filtri entra nell&#39;elenco e nei totali come tutte le altre righe.</p>
+<p>⚠️ <strong>Chi può farlo.</strong> Serve il permesso <strong>«Registrare corrispettivi manuali»</strong> (gruppo Report), oltre a quelli che già servono per vedere i Corrispettivi. Senza, il pulsante non compare.</p>
+<h4 id="la-colonna-sede-e-non-determinata-dal-17-agosto-2026">La colonna Sede, e «Non determinata» <em>(dal 17 agosto 2026)</em></h4>
+<p>L&#39;elenco ha una colonna <strong>Sede</strong> e un filtro per sceglierla.</p>
+<p>Su alcune righe che arrivano da Shopify leggerai <strong>«Non determinata»</strong>, in corsivo. Vuol dire quello che dice: quella vendita non porta con sé da quale sede è partita, e VestiFlow <strong>non se la inventa</strong>. È una cosa che va sistemata nella sincronizzazione, non uno stato normale.</p>
+<p>⚠️ <strong>Filtrando per una sede quelle righe escono</strong> — a una sede precisa non sono attribuibili — <strong>ma la pagina te lo dice</strong>:</p>
+<pre><code class="language-text">3 registrazioni con Location non determinata non incluse nel filtro
+</code></pre>
+<p>È l&#39;avviso che conta: senza, il totale scenderebbe scegliendo una sede e nessuno saprebbe perché. <strong>Togli il filtro Sede e tornano dentro</strong>, nell&#39;elenco e nel totale.</p>
+<h4 id="canale-e-tipo">Canale e tipo</h4>
+<p>Accanto al periodo trovi altri due filtri, indipendenti fra loro e dal periodo:</p>
+<ul>
+<li><strong>Canale</strong> — tutti, Shopify, oppure Negozio. Di partenza il registro mostra <strong>tutti i canali</strong>: se una parte delle vendite restasse fuori per difetto, nessuno se ne accorgerebbe;</li>
+<li><strong>Tipo</strong> — vendite e rettifiche insieme, oppure solo vendite, solo resi, solo rimborsi.</li>
+</ul>
+<p>Puoi combinarli: «2° trimestre 2026 · Shopify · Solo resi» per vedere cosa è tornato indietro in quel trimestre.</p>
+<p><strong>Attenzione a una cosa, ed è voluta</strong>: il filtro <strong>Tipo</strong> cambia solo l&#39;elenco, non il totale. Se guardi «Solo resi», in fondo continui a leggere il corrispettivo del periodo — non la somma dei soli resi. Serve a non avere mai sotto gli occhi un numero negativo che sembra un totale e non lo è.</p>
 <hr>
 <h2 id="16-usare-vestiflow-da-smartphone">16. Usare VestiFlow da smartphone</h2>
 <p>VestiFlow è una <strong>app web installabile (PWA)</strong>:</p>
@@ -1649,7 +1975,7 @@
 <li>Scansiona il barcode (pistola USB o camera) e <strong>Registra vendita</strong>.</li>
 <li>Per un reso cliente: <strong>Registra storno</strong> nello stesso schermo.</li>
 </ol>
-<p><strong>Consigli:</strong> mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla <strong>Movimenti</strong> con origine <strong>Vendita negozio</strong> se qualcosa non quadra.</p>
+<p><strong>Consigli:</strong> mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla <strong>Movimenti</strong> con origine <strong>Vendita al banco</strong> se qualcosa non quadra.</p>
 <p>Non compare la lista <strong>Vendite</strong> né <strong>Clienti</strong>: il tracciamento vendite in VestiFlow è il movimento di magazzino.</p>
 <h3 id="profilo-shopify-negozio-fisico">Profilo Shopify (negozio fisico)</h3>
 <p>Due scenari possibili:</p>
@@ -1704,12 +2030,13 @@
 <li>Dopo una modifica permessi: <strong>esci e rientra</strong> o ricarica con <strong>Ctrl+F5</strong> (Mac: <strong>Cmd+Shift+R</strong>).</li>
 <li>Esempi: <strong>Sincronizza catalogo</strong> richiede import/export prodotti; <strong>Registra movimento</strong> richiede gestione giacenze; <strong>Documenti</strong> richiede consultare/gestire documenti; <strong>Collega Shopify</strong> è solo per il <strong>Titolare</strong>.</li>
 </ol>
-<h3 id="non-vedo-documenti-o-registro-commercialista">Non vedo Documenti o Registro commercialista</h3>
-<p>Verifica i permessi <strong>Consultare documenti</strong> e <strong>Consultare report</strong>. Il <strong>Registro commercialista</strong> richiede accesso ai report. Dopo una modifica permessi: esci e rientra.</p>
+<h3 id="non-vedo-documenti-o-corrispettivi">Non vedo Documenti o Corrispettivi</h3>
+<p>Verifica i permessi <strong>Consultare documenti</strong> e <strong>Consultare report</strong>. I <strong>Corrispettivi</strong> richiedono accesso ai report. Dopo una modifica permessi: esci e rientra.</p>
 <h3 id="cosa-significa-ddt-da-fatturare">Cosa significa «DDT da fatturare»?</h3>
-<p>Sono <strong>DDT vendita</strong> già confermati (consegnati al cliente) per i quali non esiste ancora una <strong>bozza fattura</strong> collegata in VestiFlow. Apri l&#39;elenco filtrato da <strong>Registro commercialista</strong> o dal filtro omonimo in <strong>Documenti</strong> per emettere o registrare le fatture esternamente.</p>
+<p>Sono i <strong>DDT vendita</strong> su cui hai spuntato <strong>«Seguirà doc. di vendita»</strong> e che nessuna Fattura viva ha ancora incluso. Li trovi in <strong>Documenti → DDT vendita</strong>, spuntando il filtro <strong>«DDT da fatturare»</strong>.</p>
+<p>⚠️ <strong>Corretto il 16 agosto 2026.</strong> Prima diceva «confermati senza bozza fattura collegata», e il filtro faceva davvero così: mostrava <strong>tutti</strong> i DDT confermati, compresi quelli che una fattura non la aspettano. Ora guarda la spunta — e se una fattura viene <strong>annullata</strong>, il DDT che aveva incluso <strong>torna</strong> nell&#39;elenco.</p>
 <h3 id="differenza-tra-registra-arrivo-merce-ordine-e-arrivo-merce-manuale">Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale</h3>
-<p>Entrambi usano lo <strong>stesso form Documenti → Arrivo merce</strong>. Da un ordine <strong>Inviato</strong>, <strong>Registra arrivo merce</strong> crea una <strong>bozza collegata</strong> con righe e quantità residue precompilate (colonne Ord./Ric./Res.). Da <strong>Documenti → Nuovo arrivo merce</strong> crei un carico anche <strong>senza ordine</strong> precedente. In entrambi i casi serve <strong>Conferma e carica magazzino</strong> per movimentare lo stock; in bozza il magazzino non cambia.</p>
+<p>Entrambi usano lo <strong>stesso form Documenti → Arrivo merce</strong>. Da un ordine <strong>Confermato</strong>, <strong>Registra arrivo merce</strong> apre il form <strong>precompilato e collegato</strong>, con righe e quantità residue (colonne Ord./Ric./Res.). Da <strong>Documenti → Nuovo arrivo merce</strong> crei un carico anche <strong>senza ordine</strong> precedente. In entrambi i casi è il <strong>Salva</strong> che crea il documento e applica i carichi: non c’è un secondo passo di conferma, e non esiste uno stato intermedio in cui il documento esiste senza aver movimentato.</p>
 <h3 id="il-prodotto-creato-in-vestiflow-non-compare-su-shopify">Il prodotto creato in VestiFlow non compare su Shopify</h3>
 <ol>
 <li>Impostazioni → Shopify è <strong>Connesso</strong>?</li>
@@ -1722,7 +2049,40 @@
 <ol>
 <li><strong>Importa catalogo da Shopify</strong> in Impostazioni (attendi fine operazione)</li>
 <li>Verifica che <strong>Aggiornamenti automatici</strong> sia attivo</li>
+<li>Premi <strong>Verifica ora</strong>: dice quali notifiche risultano davvero attive su Shopify. Se fra i mancanti compaiono quelle dei prodotti, i cambiamenti fatti online non arrivano — ed è quello il motivo, non l&#39;import</li>
 </ol>
+<h3 id="capire-lo-stato-delle-notifiche">Capire lo stato delle notifiche</h3>
+<p>Sotto lo stato della connessione ci sono quattro informazioni. Servono a distinguere <strong>«non è cambiato niente»</strong> da <strong>«non arriva più niente»</strong>, che viste da fuori si assomigliano.</p>
+<table>
+<thead>
+<tr>
+<th>Cosa leggi</th>
+<th>Cosa significa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Ultimo evento ricevuto</strong></td>
+<td>quando Shopify ha comunicato qualcosa l&#39;ultima volta</td>
+</tr>
+<tr>
+<td><strong>Notifiche registrate</strong></td>
+<td>quante sono attive sulle attese, <strong>con il nome di quelle che mancano</strong></td>
+</tr>
+<tr>
+<td><strong>Indirizzo di consegna</strong></td>
+<td>dove Shopify sta consegnando</td>
+</tr>
+<tr>
+<td><strong>Ultima verifica</strong></td>
+<td>quando abbiamo chiesto a Shopify come stanno le cose</td>
+</tr>
+</tbody></table>
+<p><strong>«Non verificate» e «Mai» non sono un guasto.</strong> Vogliono dire che non l&#39;abbiamo ancora chiesto a Shopify: è diverso da «non c&#39;è niente». Premi <strong>Verifica ora</strong> e diventano numeri.</p>
+<p><strong>Nessun evento da giorni non è di per sé un problema.</strong> Se non hai ordini online e nessuno tocca le giacenze, non c&#39;è niente da comunicare. Per questo VestiFlow riporta la data e non dà giudizi: l&#39;unico modo di sapere davvero com&#39;è messa la connessione è <strong>Verifica ora</strong>.</p>
+<h3 id="manca-una-notifica-e-non-trovo-il-pulsante-per-registrarla">«Manca una notifica» e non trovo il pulsante per registrarla</h3>
+<p><strong>Registra le notifiche mancanti</strong> compare solo dopo una verifica, e solo quando c&#39;è qualcosa da registrare. Se non lo vedi, i motivi sono due e portano a cose diverse:</p>
+<p><strong>Non c&#39;è niente da registrare.</strong> «Notifiche registrate» non nomina nessun mancante: è tutto a posto e non serve fare niente.</p>
+<p><strong>Stai guardando da un ambiente che Shopify non può raggiungere.</strong> In questo caso i mancanti sono comunque nominati, ma accanto all&#39;indirizzo leggi <strong>«confronto non possibile da questo ambiente»</strong>. Succede quando si apre il gestionale da un computer di sviluppo invece che dall&#39;indirizzo pubblico. Il pulsante è nascosto <strong>apposta</strong>: registrare da lì creerebbe notifiche verso un indirizzo che non riceverà mai niente, e si sommerebbero a quelle buone invece di sostituirle. La riparazione va fatta dall&#39;indirizzo pubblico del gestionale.</p>
 <h3 id="limport-catalogo-è-lento">L&#39;import catalogo è lento</h3>
 <p>Con molti prodotti è <strong>normale</strong>. Attendi il messaggio di esito senza ripremere il pulsante. Se compare un avviso su limiti Shopify, attendi 1–2 minuti e riprova <strong>una volta</strong>.</p>
 <h3 id="le-giacenze-non-coincidono">Le giacenze non coincidono</h3>
@@ -1771,7 +2131,8 @@
 <li><strong>Fonte: VestiFlow</strong>, Shopify <strong>disconnesso</strong> — VestiFlow <strong>non</strong> elimina sul negozio online finché non riconnetti.</li>
 </ul>
 <h3 id="non-riesco-a-modificare-nome-o-prezzo-di-un-prodotto">Non riesco a modificare nome o prezzo di un prodotto</h3>
-<p>Controlla l’etichetta <strong>Fonte</strong> nel dettaglio. Se è <strong>Shopify</strong>, modifica titolo, varianti e prezzi di vendita in <strong>Shopify Admin</strong>; in VestiFlow restano editabili solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> (pulsante <strong>Modifica dati operativi</strong>).</p>
+<p>Nome e prezzi si modificano in VestiFlow <strong>anche sui prodotti importati da Shopify</strong>: l’etichetta <strong>Fonte</strong> dice da dove viene il prodotto, non cosa puoi farci.</p>
+<p>Se un campo risulta bloccato, controlla i <strong>permessi</strong> del tuo ruolo (§4) e che il prodotto non sia in sola consultazione perché aperto dal <strong>Dettaglio</strong> invece che dalla modifica.</p>
 <h3 id="non-vedo-gli-attributi-categoria-nel-form-prodotto">Non vedo gli attributi categoria nel form prodotto</h3>
 <p>Gli <strong>Attributi categoria</strong> compaiono solo dopo aver selezionato una <strong>Categoria prodotto Shopify</strong> nello step Dati generali. Verifica che Shopify sia <strong>connesso</strong> e che il profilo canale preveda l’integrazione. Se la categoria non ha metafield associati, la sezione può restare vuota («Nessun attributo per questa categoria»).</p>
 <h3 id="non-vedo-integrazione-shopify-o-tiktok-in-impostazioni">Non vedo Integrazione Shopify (o TikTok) in Impostazioni</h3>
@@ -1795,3 +2156,50 @@
 </ul>
 <p>La versione in-app è pensata per chi lavora nel negozio: passi operativi, dove cliccare e cosa aspettarsi. Per assistenza su configurazione o problemi di sync, contatta il tuo <strong>referente VestiFlow</strong>.</p>
 <hr>
+<h3 id="le-vendite-al-banco-nei-corrispettivi-dal-16-agosto-2026">Le Vendite al banco nei Corrispettivi <em>(dal 16 agosto 2026)</em></h3>
+<p>Una <strong>Vendita al banco</strong> conclusa compare nei <strong>Corrispettivi</strong>, classificata come
+<strong>Fisico/POS · VestiFlow</strong>. Prima non ci compariva affatto: il Registro leggeva solo le vendite
+arrivate dai canali, e quello che battevi alla cassa restava fuori dal tuo quadro economico.</p>
+<p><strong>Che il registratore di cassa la certifichi non la fa sparire da qui.</strong> Se registri 19,99 € in
+VestiFlow e poi batti 19,99 € sulla tua cassa, per VestiFlow <strong>c&#39;è una vendita sola</strong>: il
+Registro rappresenta quella vendita, non ne crea una seconda.</p>
+<p>⚠️ <strong>Non è il contrario, però:</strong> vedere la vendita nei Corrispettivi <strong>non vuol dire</strong> che
+VestiFlow abbia verificato che lo scontrino sia stato emesso. Sono due cose distinte, e possono
+esistere vendite battute solo sulla cassa che VestiFlow non conosce.</p>
+<p><strong>Due filtri, non uno.</strong> «Ambito» dice <strong>come è arrivata</strong> la vendita — Online oppure
+Fisico/POS — e «Canale» dice <strong>chi l&#39;ha raccolta</strong> — Shopify o VestiFlow. Servono entrambi
+perché rispondono a domande diverse:</p>
+<table>
+<thead>
+<tr>
+<th>Vuoi vedere</th>
+<th>Ambito</th>
+<th>Canale</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>le tue vendite al banco</td>
+<td>Fisico/POS</td>
+<td>VestiFlow</td>
+</tr>
+<tr>
+<td>il POS di Shopify</td>
+<td>Fisico/POS</td>
+<td>Shopify</td>
+</tr>
+<tr>
+<td>l&#39;ecommerce</td>
+<td>Online</td>
+<td>Shopify</td>
+</tr>
+<tr>
+<td><strong>tutto Shopify</strong>, negozio e sito insieme</td>
+<td>Tutti</td>
+<td>Shopify</td>
+</tr>
+<tr>
+<td>il quadro completo</td>
+<td>Tutti</td>
+<td>Tutti</td>
+</tr>
+</tbody></table>

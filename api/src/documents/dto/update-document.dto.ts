@@ -50,7 +50,7 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   customerId?: string | null;
 
   /**
-   * Cliente a testo libero (prompt Scarico manuale): applicato SOLO quando il
+   * Cliente a testo libero (prompt Vendita manuale): applicato SOLO quando il
    * documento non ha customerId — snapshot per la stampa, mai in anagrafica.
    * null = svuota il testo libero.
    */
@@ -85,15 +85,6 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @IsString()
   @MaxLength(2000)
   internalComment?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  externalDocNumber?: string | null;
-
-  @IsOptional()
-  @IsISO8601()
-  externalDocDate?: string | null;
 
   @IsOptional()
   @IsString()
@@ -185,4 +176,11 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentLineInputDto)
   lines?: DocumentLineInputDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

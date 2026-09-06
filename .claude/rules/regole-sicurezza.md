@@ -7,6 +7,24 @@ _Sicurezza per frontend Angular e backend Node/NestJS. Provider-agnostico
 
 Queste regole valgono per VestiFlow: SPA Angular + API NestJS, database PostgreSQL su Supabase, deploy su Railway. I tag `[scope: supabase]`, `[scope: firebase]`, `[scope: vercel]`, `[scope: aws]` marcano dettagli specifici di un provider: vale quello in uso, gli altri restano come riferimento se l'infrastruttura cambia.
 
+## ⚠️ Riallineamento del 19/08/2026 — quattro categorie, non una
+
+Parte di queste regole era scritta per un **sito web pubblico**, e in un gestionale
+interamente dietro login descriveva lavori impossibili o inutili. La revisione **non ha
+cancellato**: ha diviso in quattro, perché le quattro si trattano in modo diverso.
+
+|                                      |                                                                             | dove                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Non applicabile all'architettura** | il progetto non ha la cosa che la regola presuppone, e non è un arretrato   | CSP col nonce per request (nessun SSR)                                 |
+| **Da rendere condizionale**          | vale altrove, o varrà qui a certe condizioni: si dichiara **quando** torna  | cookie banner · immagini LCP · Core Web Vitals (`regole-architettura`) |
+| **Configurazione già divergente**    | il codice ha già deciso diversamente: vince il codice, la regola si allinea | soglie Lighthouse (`regole-qualita`)                                   |
+| ⛔ **Lacuna vera**                   | la regola aveva ragione e **non è stata fatta**: resta APERTA               | header di sicurezza del frontend statico                               |
+
+⛔ **Il criterio non è «è una regola da sito web, quindi via»: è dove finisce il valore.**
+La CSP serve, il nonce no. Il GDPR serve, il banner no. Gli header servono, il middleware
+Express no. Cancellare la prescrizione senza conservare l'obiettivo perde la parte utile —
+ed è l'errore che questa revisione ha evitato apposta.
+
 ---
 
 # ⛔ REGOLA ZERO — Segreti e Credenziali
@@ -37,7 +55,10 @@ Queste regole valgono per VestiFlow: SPA Angular + API NestJS, database PostgreS
 - Le variabili in `environment.ts` / `environment.prod.ts` sono **pubbliche per definizione** (incluse nel bundle JS). Non inserire mai dati sensibili.
 - `environment.ts` può contenere SOLO: URL pubblici, flag feature, ID pubblici non segreti (es. Google Maps public key con HTTP referrer restriction, Firebase project config — pubblico by design, Stripe **publishable** key).
 - Ogni variabile d'ambiente usata in `environment.ts` deve essere documentata in `.env.example` con commento sul significato.
-- Per chiavi pubbliche tipo Google Maps / reCAPTCHA: configura **HTTP referrer restriction** sul provider, in modo che la chiave funzioni solo dal tuo dominio.
+- Per chiavi pubbliche di terzi (reCAPTCHA/Turnstile, mappe, e simili): configura **HTTP
+  referrer restriction** sul provider, così la chiave funziona solo dal tuo dominio.
+  ⚠️ **Oggi VestiFlow non ne usa nessuna** — la voce resta per quando arriveranno, non
+  descrive una configurazione esistente da verificare.
 
 ---
 
@@ -68,51 +89,92 @@ Queste regole valgono per VestiFlow: SPA Angular + API NestJS, database PostgreS
 
 # CONTENT SECURITY POLICY (CSP)
 
-- Configura CSP tramite header HTTP nel middleware del server (`server.ts` Express, middleware Vercel, ecc.) o nei header del provider.
-- CSP minima per l'app Angular (adatta `connect-src` alle API che usi):
+## ⚠️ Il nonce per request qui NON è rinviabile: è impossibile _(misurato 19/08/2026)_
 
+Qui c'era scritto _«genera un **nonce** crittografico per ogni request servita dal
+server»_. **VestiFlow non ha un server che serva la pagina.** Misurato in `angular.json`:
+
+```text
+builder: @angular/build:application     ssr: null     prerender: null     server: (nessuno)
 ```
+
+Il frontend è un **bundle statico**. Non esiste la request in cui generare il nonce, né
+l'HTML da riscrivere per iniettarlo. La prescrizione non descriveva un lavoro arretrato:
+descriveva un'architettura che non è questa.
+
+⛔ **Questo NON toglie la CSP**, che serve eccome. Cambia da dove viene: non da un
+middleware applicativo ma dagli **header dell'hosting** che serve `dist/`.
+
+## La CSP che questo progetto può avere
+
+```text
 default-src 'self';
-script-src 'self' 'nonce-{NONCE}';
+script-src 'self';
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: https:;
 font-src 'self' https://fonts.gstatic.com;
-connect-src 'self' https://api.tuobrand.com;
+connect-src 'self' <origine dell'API>;
 frame-ancestors 'none';
 base-uri 'self';
 form-action 'self';
 upgrade-insecure-requests;
 ```
 
-- Genera un **nonce** crittografico per ogni request servita dal server e usalo sugli script inline necessari. Non usare `'unsafe-inline'` per gli script.
-- `style-src 'unsafe-inline'` è tollerato per Angular (style inline generati dal framework); valuta `'nonce-...'` se possibile.
-- Testa la CSP con [CSP Evaluator](https://csp-evaluator.withgoogle.com/) prima del deploy.
-- Modalità Report-Only durante il rollout: `Content-Security-Policy-Report-Only` con endpoint `/csp-report` per raccogliere violazioni senza bloccare.
+- `script-src 'self'` **senza** `'unsafe-inline'` e senza nonce: il build Angular non
+  emette script inline, quindi il nonce non serve — è la ragione per cui la sua assenza
+  non è una perdita di sicurezza in questo progetto.
+- `style-src 'unsafe-inline'` resta tollerato: gli stili inline li genera il framework.
+- Testa con [CSP Evaluator](https://csp-evaluator.withgoogle.com/) prima del deploy.
+- Rollout in `Content-Security-Policy-Report-Only` prima di applicarla.
+
+⚠️ **Se un giorno arrivasse l'SSR**, il nonce torna a essere la forma giusta e questa
+sezione va riletta: la regola vecchia non era sbagliata in assoluto, era di un'altra
+architettura.
 
 ---
 
-# HEADER DI SICUREZZA HTTP — Obbligatori
+# HEADER DI SICUREZZA HTTP
 
-Configura TUTTI questi header nel middleware del server:
+## ⛔ LACUNA APERTA: sul frontend statico non li imposta nessuno _(misurato 19/08/2026)_
 
-```typescript
-app.use((_req, res, next) => {
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-  next();
-});
-```
+Qui c'era `app.use((_req, res, next) => res.setHeader(...))` «nel middleware del
+server», e leggendola sembrava una prescrizione soddisfatta. Non lo è, e la forma
+stessa della regola **nascondeva il buco** invece di dichiararlo.
 
-- **HSTS** (`Strict-Transport-Security`): obbligatorio solo su HTTPS. `preload` solo dopo verifica su [hstspreload.org](https://hstspreload.org).
-- **X-Frame-Options: DENY**: previene clickjacking. Usa `SAMEORIGIN` solo se hai iframe legittimi dello stesso dominio. In alternativa CSP `frame-ancestors`.
-- **Referrer-Policy**: non esporre URL pieni di pagine interne a siti terzi.
-- **Permissions-Policy**: disabilita API browser non usate.
-- **COOP / CORP**: protezione contro side-channel attacks (Spectre).
+Misurato:
+
+|                               |                                                    |
+| ----------------------------- | -------------------------------------------------- |
+| `helmet` in `api/src/main.ts` | protegge l'**API NestJS**, che serve JSON ✅       |
+| chi serve il documento HTML   | **nessuna configurazione di hosting è committata** |
+
+Cercati e assenti: `railway.json`, `nixpacks.toml`, `Dockerfile`, `vercel.json`,
+`netlify.toml`, `public/_headers`.
+
+> **Per la pagina HTML di VestiFlow, in questo repository, `Content-Security-Policy`,
+> `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `COOP` e `CORP` non li
+> imposta nessuno.**
+
+⚠️ **Questa voce resta APERTA finché non è chiusa davvero**, e non va tolta per far
+tornare i conti: è una lacuna, non una regola inadatta. Chiuderla significa aggiungere
+al repository la configurazione di hosting che emette gli header, e dichiarare qui dove
+vive.
+
+## Gli header, e dove ognuno appartiene
+
+**Sull'API (NestJS, già fatto con `helmet`)**: HSTS, `X-Content-Type-Options`,
+`Referrer-Policy`, CORS. Proteggono le risposte JSON.
+
+**Sul documento HTML (da fare, vedi sopra)**: CSP, `X-Frame-Options: DENY` (o
+`frame-ancestors 'none'`), `Referrer-Policy`, `Permissions-Policy`, COOP/CORP. Sono gli
+header che riguardano la **pagina**, e vanno dove la pagina viene servita.
+
+- **HSTS**: solo su HTTPS. `preload` dopo verifica su [hstspreload.org](https://hstspreload.org).
+- **X-Frame-Options / frame-ancestors**: previene clickjacking — per un gestionale dietro
+  login è il più importante dei due elenchi.
+- **Permissions-Policy**: disabilita le API browser non usate. ⚠️ `camera=()` **no**: lo
+  scanner barcode della Vendita al banco la usa.
+- **COOP / CORP**: protezione dai side-channel.
 
 ---
 
@@ -248,9 +310,24 @@ La anon/publishable key Supabase è **pubblica** (finisce nel bundle JS). Senza 
 
 # PRIVACY E DATI PERSONALI (GDPR)
 
-Se il progetto raccoglie o tratta dati personali di utenti UE:
+VestiFlow tratta dati personali — clienti, operatori — quindi questa sezione si applica.
 
-- Cookie banner conforme: nessun cookie/script di tracciamento prima del consenso esplicito (eccetto cookie tecnici strettamente necessari).
+## ⚠️ Il cookie banner NON si applica _(misurato 19/08/2026)_
+
+Qui c'era: _«Cookie banner conforme: nessun cookie/script di tracciamento prima del
+consenso esplicito»_. È una prescrizione da **sito pubblico**, e qui non c'è niente da
+consentire:
+
+- l'app è **interamente dietro `authGuard`** — non esiste una pagina che un visitatore
+  raggiunga prima di autenticarsi;
+- **nessuno script di tracciamento terzo** (nessun analytics, nessun pixel, nessuna mappa);
+- il cookie di sessione è **tecnico strettamente necessario**, che la stessa regola
+  esentava già.
+
+Verificato: nessun componente di consenso esiste in `src/app`, e non è una dimenticanza.
+
+⛔ **Il resto della sezione si applica eccome**, ed è la parte che conta:
+
 - Privacy policy aggiornata che elenca: titolare, finalità, basi giuridiche, destinatari, tempi di conservazione, diritti dell'utente.
 - Pagina dedicata per esercizio dei diritti GDPR (accesso, rettifica, cancellazione, portabilità).
 - Data Processing Agreement (DPA) con tutti i fornitori che trattano dati per conto tuo (cloud, email, analytics, payment).
@@ -265,7 +342,9 @@ Prima di ogni deploy in produzione, verifica:
 - [ ] Nessun segreto in `.env` committato (`git log --all --full-history -- .env`)
 - [ ] `npm audit` senza vulnerabilità critiche/alte
 - [ ] CSP configurata e testata (no `'unsafe-inline'` su `script-src`)
-- [ ] Header di sicurezza presenti (`curl -I https://esempio.it` e verifica)
+- [ ] Header di sicurezza dell'**API** presenti (`curl -I <origine API>` e verifica)
+- [ ] ⛔ Header di sicurezza del **documento HTML**: **LACUNA APERTA** — nessuna
+      configurazione di hosting è committata. Non spuntare finché non c'è (vedi sezione)
 - [ ] HTTPS forzato + HSTS attivo
 - [ ] Rate limiting attivo su tutti gli endpoint pubblici e su login/signup
 - [ ] reCAPTCHA/Turnstile su form pubblici
@@ -274,5 +353,5 @@ Prima di ogni deploy in produzione, verifica:
 - [ ] Security Rules / IAM Policies deployate e testate
 - [ ] `[scope: supabase]` RLS attiva su tutte le tabelle (`npm run check:rls` verde)
 - [ ] Messaggi di errore API generici, dettagli solo in log
-- [ ] Cookie banner e privacy policy aggiornati (se in scope GDPR)
+- [ ] Privacy policy e DPA aggiornati (⚠️ il cookie banner non si applica: app dietro login, nessun tracciamento — vedi GDPR)
 - [ ] Lockfile committato + `npm ci` in CI

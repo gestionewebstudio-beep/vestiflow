@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,15 +10,21 @@ import {
   DocumentStatus,
   DocumentType,
   Prisma,
-  SupplierOrderStatus,
   type Document,
   type DocumentLine,
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { canManageDocumentType, viewableDocumentTypesFor } from '../auth/document-permission.util';
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import { canViewPurchaseCosts, hasTenantPermission } from '../auth/user-permissions.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { applyInventoryLotsFromDocumentLines } from '../inventory/inventory-lot.util';
-import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
+import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
+import {
+  assertLocationInUserScope,
+  assertLocationReadableInUserScope,
+} from '../inventory/user-location-scope.util';
 import {
   applyInventorySerialsFromDocumentLines,
   assertSerialNumbersForDocumentLines,
@@ -33,15 +40,17 @@ import {
   DOCUMENT_STOCK_LOAD_TYPES,
   INVOICE_LINKABLE_RECEIPT_TYPES,
 } from './document-stock.constants';
-import {
+import { assertSupplierOrderLinkable,
   enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
 } from './document-supplier-order.util';
+import { applyArticlePriceUpdates } from './document-article-price.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
 import {
   buildDocumentNumberConflict,
   defaultCounterSeries,
   isDocumentNumberConflict,
+  lockDocumentCounter,
   resolveDocumentNumber,
 } from './document-numbering.util';
 import {
@@ -51,17 +60,21 @@ import {
 } from './goods-receipt-vat.util';
 import { DocumentSettingsService } from './document-settings.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
-import { costEntryModeToPricesIncludeVat } from './document-price-mode.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import {
-  buildPurchaseInvoiceVatSummary,
   receiptVatBreakdown,
   type VatBreakdownEntry,
 } from './purchase-invoice-vat-summary.util';
+import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
+import {
+  persistedLineVariants,
+  variantLabelSnapshot,
+} from './document-line-variant-snapshot.util';
 import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import type { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
+import { roundToMinor } from '../common/money.util';
 
 /** Tipi arrivo merce che richiedono il fornitore già alla creazione (§9.2). */
 const SUPPLIER_REQUIRED_TYPES: readonly DocumentType[] = INVOICE_LINKABLE_RECEIPT_TYPES;
@@ -123,6 +136,25 @@ const INVALID_LINE_MESSAGE = (lineNumber: number): string =>
  * fattura (prompt §5-7). Il salvataggio dell'arrivo esegue in un'unica
  * transazione: testata, righe, totali, movimenti per riga e giacenze.
  */
+/**
+ * ⭐ **Gli arrivi collegati a una registrazione fattura si leggono DALLE RIGHE.**
+ *
+ * Deciso dal proprietario il 25/08/2026, sul comportamento di Danea: «non si
+ * toglie l'incluso, si eliminano le righe ed, in automatico, non risulterà più
+ * l'arrivo merci agganciato a quella fattura».
+ *
+ * ⛔ Prima il corpo portava un `goodsReceiptIds` tenuto a parte dalle righe.
+ * Due campi che dicono la stessa cosa sono due campi che prima o poi dicono il
+ * contrario — e qui il contrario era gia' possibile: si potevano cancellare
+ * tutte le righe di un arrivo lasciandolo agganciato.
+ */
+function receiptIdsFromLines(dto: SavePurchaseInvoiceDto): string[] {
+  const collegati = (dto.lines ?? [])
+    .map((line) => line.linkedGoodsReceiptId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  return [...new Set(collegati)];
+}
+
 @Injectable()
 export class GoodsReceiptWorkflowService {
   private readonly logger = new Logger(GoodsReceiptWorkflowService.name);
@@ -149,49 +181,150 @@ export class GoodsReceiptWorkflowService {
     dto: SaveGoodsReceiptDto,
     user?: UserProfileDto,
   ): Promise<GoodsReceiptSaveResult> {
+    // Il gate della rotta chiede «gestisci arrivo merce», ma questo salvataggio
+    // accetta anche `manual_load` e `initial_load`, che sono famiglia
+    // `adjustment`: senza questo controllo chi ha il solo arrivo merce creava
+    // carichi manuali, e i movimenti di magazzino che ne derivano, con un
+    // permesso che non gli era stato dato. Il tipo lo decide il corpo della
+    // richiesta, quindi va verificato qui — prima di ogni effetto.
+    this.assertTypeManageable(dto.type, user);
+    // Stessa ragione, altro oggetto: le righe possono portare `newProduct`, e
+    // quel campo crea un articolo a catalogo — nome, prezzo, costo, Codice IVA
+    // e accodamento della pubblicazione sui canali. Con quantità 0 non nasce
+    // nemmeno una riga documento: è creazione di anagrafica pura, che dalla sua
+    // rotta propria chiede `catalog.manage`. Senza questo controllo bastava un
+    // arrivo merce per popolare il catalogo senza quel permesso.
+    this.assertNewProductsManageable(dto, user);
     try {
       const result = await this.saveGoodsReceiptInner(tenantId, dto, user);
-      // Ricorda la modalità costo (netto/ivato) scelta per questo tipo, solo
-      // alla creazione: la creazione successiva la ripropone.
-      if (!dto.id && user?.id && dto.purchaseCostEntryMode !== undefined) {
-        await this.priceModePreference
-          .remember(
-            tenantId,
-            user.id,
-            dto.type,
-            costEntryModeToPricesIncludeVat(dto.purchaseCostEntryMode),
-          )
-          .catch(() => undefined);
-      }
+      // ⚠️ Qui la modalità COSTO veniva ricordata come preferenza
+      // dell'operatore, infilandola nella tabella dei PREZZI attraverso un
+      // ponte costo↔prezzo. Rimosso il 16/08/2026: i costi partono sempre
+      // netti. Non era solo un nome fuorviante — era l'unica ragione per cui
+      // `user_document_price_mode_preferences` conteneva anche modalità di
+      // acquisto, e reggeva soltanto perché i tipi delle due famiglie non si
+      // sovrappongono. Il primo tipo buono per entrambe l'avrebbe rotta in
+      // silenzio.
       return result;
     } catch (error) {
-      await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.documentDate);
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        dto.type,
+        dto.series,
+        dto.documentDate,
+        dto.number ?? null,
+        dto.locationId ?? null,
+      );
       throw error;
     }
   }
 
-  /** Conflitto sul numero → 409 con il primo libero della serie. */
+  /**
+   * Conflitto sul numero → 409 con il numero rifiutato e il primo libero della
+   * serie. `requestedNumber` è il protocollo che la testata ha imposto: senza,
+   * il messaggio nominerebbe all'operatore un numero che non ha digitato.
+   */
   private async throwNumberConflict(
     error: unknown,
     tenantId: string,
     type: DocumentType,
     series: string | null | undefined,
-    _documentDate: string,
+    documentDate: string,
+    requestedNumber: number | null,
+    locationId?: string | null,
   ): Promise<never | void> {
     if (!isDocumentNumberConflict(error)) {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
+    // ⚠️ La serie si risolve ESATTAMENTE come nella scrittura, sede compresa.
+    // Qui passava la serie grezza del DTO: con la testata che non ne sceglie
+    // una, il documento veniva scritto sotto il predefinito e il «prossimo
+    // libero» dell'avviso si calcolava sulla partizione «senza serie» — cioè
+    // proponeva all'operatore un numero che gli avrebbe dato un SECONDO
+    // conflitto. Trovato il 13/08/2026 simulando due operatori che salvano
+    // insieme; gli altri tre servizi gemelli risolvevano già.
+    const resolvedSeries =
+      series !== undefined
+        ? (series ?? '').trim() || null
+        : await defaultCounterSeries(this.prisma, tenantId, type, locationId);
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,
         tenantId,
         type,
-        series: series ?? null,
+        series: resolvedSeries,
         source: 'document',
         prefix: setting.numberPrefix,
+        requestedNumber,
+        // Il primo libero da proporre si calcola sulla data del documento
+        // (§2), non su oggi: altrimenti l'avviso suggerirebbe il numero giusto
+        // per un'altra giornata.
+        documentDate: new Date(documentDate),
       }),
     );
+  }
+
+  /**
+   * Stessa forma di `DocumentsService.assertDocumentTypeManageable`: senza
+   * utente in contesto (chiamate interne, lavori di sistema) non si decide
+   * nulla qui — l'autorizzazione l'ha già data chi ha avviato l'operazione.
+   */
+  private assertTypeManageable(type: DocumentType, user?: UserProfileDto): void {
+    if (!user) {
+      return;
+    }
+    if (!canManageDocumentType(user, type)) {
+      throw new ForbiddenException('Non hai il permesso di gestire questo tipo di documento.');
+    }
+  }
+
+  /**
+   * Creazione articolo dalla riga (`newProduct`): il permesso è quello del
+   * catalogo, non quello del documento. Vale solo per le righe che creano
+   * davvero — una riga già collegata a una variante può riportare `newProduct`
+   * di ritorno dal client (riadozione di variantId/sku dopo il primo
+   * salvataggio) e non deve trasformare una modifica in un rifiuto.
+   * Senza utente in contesto non si decide: le chiamate interne e i lavori di
+   * sistema sono già stati autorizzati a monte.
+   */
+  private assertNewProductsManageable(dto: SaveGoodsReceiptDto, user?: UserProfileDto): void {
+    if (!user) {
+      return;
+    }
+    const createsProducts = (dto.lines ?? []).some((line) => !line.variantId && line.newProduct);
+    if (!createsProducts) {
+      return;
+    }
+    if (!hasTenantPermission(user, TenantPermission.CatalogManage)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di creare articoli a catalogo: seleziona un articolo esistente.',
+      );
+    }
+  }
+
+  /**
+   * Arrivi merce inclusi in una registrazione fattura: il permesso è quello
+   * della famiglia `goods_receipt`, che la rotta della fattura non chiede.
+   * Basta la famiglia dell'arrivo merce perché gli unici tipi collegabili sono
+   * `INVOICE_LINKABLE_RECEIPT_TYPES` (oggi il solo `goods_receipt`) e il
+   * controllo più sotto rifiuta ogni altro tipo: se un giorno quella costante
+   * accogliesse altri tipi, questo controllo va esteso alle loro famiglie.
+   * Senza utente in contesto non si decide (chiamate interne, lavori di sistema).
+   */
+  private assertLinkedReceiptsManageable(
+    goodsReceiptIds: readonly string[] | undefined,
+    user?: UserProfileDto,
+  ): void {
+    if (!user || !goodsReceiptIds || goodsReceiptIds.length === 0) {
+      return;
+    }
+    if (!canManageDocumentType(user, DocumentType.goods_receipt)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di gestire gli arrivi merce da collegare alla fattura.',
+      );
+    }
   }
 
   private async saveGoodsReceiptInner(
@@ -247,7 +380,7 @@ export class GoodsReceiptWorkflowService {
       for (const vatCode of found) {
         vatCodesById.set(vatCode.id, vatCode);
       }
-      this.assertPurchaseVatCodes(dto, requestedVatCodeIds, vatCodesById);
+      this.assertPurchaseVatCodes(dto.lines ?? [], requestedVatCodeIds, vatCodesById);
       for (const vatCodeId of newProductVatCodeIds) {
         if (!vatCodesById.has(vatCodeId)) {
           throw new UnprocessableEntityException(
@@ -285,11 +418,20 @@ export class GoodsReceiptWorkflowService {
     const knownVariants = linkedVariantIds.length
       ? await this.prisma.productVariant.findMany({
           where: { tenantId, id: { in: linkedVariantIds } },
-          select: { id: true, product: { select: { managesStock: true } } },
+          select: {
+            id: true,
+            // Le opzioni servono a fotografare l'etichetta della variante sulla
+            // riga: una query sola per due cose che avvengono insieme.
+            optionValues: true,
+            product: { select: { managesStock: true } },
+          },
         })
       : [];
     const managesStockByVariantId = new Map(
       knownVariants.map((variant) => [variant.id, variant.product.managesStock ?? true]),
+    );
+    const optionValuesByVariantId = new Map(
+      knownVariants.map((variant) => [variant.id, variant.optionValues]),
     );
     for (const line of computedLines) {
       if (line.variantId && managesStockByVariantId.get(line.variantId) === false) {
@@ -323,14 +465,31 @@ export class GoodsReceiptWorkflowService {
       createdByName: user?.displayName ?? 'API',
     };
 
-    // Tipo documento fornitore: validato per tenant e fotografato in snapshot
+    // Tipo documento controparte: validato per tenant e fotografato in snapshot
     // (lo storico resta leggibile anche se il tipo viene rinominato, §13).
+    //
+    // La lettura vede ANCHE i tipi eliminati, ed e' voluto: eliminare un tipo lo
+    // toglie dalle tendine, non dai documenti che lo portano. Con `getById`
+    // (che filtra i cancellati) riaprire e risalvare un vecchio arrivo merce
+    // darebbe 404 — e prima ancora, sotto, azzererebbe id e snapshot insieme,
+    // cancellando dall'elenco la dicitura «DDT 145 del 08/05/2026».
     const externalDocumentType = dto.externalDocumentTypeId
-      ? await this.externalTypes.getById(tenantId, dto.externalDocumentTypeId)
+      ? await this.externalTypes.findByIdIncludingDeleted(tenantId, dto.externalDocumentTypeId)
       : null;
+    if (dto.externalDocumentTypeId && !externalDocumentType) {
+      throw new NotFoundException('Tipo documento controparte non trovato');
+    }
 
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
     const createdProducts: GoodsReceiptCreatedProduct[] = [];
+
+    // Costo d'acquisto del nuovo articolo: dato riservato a
+    // `catalog.view_purchase_costs`, stessa regola della maschera articolo e
+    // dell'importazione CSV (chi non lo vede non lo scrive). Senza di questo
+    // il campo mascherato altrove rientrava a catalogo dalla riga documento.
+    // Senza utente in contesto non si decide: le chiamate interne conservano
+    // il costo che hanno calcolato.
+    const canWriteCosts = !user || canViewPurchaseCosts(user);
 
     const saved = await this.prisma.$transaction(async (tx) => {
       let existing: (Document & { lines: DocumentLine[] }) | null = null;
@@ -372,18 +531,10 @@ export class GoodsReceiptWorkflowService {
       // fornitore Confermati. Un ordine già Concluso è agganciato a un altro
       // arrivo; il documento già collegato allo STESSO ordine resta valido.
       if (dto.supplierOrderId && dto.supplierOrderId !== existing?.supplierOrderId) {
-        const linkedOrder = await tx.supplierOrder.findFirst({
-          where: { id: dto.supplierOrderId, tenantId },
-          select: { status: true },
-        });
-        if (!linkedOrder) {
-          throw new NotFoundException('Ordine fornitore non trovato');
-        }
-        if (linkedOrder.status !== SupplierOrderStatus.confirmed) {
-          throw new ConflictException(
-            'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
-          );
-        }
+        // ⭐ Stato **e sede**, dal punto comune ai tre ingressi. Qui c’era una
+        // risoluzione inline che selezionava il solo `status`: la sede non era
+        // nemmeno letta, quindi non poteva essere confrontata.
+        await assertSupplierOrderLinkable(tx, tenantId, dto.supplierOrderId, user);
       }
 
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
@@ -392,7 +543,7 @@ export class GoodsReceiptWorkflowService {
           ? (dto.series ?? '').trim() || null
           : existing
             ? existing.series
-            : await defaultCounterSeries(tx, tenantId, dto.type);
+            : await defaultCounterSeries(tx, tenantId, dto.type, dto.locationId ?? null);
       const year = documentDate.getFullYear();
 
       // Numero interno progressivo assegnato al primo salvataggio (§9.1-9.2).
@@ -403,6 +554,16 @@ export class GoodsReceiptWorkflowService {
       let number = existing?.number ?? null;
       let reference = existing?.reference ?? null;
       if (number == null) {
+        const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+        if (requestedNumber == null) {
+          // Numero automatico: il lock serializza gli operatori sullo stesso
+          // contatore, così il secondo legge un massimo aggiornato invece di
+          // scoprire la collisione dal vincolo unico a lavoro finito. Si
+          // rilascia al commit (o al rollback) di questa transazione.
+          // Un numero imposto dalla testata non passa di qui: non legge alcun
+          // massimo, e il conflitto lì è l'informazione utile all'operatore.
+          await lockDocumentCounter(tx, { tenantId, type: dto.type, series });
+        }
         const assigned = await resolveDocumentNumber({
           tx,
           tenantId,
@@ -410,7 +571,8 @@ export class GoodsReceiptWorkflowService {
           series,
           source: 'document',
           prefix: setting.numberPrefix,
-          requestedNumber: dto.number ?? null,
+          requestedNumber,
+          documentDate,
         });
         number = assigned.number;
         reference = assigned.reference;
@@ -431,8 +593,17 @@ export class GoodsReceiptWorkflowService {
         causalText: dto.causalText?.trim() || null,
         causalGenerationMode: dto.causalGenerationMode ?? null,
         causalTemplateSnapshot: dto.causalTemplateSnapshot?.trim() || null,
-        externalDocumentTypeId: externalDocumentType?.id ?? null,
-        externalDocumentTypeSnapshot: externalDocumentType?.shortLabel ?? null,
+        // Se il DTO non porta il tipo, il documento tiene il proprio: un client
+        // che non conosce il campo non deve poter cancellare uno snapshot.
+        ...(dto.externalDocumentTypeId === undefined
+          ? {
+              externalDocumentTypeId: existing?.externalDocumentTypeId ?? null,
+              externalDocumentTypeSnapshot: existing?.externalDocumentTypeSnapshot ?? null,
+            }
+          : {
+              externalDocumentTypeId: externalDocumentType?.id ?? null,
+              externalDocumentTypeSnapshot: externalDocumentType?.shortLabel ?? null,
+            }),
         externalDocNumber: dto.externalDocNumber?.trim() || null,
         externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
         notes: dto.notes ?? existing?.notes ?? setting.defaultNotes,
@@ -441,7 +612,11 @@ export class GoodsReceiptWorkflowService {
         paymentMethod: dto.paymentMethod?.trim() || null,
         supplierOrderId: dto.supplierOrderId ?? existing?.supplierOrderId ?? null,
         currency: dto.currency ?? existing?.currency ?? 'EUR',
-        pricesIncludeVat: setting.pricesIncludeVat,
+        // Documento di ACQUISTO: il prezzo di vendita non c’entra, e la
+        // modalità che conta è quella del costo, qui sotto. Prima veniva dal
+        // default per tipo documento, che per questi tipi valeva comunque
+        // sempre `false`.
+        pricesIncludeVat: false,
         purchaseCostEntryMode: costEntryMode,
         documentDiscountPercent: dto.documentDiscountPercent ?? 0,
         subtotalMinor: totals.subtotalMinor,
@@ -481,7 +656,7 @@ export class GoodsReceiptWorkflowService {
           barcode: line.newProduct.barcode,
           sellingPriceMinor: line.newProduct.sellingPriceMinor,
           compareAtPriceMinor: line.newProduct.compareAtPriceMinor,
-          purchasePriceMinor: line.newProduct.purchasePriceMinor,
+          purchasePriceMinor: canWriteCosts ? (line.newProduct.purchasePriceMinor ?? 0) : 0,
           vatCodeId: line.newProduct.vatCodeId,
           managesStock: line.newProduct.managesStock,
           currency: dto.currency ?? existing?.currency ?? 'EUR',
@@ -523,6 +698,9 @@ export class GoodsReceiptWorkflowService {
       // ── Upsert righe per id: preservare l'id riga è ciò che consente di
       // aggiornare il movimento collegato invece di duplicarlo (§2.3-2.4).
       const existingLineIds = new Set((existing?.lines ?? []).map((line) => line.id));
+      // L'etichetta della variante di ogni riga gia' salvata: su una riga che
+      // non ha cambiato articolo e' quella che vince.
+      const persistedVariants = persistedLineVariants(existing?.lines ?? []);
       const incomingIds = new Set(
         persistedLineIds.filter((id): id is string => id != null && existingLineIds.has(id)),
       );
@@ -539,6 +717,18 @@ export class GoodsReceiptWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT: su una riga che porta ancora la stessa variante si
+          // conserva quella persistita. La regola sta in un punto solo
+          // (`document-line-variant-snapshot.util`) — duplicarla qui e negli
+          // altri compositori farebbe diventare «Bordeaux / M» un arrivo merce
+          // di marzo che diceva «Rosso / M», solo perché qualcuno ha rinominato
+          // un valore d'opzione in anagrafica.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? optionValuesByVariantId.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
           discountPercent: line.discountPercent,
@@ -556,6 +746,7 @@ export class GoodsReceiptWorkflowService {
           reverseChargeVatMinor: line.reverseChargeVatMinor,
           nonDeductibleVatMinor: line.nonDeductibleVatMinor,
           loadsStock: line.loadsStock,
+          unitOfMeasure: line.unitOfMeasure,
           supplierOrderLineId: line.supplierOrderLineId,
           lotCode: line.lotCode,
           lotExpiryDate: line.lotExpiryDate,
@@ -632,8 +823,25 @@ export class GoodsReceiptWorkflowService {
         tenantId,
         dto.supplierId ?? null,
         savedLines,
-        dto.updateArticleReferenceCost === true,
+        dto.updateArticleCost === true,
       );
+
+      // Prezzi di anagrafica (fetta 2). Spunta accesa di default: senza, i
+      // campi sono in sola lettura in maschera e qui non arriva niente.
+      // La politica Shopify è quella dell'anagrafica prodotti, riusata.
+      const updateArticlePrices = dto.updateArticlePrices !== false;
+      if (updateArticlePrices) {
+        await applyArticlePriceUpdates(
+          tx,
+          tenantId,
+          (dto.lines ?? []).map((line) => ({
+            variantId: line.variantId ?? null,
+            sellingPriceMinor: line.sellingPriceMinor,
+            shopifyPriceMinor: line.shopifyPriceMinor,
+          })),
+          { updateArticlePrices },
+        );
+      }
 
       if (existing && sync.deltas.length > 0) {
         await this.recordRevision(tx, tenantId, documentId, sync.deltas, actor);
@@ -704,12 +912,30 @@ export class GoodsReceiptWorkflowService {
     tenantId: string,
     supplierId: string,
     excludeInvoiceId?: string,
+    user?: UserProfileDto,
   ): Promise<LinkableGoodsReceiptRow[]> {
+    // Il lookup espone testate di arrivo merce complete di totali: vale la
+    // stessa regola del registro — famiglie consultabili e sedi leggibili.
+    const viewableTypes = user ? viewableDocumentTypesFor(user) : null;
+    const linkableTypes = viewableTypes
+      ? INVOICE_LINKABLE_RECEIPT_TYPES.filter((type) => viewableTypes.includes(type))
+      : [...INVOICE_LINKABLE_RECEIPT_TYPES];
+    if (linkableTypes.length === 0) {
+      return [];
+    }
+    const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
+    if (locationScope === null) {
+      return [];
+    }
+
     const rows = await this.prisma.document.findMany({
       where: {
         tenantId,
         supplierId,
-        type: { in: [...INVOICE_LINKABLE_RECEIPT_TYPES] },
+        type: { in: linkableTypes },
+        ...(locationScope === 'unrestricted'
+          ? {}
+          : { OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }] }),
         status: { notIn: [DocumentStatus.draft, DocumentStatus.cancelled] },
         totalMinor: { gt: 0 },
         billingCause: INVOICE_PENDING_BILLING_CAUSE,
@@ -725,7 +951,16 @@ export class GoodsReceiptWorkflowService {
       include: {
         location: { select: { name: true } },
         lines: {
-          select: { lineTotalMinor: true, lineVatTotalMinor: true, vatSnapshot: true },
+          // ⭐ `vatCodeId` e' la CHIAVE del raggruppamento delle quote: senza,
+          // una riga al 22% ordinaria e una al 22% in inversione contabile
+          // finirebbero nella stessa quota, e la riga materializzata sulla
+          // fattura perderebbe la Natura N6.
+          select: {
+            lineTotalMinor: true,
+            lineVatTotalMinor: true,
+            vatSnapshot: true,
+            vatCodeId: true,
+          },
         },
       },
       orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
@@ -752,7 +987,49 @@ export class GoodsReceiptWorkflowService {
    * supplier_invoice, le righe riepilogative e i collegamenti agli arrivi.
    * NON genera mai movimenti di magazzino.
    */
+  /**
+   * Come l'arrivo merce: il conflitto sul protocollo diventa un 409 leggibile,
+   * con il primo numero libero. Senza questa rete il P2002 del vincolo unico
+   * risaliva grezzo — nessun filtro globale lo mappa — e la maschera, che il
+   * dialogo del conflitto ce l'ha, mostrava un errore imprevisto senza dire
+   * quale numero fosse libero.
+   */
   async savePurchaseInvoice(
+    tenantId: string,
+    dto: SavePurchaseInvoiceDto,
+    user?: UserProfileDto,
+  ): Promise<PurchaseInvoiceSaveResult> {
+    // Il gate della rotta chiede «gestisci registrazione fattura», ma le righe
+    // possono collegare arrivi: farlo agisce su documenti di un'ALTRA
+    // famiglia — li marca fatturati (togliendoli dalla lista dei collegabili),
+    // ne azzera il flag «Totali da verificare», e toglierli dall'elenco li
+    // riporta Sospesi. Senza questo controllo chi registra le fatture cambiava
+    // lo stato degli arrivi merce senza averne il permesso.
+    //
+    // Sta PRIMA del try, non dentro: un permesso negato non è un conflitto di
+    // numerazione, e non deve passare per la diagnosi che traduce l'errore.
+    // ⚠️ **Legge la stessa fonte che poi collega davvero.** Fino al 25/08/2026
+    // leggeva `dto.goodsReceiptIds`, una lista tenuta a parte dalle righe:
+    // quando il legame è passato alle righe, quel controllo sarebbe rimasto a
+    // guardare un campo che il client non manda più — cioè avrebbe smesso di
+    // controllare, restando verde.
+    this.assertLinkedReceiptsManageable(receiptIdsFromLines(dto), user);
+    try {
+      return await this.savePurchaseInvoiceInner(tenantId, dto, user);
+    } catch (error) {
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        DocumentType.supplier_invoice,
+        dto.series,
+        dto.documentDate,
+        dto.number ?? null,
+      );
+      throw error;
+    }
+  }
+
+  private async savePurchaseInvoiceInner(
     tenantId: string,
     dto: SavePurchaseInvoiceDto,
     user?: UserProfileDto,
@@ -760,7 +1037,21 @@ export class GoodsReceiptWorkflowService {
     const setting = await this.settings.getResolved(tenantId, DocumentType.supplier_invoice);
     await this.assertSupplier(tenantId, dto.supplierId);
 
-    const receiptIds = [...new Set(dto.goodsReceiptIds ?? [])];
+    // ⭐ **Il legame con un arrivo e' una CONSEGUENZA delle righe, non un dato.**
+    //
+    // ⛔ Qui si leggeva `dto.goodsReceiptIds`, cioe' una lista di arrivi tenuta
+    // a parte dalle righe. Il proprietario ha deciso il 25/08/2026, sul modello
+    // Danea: «non si toglie l'incluso, si eliminano le righe ed, in automatico,
+    // non risultera' piu' l'arrivo merci agganciato».
+    //
+    // ⭐ Quindi la verita' sono le RIGHE: un arrivo e' agganciato finche' almeno
+    // una riga dice di venire da lui. Cancellate quelle righe, il legame cade da
+    // se' — e non serve nessun comando «rimuovi arrivo», ne' la domanda «che fine
+    // fanno le sue righe».
+    //
+    // ⛔ E `goodsReceiptIds` non esiste piu' nel corpo: un secondo campo che
+    // dice la stessa cosa e' un campo che prima o poi dice il contrario.
+    const receiptIds = receiptIdsFromLines(dto);
     const receipts = receiptIds.length
       ? await this.prisma.document.findMany({
           where: { tenantId, id: { in: receiptIds } },
@@ -780,6 +1071,24 @@ export class GoodsReceiptWorkflowService {
       throw new NotFoundException('Uno degli arrivi merce selezionati non esiste più.');
     }
     for (const receipt of receipts) {
+      // ⛔ **La sede PRIMA di ogni altra condizione, e l’ordine non è arbitrario.**
+      // Le verifiche che seguono parlano del documento: il tipo, il fornitore,
+      // l’annullamento, e soprattutto «già collegato a un’altra fattura», che nel
+      // messaggio **nomina il riferimento** dell’arrivo. Un documento fuori ambito
+      // non deve diventare un oracolo sulla propria esistenza né sul proprio stato.
+      //
+      // ⚠️ Politica di LETTURA, la stessa con cui è filtrato il selettore che
+      // alimenta questo campo — `listLinkableGoodsReceipts` usa
+      // `resolveReadableListLocationScope`: la regola è «non si include un arrivo
+      // che non si potrebbe aprire».
+      //
+      // ⛔ Che il selettore mostri solo arrivi consentiti non è autorizzazione:
+      // l’id arriva dall’API validato come solo UUID.
+      assertLocationReadableInUserScope(
+        user,
+        receipt.locationId,
+        'Non sei autorizzato ad accedere a uno degli arrivi merce selezionati.',
+      );
       if (!(INVOICE_LINKABLE_RECEIPT_TYPES as readonly string[]).includes(receipt.type)) {
         throw new UnprocessableEntityException(
           'Si possono includere solo documenti di arrivo merce.',
@@ -807,19 +1116,52 @@ export class GoodsReceiptWorkflowService {
 
     const receiptsTotal = receipts.reduce((sum, receipt) => sum + receipt.totalMinor, 0);
 
-    // Righe per aliquota IVA dagli arrivi inclusi + righe manuali del form.
-    const vatSummaryLines = buildPurchaseInvoiceVatSummary(receipts);
-    const manualLines = dto.manualLines ?? [];
-    const linesNet =
-      vatSummaryLines.reduce((sum, line) => sum + line.netMinor, 0) +
-      manualLines.reduce((sum, line) => sum + line.netMinor, 0);
-    const linesVat =
-      vatSummaryLines.reduce((sum, line) => sum + line.vatMinor, 0) +
-      manualLines.reduce((sum, line) => sum + line.vatMinor, 0);
+    // ⭐ **Le righe arrivano dal client. Tutte.**
+    //
+    // ⛔ Qui `buildPurchaseInvoiceVatSummary(receipts)` RI-SOMMAVA gli arrivi a
+    // ogni salvataggio e non leggeva mai le righe salvate: le righe da arrivo
+    // erano ricalcolate, quindi non modificabili — qualunque correzione sarebbe
+    // stata sovrascritta al salvataggio dopo.
+    //
+    // ⚠️ Violava una regola del progetto: «la riga di un documento e' una
+    // fotografia, e non si riscatta da sola». Una riga ricalcolata non e' una
+    // fotografia.
+    const righe = dto.lines ?? [];
+
+    // ── Codici IVA delle righe economiche ────────────────────────────────
+    //
+    // ⛔ Qui non si risolveva niente: la riga scriveva `vatSnapshot:
+    // { ratePercent }` — UN campo, l'unico snapshot fabbricato a mano in tutta
+    // l'API — e lasciava `vatCodeId` a null. `buildVatCodeSnapshot` ne scrive
+    // dieci, fra cui la Natura e la modalita' di calcolo.
+    //
+    // ⚠️ La conseguenza usciva dal gestionale: i quattro codici in inversione
+    // contabile d'acquisto (22R, 10R, 5R, 4R) sono gli unici con
+    // `usageScope: 'purchase'` — esistono solo per questa maschera, che non
+    // poteva sceglierli. E senza codice, `vatInputFromLegacyRate` forza
+    // `vatAffectsSupplierTotal = true`: il server AFFERMA che l'IVA in
+    // inversione contabile e' dovuta al fornitore.
+    const vatCodeIdsRichiesti = [
+      ...new Set(righe.map((line) => line.vatCodeId).filter((id): id is string => id != null)),
+    ];
+    const vatCodesById = new Map<string, VatCodeWithNature>();
+    if (vatCodeIdsRichiesti.length > 0) {
+      const trovati = await this.prisma.vatCode.findMany({
+        where: { tenantId, id: { in: vatCodeIdsRichiesti }, deletedAt: null },
+        include: { nature: true },
+      });
+      for (const vatCode of trovati) {
+        vatCodesById.set(vatCode.id, vatCode);
+      }
+      this.assertPurchaseVatCodes(righe, vatCodeIdsRichiesti, vatCodesById);
+    }
+
+    const linesNet = righe.reduce((sum, line) => sum + line.netMinor, 0);
+    const linesVat = righe.reduce((sum, line) => sum + line.vatMinor, 0);
 
     // Totali sempre derivati dalle righe; fallback ai totali del payload solo
     // per registrazioni senza righe (compatibilità con vecchi client).
-    const hasLines = vatSummaryLines.length > 0 || manualLines.length > 0;
+    const hasLines = righe.length > 0;
     const subtotalMinor = hasLines ? linesNet : (dto.subtotalMinor ?? 0);
     const taxMinor = hasLines ? linesVat : (dto.taxMinor ?? 0);
     const totalMinor = hasLines ? linesNet + linesVat : (dto.totalMinor ?? 0);
@@ -836,6 +1178,20 @@ export class GoodsReceiptWorkflowService {
       createdById: user?.id ?? null,
       createdByName: user?.displayName ?? 'API',
     };
+
+    // Tipo del documento ricevuto dal fornitore, risolto fuori dalla
+    // transazione. `resolveForWrite` vede anche i tipi eliminati, ed è voluto:
+    // eliminare un tipo lo toglie dalle tendine, non dalle registrazioni che lo
+    // portano — risalvare una vecchia fattura darebbe altrimenti 404, e la
+    // dicitura «Fatt. 145 del 08/05/2026» sparirebbe dall'elenco.
+    //
+    // `undefined` resta distinto da `null`: il primo significa «il client non
+    // conosce il campo» e lascia in pace ciò che è già scritto, il secondo è
+    // una cancellazione voluta dall'operatore.
+    const resolvedExternalType =
+      dto.externalDocumentTypeId !== undefined
+        ? await this.externalTypes.resolveForWrite(tenantId, dto.externalDocumentTypeId)
+        : null;
 
     const document = await this.prisma.$transaction(async (tx) => {
       let existing: (Document & { lines: DocumentLine[] }) | null = null;
@@ -855,12 +1211,18 @@ export class GoodsReceiptWorkflowService {
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
       // Serie scelta in testata; in mancanza resta quella del documento o quella
       // del contatore predefinito.
+      //
+      // **Senza sede, e non è una dimenticanza** (§1-bis): la Registrazione
+      // fattura fornitore non ha il campo Sede, perché la fattura è intestata
+      // all'azienda — una sola partita IVA, un solo registro acquisti — e una
+      // sola fattura può coprire arrivi merce di sedi diverse. Restano quindi
+      // disponibili i contatori senza sede, che per la regola valgono ovunque.
       const series =
         dto.series !== undefined
           ? (dto.series ?? '').trim() || null
           : existing
             ? existing.series
-            : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_invoice);
+            : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_invoice, null);
       const year = documentDate.getFullYear();
 
       let number = existing?.number ?? null;
@@ -870,6 +1232,14 @@ export class GoodsReceiptWorkflowService {
       const protocolChanged = dto.number != null && dto.number !== number;
       const seriesChanged = existing != null && series !== existing.series;
       if (number == null || protocolChanged || seriesChanged) {
+        const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+        if (requestedNumber == null) {
+          // Protocollo automatico: stesso lock dell'arrivo merce, preso prima di
+          // leggere il massimo e dentro questa transazione. Il protocollo
+          // imposto a mano non lo prende: non legge il massimo, e un suo
+          // conflitto va mostrato all'operatore, non risolto in silenzio.
+          await lockDocumentCounter(tx, { tenantId, type: DocumentType.supplier_invoice, series });
+        }
         const assigned = await resolveDocumentNumber({
           tx,
           tenantId,
@@ -877,7 +1247,12 @@ export class GoodsReceiptWorkflowService {
           series,
           source: 'document',
           prefix: setting.numberPrefix,
-          requestedNumber: dto.number ?? null,
+          requestedNumber,
+          // Qui la data serve più che altrove: registrare oggi una fattura di
+          // due settimane fa è il caso normale, non l'eccezione. Senza, il
+          // numero usciva dal massimo «a oggi» mentre la testata proponeva
+          // quello della data della fattura (§2).
+          documentDate,
         });
         number = assigned.number;
         reference = assigned.reference;
@@ -902,6 +1277,10 @@ export class GoodsReceiptWorkflowService {
         // La data della fattura è la Data documento: lo snapshot esterno resta
         // allineato per le etichette "Fattura forn. n. X del …".
         externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : documentDate,
+        ...(resolvedExternalType ?? {
+          externalDocumentTypeId: existing?.externalDocumentTypeId ?? null,
+          externalDocumentTypeSnapshot: existing?.externalDocumentTypeSnapshot ?? null,
+        }),
         notes: dto.notes ?? existing?.notes ?? setting.defaultNotes,
         internalComment: dto.internalComment?.trim() || null,
         paymentMethod: dto.paymentMethod?.trim() || null,
@@ -910,7 +1289,13 @@ export class GoodsReceiptWorkflowService {
           existing?.recipientAddress,
         ),
         currency: dto.currency ?? existing?.currency ?? 'EUR',
-        pricesIncludeVat: setting.pricesIncludeVat,
+        // Fattura fornitore: documento di acquisto, come sopra.
+        pricesIncludeVat: false,
+        // ⭐ La modalita' importi del documento. Assente su una registrazione
+        // esistente = quella di prima: un documento e' un fatto, e cambiarla e'
+        // una scelta esplicita dell'operatore, non un effetto del risalvataggio.
+        purchaseCostEntryMode:
+          dto.purchaseCostEntryMode ?? existing?.purchaseCostEntryMode ?? 'vat_excluded',
         subtotalMinor,
         taxMinor,
         totalMinor,
@@ -936,44 +1321,102 @@ export class GoodsReceiptWorkflowService {
 
       // Righe registrazione: gruppi per aliquota IVA dagli arrivi inclusi
       // (con riferimento automatico) seguiti dalle righe manuali del form.
-      await tx.documentLine.deleteMany({ where: { documentId } });
-      const sortedReceipts = [...receipts].sort(
-        (a, b) => a.documentDate.getTime() - b.documentDate.getTime(),
-      );
-      const lineRows = [
-        ...vatSummaryLines.map((line) => ({
-          description: line.description,
-          netMinor: line.netMinor,
-          ratePercent: line.ratePercent,
-          vatMinor: line.vatMinor,
-          lineSource: 'vat_summary',
-        })),
-        ...manualLines.map((line) => ({
+      // ── Upsert righe per id ──────────────────────────────────────────────
+      //
+      // ⛔ Qui c'era `deleteMany({ where: { documentId } })` seguito da un
+      // `createMany`: ogni Salva cancellava tutte le righe e le riscriveva da
+      // zero, quindi **l'id cambiava anche per la riga che nessuno aveva
+      // toccato**.
+      //
+      // ⚠️ Non e' una pignoleria: e' il prerequisito del Codice IVA. Il
+      // contratto binario che conserva lo snapshot IVA persistito («assente =
+      // non modificato», `regole-gestionale`) e' chiavato sull'id della riga —
+      // senza id, il server rifotograferebbe lo snapshot dall'anagrafica
+      // corrente a ogni salvataggio, e una fattura di marzo cambierebbe
+      // aliquota perche' qualcuno ha modificato un Codice IVA oggi.
+      //
+      // ⭐ E' lo stesso blocco che l'Arrivo merce ha 540 righe piu' su, in
+      // questo stesso servizio: la' preserva il movimento di magazzino
+      // collegato invece di duplicarlo (§2.3-2.4).
+      const existingLineIds = new Set((existing?.lines ?? []).map((line) => line.id));
+      // ⛔ Il filtro chiude anche la superficie «id di un ALTRO documento»:
+      // senza, mandare l'id di una riga altrui la farebbe aggiornare.
+      const incomingLineIds = righe
+        .map((line) => line.id)
+        .filter((id): id is string => typeof id === 'string' && existingLineIds.has(id));
+
+      await tx.documentLine.deleteMany({
+        where: { documentId, id: { notIn: incomingLineIds } },
+      });
+
+      // ⭐ Una lista sola, nell'ordine in cui il client la manda. `lineSource`
+      // resta come PROVENIENZA storica — «questa riga e' nata da un arrivo» —
+      // non piu' come origine ricalcolabile, e si deriva dal legame.
+      // La riga gia' salvata, per il contratto binario dello snapshot.
+      const righePersistite = new Map((existing?.lines ?? []).map((riga) => [riga.id, riga]));
+
+      for (const [index, line] of righe.entries()) {
+        const lineId = line.id;
+        const persistita = lineId ? righePersistite.get(lineId) : undefined;
+        // ⭐ **Contratto binario: assente = non modificato.** Su una riga
+        // esistente che non dichiara un codice si conservano quelli persistiti,
+        // e non si rifotografa niente dall'anagrafica corrente.
+        const vatCode = line.vatCodeId ? vatCodesById.get(line.vatCodeId) : undefined;
+        const vat = vatCode
+          ? { vatCodeId: vatCode.id, vatSnapshot: buildVatCodeSnapshot(vatCode) }
+          : persistita
+            ? {
+                vatCodeId: persistita.vatCodeId,
+                vatSnapshot: (persistita.vatSnapshot ?? Prisma.DbNull) as Prisma.InputJsonValue,
+              }
+            : {
+                // Riga nuova senza codice: resta l'aliquota storica. E' il
+                // veicolo finche' esiste una sola riga con `vat_code_id` NULL —
+                // e oggi lo sono TUTTE quelle salvate da luglio.
+                vatCodeId: null,
+                vatSnapshot: { ratePercent: line.vatRatePercent } as Prisma.InputJsonObject,
+              };
+        const data = {
+          lineNumber: index + 1,
           description: line.description.trim(),
-          netMinor: line.netMinor,
-          ratePercent: line.vatRatePercent,
-          vatMinor: line.vatMinor,
-          lineSource: 'manual',
-        })),
-      ];
-      if (lineRows.length > 0) {
-        await tx.documentLine.createMany({
-          data: lineRows.map((line, index) => ({
-            tenantId,
-            documentId,
-            lineNumber: index + 1,
-            description: line.description,
-            quantity: 1,
-            unitPriceMinor: line.netMinor,
-            discountPercent: 0,
-            lineTotalMinor: line.netMinor,
-            lineVatTotalMinor: line.vatMinor,
-            lineGrossTotalMinor: line.netMinor + line.vatMinor,
-            vatSnapshot: { ratePercent: line.ratePercent } as Prisma.InputJsonObject,
-            loadsStock: false,
-            lineSource: line.lineSource,
-          })),
-        });
+          // Riga ECONOMICA della Registrazione fattura: non ha un articolo,
+          // quindi non ha una variante. Vuota per natura, non per omissione —
+          // il proprietario ha messo questa famiglia fuori dalle righe
+          // articolo (`03d` §13).
+          variantLabel: '',
+          quantity: 1,
+          unitPriceMinor: line.netMinor,
+          discountPercent: 0,
+          // ⭐ **Qui si arrotonda, e solo qui.** `netMinor` arriva col netto
+          //   scorporato e la sua coda decimale, che il contratto del denaro
+          //   prescrive: è ciò che fa tornare identico l’ivato quando l’operatore
+          //   rientra nel documento.
+          //
+          // ⚠️ Ma le colonne di destinazione NON sono uguali, misurato il 26/08/2026:
+          //   `unit_price_minor` è `numeric(16,6)` e la coda la tiene;
+          //   `line_total_minor` e `line_gross_total_minor` sono `integer`.
+          //
+          // ⛔ Senza questo arrotondamento il salvataggio andava in 400. E la
+          //   tentazione di arrotondare nel CLIENT è sbagliata: lì la coda serve
+          //   ancora. «Si arrotonda solo all’uscita» (`regole-gestionale`), e la
+          //   scrittura in una colonna intera è l’uscita.
+          lineTotalMinor: roundToMinor(line.netMinor),
+          lineVatTotalMinor: line.vatMinor,
+          lineGrossTotalMinor: roundToMinor(line.netMinor) + line.vatMinor,
+          vatCodeId: vat.vatCodeId,
+          vatSnapshot: vat.vatSnapshot,
+          loadsStock: false,
+          lineSource: line.linkedGoodsReceiptId ? 'vat_summary' : 'manual',
+          // ⭐ La colonna esisteva da luglio con chiave esterna e indice, e
+          // NESSUN percorso dell'API la scriveva: era sempre `null`. E' il
+          // legame riga↔arrivo su cui ora poggia tutto il resto.
+          linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? null,
+        };
+        if (lineId && existingLineIds.has(lineId)) {
+          await tx.documentLine.update({ where: { id: lineId }, data });
+        } else {
+          await tx.documentLine.create({ data: { ...data, tenantId, documentId } });
+        }
       }
 
       // Scadenze di pagamento: la lista viene sostituita integralmente.
@@ -1002,7 +1445,12 @@ export class GoodsReceiptWorkflowService {
           },
         },
       });
-      for (const receipt of sortedReceipts) {
+      // I collegamenti si scrivono in ordine di data: e' l'ordine in cui
+      // l'operatore li ha inclusi, e in cui il Dettaglio li elenca.
+      const arriviInOrdine = [...receipts].sort(
+        (a, b) => a.documentDate.getTime() - b.documentDate.getTime(),
+      );
+      for (const receipt of arriviInOrdine) {
         await tx.purchaseInvoiceGoodsReceiptLink.upsert({
           where: {
             purchaseInvoiceId_goodsReceiptId: {
@@ -1049,12 +1497,15 @@ export class GoodsReceiptWorkflowService {
    * coinvolta, mai dettagli tecnici.
    */
   private assertPurchaseVatCodes(
-    dto: SaveGoodsReceiptDto,
+    // ⭐ Prende le RIGHE, non il DTO: la stessa validazione serve all'Arrivo
+    // merce e alla Registrazione fattura, che hanno due corpi diversi e la
+    // stessa regola. Duplicarla sarebbe un secondo posto dove sbagliarla.
+    lines: readonly { readonly vatCodeId?: string | null }[],
     requestedVatCodeIds: readonly string[],
     vatCodesById: ReadonlyMap<string, VatCodeWithNature>,
   ): void {
     const lineNumberForVatCode = (vatCodeId: string): number => {
-      const index = (dto.lines ?? []).findIndex((line) => line.vatCodeId === vatCodeId);
+      const index = lines.findIndex((line) => line.vatCodeId === vatCodeId);
       return index >= 0 ? index + 1 : 1;
     };
     for (const vatCodeId of requestedVatCodeIds) {

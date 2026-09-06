@@ -14,6 +14,17 @@ export interface UserProfileDto {
   readonly tenantId: string;
   readonly tenantName: string;
   readonly tenantChannelProfile: TenantChannelProfile;
+  /**
+   * Se la VENDITA MANUALE e' operativa per questa azienda.
+   *
+   * ⚠️ **Viaggia sul profilo e non si legge da `/tenant/feature-settings`**, ed
+   * e' una scelta obbligata: quell'endpoint chiede `SettingsCompany`, che
+   * manager e commesso non hanno. I consumatori assorbono il 403 con
+   * `catchError(() => of(null))` e i controlli sono scritti fail-open, quindi
+   * un flag letto per quella strada resterebbe ACCESO proprio per chi lo si
+   * vuole spegnere.
+   */
+  readonly manualUnloadEnabled: boolean;
   readonly email: string;
   readonly displayName: string;
   readonly avatarUrl: string | null;
@@ -27,6 +38,8 @@ export interface UserProfileDto {
   readonly defaultLocation: { readonly id: string; readonly name: string } | null;
   readonly permissions: readonly string[];
   readonly isActive: boolean;
+  /** Password impostata da chi ha creato l'account: l'app chiede di cambiarla. */
+  readonly mustChangePassword: boolean;
   readonly isPlatformAdmin: boolean;
   readonly supportSession?: SupportSessionProfileDto;
   readonly createdAt: string;
@@ -36,7 +49,13 @@ export interface UserProfileDto {
 export function toUserProfileDto(
   user: User & {
     readonly stores: readonly { storeId: string }[];
-    readonly tenant: { readonly name: string; readonly channelProfile: TenantChannelProfile };
+    readonly tenant: {
+      readonly name: string;
+      readonly channelProfile: TenantChannelProfile;
+      // La riga si materializza solo aprendo il pannello Impostazioni: puo’
+      // mancare, e allora la funzione e’ spenta come se il flag fosse `false`.
+      readonly featureSettings?: { readonly manualUnloadEnabled: boolean } | null;
+    };
     readonly locations?: readonly {
       readonly location: { readonly id: string; readonly name: string };
     }[];
@@ -49,6 +68,9 @@ export function toUserProfileDto(
     tenantId: user.tenantId,
     tenantName: user.tenant.name,
     tenantChannelProfile: user.tenant.channelProfile,
+    // ⛔ `=== true`, mai `!== false`: riga assente e colonna `false` devono dire
+    //   la stessa cosa — spenta. Il default e’ SPENTA (26/08/2026).
+    manualUnloadEnabled: user.tenant.featureSettings?.manualUnloadEnabled === true,
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
@@ -61,6 +83,7 @@ export function toUserProfileDto(
     defaultLocation: user.defaultLocation ?? null,
     permissions: user.permissions ?? [],
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
     isPlatformAdmin,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),

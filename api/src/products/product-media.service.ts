@@ -18,7 +18,6 @@ import {
 } from '../common/upload/image-optimize.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
-import { assertShopifyCatalogMediaMutationAllowed } from './catalog-origin.util';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -117,7 +116,6 @@ export class ProductMediaService {
     if (!product) {
       throw new NotFoundException('Prodotto non trovato');
     }
-    assertShopifyCatalogMediaMutationAllowed(product.catalogOrigin);
   }
 
   private assertValidFile(file: Express.Multer.File): void {

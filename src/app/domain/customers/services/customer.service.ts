@@ -22,10 +22,27 @@ export class CustomerService {
   private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
-  getCustomers(query: CustomerListQuery = {}): Observable<PaginatedResponse<Customer>> {
+  /**
+   * ⭐ **L'elenco clienti non impagina più** (30/08/2026): `tutto` fa sparire la
+   * finestra lato API, quindi arriva l'intero risultato del filtro.
+   *
+   * ⛔ **Il default resta PAGINATO**, e non è timidezza: quattro schermate
+   * chiamano questo metodo con `pageSize: 100` per riempire un elenco a tendina —
+   * Registro documenti, maschera vendita, ordini cliente, ricerca globale. Con
+   * `all` acceso per tutti, ognuna scaricherebbe l'anagrafica intera. È lo stesso
+   * difetto già misurato sui prodotti col contatore delle bozze.
+   */
+  getCustomers(
+    query: CustomerListQuery = {},
+    opzioni: { readonly tutto?: boolean } = {},
+  ): Observable<PaginatedResponse<Customer>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? 20));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
 
     if (query.search) {
       params = params.set('search', query.search);
@@ -44,6 +61,26 @@ export class CustomerService {
         };
       }),
     );
+  }
+
+  /**
+   * ⭐ **Elimina la scheda cliente**, non la sua storia: documenti, ordini e
+   * vendite online conservano il nome fotografato e perdono solo il collegamento
+   * (deciso il 30/08/2026, stesso criterio dell'unità di misura e del Codice IVA).
+   */
+  /**
+   * ⭐ **Duplica la scheda**: una copia col prossimo codice, che si apre per
+   * rifinirla. Partita IVA e codice fiscale non si copiano — due anagrafiche con
+   * la stessa partita IVA non sono una copia, sono un errore.
+   */
+  duplicateCustomer(id: string): Observable<{ readonly id: string }> {
+    return this.http
+      .post<{ readonly id: string }>(this.url(`/customers/${id}/duplicate`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  deleteCustomer(id: string): Observable<void> {
+    return this.http.delete<void>(this.url(`/customers/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   /**

@@ -32,6 +32,8 @@ function senzaSerie(): DocumentCounterView {
     isDefault: true,
     nextNumber: 1,
     documentCount: 0,
+    missingCount: 0,
+    missingNumbers: [],
   };
 }
 
@@ -45,6 +47,8 @@ function operatorSeries(): DocumentCounterView {
     isDefault: false,
     nextNumber: 5,
     documentCount: 4,
+    missingCount: 0,
+    missingNumbers: [],
   };
 }
 
@@ -90,6 +94,37 @@ describe('DocumentCountersComponent (serie per tipo)', () => {
     expect(service.create).toHaveBeenCalledTimes(1);
     expect(service.create.mock.calls[0]![0]).toMatchObject({ type: 'quote', series: '2026' });
     expect(changed).toHaveBeenCalled();
+  });
+
+  it('elenca i numeri liberi e spiega come riprenderli', async () => {
+    await setup([
+      senzaSerie(),
+      { ...operatorSeries(), missingCount: 3, missingNumbers: [7, 12, 40] },
+    ]);
+
+    expect(await screen.findByText('3 numeri liberi: 7, 12, 40')).toBeTruthy();
+    expect(screen.getByText(/scrivilo a mano nella testata del nuovo documento/i)).toBeTruthy();
+  });
+
+  it('un solo numero libero è al singolare', async () => {
+    await setup([{ ...operatorSeries(), missingCount: 1, missingNumbers: [7] }]);
+    expect(await screen.findByText('1 numero libero: 7')).toBeTruthy();
+  });
+
+  it('oltre i primi elencati dice quanti altri sono', async () => {
+    await setup([
+      { ...operatorSeries(), missingCount: 12, missingNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+    ]);
+    expect(
+      await screen.findByText('12 numeri liberi: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 e altri 2'),
+    ).toBeTruthy();
+  });
+
+  it('serie senza buchi: nessuna nota e nessuna spiegazione', async () => {
+    await setup([senzaSerie(), operatorSeries()]);
+    expect(await screen.findByText('NAP')).toBeTruthy();
+    expect(screen.queryByText(/numer[oi] liber[oi]/i)).toBeNull();
+    expect(screen.queryByText(/scrivilo a mano nella testata/i)).toBeNull();
   });
 
   it('«Rendi predefinita» aggiorna il contatore', async () => {

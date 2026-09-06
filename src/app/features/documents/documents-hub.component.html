@@ -9,7 +9,7 @@
     </div>
   </header>
 
-  @for (group of groups; track group.title) {
+  @for (group of groups(); track group.title) {
     <section class="doc-hub__group" [attr.aria-labelledby]="'doc-hub-' + group.title">
       <h2 class="doc-hub__group-title" [id]="'doc-hub-' + group.title">{{ group.title }}</h2>
       <div class="doc-hub__grid">

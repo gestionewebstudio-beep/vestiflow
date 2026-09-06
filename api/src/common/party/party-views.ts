@@ -34,6 +34,8 @@ type PartyCommonView = Pick<
   | 'pec'
   | 'sdiCode'
   | 'phone'
+  | 'mobilePhone'
+  | 'iban'
   | 'website'
   | 'contactName'
   | 'addressLine1'
@@ -87,6 +89,7 @@ export type SupplierView = PartyCommonView &
     | 'defaultVatCodeId'
     | 'transportResponsible'
     | 'freightTerms'
+    | 'ourBankName'
     | 'documentCreationAlert'
     | 'documentCreationNote'
     | 'createdAt'
@@ -111,6 +114,8 @@ function partyCommonView(party: Party): PartyCommonView {
     pec: party.pec,
     sdiCode: party.sdiCode,
     phone: party.phone,
+    mobilePhone: party.mobilePhone,
+    iban: party.iban,
     website: party.website,
     contactName: party.contactName,
     addressLine1: party.addressLine1,
@@ -165,6 +170,7 @@ export function toSupplierView(row: SupplierWithParty): SupplierView {
     defaultVatCodeId: row.defaultVatCodeId,
     transportResponsible: row.transportResponsible,
     freightTerms: row.freightTerms,
+    ourBankName: row.ourBankName,
     documentCreationAlert: row.documentCreationAlert,
     documentCreationNote: row.documentCreationNote,
     linkedCustomerId: row.party.customerRole?.id ?? null,

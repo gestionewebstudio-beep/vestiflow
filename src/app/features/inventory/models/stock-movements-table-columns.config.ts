@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -5,15 +6,15 @@ import {
 } from '@shared/table-columns/table-column.model';
 
 export const STOCK_MOVEMENT_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'createdAt', label: 'Data', pinnable: true, defaultVisible: true },
-  { id: 'type', label: 'Tipo', defaultVisible: true },
+  colonna('createdAt', { label: 'Data', pinnable: true, defaultVisible: true }),
+  colonna('type', { defaultVisible: true }),
   // Identificatore anagrafico interno (§Codice articolo): colonna
   // selezionabile, non mostrata di default (fuori dai preset).
-  { id: 'articleCode', label: 'Codice articolo', defaultVisible: false },
-  { id: 'sku', label: 'Codice', defaultVisible: true },
-  { id: 'product', label: 'Prodotto', defaultVisible: true },
+  colonna('articleCode', { defaultVisible: false }),
+  colonna('sku', { label: 'Codice', defaultVisible: true }),
+  { id: 'product', label: 'Prodotto', defaultVisible: true, cardTitle: true },
   { id: 'signedQuantity', label: 'Quantità', numeric: true, defaultVisible: true },
-  { id: 'locationLabel', label: 'Location', defaultVisible: true },
+  { id: 'locationLabel', label: 'Sede', defaultVisible: true },
   { id: 'documentRef', label: 'Documento', defaultVisible: false },
   { id: 'reason', label: 'Causale', defaultVisible: true },
   { id: 'origin', label: 'Origine', defaultVisible: false },

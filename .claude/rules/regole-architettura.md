@@ -511,7 +511,11 @@ Se il token mancante è necessario: aggiungilo **prima** a `_design-tokens.scss`
 
 ## Breakpoint — Regola Assoluta
 
-I breakpoint nei media query usano SOLO i token definiti in `_design-tokens.scss`. Nessun valore px scritto direttamente in un `@media`.
+Nessun valore px scritto direttamente in un `@media`: si usano i **mixin** `bp.media-up('md')` / `bp.media-down('lg')` di `src/styles/_breakpoints.scss`.
+
+⛔ **I breakpoint NON sono custom property, e non possono esserlo** — corretto il 01/09/2026. Qui c'era «usano SOLO i token definiti in `_design-tokens.scss`»: seguita alla lettera produce `@media (min-width: var(--x))`, che **non aggancia mai nulla**, non fallisce e non arrossa nessun test. È il guasto muto che questo progetto combatte ovunque.
+
+Sono variabili **SCSS** (`$breakpoint-md: 48rem`) in un file separato, perché le custom property dentro `@media` non funzionano per specifica. Chi le cercasse in `_design-tokens.scss` non le troverebbe usabili, e non scoprirebbe il perché: 69 fogli di componente usano già i mixin.
 
 ## Classi BEM — Obbligatorio
 
@@ -580,11 +584,28 @@ Mobile-first sempre: ogni layout a colonne parte da una colonna singola su mobil
 - USA `@defer` con `on interaction` per widget attivati da interazione.
 - Fornisci sempre `@placeholder` o `@loading` per evitare CLS visibile.
 
-## Immagini
+## Immagini — ⚠️ CONDIZIONALE, e oggi non si applica _(misurato 19/08/2026)_
 
-- USA `NgOptimizedImage` (`ngSrc`) per TUTTE le immagini bitmap. Attributi `width` e `height` SEMPRE presenti. Formato WebP/AVIF.
-- Immagini LCP: `priority` e `fetchpriority="high"` obbligatori.
-- Immagini non-LCP: `loading="lazy"` e `decoding="async"`.
+⛔ Qui c'era _«USA `NgOptimizedImage` per TUTTE le immagini bitmap»_ e _«immagini LCP:
+`priority` e `fetchpriority="high"` obbligatori»_. **In VestiFlow `ngSrc` compare zero
+volte**, e non è debito: **non esiste un'immagine LCP** — non c'è una hero, non c'è una
+copertina, la prima cosa che si dipinge è una tabella.
+
+Era una regola da sito vetrina, in contraddizione con la premessa dichiarata in testa a
+questo file: _«se un pattern non serve a una dashboard operativa, qui non c'è»_.
+
+**Quando torna a valere**: se una schermata arriva a mostrare immagini **grandi e
+above-the-fold** — una galleria prodotto, una scheda articolo con foto piena. Allora
+`NgOptimizedImage` con `width`/`height` e `priority` sulla prima è la forma giusta.
+
+**Quello che invece vale già oggi**, e riguarda le miniature in tabella — che sono il
+vero caso d'uso del gestionale:
+
+- `width` e `height` **sempre**, su ogni `<img>`: senza, la riga si assesta dopo il
+  caricamento e la tabella balla sotto il dito;
+- `loading="lazy"` e `decoding="async"` sulle miniature di elenco: sono decine per
+  pagina e nessuna è critica;
+- `alt` descrittivo, o `alt=""` se decorativa (vedi A11y).
 
 ## Sottoscrizioni
 
@@ -595,8 +616,24 @@ Mobile-first sempre: ogni layout a colonne parte da una colonna singola su mobil
 
 - Configura `budgets` in `angular.json` per `initial` e `anyComponentStyle`. Valori sensati di partenza:
   - `initial`: warning 800kB, error 1.5MB.
-  - `anyComponentStyle`: warning 12kB, error 26kB.
+  - `anyComponentStyle`: warning 20kB, error 40kB.
 
-## Core Web Vitals (target produzione)
+⚠️ **I due valori sono quelli di `angular.json`, e non sono «di partenza»**: sono stati
+alzati il 01/09/2026 con una misura e una motivazione, che stanno in `regole-qualita`
+(«`anyComponentStyle` PREMIA LA DUPLICAZIONE»). Qui erano rimasti 12/26, cioè la regola
+diceva un numero e la build ne applicava un altro.
 
-- LCP < 2.5s, INP < 200ms, CLS < 0.1.
+## Core Web Vitals — ⚠️ uno dei tre conta davvero _(rivisto 19/08/2026)_
+
+Qui c'erano i tre target insieme. Sono metriche di **campo**, raccolte dal browser degli
+utenti e usate per il ranking: dietro `authGuard` non esiste dato di campo e non esiste
+ranking. Vanno separati per quello che misurano, non presi in blocco.
+
+|                 |                                     |                                                                                                                                                                        |
+| --------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **INP** < 200ms | ✅ **vale, ed è il più importante** | è la reattività: una tabella densa con filtri e celle editabili si giudica lì                                                                                          |
+| **CLS** < 0.1   | ✅ vale, ma per un'altra ragione    | non il ranking: una riga che si sposta mentre l'operatore la tocca gli fa premere la cosa sbagliata                                                                    |
+| **LCP** < 2.5s  | ⚠️ poco significativo qui           | misura la comparsa dell'elemento più grande above-the-fold. In un gestionale è la tabella, che dipende dalla rete e dai filtri, non dall'ottimizzazione di un'immagine |
+
+⚠️ **Non si misurano in campo**: si osservano in Lighthouse CI, con le soglie reali
+dichiarate in `regole-qualita`.

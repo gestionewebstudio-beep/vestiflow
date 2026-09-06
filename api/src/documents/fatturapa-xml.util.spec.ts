@@ -57,6 +57,72 @@ describe('buildFatturaPaXml', () => {
     expect(xml).toContain('<DatiBeniServizi>');
   });
 
+  describe('dati di chi emette', () => {
+    it('senza dichiarazione resta RF01, il regime ordinario', () => {
+      expect(buildFatturaPaXml(baseInput())).toContain('<RegimeFiscale>RF01</RegimeFiscale>');
+    });
+
+    it('scrive il regime dichiarato: un forfettario è RF19, non RF01', () => {
+      const xml = buildFatturaPaXml(baseInput({ issuerDetails: { taxRegime: 'RF19' } }));
+      expect(xml).toContain('<RegimeFiscale>RF19</RegimeFiscale>');
+      expect(xml).not.toContain('RF01');
+    });
+
+    it('IscrizioneREA completa: ufficio, numero, capitale, socio unico, stato', () => {
+      const xml = buildFatturaPaXml(
+        baseInput({
+          issuerDetails: {
+            reaOffice: 'na',
+            reaNumber: '123456',
+            shareCapitalMinor: 1_000_000,
+            soleShareholder: true,
+            inLiquidation: false,
+          },
+        }),
+      );
+
+      expect(xml).toContain('<Ufficio>NA</Ufficio>');
+      expect(xml).toContain('<NumeroREA>123456</NumeroREA>');
+      expect(xml).toContain('<CapitaleSociale>10000.00</CapitaleSociale>');
+      expect(xml).toContain('<SocioUnico>SU</SocioUnico>');
+      expect(xml).toContain('<StatoLiquidazione>LN</StatoLiquidazione>');
+    });
+
+    it('senza ufficio o numero il blocco REA non si scrive a metà', () => {
+      const xml = buildFatturaPaXml(
+        baseInput({ issuerDetails: { reaNumber: '123456', shareCapitalMinor: 1_000_000 } }),
+      );
+      expect(xml).not.toContain('<IscrizioneREA>');
+      expect(xml).not.toContain('<CapitaleSociale>');
+    });
+
+    it('socio unico non dichiarato: il campo non si scrive', () => {
+      const xml = buildFatturaPaXml(
+        baseInput({ issuerDetails: { reaOffice: 'NA', reaNumber: '1', soleShareholder: null } }),
+      );
+      // NULL non è «più soci»: affermarlo sarebbe inventare un dato.
+      expect(xml).not.toContain('<SocioUnico>');
+      expect(xml).toContain('<IscrizioneREA>');
+    });
+
+    it('in liquidazione: LS', () => {
+      const xml = buildFatturaPaXml(
+        baseInput({ issuerDetails: { reaOffice: 'NA', reaNumber: '1', inLiquidation: true } }),
+      );
+      expect(xml).toContain('<StatoLiquidazione>LS</StatoLiquidazione>');
+    });
+
+    it('Contatti solo se telefono o email ci sono', () => {
+      expect(buildFatturaPaXml(baseInput())).not.toContain('<Contatti>');
+
+      const xml = buildFatturaPaXml(
+        baseInput({ issuerDetails: { phone: '081 000000', email: 'info@negozio.it' } }),
+      );
+      expect(xml).toContain('<Contatti><Telefono>081 000000</Telefono>');
+      expect(xml).toContain('<Email>info@negozio.it</Email>');
+    });
+  });
+
   it('scrive numero, data e totale del documento', () => {
     const xml = buildFatturaPaXml(baseInput());
 

@@ -9,6 +9,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -17,7 +18,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
-import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
+import { DocumentLinesTableComponent } from '@domain/documents/components/document-lines-table/document-lines-table.component';
 import { DocumentDetailComponent } from './document-detail.component';
 import {
   documentReferenceLabel,
@@ -26,10 +27,11 @@ import {
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
 import {
-  isInvoiceDraftDocumentType,
+  isInvoiceDocumentType,
   isSalesDdtDocumentType,
 } from '@domain/documents/models/document-sales.util';
-import { isManualUnloadDocumentType } from './models/document-stock-operation.util';
+import { isManualUnloadDocumentType } from '@domain/documents/utils/document-stock-operation.util';
+import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
 
 const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
@@ -39,7 +41,7 @@ const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
 
 /**
  * Anteprima dettaglio dedicata dei documenti di vendita (Preventivi, Proforma,
- * DDT vendita, Bozze fattura): stesso layout a pannelli dell'anteprima Ordine
+ * DDT vendita, Fatture): stesso layout a pannelli dell'anteprima Ordine
  * cliente, adattato ai campi specifici di ciascun tipo. Estende il dettaglio
  * documento generico per riusarne caricamento, permessi e transizioni di stato
  * (conferma, conversione, annullamento) senza duplicare logica.
@@ -52,6 +54,7 @@ const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -81,7 +84,7 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
 
   /**
    * Tipi ammessi dalla pagina: l'elenco condiviso ne dichiara più d'uno
-   * (Fattura/Fattura accompagnatoria, Vendita/Reso negozio). Confrontare col
+   * (Fattura/Fattura accompagnatoria, Vendita/Reso al banco). Confrontare col
    * solo `type` scaccerebbe al registro generico i documenti dell'altro tipo.
    */
   private readonly allowedTypes = computed(() => {
@@ -110,7 +113,7 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
     }
     facts.push({ label: 'Cliente', value: doc.customerName ?? '—' });
     if (isStoreFlowDocumentType(doc.type) && doc.locationName) {
-      facts.push({ label: 'Negozio', value: doc.locationName });
+      facts.push({ label: 'Sede', value: doc.locationName });
     }
     if (
       (isSalesDdtDocumentType(doc.type) || isManualUnloadDocumentType(doc.type)) &&
@@ -152,6 +155,12 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
     if (doc.billingCause) {
       facts.push({ label: 'Causale', value: doc.billingCause });
     }
+    // Documento della controparte (tipo + numero + data): vale per ogni tipo di
+    // vendita, non più solo per la fattura registrata.
+    const counterpartyDoc = counterpartyDocLabel(doc);
+    if (counterpartyDoc) {
+      facts.push({ label: 'Documento controparte', value: counterpartyDoc });
+    }
     if (doc.externalRef && !doc.linkedSalesOrder) {
       facts.push({ label: 'Riferimento collegato', value: doc.externalRef });
     }
@@ -191,16 +200,13 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
       });
     }
     facts.push({ label: 'Valuta', value: doc.currency });
-    if (isInvoiceDraftDocumentType(doc.type)) {
+    if (isInvoiceDocumentType(doc.type)) {
       if (doc.externallyIssuedAt) {
         facts.push({
           label: 'Emessa esternamente il',
           value: formatDate(doc.externallyIssuedAt),
           numeric: true,
         });
-      }
-      if (doc.externalDocNumber) {
-        facts.push({ label: 'Doc. esterno', value: doc.externalDocNumber });
       }
       if (doc.registrationDate) {
         facts.push({

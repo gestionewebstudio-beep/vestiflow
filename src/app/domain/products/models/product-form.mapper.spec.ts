@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CatalogOrigin } from '@core/models/catalog-origin.model';
+import { VariantLifecycleStatus } from '@core/models/product-variant.model';
 import { ProductStatus } from '@core/models/product.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
@@ -151,15 +152,19 @@ describe('product-form.mapper', () => {
         },
       };
 
-      const dto = toCreateProductDto(draft, true);
+      const dto = toCreateProductDto(draft);
       expect(dto.listino1Price).toEqual({ amountMinor: 2500, currencyCode: DEFAULT_CURRENCY });
       expect(dto.listino2Price).toBeNull();
       expect(dto.listino3Price).toBeNull();
-      // La modalità viaggia solo per farsi ricordare: non è un dato dell'articolo.
-      expect(dto.listinoPricesIncludeVat).toBe(true);
     });
 
-    it('senza modalità indicata il payload non la menziona (nessuna preferenza da ricordare)', () => {
+    // ⚠️ Fino al 17/08/2026 il payload portava anche `listinoPricesIncludeVat`,
+    // la modalità netto/ivato con cui la sezione Listini era stata compilata,
+    // perché il backend se la ricordasse come preferenza personale. Non viaggia
+    // più: l'anagrafica è una VISTA del catalogo, non un documento, e segue la
+    // convenzione aziendale — due colleghi devono leggere lo stesso listino allo
+    // stesso modo. I prezzi restano memorizzati netti, come sempre.
+    it('il payload NON porta nessuna modalità netto/ivato', () => {
       const empty = emptyProductFormDraft();
       const dto = toCreateProductDto({
         ...empty,
@@ -243,6 +248,7 @@ describe('product-form.mapper', () => {
           optionValues: [{ name: 'Taglia', value: 'M' }],
           sellingPrice: { amountMinor: 5990, currencyCode: DEFAULT_CURRENCY },
           purchasePrice: { amountMinor: 2500, currencyCode: DEFAULT_CURRENCY },
+          lifecycleStatus: VariantLifecycleStatus.Active,
         },
       ];
 
@@ -255,6 +261,42 @@ describe('product-form.mapper', () => {
       expect(draft.variants[0]?.sellingPrice).toBe(59.9);
       expect(dto.variants[0]?.sku).toBe('PANT-M');
       expect(dto.variants[0]?.sellingPrice.amountMinor).toBe(5990);
+    });
+  });
+
+  describe('prezzo barrato — precisione, come gli altri prezzi di vendita', () => {
+    /**
+     * ⛔ Corretto il 22/08/2026. Il barrato usava `moneyFromMajor`, che arrotonda
+     * al centesimo, mentre prezzo di vendita, Shopify e i tre listini usavano
+     * `moneyFromMajorExact`. La sua colonna e' `Decimal(16,6)` dal 03/08: la coda
+     * si perdeva PRIMA di arrivare a una colonna che sapeva conservarla.
+     *
+     * ⚠️ E non e' un dettaglio interno: verso Shopify `compare_at_price` sta
+     * accanto a `price` sotto gli occhi del cliente. Due basi diverse fanno
+     * apparire uno sconto che non e' quello dichiarato.
+     */
+    const barrato = (major: number) =>
+      toCreateProductDto({
+        ...emptyProductFormDraft(),
+        general: {
+          ...emptyProductFormDraft().general,
+          name: 'Articolo',
+          compareAtPrice: major,
+        },
+      }).compareAtPrice?.amountMinor;
+
+    it('⭐ conserva la coda dello scorporo, come il prezzo di vendita', () => {
+      // 25,00 EUR ivati al 22% valgono 20,491803 EUR netti.
+      expect(barrato(20.491803)).toBeCloseTo(2049.1803, 4);
+    });
+
+    it('⛔ e il giro torna allo stesso centesimo', () => {
+      const netto = barrato(0.844262)!; // 1,03 EUR ivati al 22%
+      expect(Math.round(netto * 1.22)).toBe(103);
+    });
+
+    it('un valore a due decimali resta identico', () => {
+      expect(barrato(29.9)).toBe(2990);
     });
   });
 });

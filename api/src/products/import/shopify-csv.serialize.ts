@@ -154,7 +154,7 @@ function buildProductRow(
     row['Variant Price'] = minorToShopifyDecimal(Number(variant.shopifyPriceMinor));
     row['Variant Compare-at Price'] =
       product.compareAtPriceMinor != null
-        ? minorToShopifyDecimal(product.compareAtPriceMinor)
+        ? minorToShopifyDecimal(Number(product.compareAtPriceMinor))
         : '';
     row['Variant Barcode'] = variant.barcode?.trim() ?? '';
   }

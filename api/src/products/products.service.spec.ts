@@ -1,13 +1,17 @@
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
+import { SYNC_DISABLE_FAILED_MESSAGE } from '../shopify/shopify-user-error.util';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { ProductsService } from './products.service';
 
 describe('ProductsService', () => {
@@ -87,6 +91,7 @@ describe('ProductsService', () => {
       enqueueProductPush: vi.fn(),
       pushProductNow: vi.fn(),
       deleteProduct: vi.fn(),
+      archiveProductOnSyncDisabled: vi.fn().mockResolvedValue({ pushed: true }),
     };
 
     const service = new ProductsService(
@@ -111,6 +116,250 @@ describe('ProductsService', () => {
     expect(result.total).toBe(1);
   });
 
+  // Ciclo di vita locale (docs/24 §3.4, §6): la decisione vive in
+  // product-lifecycle.util, e qui si verifica che i consumatori la applichino.
+  describe('visibilità del ciclo di vita', () => {
+    it("l'elenco ordinario ESCLUDE il cestino", async () => {
+      const { service, prisma } = createService();
+      prisma.product.findMany.mockResolvedValue([]);
+      prisma.product.count.mockResolvedValue(0);
+
+      await service.list(tenantId, { page: 1, pageSize: 10 });
+
+      const [[chiamata]] = prisma.product.findMany.mock.calls as [[{ where: Record<string, unknown> }]];
+      expect(chiamata.where).toMatchObject({ tenantId, deletedAt: null });
+    });
+
+    it('la vista Cestino mostra SOLO il cestino', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findMany.mockResolvedValue([]);
+      prisma.product.count.mockResolvedValue(0);
+
+      // Il titolare passa: la vista è amministrativa (CatalogDelete o accesso pieno).
+      await service.list(tenantId, { page: 1, pageSize: 10, trash: true } as never, testOwnerUser());
+
+      const [[chiamata]] = prisma.product.findMany.mock.calls as [[{ where: Record<string, unknown> }]];
+      expect(chiamata.where).toMatchObject({ tenantId, deletedAt: { not: null } });
+    });
+
+    it('la vista Cestino è NEGATA a chi non ha il permesso di eliminare', async () => {
+      const { service } = createService();
+
+      await expect(
+        service.list(tenantId, { page: 1, pageSize: 10, trash: true } as never, testClerkUser()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('i riepiloghi varianti sono una selezione COMMERCIALE: fuori Non attivi e cestino', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+
+      await service.listVariantSummaries(tenantId, { page: 1, pageSize: 10 } as never, testOwnerUser());
+
+      const [[chiamata]] = prisma.productVariant.findMany.mock.calls as [
+        [{ where: Record<string, unknown> }],
+      ];
+      expect(chiamata.where).toMatchObject({
+        tenantId,
+        deletedAt: null,
+        lifecycleStatus: 'active',
+        product: { deletedAt: null, status: 'active' },
+      });
+    });
+
+    it('anche lo scanner (by-code) non pesca dal cestino né dai Non attivi', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findFirst.mockResolvedValue({
+        id: 'var-1',
+        productId: 'prod-1',
+        sku: 'SKU-1',
+        barcode: null,
+        product: { id: 'prod-1', name: 'Maglietta', managesStock: true },
+      });
+
+      await service.findVariantByCode(tenantId, 'SKU-1');
+
+      const [[chiamata]] = prisma.productVariant.findFirst.mock.calls as [
+        [{ where: Record<string, unknown> }],
+      ];
+      expect(chiamata.where).toMatchObject({
+        deletedAt: null,
+        lifecycleStatus: 'active',
+        product: { deletedAt: null, status: 'active' },
+      });
+    });
+  });
+
+  it('list espone il costo d’acquisto solo a chi ha il permesso', async () => {
+    const { service, prisma } = createService();
+    const rows = [
+      {
+        id: 'prod-1',
+        name: 'Maglietta',
+        purchasePriceMinor: 990,
+        variants: [{ id: 'var-1', purchasePriceMinor: 990 }],
+        images: [],
+      },
+    ];
+    prisma.product.findMany.mockResolvedValue(rows);
+    prisma.product.count.mockResolvedValue(1);
+
+    const visible = await service.list(tenantId, { page: 1, pageSize: 10 }, userWithCosts);
+    expect(visible.items[0]).toMatchObject({ purchasePriceMinor: 990 });
+
+    prisma.product.findMany.mockResolvedValue(rows);
+    const masked = await service.list(tenantId, { page: 1, pageSize: 10 }, userWithoutCosts);
+    expect(masked.items[0]).toMatchObject({ purchasePriceMinor: null });
+    expect(
+      (masked.items[0] as { variants: readonly { purchasePriceMinor: unknown }[] }).variants[0],
+    ).toMatchObject({ purchasePriceMinor: null });
+  });
+
+  // ── Write-guard sui costi ────────────────────────────────────────────
+  // Chi non vede il costo non lo scrive: senza questo, il form di un
+  // operatore col costo mascherato rimanderebbe indietro un valore assente e
+  // AZZEREREBBE il costo a database salvando l'articolo.
+
+  it('update di chi NON vede i costi non tocca il costo a database', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      sellingPriceMinor: 1990,
+      purchasePriceMinor: 990,
+      variants: [],
+      images: [],
+    });
+
+    // Il ramo prezzi interroga il canale del tenant: senza, update non arriva.
+    (prisma as unknown as { tenant: { findUnique: ReturnType<typeof vi.fn> } }).tenant = {
+      findUnique: vi.fn().mockResolvedValue({ channelProfile: 'gestionale' }),
+    };
+
+    await service.update(
+      tenantId,
+      'prod-1',
+      { sellingPrice: { amountMinor: 2490, currencyCode: 'EUR' } } as never,
+      userWithoutCosts,
+    );
+
+    const data = prisma.product.update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).toMatchObject({ sellingPriceMinor: 2490 });
+    // La chiave non compare proprio: il valore a database resta il suo.
+    expect(data).not.toHaveProperty('purchasePriceMinor');
+  });
+
+  // ⛔ L'atteso era `null`. Chi vede i costi e non ne manda uno lo AZZERA: zero
+  // è il costo di un articolo senza costo (`regole-gestionale`).
+  it('update di chi vede i costi continua a scriverli (anche per azzerarli)', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      sellingPriceMinor: 1990,
+      purchasePriceMinor: 990,
+      variants: [],
+      images: [],
+    });
+
+    // Il ramo prezzi interroga il canale del tenant: senza, update non arriva.
+    (prisma as unknown as { tenant: { findUnique: ReturnType<typeof vi.fn> } }).tenant = {
+      findUnique: vi.fn().mockResolvedValue({ channelProfile: 'gestionale' }),
+    };
+
+    await service.update(
+      tenantId,
+      'prod-1',
+      { sellingPrice: { amountMinor: 2490, currencyCode: 'EUR' } } as never,
+      userWithCosts,
+    );
+
+    const data = prisma.product.update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).toHaveProperty('purchasePriceMinor', 0);
+  });
+
+  it('create di chi NON vede i costi nasce senza costo, non col costo inviato', async () => {
+    const { service, prisma } = createService();
+    prisma.product.create.mockResolvedValue({ id: 'prod-new' });
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-new',
+      name: 'Nuovo',
+      variants: [],
+      images: [],
+    });
+
+    await service.create(
+      tenantId,
+      {
+        name: 'Nuovo',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+        purchasePrice: { amountMinor: 700, currencyCode: 'EUR' },
+        options: [],
+        variants: [],
+      } as never,
+      userWithoutCosts,
+    );
+
+    const data = prisma.product.create.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    // Senza permesso il costo non si scrive: l'articolo nasce a zero, non a null.
+    expect(data).toMatchObject({ purchasePriceMinor: 0 });
+  });
+
+  it('getById maschera il costo a chi non lo può vedere', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      purchasePriceMinor: 990,
+      variants: [{ id: 'var-1', purchasePriceMinor: 990 }],
+      images: [],
+    });
+
+    const masked = await service.getById(tenantId, 'prod-1', userWithoutCosts);
+    expect(masked).toMatchObject({ purchasePriceMinor: null });
+    expect(masked.variants[0]).toMatchObject({ purchasePriceMinor: null });
+
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      purchasePriceMinor: 990,
+      variants: [{ id: 'var-1', purchasePriceMinor: 990 }],
+      images: [],
+    });
+    const visible = await service.getById(tenantId, 'prod-1', userWithCosts);
+    expect(visible).toMatchObject({ purchasePriceMinor: 990 });
+  });
+
+  it('list senza utente (chiamate interne) non espone il costo: default prudente', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findMany.mockResolvedValue([
+      { id: 'prod-1', name: 'Maglietta', purchasePriceMinor: 990, variants: [], images: [] },
+    ]);
+    prisma.product.count.mockResolvedValue(1);
+
+    const result = await service.list(tenantId, { page: 1, pageSize: 10 });
+
+    expect(result.items[0]).toMatchObject({ purchasePriceMinor: null });
+  });
+
+  it('list con search cerca anche su barcode variante (scanner alla mano)', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findMany.mockResolvedValue([]);
+    prisma.product.count.mockResolvedValue(0);
+
+    await service.list(tenantId, { page: 1, pageSize: 10, search: '8001234567890' });
+
+    const where = (prisma.product.findMany.mock.calls[0]?.[0] as { where: { OR: unknown[] } })
+      .where;
+    expect(where.OR).toContainEqual({
+      variants: { some: { barcode: { contains: '8001234567890', mode: 'insensitive' } } },
+    });
+    expect(where.OR).toContainEqual({
+      variants: { some: { sku: { contains: '8001234567890', mode: 'insensitive' } } },
+    });
+  });
+
   it('getById lancia NotFoundException se assente', async () => {
     const { service, prisma } = createService();
     prisma.product.findFirst.mockResolvedValue(null);
@@ -120,7 +369,9 @@ describe('ProductsService', () => {
 
   it('checkSkuAvailability segnala SKU libero o occupato', async () => {
     const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'var-1' });
+    prisma.productVariant.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'var-1' });
 
     await expect(service.checkSkuAvailability(tenantId, 'SKU-NEW')).resolves.toEqual({
       sku: 'SKU-NEW',
@@ -134,7 +385,9 @@ describe('ProductsService', () => {
 
   it('checkBarcodeAvailability segnala barcode libero o occupato', async () => {
     const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'var-1' });
+    prisma.productVariant.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'var-1' });
 
     await expect(service.checkBarcodeAvailability(tenantId, '8001234567890')).resolves.toEqual({
       barcode: '8001234567890',
@@ -183,6 +436,46 @@ describe('ProductsService', () => {
       productName: 'Giacca',
       managesStock: true,
     });
+  });
+
+  // Il fornitore manda il suo listino con i SUOI codici: quello è il codice che
+  // si ha sotto gli occhi mentre si compila l'ordine, quindi è una chiave di
+  // ricerca come SKU ed EAN, non un dato da sola lettura.
+  it('findVariantByCode risolve per codice fornitore', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findFirst.mockResolvedValue(null);
+    prisma.productVariant.findMany
+      // Codice articolo: nessun riscontro.
+      .mockResolvedValueOnce([])
+      // Codice fornitore: uno solo, quindi non è ambiguo.
+      .mockResolvedValueOnce([
+        {
+          id: 'var-9',
+          productId: 'prod-9',
+          sku: 'SKU-9',
+          barcode: null,
+          product: { id: 'prod-9', name: 'Camicia', managesStock: true },
+        },
+      ]);
+
+    await expect(service.findVariantByCode(tenantId, 'FORN-123')).resolves.toMatchObject({
+      variantId: 'var-9',
+      productName: 'Camicia',
+    });
+  });
+
+  // Fornitori diversi possono usare lo stesso codice per articoli diversi:
+  // meglio nessun richiamo che il richiamo sbagliato.
+  it('findVariantByCode non sceglie se il codice fornitore è ambiguo', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findFirst.mockResolvedValue(null);
+    prisma.productVariant.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'var-a' }, { id: 'var-b' }]);
+
+    await expect(service.findVariantByCode(tenantId, 'FORN-123')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('delete rifiuta prodotto con movimenti di magazzino', async () => {
@@ -372,10 +665,7 @@ describe('ProductsService', () => {
 
     await service.delete(tenantId, 'prod-1');
 
-    expect(channelSync.deleteProduct).toHaveBeenCalledWith(
-      tenantId,
-      'gid://shopify/Product/1',
-    );
+    expect(channelSync.deleteProduct).toHaveBeenCalledWith(tenantId, 'gid://shopify/Product/1');
     expect(prisma.product.delete).toHaveBeenCalledWith({ where: { id: 'prod-1' } });
   });
 
@@ -414,6 +704,125 @@ describe('ProductsService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  // ⛔ Spegnere «Sincronizza con Shopify» è UN'OPERAZIONE SOLA (docs/24 §1.10):
+  //    la risposta al salvataggio non parte prima che Shopify abbia confermato,
+  //    altrimenti la scheda dichiara «spenta» una sync che si riaccende da sé.
+  describe('lo spegnimento della sincronizzazione aspetta Shopify', () => {
+    const collegato = {
+      id: 'prod-1',
+      name: 'Maglietta',
+      description: null,
+      shopifySyncEnabled: true,
+      shopifyProductId: '111',
+      variants: [],
+      images: [],
+    };
+
+    it("non risponde finché l'archiviazione è in volo", async () => {
+      const { service, prisma, channelSync } = createService();
+      prisma.product.findFirst.mockResolvedValue(collegato);
+      let concludi: (esito: unknown) => void = () => {};
+      channelSync.archiveProductOnSyncDisabled.mockReturnValue(
+        new Promise((resolve) => {
+          concludi = resolve;
+        }),
+      );
+
+      let risposta = false;
+      const salvataggio = service
+        .update(tenantId, 'prod-1', { shopifySyncEnabled: false } as never)
+        .then((prodotto) => {
+          risposta = true;
+          return prodotto;
+        });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(risposta).toBe(false);
+
+      concludi({ pushed: true });
+      await salvataggio;
+      expect(risposta).toBe(true);
+      // Lo spegnimento non passa dal push ordinario: a flag spento non parte.
+      expect(channelSync.enqueueProductPush).not.toHaveBeenCalled();
+    });
+
+    it('⭐ Shopify CONFERMA: il flag resta spento e la risposta lo dice', async () => {
+      const { service, prisma, channelSync } = createService();
+      prisma.product.findFirst
+        .mockResolvedValueOnce(collegato)
+        .mockResolvedValue({ ...collegato, shopifySyncEnabled: false });
+
+      const prodotto = await service.update(tenantId, 'prod-1', {
+        name: 'Nome nuovo',
+        shopifySyncEnabled: false,
+      } as never);
+
+      expect(channelSync.archiveProductOnSyncDisabled).toHaveBeenCalledWith(tenantId, 'prod-1');
+      expect(prodotto).toMatchObject({ shopifySyncEnabled: false });
+    });
+
+    it('⛔ Shopify RIFIUTA: la risposta porta lo stato EFFETTIVO, e il salvataggio riesce', async () => {
+      const { service, prisma, channelSync } = createService();
+      channelSync.archiveProductOnSyncDisabled.mockResolvedValue({
+        pushed: false,
+        reason: 'shopify_error',
+      });
+      // Dopo l'annullamento il prodotto è di nuovo acceso, con il messaggio: è
+      // quello che `getById` rilegge, ed è quello che la scheda deve mostrare.
+      prisma.product.findFirst.mockResolvedValueOnce(collegato).mockResolvedValue({
+        ...collegato,
+        name: 'Nome nuovo',
+        shopifySyncEnabled: true,
+        shopifySyncStatus: 'out_of_sync',
+        shopifyLastError: `${SYNC_DISABLE_FAILED_MESSAGE}: Shopify productUpdate rifiutato`,
+      });
+
+      // ⛔ Non solleva: le altre modifiche della scheda sono salvate, e un 500
+      //    direbbe «salvataggio fallito» di un salvataggio riuscito.
+      const prodotto = await service.update(tenantId, 'prod-1', {
+        name: 'Nome nuovo',
+        shopifySyncEnabled: false,
+      } as never);
+
+      expect(prodotto).toMatchObject({
+        name: 'Nome nuovo',
+        shopifySyncEnabled: true,
+        shopifySyncStatus: 'out_of_sync',
+      });
+      expect(prodotto.shopifyLastError).toContain(SYNC_DISABLE_FAILED_MESSAGE);
+    });
+
+    it('⭐ prodotto MAI COLLEGATO: si spegne in locale, senza chiamare Shopify', async () => {
+      const { service, prisma, channelSync } = createService();
+      const mai = { ...collegato, shopifyProductId: null };
+      channelSync.archiveProductOnSyncDisabled.mockResolvedValue({
+        pushed: false,
+        reason: 'not_linked',
+      });
+      prisma.product.findFirst
+        .mockResolvedValueOnce(mai)
+        .mockResolvedValue({ ...mai, shopifySyncEnabled: false });
+
+      const prodotto = await service.update(tenantId, 'prod-1', {
+        shopifySyncEnabled: false,
+      } as never);
+
+      // La chiamata parte lo stesso: è la facade a sapere se c'è un canale.
+      // Quello che conta è che lo spegnimento REGGA.
+      expect(prodotto).toMatchObject({ shopifySyncEnabled: false });
+    });
+
+    it('già spento: nessuna transizione, quindi nessuna archiviazione', async () => {
+      const { service, prisma, channelSync } = createService();
+      prisma.product.findFirst.mockResolvedValue({ ...collegato, shopifySyncEnabled: false });
+
+      await service.update(tenantId, 'prod-1', { shopifySyncEnabled: false } as never);
+
+      expect(channelSync.archiveProductOnSyncDisabled).not.toHaveBeenCalled();
+      expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-1');
+    });
+  });
+
   it('update modifica nome prodotto', async () => {
     const { service, prisma, channelSync } = createService();
     const product = {
@@ -425,9 +834,9 @@ describe('ProductsService', () => {
     };
     prisma.product.findFirst.mockResolvedValue(product);
 
-    await expect(
-      service.update(tenantId, 'prod-1', { name: 'Nuovo nome' }),
-    ).resolves.toMatchObject({ id: 'prod-1', name: 'Vecchio' });
+    await expect(service.update(tenantId, 'prod-1', { name: 'Nuovo nome' })).resolves.toMatchObject(
+      { id: 'prod-1', name: 'Vecchio' },
+    );
 
     expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-1');
   });
@@ -526,8 +935,9 @@ describe('ProductsService', () => {
       sellingPrice: { amountMinor: 1990, currencyCode: 'EUR' },
       purchasePrice: { amountMinor: 990, currencyCode: 'EUR' },
     });
-    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: { tenantId: string } })
-      .where;
+    const where = (
+      prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: { tenantId: string } }
+    ).where;
     expect(where.tenantId).toBe(tenantId);
   });
 
@@ -553,17 +963,29 @@ describe('ProductsService', () => {
     });
   });
 
-  it('listVariantSummaries omette il costo senza utente nel chiamante', async () => {
+  /**
+   * ⚠️ **Qui c’era «omette il costo SENZA UTENTE nel chiamante»**, e la sua
+   * premessa non esiste più: dal 28/08/2026 `user` non è più opzionale, quindi
+   * una chiamata senza utente non compila. Il commento del servizio diceva
+   * «opzionale per non rompere i chiamanti interni» — di chiamanti interni non
+   * ce n’erano: l’unico è la rotta, e l’utente lo passa.
+   *
+   * ⭐ Al suo posto la controprova che mancava: chi il permesso CE L’HA il costo
+   * lo vede. Senza, l’unica prova sul costo sarebbe negativa, e una regola che
+   * nasconde sempre passerebbe verde.
+   */
+  it('listVariantSummaries espone il costo a chi ha il permesso costi', async () => {
     const { service, prisma } = createService();
     prisma.productVariant.findMany.mockResolvedValue([variantRowWithCost]);
     prisma.productVariant.count.mockResolvedValue(1);
 
-    const result = await service.listVariantSummaries(tenantId, {
-      page: 1,
-      pageSize: 20,
-    } as never);
+    const result = await service.listVariantSummaries(
+      tenantId,
+      { page: 1, pageSize: 20 } as never,
+      testOwnerUser(),
+    );
 
-    expect(result.items[0]?.purchasePrice).toBeNull();
+    expect(result.items[0]?.purchasePrice).not.toBeNull();
   });
 
   it('listVariantSummaries applica ricerca e filtro variantId', async () => {
@@ -576,10 +998,11 @@ describe('ProductsService', () => {
       pageSize: 10,
       search: 'mag',
       variantId: 'var-9',
-    } as never);
+    } as never, testOwnerUser());
 
-    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> })
-      .where;
+    const where = (
+      prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    ).where;
     expect(where.tenantId).toBe(tenantId);
     expect(where.id).toBe('var-9');
   });
@@ -593,12 +1016,136 @@ describe('ProductsService', () => {
       page: 1,
       pageSize: 10,
       productId: 'prod-7',
-    } as never);
+    } as never, testOwnerUser());
 
-    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> })
-      .where;
+    const where = (
+      prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    ).where;
     expect(where.tenantId).toBe(tenantId);
     expect(where.productId).toBe('prod-7');
+  });
+
+  // Il riepilogo varianti serve la ricerca articolo delle maschere documento:
+  // il `locationId` della query decide DI QUALE sede si leggono giacenza e
+  // disponibilità, e la rotta chiede solo la sezione «Prodotti». Il confine di
+  // sede va quindi verificato qui, nel servizio dove il dato arriva.
+  describe('listVariantSummaries — la sede segue l’utente, non la query', () => {
+    const NAPOLI = '11111111-1111-4111-8111-111111111111';
+    const MILANO = '22222222-2222-4222-8222-222222222222';
+
+    it('nega la sede fuori ambito e non legge nulla', async () => {
+      const { service, prisma } = createService();
+      // La lettura è pronta a riuscire: senza la guardia questa chiamata
+      // tornerebbe la giacenza di Napoli invece di fallire.
+      prisma.productVariant.findMany.mockResolvedValue([
+        {
+          ...(variantRowWithCost as object),
+          inventoryLevels: [{ onHand: 9, available: 9, minThreshold: 0 }],
+        },
+      ] as never);
+      prisma.productVariant.count.mockResolvedValue(1);
+      // Commesso con una sola sede assegnata: Napoli non è sua.
+      const clerk = testClerkUser({ assignedLocationIds: [MILANO] });
+
+      await expect(
+        service.listVariantSummaries(
+          tenantId,
+          { page: 1, pageSize: 20, locationId: NAPOLI } as never,
+          clerk,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      // Nessun effetto: la giacenza della sede negata non viene nemmeno letta.
+      expect(prisma.productVariant.findMany).not.toHaveBeenCalled();
+      expect(prisma.productVariant.count).not.toHaveBeenCalled();
+    });
+
+    it('lascia passare la sede assegnata e filtra la giacenza su quella', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+      const clerk = testClerkUser({ assignedLocationIds: [MILANO] });
+
+      await service.listVariantSummaries(
+        tenantId,
+        { page: 1, pageSize: 20, locationId: MILANO } as never,
+        clerk,
+      );
+
+      const select = (
+        prisma.productVariant.findMany.mock.calls[0]?.[0] as {
+          select: { inventoryLevels: { where?: { locationId?: string } } };
+        }
+      ).select;
+      expect(select.inventoryLevels.where?.locationId).toBe(MILANO);
+    });
+
+    it('il titolare con array permessi vuoto vede qualunque sede', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+      // Titolare senza sedi assegnate e senza permessi elencati: passa comunque.
+      const owner = testOwnerUser({ assignedLocationIds: [], permissions: [] });
+
+      await expect(
+        service.listVariantSummaries(
+          tenantId,
+          { page: 1, pageSize: 20, locationId: NAPOLI } as never,
+          owner,
+        ),
+      ).resolves.toMatchObject({ total: 0 });
+      expect(prisma.productVariant.findMany).toHaveBeenCalled();
+    });
+
+    it('chi ha «vedi tutte le sedi» continua a vedere qualunque sede', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+      const clerk = testClerkUser({
+        assignedLocationIds: [MILANO],
+        permissions: [TenantPermission.SectionProducts, TenantPermission.InventoryViewAllLocations],
+      });
+
+      await expect(
+        service.listVariantSummaries(
+          tenantId,
+          { page: 1, pageSize: 20, locationId: NAPOLI } as never,
+          clerk,
+        ),
+      ).resolves.toMatchObject({ total: 0 });
+    });
+
+    // Senza `locationId` la ricerca articolo delle maschere documento non
+    // cambia: totale multi-sede, anche per chi non ha sedi assegnate. Stringere
+    // anche qui azzererebbe la giacenza mostrata in mezza applicazione.
+    it('senza locationId non filtra e non nega, anche senza sedi assegnate', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([
+        {
+          ...(variantRowWithCost as object),
+          inventoryLevels: [
+            { onHand: 3, available: 2, minThreshold: 1 },
+            { onHand: 4, available: 4, minThreshold: 0 },
+          ],
+        },
+      ] as never);
+      prisma.productVariant.count.mockResolvedValue(1);
+      const clerk = testClerkUser({ assignedLocationIds: [] });
+
+      const result = await service.listVariantSummaries(
+        tenantId,
+        { page: 1, pageSize: 20 } as never,
+        clerk,
+      );
+
+      const select = (
+        prisma.productVariant.findMany.mock.calls[0]?.[0] as {
+          select: { inventoryLevels: { where?: unknown } };
+        }
+      ).select;
+      expect(select.inventoryLevels.where).toBeUndefined();
+      expect(result.items[0]).toMatchObject({ stockOnHand: 7, stockAvailable: 6 });
+    });
   });
 
   describe('duplicateProduct', () => {

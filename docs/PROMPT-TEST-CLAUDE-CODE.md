@@ -108,7 +108,7 @@ REGOLE DI SICUREZZA (vincolanti):
 - Le azioni distruttive previste dal piano (elimina prodotto, annulla documento,
   reso) vanno fatte SOLO su dati E2E- creati nella sessione.
 - A fine tranche, dove il piano non richiede di conservarli, annulla/pulisci i
-  dati E2E- creati (documenti in bozza eliminabili, ordini annullabili).
+  dati E2E- creati (documenti eliminabili, ordini annullabili).
 
 TEST DA MARCARE N/A SENZA ESEGUIRLI:
 - scanner con fotocamera, pistola barcode fisica, installazione PWA su device

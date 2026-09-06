@@ -1,0 +1,432 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  applicaFiltriDiColonna,
+  countActiveColumnFilters,
+  isColumnFilterActive,
+  valoriDistinti,
+} from './column-filter.model';
+import type { ColumnFilterState } from './column-filter.model';
+
+interface Riga {
+  readonly id: string;
+  readonly stato: string;
+  readonly nome: string;
+  readonly totale: number;
+}
+
+const RIGHE: readonly Riga[] = [
+  { id: 'a', stato: 'Confermato', nome: 'Maglia cotone', totale: 1000 },
+  { id: 'b', stato: 'Bozza', nome: 'Àncora blu', totale: -500 },
+  { id: 'c', stato: 'Confermato', nome: 'Zoccolo', totale: 250 },
+  { id: 'd', stato: 'Annullato', nome: 'maglia lana', totale: 0 },
+];
+
+const cellText = (r: Riga, id: string): string =>
+  id === 'stato' ? r.stato : id === 'nome' ? r.nome : String(r.totale);
+
+const numeroDi = (r: Riga, id: string): number | null => (id === 'totale' ? r.totale : null);
+
+const ids = (righe: readonly Riga[]): string[] => righe.map((r) => r.id);
+
+describe('un filtro è ATTIVO solo se restringe', () => {
+  /*
+    ⛔ **Il vuoto è «nessun filtro», non «valore vuoto».** Confonderli renderebbe
+    impossibile togliere un filtro: il controllo resterebbe acceso e vuoto, e
+    l'elenco tornerebbe zero righe.
+  */
+  it('⛔ un controllo aperto e lasciato vuoto non è un filtro', () => {
+    expect(isColumnFilterActive({ kind: 'values', values: [] })).toBe(false);
+    expect(isColumnFilterActive({ kind: 'text', text: '   ' })).toBe(false);
+    expect(isColumnFilterActive({ kind: 'range' })).toBe(false);
+    expect(isColumnFilterActive(undefined)).toBe(false);
+  });
+
+  it('con un valore restringe', () => {
+    expect(isColumnFilterActive({ kind: 'values', values: ['Bozza'] })).toBe(true);
+    expect(isColumnFilterActive({ kind: 'text', text: 'mag' })).toBe(true);
+    expect(isColumnFilterActive({ kind: 'range', min: 0 })).toBe(true);
+    expect(isColumnFilterActive({ kind: 'range', max: 0 })).toBe(true);
+  });
+
+  /*
+    ⚠️ **Zero è un estremo legittimo**, e va detto: scritto con un `if (min)` il
+    filtro «da 0 in su» non scatterebbe mai, perché `0` è falso.
+  */
+  it('⚠️ un estremo a ZERO è un filtro, non un vuoto', () => {
+    expect(isColumnFilterActive({ kind: 'range', min: 0, max: 0 })).toBe(true);
+  });
+
+  it('il conteggio è quello del badge «Filtri (n)»', () => {
+    const stato: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Bozza'] },
+      nome: { kind: 'text', text: '' },
+      totale: { kind: 'range', min: 100 },
+    };
+    expect(countActiveColumnFilters(stato)).toBe(2);
+  });
+});
+
+describe('applicaFiltriDiColonna', () => {
+  it('senza filtri restituisce le righe INTATTE', () => {
+    expect(applicaFiltriDiColonna(RIGHE, {}, { cellText })).toBe(RIGHE);
+  });
+
+  it('un filtro a valori tiene solo quelli scelti', () => {
+    const out = applicaFiltriDiColonna(
+      RIGHE,
+      { stato: { kind: 'values', values: ['Confermato'] } },
+      { cellText },
+    );
+    expect(ids(out)).toEqual(['a', 'c']);
+  });
+
+  it('più valori sulla stessa colonna sono un OR', () => {
+    const out = applicaFiltriDiColonna(
+      RIGHE,
+      { stato: { kind: 'values', values: ['Bozza', 'Annullato'] } },
+      { cellText },
+    );
+    expect(ids(out)).toEqual(['b', 'd']);
+  });
+
+  /*
+    ⭐ **Due colonne sono un AND**: si restringe, non si allarga. È l'unica
+    lettura che rende prevedibile aggiungere un filtro.
+  */
+  it('⭐ due colonne filtrate insieme si RESTRINGONO', () => {
+    const out = applicaFiltriDiColonna(
+      RIGHE,
+      {
+        stato: { kind: 'values', values: ['Confermato'] },
+        nome: { kind: 'text', text: 'zocc' },
+      },
+      { cellText },
+    );
+    expect(ids(out)).toEqual(['c']);
+  });
+
+  /*
+    ⚠️ **Il testo NON distingue maiuscole e accenti di battitura**: chi cerca
+    «maglia» deve trovare «Maglia cotone» e «maglia lana». Un confronto sensibile
+    al caso è il difetto più comune di un filtro di testo.
+  */
+  it('⚠️ il testo ignora le maiuscole', () => {
+    const out = applicaFiltriDiColonna(
+      RIGHE,
+      { nome: { kind: 'text', text: 'MAGLIA' } },
+      { cellText },
+    );
+    expect(ids(out)).toEqual(['a', 'd']);
+  });
+
+  describe('intervallo', () => {
+    it('rispetta il minimo, il massimo e li include', () => {
+      expect(
+        ids(
+          applicaFiltriDiColonna(
+            RIGHE,
+            { totale: { kind: 'range', min: 250 } },
+            { cellText, numeroDi },
+          ),
+        ),
+      ).toEqual(['a', 'c']);
+      expect(
+        ids(
+          applicaFiltriDiColonna(
+            RIGHE,
+            { totale: { kind: 'range', max: 250 } },
+            { cellText, numeroDi },
+          ),
+        ),
+      ).toEqual(['b', 'c', 'd']);
+    });
+
+    /*
+      ⛔ **I NEGATIVI sono righe come le altre.** Un reso o una nota di credito
+      hanno totale negativo, e un filtro «fino a 0» deve prenderli: è il caso in
+      cui si cerca proprio quelli.
+    */
+    it('⛔ un intervallo che scende sotto zero prende i negativi', () => {
+      const out = applicaFiltriDiColonna(
+        RIGHE,
+        { totale: { kind: 'range', min: -1000, max: 0 } },
+        { cellText, numeroDi },
+      );
+      expect(ids(out)).toEqual(['b', 'd']);
+    });
+
+    /*
+      ⚠️ **Senza estrattore la colonna NON filtra**, invece di filtrare male:
+      meglio non restringere che restringere per un confronto che non sappiamo
+      fare — un `range` su un testo darebbe zero righe senza dire perché.
+    */
+    it('⚠️ senza `numeroDi` la colonna lascia passare tutto', () => {
+      const out = applicaFiltriDiColonna(
+        RIGHE,
+        { totale: { kind: 'range', min: 500 } },
+        { cellText },
+      );
+      expect(ids(out)).toEqual(['a', 'b', 'c', 'd']);
+    });
+  });
+});
+
+describe('intervallo di DATE', () => {
+  interface Movimento {
+    readonly id: string;
+    readonly quando: string;
+  }
+
+  const MOVIMENTI: readonly Movimento[] = [
+    { id: 'gen', quando: '2026-01-31' },
+    { id: 'feb', quando: '2026-02-01' },
+    // ⚠️ Un istante completo, non un giorno: è la forma in cui l'API le manda.
+    { id: 'ago', quando: '2026-08-31T14:30:00.000Z' },
+  ];
+
+  const testoData = (m: Movimento): string => m.quando;
+  const dataDi = (m: Movimento): string => m.quando;
+  const idsM = (righe: readonly Movimento[]): string[] => righe.map((r) => r.id);
+
+  /*
+    ⛔ **In ISO il confronto fra stringhe è già quello giusto**, e sul testo
+    mostrato non lo sarebbe: «31/01» viene dopo «01/02» in ordine alfabetico.
+    È la ragione per cui `date` legge una data e non `cellText`.
+  */
+  it('⛔ confronta le date, non il testo mostrato', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateFrom: '2026-02-01' } },
+      { cellText: testoData, dataDi },
+    );
+    expect(idsM(out)).toEqual(['feb', 'ago']);
+  });
+
+  /*
+    ⛔ **L'istante si tronca al GIORNO**, ed è la trappola di questo filtro:
+    `'2026-08-31T14:30'` confrontato con un estremo `'2026-08-31'` risulta
+    **maggiore**, quindi la riga di oggi sparirebbe da un «fino a oggi». È il
+    difetto che si scopre solo il giorno in cui lo si usa.
+  */
+  it('⛔ «fino al 31» prende anche la riga delle 14:30 del 31', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateTo: '2026-08-31' } },
+      { cellText: testoData, dataDi },
+    );
+    expect(idsM(out)).toContain('ago');
+  });
+
+  it('i due estremi insieme delimitano', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateFrom: '2026-01-01', dateTo: '2026-01-31' } },
+      { cellText: testoData, dataDi },
+    );
+    expect(idsM(out)).toEqual(['gen']);
+  });
+
+  /*
+    ⚠️ **Senza estrattore la colonna non filtra**, invece di filtrare male —
+    stessa scelta di `range`: meglio non restringere che restringere per un
+    confronto che non sappiamo fare.
+  */
+  it('⚠️ senza `dataDi` lascia passare tutto', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateFrom: '2026-06-01' } },
+      { cellText: testoData },
+    );
+    expect(idsM(out)).toHaveLength(3);
+  });
+
+  it('un intervallo senza estremi non è un filtro', () => {
+    expect(isColumnFilterActive({ kind: 'date' })).toBe(false);
+    expect(isColumnFilterActive({ kind: 'date', dateFrom: '2026-01-01' })).toBe(true);
+    expect(isColumnFilterActive({ kind: 'date', dateTo: '2026-01-01' })).toBe(true);
+  });
+});
+
+describe('valoriDistinti', () => {
+  it('elenca i valori presenti, senza ripetizioni', () => {
+    expect(valoriDistinti(RIGHE, 'stato', cellText)).toEqual(['Annullato', 'Bozza', 'Confermato']);
+  });
+
+  /*
+    ⚠️ **Ordinati come li legge un italiano**: «Àncora» viene prima di «Zoccolo»,
+    e non dopo — che è dove la metterebbe un confronto binario sui codepoint
+    (`'À'` vale 192, oltre ogni lettera ASCII).
+
+    ⚠️ **E il CASO non conta prima della lettera**: «Maglia cotone» precede
+    «maglia lana» perché confronta `c` con `l`, non `M` con `m`. Scrivendo
+    questa prova avevo asserito l'ordine sbagliato — è la stessa lezione del
+    segno meno: si verifica cosa fa `Intl`, non cosa sembra ragionevole.
+  */
+  it('⚠️ ordina secondo la lingua, non i codepoint', () => {
+    expect(valoriDistinti(RIGHE, 'nome', cellText)).toEqual([
+      'Àncora blu',
+      'Maglia cotone',
+      'maglia lana',
+      'Zoccolo',
+    ]);
+  });
+
+  it('salta le celle vuote: non sono una scelta', () => {
+    const conVuoti = [...RIGHE, { id: 'e', stato: '  ', nome: '', totale: 0 }];
+    expect(valoriDistinti(conVuoti, 'stato', cellText)).toHaveLength(3);
+  });
+});
+
+/**
+ * ⭐ **L'ESCLUSIONE** — «tutte le righe tranne queste» — chiesta dal
+ * proprietario col modello Danea: «riuscire a fare qualche filtro dove posso
+ * selezionare più cose, escludere ecc.».
+ */
+describe('il filtro a valori ha un VERSO', () => {
+  it('⭐ senza verso include: restano solo i valori scelti', () => {
+    const filtri: ColumnFilterState = { stato: { kind: 'values', values: ['Confermato'] } };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText }))).toEqual(['a', 'c']);
+  });
+
+  it('⭐ escludendo restano TUTTE LE ALTRE, ed è l’esatto complemento', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Confermato'], exclude: true },
+    };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText }))).toEqual(['b', 'd']);
+  });
+
+  it('⭐ escludendo PIÙ valori li toglie tutti: è la selezione multipla, al contrario', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Confermato', 'Bozza'], exclude: true },
+    };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText }))).toEqual(['d']);
+  });
+
+  /*
+    ⛔ **«Escludi niente» è l'elenco intero, non l'elenco vuoto.** Se l'insieme
+    vuoto restringesse anche solo in un verso, il badge «Filtri (n)» conterebbe
+    una restrizione che non c'è — e togliere il filtro diventerebbe impossibile
+    proprio quando serve.
+  */
+  it('⛔ con l’insieme vuoto non restringe in NESSUNO dei due versi', () => {
+    const vuoto = { kind: 'values', values: [], exclude: true } as const;
+
+    expect(isColumnFilterActive(vuoto)).toBe(false);
+    expect(ids(applicaFiltriDiColonna(RIGHE, { stato: vuoto }, { cellText }))).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('⚠️ il verso non cambia il conteggio del badge: resta UNA restrizione', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Bozza'], exclude: true },
+    };
+
+    expect(countActiveColumnFilters(filtri)).toBe(1);
+  });
+
+  /*
+    ⚠️ **Fra colonne resta l'AND**, e con l'esclusione va detto: «stato diverso
+    da Bozza» E «nome contiene maglia» è un'intersezione, non un'unione.
+  */
+  it('⚠️ si combina in AND con gli altri filtri, come tutti', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Bozza'], exclude: true },
+      nome: { kind: 'text', text: 'maglia' },
+    };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText, numeroDi }))).toEqual(['a', 'd']);
+  });
+});
+
+/**
+ * ⭐ **L'ORDINE DEI VALORI DI UNA COLONNA DATA** — proprietario, 01/09/2026:
+ * «le date sono in ordine decrescente», guardando un elenco che le mostra così
+ * e un filtro che le offriva al contrario.
+ */
+describe('valoriDistinti — le date non sono testo', () => {
+  interface Riga {
+    readonly data: string;
+  }
+  const testoData = (r: Riga): string => r.data;
+
+  /*
+    ⛔ **L'ordine alfabetico su `GG/MM/AAAA` è SBAGLIATO, non solo invertito**:
+    «29/08» e «07/09» si confrontano dal primo carattere, quindi settembre
+    finisce prima di agosto.
+  */
+  it('⛔ agosto non finisce dopo settembre per via del primo carattere', () => {
+    const righe: readonly Riga[] = [
+      { data: '29/08/2026' },
+      { data: '07/09/2026' },
+      { data: '13/08/2026' },
+    ];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual([
+      '07/09/2026',
+      '29/08/2026',
+      '13/08/2026',
+    ]);
+  });
+
+  it('⭐ la più recente in cima, come nella colonna', () => {
+    const righe: readonly Riga[] = [
+      { data: '07/08/2026' },
+      { data: '29/08/2026' },
+      { data: '11/08/2026' },
+    ];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual([
+      '29/08/2026',
+      '11/08/2026',
+      '07/08/2026',
+    ]);
+  });
+
+  it('⚠️ anche fra anni diversi, che è dove il testo sbaglia di più', () => {
+    const righe: readonly Riga[] = [{ data: '31/12/2025' }, { data: '01/01/2026' }];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual(['01/01/2026', '31/12/2025']);
+  });
+
+  /*
+    ⚠️ **Si riconosce dalla FORMA**: se anche un solo valore non è una data
+    completa, l'elenco non è di date e torna l'ordine alfabetico italiano.
+  */
+  it('⚠️ un solo valore non-data e l’elenco torna alfabetico', () => {
+    const righe: readonly Riga[] = [
+      { data: '29/08/2026' },
+      { data: 'Da definire' },
+      { data: '07/09/2026' },
+    ];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual([
+      '07/09/2026',
+      '29/08/2026',
+      'Da definire',
+    ]);
+  });
+
+  /*
+    ⭐ **IL SEGNAPOSTO È UN'ALTRA COSA, E NON SPEGNE L'ORDINE DELLE DATE.**
+
+    ⛔ Qui la prova asseriva `['—', '07/09/2026', '29/08/2026']`, cioè il ripiego
+    alfabetico: **fissava il difetto**. Su una data facoltativa — «Attesa il»,
+    «Scadenza» — basta una riga vuota, e la scelta «le date in ordine
+    decrescente» del 01/09/2026 smetteva di valere proprio dove serve.
+
+    ⚠️ **Resta spuntabile**: si filtra anche per «senza valore». Cambia dove sta.
+  */
+  it('⭐ un segnaposto non spegne l’ordine per data: va in coda', () => {
+    const righe: readonly Riga[] = [{ data: '29/08/2026' }, { data: '—' }, { data: '07/09/2026' }];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual(['07/09/2026', '29/08/2026', '—']);
+  });
+});

@@ -1,0 +1,51 @@
+// Elenco dei documenti fuori posto dentro l'avviso cronologico (§4).
+// Nessun valore nudo: solo token da `_design-tokens.scss`.
+
+.chrono-warning__list {
+  margin: var(--space-8) 0 var(--space-12);
+  padding: var(--space-8) var(--space-10);
+  max-block-size: var(--doc-suggestions-max-h);
+  overflow-y: auto;
+  list-style: none;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.chrono-warning__item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding-block: var(--space-2);
+  font-size: var(--text-sm);
+
+  & + & {
+    border-block-start: 1px solid var(--color-border-cell);
+  }
+}
+
+.chrono-warning__ref {
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+// I numeri stanno in colonna: la data è il dato che si confronta a occhio.
+.chrono-warning__date {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chrono-warning__mute {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.chrono-warning__mute-note {
+  display: block;
+  color: var(--color-text-subtle);
+  font-size: var(--text-2xs);
+}

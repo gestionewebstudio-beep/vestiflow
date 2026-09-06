@@ -11,12 +11,20 @@ function trimOptional(value: string | undefined | null): string | undefined {
 export function createSupplierFormGroup(fb: NonNullableFormBuilder) {
   return fb.group({
     code: fb.control(''),
+    /*
+      ⭐ **Lo stato del RUOLO**, acceso di serie: un fornitore nasce attivo.
+      Spento, sparisce dalle tendine dei documenti nuovi e resta tutto il
+      resto — schede, ordini, storico (`ANAGRAFICA-CANONICA-SPEC`).
+    */
+    isActive: fb.control(true),
     name: fb.control('', { validators: [Validators.required, Validators.minLength(1)] }),
     vatNumber: fb.control(''),
     taxCode: fb.control(''),
     email: fb.control('', { validators: [Validators.email] }),
     pec: fb.control('', { validators: [Validators.email] }),
     phone: fb.control(''),
+    mobilePhone: fb.control(''),
+    iban: fb.control(''),
     contactName: fb.control(''),
     website: fb.control(''),
     addressLine1: fb.control(''),
@@ -31,6 +39,7 @@ export function createSupplierFormGroup(fb: NonNullableFormBuilder) {
     defaultVatCodeId: fb.control(''),
     transportResponsible: fb.control(''),
     freightTerms: fb.control(''),
+    ourBankName: fb.control(''),
     documentCreationAlert: fb.control(''),
     documentCreationNote: fb.control(''),
     notes: fb.control(''),
@@ -43,12 +52,15 @@ export type SupplierFormGroup = ReturnType<typeof createSupplierFormGroup>;
 export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): SupplierInput {
   return {
     code: trimOptional(raw.code),
+    isActive: raw.isActive,
     name: raw.name?.trim() ?? '',
     vatNumber: trimOptional(raw.vatNumber),
     taxCode: trimOptional(raw.taxCode),
     email: trimOptional(raw.email),
     pec: trimOptional(raw.pec),
     phone: trimOptional(raw.phone),
+    mobilePhone: trimOptional(raw.mobilePhone),
+    iban: trimOptional(raw.iban),
     contactName: trimOptional(raw.contactName),
     website: trimOptional(raw.website),
     addressLine1: trimOptional(raw.addressLine1),
@@ -63,6 +75,7 @@ export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): Supplie
     defaultVatCodeId: trimOptional(raw.defaultVatCodeId),
     transportResponsible: trimOptional(raw.transportResponsible),
     freightTerms: trimOptional(raw.freightTerms),
+    ourBankName: trimOptional(raw.ourBankName),
     documentCreationAlert: trimOptional(raw.documentCreationAlert),
     documentCreationNote: trimOptional(raw.documentCreationNote),
     notes: trimOptional(raw.notes),
@@ -73,12 +86,15 @@ export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): Supplie
 export function patchSupplierFormGroup(form: SupplierFormGroup, supplier: Supplier): void {
   form.patchValue({
     code: supplier.code ?? '',
+    isActive: supplier.isActive,
     name: supplier.name,
     vatNumber: supplier.vatNumber ?? '',
     taxCode: supplier.taxCode ?? '',
     email: supplier.email ?? '',
     pec: supplier.pec ?? '',
     phone: supplier.phone ?? '',
+    mobilePhone: supplier.mobilePhone ?? '',
+    iban: supplier.iban ?? '',
     contactName: supplier.contactName ?? '',
     website: supplier.website ?? '',
     addressLine1: supplier.addressLine1 ?? '',
@@ -93,6 +109,7 @@ export function patchSupplierFormGroup(form: SupplierFormGroup, supplier: Suppli
     defaultVatCodeId: supplier.defaultVatCodeId ?? '',
     transportResponsible: supplier.transportResponsible ?? '',
     freightTerms: supplier.freightTerms ?? '',
+    ourBankName: supplier.ourBankName ?? '',
     documentCreationAlert: supplier.documentCreationAlert ?? '',
     documentCreationNote: supplier.documentCreationNote ?? '',
     notes: supplier.notes ?? '',
@@ -104,12 +121,15 @@ export function patchSupplierFormGroup(form: SupplierFormGroup, supplier: Suppli
 export function resetSupplierFormGroup(form: SupplierFormGroup): void {
   form.reset({
     code: '',
+    isActive: true,
     name: '',
     vatNumber: '',
     taxCode: '',
     email: '',
     pec: '',
     phone: '',
+    mobilePhone: '',
+    iban: '',
     contactName: '',
     website: '',
     addressLine1: '',
@@ -124,6 +144,7 @@ export function resetSupplierFormGroup(form: SupplierFormGroup): void {
     defaultVatCodeId: '',
     transportResponsible: '',
     freightTerms: '',
+    ourBankName: '',
     documentCreationAlert: '',
     documentCreationNote: '',
     notes: '',

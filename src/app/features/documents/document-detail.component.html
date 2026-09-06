@@ -48,21 +48,14 @@
             Duplica
           </app-button>
         }
-        @if (canConvert()) {
-          <app-button
-            variant="secondary"
-            [disabled]="actionSaving()"
-            (click)="convertToInvoiceDraft()"
-          >
-            Converti in bozza fattura
-          </app-button>
-          <app-button variant="secondary" [disabled]="actionSaving()" (click)="convertToSalesDdt()">
-            Converti in DDT vendita
+        @if (canConvertToInvoice()) {
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="convertToInvoice()">
+            Converti in fattura
           </app-button>
         }
-        @if (canRegisterExternal()) {
-          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestRegister()">
-            {{ registerButtonLabel }}
+        @if (canConvertToSalesDdt()) {
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="convertToSalesDdt()">
+            Converti in DDT vendita
           </app-button>
         }
         @if (canCancel()) {
@@ -140,18 +133,6 @@
   }
 </section>
 
-<!-- Conferma semplice: numero e data del documento esterno restano quelli
-     già acquisiti sul documento. -->
-<app-confirm-dialog
-  [(open)]="registerDialogOpen"
-  [title]="registerButtonLabel"
-  [message]="registerDialogMessage"
-  confirmLabel="Conferma"
-  cancelLabel="Annulla"
-  [busy]="actionSaving()"
-  (confirmed)="registerExternal()"
-/>
-
 <app-confirm-dialog
   [(open)]="cancelDialogOpen"
   title="Annulla documento"
@@ -162,12 +143,10 @@
   (confirmed)="cancelDocument()"
 />
 
-<app-confirm-dialog
+<app-delete-confirm
   [(open)]="deleteDialogOpen"
   title="Elimina documento"
-  [message]="deleteDialogMessage()"
-  confirmLabel="Elimina"
-  [danger]="true"
+  [consequence]="deleteDialogMessage()"
   [busy]="actionSaving()"
   (confirmed)="deleteDocument()"
 />

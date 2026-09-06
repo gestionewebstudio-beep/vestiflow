@@ -13,7 +13,10 @@ export interface DocumentTypeSettingPatch {
   readonly autoNumbering?: boolean;
   readonly numberPrefix?: string;
   readonly defaultSeries?: string;
-  readonly pricesIncludeVat?: boolean;
+  // ⚠️ `pricesIncludeVat` non c'è più: era un default netto/ivato per TIPO
+  // documento che nessun pannello esponeva e che il ripiego del server non
+  // raggiungeva mai. Al suo posto c'è la convenzione aziendale
+  // (Impostazioni → Prezzi), che è di tenant e non di tipo.
   readonly defaultNotes?: string;
 }
 

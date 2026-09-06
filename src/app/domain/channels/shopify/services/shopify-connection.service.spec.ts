@@ -28,6 +28,7 @@ function authUserOwner(): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: TenantChannelProfile.Shopify,
+    manualUnloadEnabled: true,
     tenantName: 'Test',
     hasAllLocationsAccess: true,
     assignedLocationIds: [],
@@ -105,6 +106,7 @@ describe('ShopifyConnectionService (HTTP)', () => {
     authMock.currentUser.mockReturnValue({
       ...authUserOwner(),
       tenantChannelProfile: TenantChannelProfile.Gestionale,
+      manualUnloadEnabled: true,
     });
 
     await expect(firstValueFrom(service.getConnection())).rejects.toThrow();

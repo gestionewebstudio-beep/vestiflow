@@ -1,0 +1,12 @@
+<nav class="nav-tabs" [attr.aria-label]="ariaLabel()">
+  @for (t of items(); track t.link) {
+    <a
+      class="nav-tabs__link"
+      [routerLink]="t.link"
+      routerLinkActive="nav-tabs__link--active"
+      [routerLinkActiveOptions]="{ exact: t.exact ?? true }"
+    >
+      {{ t.label }}
+    </a>
+  }
+</nav>

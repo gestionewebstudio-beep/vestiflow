@@ -1,3 +1,4 @@
+import { serializeDataTableSort } from '@shared/components/data-table/data-table.model';
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { EMPTY, expand, map, reduce, type Observable, timeout } from 'rxjs';
@@ -9,7 +10,7 @@ import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import type { CreateDocumentBody } from '@domain/documents/services/document-api.mapper';
+import type { ConcludePrefillBody } from '@domain/documents/services/document-api.mapper';
 
 import type {
   SalesOrderListQuery,
@@ -50,12 +51,39 @@ export interface SaveManualOrderInput {
   readonly locationId?: EntityId;
   readonly documentDate: string;
   readonly externalRef?: string;
+  /** Serie del numeratore; assente = la predefinita del tipo. */
+  readonly series?: string;
+  /**
+   * Numero imposto dalla testata. **Assente = «assegnalo tu»**, ed è il caso
+   * normale: la proposta mostrata non torna indietro come imposizione, così due
+   * operatori che salvano insieme non si contendono lo stesso numero.
+   */
+  readonly number?: number;
   readonly expectedDeliveryDate?: string;
-  readonly status?: 'confirmed' | 'cancelled';
+  /**
+   * Stato del ciclo commerciale scelto dall’operatore (`18` §2.1).
+   *
+   * ⛔ **`concluded` non è ammesso**: è derivato dal collegamento a un
+   * documento conclusivo, e lo ricalcola il server.
+   */
+  readonly status?: 'to_confirm' | 'confirmed' | 'cancelled';
   readonly notes?: string;
+  /**
+   * Nota interna, mai in stampa.
+   *
+   * ⭐ Aggiunta il 25/08/2026: l'ordine cliente ne era privo solo perche' la
+   * colonna non esisteva su `sales_orders`, non per una ragione funzionale.
+   */
+  readonly internalComment?: string;
   readonly paymentTerms?: string;
   /** Sconto extra % documento (0-100), dopo gli sconti riga. */
   readonly documentDiscountPercent?: number;
+  /**
+   * Modalità con cui i prezzi sono stati digitati: netti (`false`) o ivati.
+   * `unitPriceMinor` porta comunque il NETTO — questo dice solo come va
+   * rimostrato, e si salva sull'ordine perché è una sua proprietà.
+   */
+  readonly pricesIncludeVat?: boolean;
   /** Righe opzionali: l'ordine può esistere con la sola testata. */
   readonly lines: readonly SaveManualOrderLineInput[];
 }
@@ -74,7 +102,6 @@ export interface SaveManualOrderResult {
 }
 
 export interface ManualOrderMeta {
-  readonly nextReferencePreview: string;
   /** Tipi di documento di scarico disponibili oggi (enum API, es. sales_ddt). */
   readonly unloadDocumentTypes: readonly string[];
 }
@@ -199,18 +226,11 @@ export class SalesOrderService {
    * (testata + righe + aggancio ordine) da cui il form di destinazione si apre.
    * Nessun documento nasce qui: si crea solo al salvataggio del form.
    */
-  concludeManualPrefill(id: EntityId, documentType: string): Observable<CreateDocumentBody> {
+  concludeManualPrefill(id: EntityId, documentType: string): Observable<ConcludePrefillBody> {
     return this.http
-      .post<CreateDocumentBody>(this.url(`/sales-orders/manual/${id}/conclude-prefill`), {
+      .post<ConcludePrefillBody>(this.url(`/sales-orders/manual/${id}/conclude-prefill`), {
         documentType,
       })
-      .pipe(timeout(HTTP_TIMEOUT_MS));
-  }
-
-  /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
-  forceConcludeManualOrder(id: EntityId): Observable<{ ok: true }> {
-    return this.http
-      .post<{ ok: true }>(this.url(`/sales-orders/manual/${id}/force-conclude`), {})
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
@@ -257,6 +277,13 @@ export class SalesOrderService {
     }
     if (query.includable) {
       next = next.set('includable', 'true');
+    }
+    const sort = serializeDataTableSort(query.sort ?? []);
+    if (sort) {
+      next = next.set('sort', sort);
+    }
+    if (query.all) {
+      next = next.set('all', '1');
     }
     return next;
   }

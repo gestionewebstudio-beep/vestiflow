@@ -16,10 +16,9 @@ describe('user-permissions.util', () => {
     expect(hasFullTenantAccess({ role: UserRole.admin, permissions: [] })).toBe(false);
   });
 
-  it('resolveEffectivePermissions usa preset ruolo se array vuoto', () => {
+  it('resolveEffectivePermissions: array vuoto = nessun permesso (mai fallback ai preset)', () => {
     const perms = resolveEffectivePermissions({ role: UserRole.clerk, permissions: [] });
-    expect(perms).not.toContain(TenantPermission.InventoryViewAllLocations);
-    expect(perms).toContain(TenantPermission.RetailRegister);
+    expect(perms).toEqual([]);
   });
 
   it('hasTenantPermission rispetta permessi salvati', () => {
@@ -27,7 +26,7 @@ describe('user-permissions.util', () => {
       hasTenantPermission(
         {
           role: UserRole.clerk,
-          permissions: [TenantPermission.ReportsView],
+          permissions: [TenantPermission.SectionReports],
         },
         TenantPermission.InventoryManage,
       ),
@@ -44,31 +43,48 @@ describe('user-permissions.util', () => {
     expect(perms).toContain(TenantPermission.InventoryManage);
   });
 
+  it('normalizeStoredPermissions materializza i preset del ruolo se non c’è input', () => {
+    const normalized = normalizeStoredPermissions(UserRole.clerk, undefined);
+    expect(normalized).toContain(TenantPermission.RetailRegister);
+    expect(normalized).not.toContain(TenantPermission.InventoryViewAllLocations);
+  });
+
+  it('normalizeStoredPermissions conserva l’array vuoto esplicito (zero permessi)', () => {
+    expect(normalizeStoredPermissions(UserRole.clerk, [])).toEqual([]);
+    expect(normalizeStoredPermissions(UserRole.manager, [])).toEqual([]);
+  });
+
+  it('normalizeStoredPermissions per il titolare restituisce sempre array vuoto', () => {
+    expect(
+      normalizeStoredPermissions(UserRole.owner, [TenantPermission.SectionReports]),
+    ).toEqual([]);
+  });
+
   it('normalizeStoredPermissions filtra chiavi obsolete prima del salvataggio', () => {
     const normalized = normalizeStoredPermissions(UserRole.clerk, [
       'settings.integrations',
-      TenantPermission.ReportsView,
-      TenantPermission.ReportsView,
+      TenantPermission.SectionReports,
+      TenantPermission.SectionReports,
     ]);
 
     expect(normalized).not.toContain('settings.integrations');
-    expect(normalized).toEqual([TenantPermission.ReportsView]);
+    expect(normalized).toEqual([TenantPermission.SectionReports]);
   });
 
   it('hasAnyTenantPermission richiede almeno un permesso del gruppo', () => {
     const user = {
       role: UserRole.clerk,
-      permissions: [TenantPermission.CustomersView],
+      permissions: [TenantPermission.SectionCustomers],
     };
     expect(
       hasAnyTenantPermission(user, [
-        TenantPermission.ReportsView,
-        TenantPermission.CustomersView,
+        TenantPermission.SectionReports,
+        TenantPermission.SectionCustomers,
       ]),
     ).toBe(true);
     expect(
       hasAnyTenantPermission(user, [
-        TenantPermission.ReportsView,
+        TenantPermission.SectionReports,
         TenantPermission.InventoryManage,
       ]),
     ).toBe(false);

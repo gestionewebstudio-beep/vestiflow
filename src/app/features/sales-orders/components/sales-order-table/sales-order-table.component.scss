@@ -1,98 +1,15 @@
-@use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('sales-table');
+@use 'breakpoints' as bp;
 
-// La vista mobile NON è la card automatica per etichetta:valore del mixin
-// condiviso: qui è una card a layout fisso (`.sales-cards`, sotto). La tabella
-// desktop sparisce sotto lg, le card compaiono.
-@include bp.media-down('lg') {
-  .sales-table-scroll {
-    display: none;
-  }
-}
+/*
+  ⭐ Qui c’erano contenitore a scorrimento, intestazione, riga, hover, fuoco,
+  selezione, allineamenti per colonna e i tre `@include` della grammatica
+  condivisa. **Le rende tutte il motore comune** (`14` parte H).
 
-// Molte colonne (fase 3 §2-§3): scroll orizzontale controllato su desktop.
-.sales-table-scroll {
-  inline-size: 100%;
-  max-inline-size: 100%;
-
-  @include bp.media-up('lg') {
-    overflow-x: auto;
-  }
-}
-
-// Tabella pulita (mockup restyling): solo divisori orizzontali fra le righe,
-// niente griglia a colonne. Il foglio condiviso disegna i separatori verticali
-// «stile foglio di calcolo»: qui li tolgo.
-.sales-table tbody td,
-.sales-table__row td,
-.sales-table th {
-  border-inline-end: 0;
-}
-
-// Intestazioni maiuscole tenui: non urlate, solo un filo di spaziatura.
-.sales-table__head th {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: var(--z-raised);
-  padding: var(--space-2) var(--space-4);
-  background-color: var(--color-table-header-bg);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-caps);
-  white-space: nowrap;
-}
-
-.sales-table__row {
-  cursor: pointer;
-  transition: background-color var(--transition-fast) var(--ease-standard);
-}
-
-.sales-table__row:hover {
-  background-color: var(--color-surface-hover);
-}
-
-// Selezione multipla (come Arrivi merce): colonna checkbox stretta e riga
-// evidenziata quando selezionata; colonna Azioni compatta a fine riga.
-.sales-table__cell--select {
-  inline-size: var(--space-10);
-  text-align: center;
-  white-space: nowrap;
-}
-
-.sales-table__select-check {
-  inline-size: var(--space-4);
-  block-size: var(--space-4);
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
-.sales-table__cell--actions {
-  inline-size: var(--space-10);
-  text-align: end;
-  white-space: nowrap;
-}
-
-.sales-table__row--selected {
-  background-color: var(--color-row-active, var(--color-surface-hover));
-}
-
-.sales-table__row:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-// Righe compatte (mockup restyling): più densità, più righe visibili.
-.sales-table__row td {
-  padding: var(--space-2) var(--space-4);
-}
-
-.sales-table__number {
-  font-weight: var(--font-weight-semibold);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
+  Resta ciò che veste il contenuto PROIETTATO — origine, cliente, collegamenti —
+  e la vista mobile, che qui è propria e non il ripiego a card del motore.
+*/
 
 .sales-table__link {
   color: var(--color-text);
@@ -101,19 +18,7 @@
 }
 
 // Data compatta in monospace: le cifre si allineano fra righe.
-.sales-table__date {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
 
-// Totale in evidenza, allineato a destra.
-.sales-table tbody td.sales-table__cell--total {
-  font-weight: var(--font-weight-semibold);
-}
-
-// Origine: pallino colorato + testo.
 .sales-table__origin {
   display: inline-flex;
   align-items: center;
@@ -150,43 +55,6 @@
   color: var(--color-text-subtle);
 }
 
-@include bp.media-up('lg') {
-  .sales-table__number,
-  .sales-table tbody td[data-label='Cliente'] .sales-table__customer,
-  .sales-table tbody td[data-label='Location'] {
-    max-inline-size: var(--table-cell-max);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sales-table__customer-name,
-  .sales-table__customer-meta {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sales-table tbody td.sales-table__cell--total,
-  .sales-table__head th.sales-table__cell--total {
-    text-align: end;
-    white-space: nowrap;
-  }
-
-  // Commento: testo libero, non deve allargare la riga.
-  .sales-table tbody td.sales-table__cell--notes {
-    max-inline-size: var(--table-cell-max);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sales-table tbody td[data-label='Aggiornato'] {
-    white-space: nowrap;
-  }
-}
-
-// ── Card mobile (sotto lg) ──────────────────────────────────────────────────
 .sales-cards {
   display: none;
 }
@@ -286,8 +154,29 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
 
-  .sales-cards__actions {
-    flex-shrink: 0;
+/*
+  ⛔ Il motore è SPENTO sotto `lg`, dove questa schermata ha una vista mobile
+  PROPRIA (`.sales-cards`, a layout fisso, scritta per il pollice).
+
+  Senza questa riga si vedrebbero DUE viste mobili: il ripiego a card del motore
+  e le card di qui. È il difetto che la specifica righe documento chiama «la
+  stessa riga non esiste due volte», ed è invisibile finché non si stringe la
+  finestra.
+*/
+@include bp.media-down('lg') {
+  app-data-table {
+    display: none;
   }
 }
+
+/*
+  ⚠️ **Il ponte dell'altezza.**
+
+  Questo componente sta fra la pagina e il motore. La pagina gli dà `flex: 1`;
+  se non lo gira al proprio figlio, l'altezza si ferma qui e il contenitore di
+  scorrimento del motore non scorre — l'intestazione `sticky` smette di
+  appiccicare, **senza errori e senza test rossi**.
+*/
+@include rt.ponte-tabella();

@@ -40,7 +40,6 @@ import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
-import { ExportCorrispettiviQueryDto } from './dto/export-corrispettivi.query.dto';
 import { ExportInventoryLevelsQueryDto } from './dto/export-inventory-levels.query.dto';
 import { ImportInventoryBodyDto } from './dto/import-inventory-body.dto';
 import { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
@@ -64,7 +63,11 @@ import {
   InventorySituationService,
   type InventorySituationRowDto,
 } from './inventory-situation.service';
-import { InventoryService, type InventoryLevelWithRefs } from './inventory.service';
+import {
+  InventoryService,
+  type InventoryLevelWithRefs,
+  type StockMovementResponse,
+} from './inventory.service';
 import { LocationLicensingService } from './location-licensing.service';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import type { SalesOrderSource } from '@prisma/client';
@@ -104,10 +107,7 @@ export class InventoryController {
   @Put('locations/licensed')
   @UseGuards(RolesGuard)
   @Roles(UserRole.owner)
-  setLicensedLocations(
-    @CurrentTenant() tenantId: string,
-    @Body() dto: SetLicensedLocationsDto,
-  ) {
+  setLicensedLocations(@CurrentTenant() tenantId: string, @Body() dto: SetLicensedLocationsDto) {
     return this.locationLicensing.setLicensedLocations(tenantId, dto.locationIds);
   }
 
@@ -127,31 +127,16 @@ export class InventoryController {
     });
   }
 
-  @Get('movements/export/corrispettivi')
-  @RequirePermissions(TenantPermission.ReportsExport)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  async exportCorrispettiviCsv(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Query() query: ExportCorrispettiviQueryDto,
-  ): Promise<StreamableFile> {
-    const csv = await this.inventoryExport.exportCorrispettiviCsv(tenantId, query, user);
-    const stamp = new Date().toISOString().slice(0, 10);
-    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
-      type: 'text/csv; charset=utf-8',
-      disposition: `attachment; filename="corrispettivi-vestiflow-${stamp}.csv"`,
-    });
-  }
-
   @Post('levels/import/preview')
   @RequirePermissions(TenantPermission.InventoryImportExport)
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   previewLevelsImport(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
     this.assertCsvFile(file);
-    return this.inventoryImport.previewCsv(tenantId, file.buffer.toString('utf-8'));
+    return this.inventoryImport.previewCsv(tenantId, file.buffer.toString('utf-8'), user);
   }
 
   @Post('levels/import')
@@ -169,11 +154,8 @@ export class InventoryController {
   }
 
   @Get('reports/location-summary')
-  @RequirePermissions(TenantPermission.ReportsView)
-  locationInventoryReport(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-  ) {
+  @RequirePermissions(TenantPermission.SectionReports)
+  locationInventoryReport(@CurrentTenant() tenantId: string, @CurrentUser() user: UserProfileDto) {
     return this.inventoryReport.locationSummary(tenantId, user);
   }
 
@@ -203,12 +185,16 @@ export class InventoryController {
   @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
   async listReservations(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListReservationsQueryDto,
   ): Promise<ReservationListRowDto[]> {
+    // ⛔ La sede arriva dalla QUERY: senza l’utente, chiunque abbia la sezione
+    // Magazzino leggeva gli impegni di qualunque sede del tenant.
     const reservations = await this.stockReservations.listActiveForLevel(
       tenantId,
       query.variantId,
       query.locationId,
+      user,
     );
     return reservations.map((reservation) => ({
       id: reservation.id,
@@ -249,7 +235,7 @@ export class InventoryController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Query() query: ListMovementsQueryDto,
-  ): Promise<Paginated<StockMovement>> {
+  ): Promise<Paginated<StockMovementResponse>> {
     return this.inventory.listMovements(tenantId, query, user);
   }
 
@@ -313,13 +299,7 @@ export class InventoryController {
     @Param('lineId') lineId: string,
     @Body() dto: UpdateCountLineDto,
   ): Promise<InventoryCountLine> {
-    return this.inventoryCount.updateLine(
-      tenantId,
-      sessionId,
-      lineId,
-      dto.countedQuantity,
-      user,
-    );
+    return this.inventoryCount.updateLine(tenantId, sessionId, lineId, dto.countedQuantity, user);
   }
 
   @Post('counts/:id/submit')

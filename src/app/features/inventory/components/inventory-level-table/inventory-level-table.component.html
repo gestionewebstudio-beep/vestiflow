@@ -1,124 +1,92 @@
-<table class="level-table">
-  <thead class="level-table__head">
-    <tr>
-      @for (col of columns(); track col.id) {
-        <th
-          scope="col"
-          [class.level-table__cell--pinned]="col.pinned"
-          [class.level-table__cell--numeric]="col.numeric"
-          [class.level-table__cell--status]="col.id === 'status'"
-        >
-          {{ col.label }}
-        </th>
-      }
-    </tr>
-  </thead>
+<!--
+  ⭐ **Lo scheletro è del motore comune** (`14` parte H).
 
-  <tbody>
-    @for (row of rows(); track row.id) {
-      <tr class="level-table__row">
-        @for (col of columns(); track col.id) {
-          @switch (col.id) {
-            @case ('title') {
-              <td
-                class="level-table__title"
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.title }}
-              </td>
-            }
-            @case ('sku') {
-              <td
-                class="level-table__sku tabular-nums"
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.articleCode || row.sku || '—' }}
-              </td>
-            }
-            @case ('locationName') {
-              <td [class.level-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ row.locationName }}
-              </td>
-            }
-            @case ('available') {
-              <td
-                class="level-table__cell--numeric tabular-nums"
-                [class.level-table__cell--negative]="row.available < 0"
-                [class.level-table__cell--empty]="row.available <= 0"
-                [class.level-table__cell--low]="
-                  row.available > 0 && row.minThreshold > 0 && row.available <= row.minThreshold
-                "
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.available }}
-              </td>
-            }
-            @case ('onHand') {
-              <td
-                class="level-table__cell--numeric tabular-nums"
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.onHand }}
-              </td>
-            }
-            @case ('committed') {
-              <td
-                class="level-table__cell--numeric tabular-nums"
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                @if (row.committed > 0) {
-                  <button
-                    type="button"
-                    class="level-table__committed-link tabular-nums"
-                    title="Vedi gli ordini che compongono la quantità impegnata"
-                    (click)="onCommittedClick(row)"
-                  >
-                    {{ row.committed }}
-                  </button>
-                } @else {
-                  {{ row.committed }}
-                }
-              </td>
-            }
-            @case ('incoming') {
-              <td
-                class="level-table__cell--numeric tabular-nums"
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.incoming }}
-              </td>
-            }
-            @case ('minThreshold') {
-              <td
-                class="level-table__cell--numeric tabular-nums"
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.minThreshold }}
-              </td>
-            }
-            @case ('status') {
-              <td
-                class="level-table__cell--status"
-                [class.level-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                <span class="level-table__status-value">
-                  <app-badge [tone]="statusTone(row.status)">{{
-                    statusLabel(row.status)
-                  }}</app-badge>
-                </span>
-              </td>
-            }
-          }
-        }
-      </tr>
+  ⛔ **Qui c'erano 124 righe**: un `@switch (col.id)` con nove rami, ognuno un
+  `<td>` con le stesse tre dichiarazioni — classe, `pinned`, `data-label`. Su nove
+  colonne di cui **sette sono solo testo o numeri**, quel markup non diceva niente
+  che `cellText` non dica meglio.
+
+  Restano le due celle che non sono testo: la quantità impegnata, che è un
+  comando, e lo stato.
+-->
+<app-data-table
+  [rowClickSelects]="rowClickSelects()"
+  caption="Giacenze per variante e sede"
+  [columns]="columns()"
+  [sortable]="true"
+  [sort]="sortState()"
+  (sortChange)="sortState.set($event)"
+  [viewId]="viewId()"
+  [sections]="sections()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [totals]="totals()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutte le giacenze"
+  (selectionChange)="selectionToggle.emit({ rowId: rowId($event.row), selected: $event.selected })"
+  (selectAllChange)="selectAllToggle.emit($event)"
+>
+  <!--
+    ⭐ **La quantità impegnata è un COMANDO quando c'è**: apre gli ordini che la
+    compongono. A zero non c'è niente da aprire, e resta un numero — un pulsante
+    che non porta da nessuna parte è una promessa mancata.
+  -->
+  <ng-template appCell="committed" let-row>
+    @if (row.committed > 0) {
+      <button
+        type="button"
+        class="level-table__committed-link tabular-nums"
+        title="Vedi gli ordini che compongono la quantità impegnata"
+        (click)="onCommittedClick(row)"
+      >
+        {{ row.committed }}
+      </button>
+    } @else {
+      {{ row.committed }}
     }
-  </tbody>
-</table>
+  </ng-template>
+
+  <ng-template appCell="status" let-row>
+    <app-badge [flat]="true" [tone]="statusTone(row.status)">{{
+      statusLabel(row.status)
+    }}</app-badge>
+  </ng-template>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+  -->
+  <ng-template appRowCard let-row>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ row.title }}</span>
+      </span>
+      @if (valoreCard(cellText(row, 'sku')); as ancora) {
+        <span class="list-card__anchor">{{ ancora }}</span>
+      }
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('locationName')) {
+        <span>{{ row.locationName }}</span>
+      }
+      @if (visibile('status')) {
+        <span>{{ statusLabel(row.status) }}</span>
+      }
+    </div>
+
+    <div class="list-card__figures">
+      @if (visibile('onHand')) {
+        <span class="tabular-nums">Giac. {{ row.onHand }}</span>
+      }
+      @if (visibile('committed')) {
+        <span class="tabular-nums">Imp. {{ row.committed }}</span>
+      }
+      @if (visibile('available')) {
+        <span class="list-card__total">Disp. {{ row.available }}</span>
+      }
+    </div>
+  </ng-template>
+</app-data-table>

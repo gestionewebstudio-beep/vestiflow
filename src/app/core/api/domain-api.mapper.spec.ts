@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ProductStatus } from '@core/models/product.model';
+import { VariantLifecycleStatus, type ProductVariant } from '@core/models/product-variant.model';
 import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { StockMovementType, AdjustmentDirection } from '@core/models/stock-movement.model';
@@ -117,6 +118,63 @@ describe('domain-api.mapper', () => {
   });
 
   describe('mapProductVariantApiRow', () => {
+    /*
+      Contratto di `lifecycleStatus` (docs/24 §3.3): OPZIONALE nella risposta
+      HTTP — un server precedente alla Tranche 1A non lo manda — e sempre
+      valorizzato nel modello applicativo, che il mapper produce.
+    */
+    it('⭐ risposta LEGACY senza lifecycleStatus: il mapper scrive `active`, esplicito', () => {
+      const variant = mapProductVariantApiRow({
+        id: 'var-legacy',
+        tenantId: 'tenant-1',
+        productId: 'prod-1',
+        sku: 'SKU-VECCHIO',
+        optionValues: [],
+        currency: 'EUR',
+        sellingPriceMinor: 1000,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      // Non `undefined`: il campo esiste e vale «attiva».
+      expect(variant.lifecycleStatus).toBe(VariantLifecycleStatus.Active);
+      expect(variant.deletedAt).toBeNull();
+    });
+
+    it('quando la risposta lo porta, il valore passa intatto', () => {
+      const variant = mapProductVariantApiRow({
+        id: 'var-ritirata',
+        tenantId: 'tenant-1',
+        productId: 'prod-1',
+        sku: 'SKU-OFF',
+        optionValues: [],
+        currency: 'EUR',
+        sellingPriceMinor: 1000,
+        lifecycleStatus: VariantLifecycleStatus.Inactive,
+        deletedAt: '2026-09-01T10:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      expect(variant.lifecycleStatus).toBe(VariantLifecycleStatus.Inactive);
+      expect(variant.deletedAt).toBe('2026-09-01T10:00:00.000Z');
+    });
+
+    it('⛔ il MODELLO applicativo non accetta una variante senza stato', () => {
+      // @ts-expect-error — `lifecycleStatus` è obbligatorio su ProductVariant:
+      // se un giorno tornasse opzionale, questa riga smetterebbe di errare e il
+      // test fallirebbe. È l'unico modo di provare un contratto di tipo.
+      const senzaStato: ProductVariant = {
+        id: 'var-1',
+        productId: 'prod-1',
+        sku: 'SKU-M',
+        optionValues: [],
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      };
+
+      expect(senzaStato.id).toBe('var-1');
+    });
+
     it('mappa prezzi in Money con valuta', () => {
       const variant = mapProductVariantApiRow({
         id: 'var-1',

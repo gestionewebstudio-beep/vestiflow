@@ -38,52 +38,80 @@
 // customer-order-form.reference-mobile.scss, accanto alle regole che le usano.
 // ─────────────────────────────────────────────────────────────────────────────
 :host {
-  --co-tool-h: 2.625rem; // 42px — bottoni della barra strumenti su mobile
   --co-ghost-h: 2.25rem; // 36px — azioni rare (ghost) su mobile
   // La label dei campi di testata (19px) e' salita a --doc-m-field-label
   // in styles/_document-form.scss, accanto alle altre misure --doc-m-*.
 }
 
-// Stato di salvataggio, link sotto il campo cliente, meccanica delle fasce di
-// testata, piede tabella, banda footer e avviso disponibilità sono saliti ai
-// fogli globali (_document-form.scss e _document-form-footer.scss, FASE 0):
-// qui restano solo le QUOTE delle fasce, che sono di questa maschera.
-// La meccanica flex arriva da .doc-form__header-row (stessa classe nel
-// template accanto a co-form__header-row, che ancora le quote).
+// Il documento della controparte arriva da un componente condiviso: i suoi
+// selettori stanno in un altro foglio incapsulato e da qui non si raggiungono
+// (ne' si devono raggiungere). Si configura dai token, che attraversano il
+// confine per costruzione — regole-stile-ui §5. In testata i controlli portano
+// l'altezza densa di sistema, la stessa degli altri campi della fascia: senza,
+// la tendina resterebbe alta come un input standard accanto a un campo numero
+// piu' basso. Il token vale anche nel pannello mobile, dove diventa 44px.
+.co-form .doc-form__header app-document-counterparty-ref {
+  --field-height: var(--control-h-field);
+}
+
+// ⛔ **Qui c’erano le QUOTE di larghezza delle fasce di testata** — flex-grow
+// 1.55 / 0.9 / 0.78 / 0.75 sulla prima fascia e 0.82 / 1.05 / 2.13 sulla
+// secondaria, agganciate a `.co-form__header-row` e a
+// `.doc-form__header-row--secondary`.
+//
+// Sono state tolte il 26/08/2026 con la migrazione della testata su
+// `app-document-header`: **entrambe le classi hanno smesso di esistere nel
+// template**. La griglia ora la emette il componente condiviso, e una classe
+// messa sull’host non raggiungerebbe le celle — l’host ha come unico figlio
+// diretto la griglia, quindi `> *:nth-child(n)` non aggancia piu’ niente
+// (`regole-stile-ui` §5).
+//
+// ⚠️ Lasciarle sarebbe stato peggio che toglierle: regole senza bersaglio non
+// rompono niente, non fanno arrossare un test, e chi legge conclude che le
+// proporzioni ci siano ancora.
+//
+// ⏸ **Le proporzioni di scrivania si rifanno nella FASE 2**, che e’ il passo
+// dichiarato: stessa struttura, solo vestizione. Il canale previsto e’
+// `--doc-field-min` per cella (`_document-form.scss`), oppure le quote
+// riscritte sulla classe che il componente emette davvero
+// (`.co-form .doc-form__header-row > *:nth-child(n)`) — le celle sono
+// contenuto proiettato dalla maschera, quindi portano il suo attributo di
+// incapsulamento.
+
+// ── Le due sezioni di testata, vestite per la scrivania (FASE 2) ────────────
+// La STRUTTURA e’ una e resta quella comune: «Dati principali» e «Dettagli
+// documento». Qui si decide solo come le due si dispongono quando lo schermo
+// e’ largo — sul telefono restano i due pannelli apribili del riferimento.
+//
+// ⛔ Il problema che risolve: la prima sezione ha DUE soli campi, e a tutta
+// larghezza Cliente e Location diventavano larghi il doppio di quanto serva,
+// con la seconda sezione incolonnata sotto. Due fasce alte al posto di una.
+//
+// ⭐ Affiancarle e’ la vestizione naturale, e `flex-wrap` fa da rete: dove le
+// due non ci stanno affiancate, la seconda va a capo e si torna incolonnati.
+// Nessuna soglia scritta a mano, nessuna seconda struttura.
+//
+// ⚠️ Le sezioni si raggiungono per NOME, non per posizione. Le quote di prima
+// erano su `nth-child`, e cambiare la ripartizione dei campi le spostava tutte
+// — e’ il difetto che questo foglio ha gia’ pagato una volta.
 @include bp.media-up('lg') {
-  // Cliente | Location | Data | Stato | Rif. — proporzioni del mockup.
-  .co-form .co-form__header-row > *:nth-child(1) {
-    flex-grow: 1.55;
-  }
-  .co-form .co-form__header-row > *:nth-child(2) {
-    flex-grow: 0.9;
-  }
-  .co-form .co-form__header-row > *:nth-child(3) {
-    flex-grow: 0.78;
-  }
-  .co-form .co-form__header-row > *:nth-child(4) {
-    flex-grow: 0.75;
+  .co-form .doc-form__header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    // Ogni sezione alta quanto il suo contenuto: con `stretch` la prima si
+    // allungherebbe fino alla seconda lasciando aria sotto i due campi.
+    align-items: flex-start;
   }
 
-  // Consegna | Pagamento | spazio libero (Preventivo: fascia a tre celle).
-  .co-form .doc-form__header-row--secondary > *:nth-child(1) {
-    flex-grow: 0.82;
-  }
-  .co-form .doc-form__header-row--secondary > *:nth-child(2) {
-    flex-grow: 1.05;
-  }
-  .co-form .doc-form__header-row--secondary > *:nth-child(3) {
-    flex-grow: 2.13;
+  .co-form .co-form__header-section {
+    flex: 1 1 auto;
+    min-inline-size: 0;
   }
 
-  // Ordine cliente: niente «Consegna prevista», la fascia ha due sole celle.
-  // Il Pagamento tiene la propria quota e lo spazio libero assorbe il resto,
-  // così le proporzioni restano quelle del mockup anche senza la prima cella.
-  .co-form .doc-form__header-row--secondary > *:nth-child(1):nth-last-child(2) {
-    flex-grow: 1.05;
-  }
-  .co-form .doc-form__header-row--secondary > *:nth-child(2):nth-last-child(1) {
-    flex-grow: 2.95;
+  // I «Dettagli» ospitano sei o sette campi contro due: la quota segue quanti
+  // dati porta la sezione, non un’estetica scelta a occhio.
+  .co-form .co-form__header-section--details {
+    flex-grow: 2.4;
   }
 }
 
@@ -195,7 +223,7 @@
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-text);
-  background: var(--color-surface-subtle, var(--color-surface));
+  background: var(--color-surface-soft);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 
@@ -278,7 +306,7 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  background: var(--color-surface-subtle, var(--color-surface));
+  background: var(--color-surface-soft);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 
@@ -318,4 +346,22 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+// Il banner «ordine da canale esterno» spiega invece di limitarsi a vietare,
+// quindi porta più frasi: vanno incolonnate, non affiancate come il banner di
+// sblocco che ha testo e bottone sulla stessa riga. E non è cliccabile: qui non
+// c'è niente da sbloccare.
+.co-form__external-notice {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: default;
+}
+
+// Le due azioni sotto la lista righe stanno su una griglia a due colonne. A chi
+// non gestisce il catalogo ne resta una sola: senza questo, «Inserisci riga
+// vuota» resterebbe largo mezza schermata con un vuoto accanto.
+.co-lines__actions.co-lines__actions--single .co-lines__action {
+  grid-column: 1 / -1;
 }

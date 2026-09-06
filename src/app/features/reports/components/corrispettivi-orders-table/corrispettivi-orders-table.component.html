@@ -1,46 +1,217 @@
-<div class="corrispettivi-table-wrap">
-  <table class="corrispettivi-table">
-    <thead class="corrispettivi-table__head">
-      <tr>
-        <th scope="col">Data</th>
-        <th scope="col">Ordine</th>
-        <th scope="col">Cliente</th>
-        <th scope="col">Canale</th>
-        <th scope="col">Pagamento</th>
-        <th scope="col">Stato fiscale</th>
-        <th scope="col" class="corrispettivi-table__cell--num">Imponibile</th>
-        <th scope="col" class="corrispettivi-table__cell--num">IVA</th>
-        <th scope="col" class="corrispettivi-table__cell--num">Totale</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (order of orders(); track order.id) {
-        <tr class="corrispettivi-table__row">
-          <td class="tabular-nums" data-label="Data">{{ formatDate(order.placedAt) }}</td>
-          <td class="tabular-nums" data-label="Ordine">{{ order.orderNumber }}</td>
-          <td data-label="Cliente">{{ order.customerName }}</td>
-          <td data-label="Canale">{{ sourceLabel(order.source) }}</td>
-          <td data-label="Pagamento">
-            <app-badge [tone]="financialTone(order.financialStatus)">
-              {{ financialLabel(order.financialStatus) }}
-            </app-badge>
-          </td>
-          <td data-label="Stato fiscale">
-            <app-badge [tone]="fiscalTone[order.fiscalStatus]">
-              {{ fiscalLabel[order.fiscalStatus] }}
-            </app-badge>
-          </td>
-          <td class="corrispettivi-table__cell--num tabular-nums" data-label="Imponibile">
-            {{ formatMoney(order.taxable) }}
-          </td>
-          <td class="corrispettivi-table__cell--num tabular-nums" data-label="IVA">
-            {{ formatMoney(order.tax) }}
-          </td>
-          <td class="corrispettivi-table__cell--num tabular-nums" data-label="Totale">
-            {{ formatMoney(order.total) }}
-          </td>
-        </tr>
+<!--
+  ⭐ **Lo scheletro non è più qui.** `thead`, `tbody`, il `@for` con `track`, le
+  intestazioni ordinabili, le maniglie di ridimensionamento, le righe di
+  raggruppamento e i loro `colspan` li rende il motore comune (`14` parte H).
+
+  Qui resta ciò che è **del REGISTRO**: quali celle non sono testo, come si
+  vestono, e la card compatta — che è progettata, non impilata.
+
+  ⚠️ Il testo delle celle semplici sta in `cellText` (nel `.ts`), non qui: una
+  cella che è solo testo non ha bisogno di un template.
+-->
+<app-data-table
+  caption="Registro corrispettivi"
+  [columns]="columns()"
+  [sections]="sections()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [rowTone]="rowTone"
+  [rowClickable]="true"
+  [rowClickableWhen]="apribile"
+  [rowLabel]="rowLabel"
+  [sortable]="ordinabile()"
+  [sort]="sort()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [rowClickSelects]="rowClickSelects()"
+  [rowSelectable]="selezionabile"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutte le registrazioni"
+  (rowClick)="onRowClick($event)"
+  (sortChange)="onSort($event)"
+  (selectionChange)="selectionChange.emit($event)"
+  (selectAllChange)="selectAllChange.emit($event)"
+>
+  <!--
+    ⚠️ **Testo colorato, non una pill.** Un badge dentro una cella alza la riga e
+    mette un riquadro attorno a una parola già distinta dal colore: in una
+    tabella da consultare a colpo d'occhio è rumore, e per una colonna che ha un
+    valore su OGNI riga il riquadro non segnala più niente.
+
+    ⚠️ **«Vendita» anche per il Corrispettivo manuale.** Aveva un tipo suo —
+    «Registrazione» — ed è stato corretto: economicamente rappresenta una vendita
+    avvenuta, e «Registrazione» era una distinzione tecnica che all'operatore non
+    serve. La sua particolarità la porta la colonna Origine.
+  -->
+  <ng-template appCell="kind" let-row>
+    <span
+      class="corrispettivi-table__kind"
+      [class.corrispettivi-table__kind--refund]="row.kind === 'refund'"
+    >
+      {{ row.kind === 'refund' ? refundLabel(row.refundKind) : 'Vendita' }}
+    </span>
+  </ng-template>
+
+  <!-- Una chiusura di cassa non sa a chi ha venduto: vuoto è la risposta vera. -->
+  <ng-template appCell="customerName" let-row>
+    @if (row.customerName) {
+      {{ row.customerName }}
+    } @else {
+      <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
+    }
+  </ng-template>
+
+  <!--
+    «Non determinata» per esteso, e non una cella vuota: è un'anomalia
+    temporanea delle righe Shopify — dove la sede può mancare o essere stata
+    indovinata dal ripiego alfabetico della sync — non uno stato del modello.
+    Quando la sync sarà sistemata questa dicitura deve sparire da sé
+    (`docs/10` §12).
+  -->
+  <ng-template appCell="location" let-row>
+    @if (row.locationName) {
+      {{ row.locationName }}
+    } @else {
+      <span class="list-card__undetermined">{{ locationUndeterminedLabel }}</span>
+    }
+  </ng-template>
+
+  <ng-template appCell="financialStatus" let-row>
+    @if (row.financialStatus) {
+      <span
+        class="corrispettivi-table__payment"
+        [class]="'corrispettivi-table__payment--' + financialTone(row.financialStatus)"
+      >
+        {{ financialLabel(row.financialStatus) }}
+      </span>
+    } @else {
+      <!-- Una rettifica non ha stato di pagamento: la cella resta muta invece
+           di ereditare quello della vendita, che sarebbe falso. -->
+      <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
+    }
+  </ng-template>
+
+  <!--
+    ⭐ **LA CARD COMPATTA — progettata, non impilata** (`regole-stile-ui` §6).
+
+    Il ripiego del motore trasforma ogni cella in una riga «etichetta … valore»:
+    con dieci colonne dà dieci righe tutte dello stesso peso, dove niente è
+    primario e la card è più alta dello schermo. Qui invece:
+
+    ```text
+    1  ● tipo · data ................................ N. numero
+    2  origine · sede · cliente · pagamento          (solo parole, muted)
+    3  Imp. 20,49  IVA 4,51 ................. 25,00 €  ›
+    ```
+
+    ⚠️ **È IDENTICA a quella di prima della migrazione al motore** (30/08/2026):
+    stesso markup, stesse classi, stesso foglio di stile. Cambia solo chi la
+    ospita — la direttiva `appRowCard`, che esisteva già e prevedeva proprio
+    questo caso.
+
+    ⚠️ **`aria-hidden` lo mette il MOTORE**, sulla cella che ospita il template:
+    la card è una veste, i dati sono le celle vere, che sotto `lg` restano
+    nell'albero accessibile. Senza quella divisione ogni riga verrebbe annunciata
+    due volte.
+
+    ⚠️ **Le colonne spente qui non si controllano più a mano.** Prima ogni pezzo
+    aveva il suo `isVisible(...)`; ora `visibile(...)` legge le colonne che il
+    motore ha già ricevuto — una fonte sola invece di due che possono divergere.
+  -->
+  <ng-template appRowCard let-row>
+    <div class="list-card__head">
+      <!--
+        ⚠️ **Solo l'IDENTITÀ qui: cosa è e quale.** Due parole brevi, quindi
+        questa riga non va mai a capo — prima ospitava anche l'origine
+        («Corrispettivo manuale»), e su nomi lunghi il numero finiva orfano su
+        una riga tutta sua, che alzava la card senza dire niente. L'origine è
+        descrizione: sta nella fascia sotto, con le altre.
+      -->
+      <span class="list-card__ident">
+        <span class="list-card__when tabular-nums">
+          {{ formatDate(row.occurredAt) }}
+        </span>
+        <span class="list-card__what" [class.list-card__what--negative]="row.kind === 'refund'">
+          {{ row.kind === 'refund' ? refundLabel(row.refundKind) : 'Vendita' }}
+        </span>
+      </span>
+      <!--
+        ⚠️ **Il numero è un'ANCORA a destra**, fuori dal gruppo che va a capo:
+        scorrendo l'elenco sta sempre nello stesso punto, e l'occhio lo trova
+        senza cercarlo. Dentro il gruppo seguiva la lunghezza del tipo e ballava
+        da una card all'altra.
+      -->
+      <span class="list-card__anchor tabular-nums">N. {{ row.orderNumber }}</span>
+    </div>
+
+    <!--
+      Fascia 2 — SOLO parole: da dove viene, dove, per chi, come è stata pagata.
+      Nessun importo qui dentro: mescolare «Magazzino test 3» e «Imp. 20,49 €»
+      nello stesso rigo grigio è ciò che toglieva ogni criterio alla card.
+    -->
+    <div class="list-card__words">
+      @if (visibile('source')) {
+        <span>{{ sourceLabel(row.source) }}</span>
       }
-    </tbody>
-  </table>
-</div>
+      @if (visibile('location')) {
+        <span>
+          @if (row.locationName) {
+            {{ row.locationName }}
+          } @else {
+            <span class="list-card__undetermined">{{ locationUndeterminedLabel }}</span>
+          }
+        </span>
+      }
+      @if (visibile('customerName') && row.customerName) {
+        <span>{{ row.customerName }}</span>
+      }
+      @if (visibile('financialStatus') && row.financialStatus) {
+        <span [class]="'corrispettivi-table__payment--' + financialTone(row.financialStatus)">
+          {{ financialLabel(row.financialStatus) }}
+        </span>
+      }
+    </div>
+
+    <!--
+      Fascia 3 — SOLO numeri, e il totale sta QUI, non in cima.
+
+      Imponibile, IVA e totale sono lo stesso discorso: il calcolo e il suo
+      risultato. Tenerli sulla stessa riga, in fondo, li fa leggere insieme — e
+      libera la prima fascia, che torna a dire soltanto «quando, cosa, quale».
+      Il totale resta l'unico in grassetto: si distingue per peso, non per
+      posizione.
+    -->
+    @if (visibile('taxable') || visibile('tax') || visibile('total')) {
+      <div class="list-card__figures">
+        @if (visibile('taxable')) {
+          <span class="tabular-nums">Imp. {{ formatMoney(row.taxable) }}</span>
+        }
+        @if (visibile('tax')) {
+          <span class="tabular-nums">IVA {{ formatMoney(row.tax) }}</span>
+        }
+        @if (visibile('total')) {
+          <span
+            class="list-card__total tabular-nums"
+            [class.list-card__total--negative]="row.kind === 'refund'"
+          >
+            {{ formatMoney(row.total) }}
+          </span>
+        }
+        <!--
+          ⚠️ **Il posto della freccia c'è sempre, la freccia no.**
+
+          Le righe che non si aprono non hanno chevron, ma se sparisse anche il
+          suo ingombro il totale di quelle card slitterebbe a destra e non si
+          incolonnerebbe con gli altri — in un registro gli importi si leggono
+          confrontandoli in verticale, ed è la ragione per cui la colonna
+          esiste. Resta quindi occupato con `visibility: hidden`.
+        -->
+        <i
+          class="pi pi-chevron-right list-card__caret"
+          [class.list-card__caret--empty]="!apribile(row)"
+          aria-hidden="true"
+        ></i>
+      </div>
+    }
+  </ng-template>
+</app-data-table>

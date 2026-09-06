@@ -40,6 +40,12 @@ export class MfaSettingsComponent {
     void this.reloadFactors();
   }
 
+  /** Un campo mostra il proprio errore solo dopo che l'utente l'ha toccato. */
+  protected showError(controlName: keyof typeof this.verifyForm.controls): boolean {
+    const control = this.verifyForm.controls[controlName];
+    return control.invalid && control.touched;
+  }
+
   protected async startEnrollment(): Promise<void> {
     this.actionLoading.set(true);
     this.error.set(null);

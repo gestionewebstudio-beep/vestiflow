@@ -83,24 +83,6 @@
 }
 
 // Barra operazioni massive: appare sopra la tabella quando ci sono selezioni.
-.doc-list__bulk-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  background-color: var(--color-primary-subtle);
-  border: var(--border-width) solid var(--color-primary);
-  border-radius: var(--radius-md);
-}
-
-.doc-list__bulk-count {
-  margin-inline-end: auto;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary);
-}
-
 // Dal/Al: cella piena della griglia filtri (canone del mixin), nessuna
 // larghezza fissa dedicata.
 
@@ -117,4 +99,22 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   white-space: nowrap;
+}
+
+/*
+  ⭐ La pagina si adatta alla finestra (`regole-stile-ui` §6).
+
+  ⚠️ L'elenco è `app-document-table`, non il motore: fra la pagina e
+  `app-data-table` c'è un componente intermedio, che deve girare l'altezza al
+  proprio figlio (vedi il suo foglio).
+*/
+@include lp.list-page-fills-viewport('doc-list', 'app-document-table');
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[pageActions],
+[period],
+[filters],
+[warnings],
+[listActions] {
+  display: contents;
 }

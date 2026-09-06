@@ -165,6 +165,10 @@ export async function syncAdjustmentLineMovements(
           sourceDocumentId: params.documentId,
           sourceLineId: line.id,
           ...(params.movementDate ? { createdAt: params.movementDate } : {}),
+          // Una rettifica non compra: nessun costo autorevole da congelare, e
+          // «nessun costo» vale zero, non assenza (`regole-gestionale`).
+          unitCostMinor: 0,
+          totalCostMinor: 0,
           createdById: params.actor.createdById ?? null,
           createdByName: params.actor.createdByName,
         },

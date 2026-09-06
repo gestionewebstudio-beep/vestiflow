@@ -1,7 +1,20 @@
 import type { FormControl } from '@angular/forms';
 
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import type { DocumentLineSuggestionItem } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.model';
+import type {
+  LineCodeChoice,
+  LineSuggestion,
+} from '@domain/documents/models/document-line-code-choice.model';
+
+// I tre tipi che stavano qui — `LineSuggestion`, `LineCodeField`,
+// `LineCodeChoice` — sono saliti in `domain/` (08/2026): non avevano niente
+// dell'Ordine cliente, e la riga di movimento ne ha bisogno. Una feature non
+// importa da un'altra, quindi la casa comune è `domain/`.
+export type {
+  LineSuggestion,
+  LineCodeField,
+  LineCodeChoice,
+} from '@domain/documents/models/document-line-code-choice.model';
 
 /**
  * I controlli che la card di riga edita. Tipo strutturale: il FormGroup della
@@ -18,6 +31,8 @@ export interface CustomerOrderLineCardControls {
   readonly discount: FormControl<string>;
   readonly serialNumbersText: FormControl<string>;
   readonly commitsStock: FormControl<boolean>;
+  /** Riga descrittiva di riferimento (`07` §12): niente quantità sulla card. */
+  readonly isReference: FormControl<boolean>;
 }
 
 export interface CustomerOrderLineCardGroup {
@@ -37,18 +52,6 @@ export interface CustomerOrderLineCardGroup {
  * derivare da sola. Cio' che si legge dai controlli (nome, SKU, quantita') non
  * ci sta: quello arriva dal FormGroup.
  */
-/**
- * Suggerimento gia' pronto da mostrare. La card non riceve la variante grezza:
- * comporre «SKU · EAN · prezzo» richiede la formattazione della valuta, che e'
- * lavoro del form, non di chi disegna. Estende la voce del pannello condiviso
- * (`app-document-line-suggestions`) con l'identita' della variante, che il
- * pannello non conosce: al pick restituisce l'indice, la card lo traduce in id.
- */
-export interface LineSuggestion extends DocumentLineSuggestionItem {
-  readonly variantId: string;
-  readonly detail: string;
-}
-
 export interface CustomerOrderLineCardVm {
   /** Posizione nell'array righe: serve agli id dei campi e alle etichette ARIA. */
   readonly index: number;
@@ -70,6 +73,8 @@ export interface CustomerOrderLineCardVm {
   readonly vatValue: string;
   readonly suggestions: readonly LineSuggestion[];
   readonly suggestionsOpen: boolean;
+  /** Scelta aperta da un codice; `null` quando non c'è niente da scegliere. */
+  readonly codeChoice: LineCodeChoice | null;
   /** L'elenco suggerimenti si apre verso l'alto: sotto non c'e' spazio. */
   readonly suggestAbove: boolean;
   readonly activeSuggestionIndex: number;

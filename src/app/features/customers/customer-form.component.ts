@@ -13,6 +13,7 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import type { Customer } from '@core/models/customer.model';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -23,6 +24,7 @@ import {
   patchCustomerFormGroup,
   setCustomerAnagraficaReadOnly,
 } from '@domain/customers/utils/customer-form.util';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -41,11 +43,12 @@ import { CustomerService } from '@domain/customers/services/customer.service';
     ErrorStateComponent,
     TableSkeletonComponent,
     CustomerFormFieldsComponent,
+    ConfirmDialogComponent,
   ],
   templateUrl: './customer-form.component.html',
   styleUrl: './customer-form.component.scss',
 })
-export class CustomerFormComponent {
+export class CustomerFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly service = inject(CustomerService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
@@ -103,17 +106,39 @@ export class CustomerFormComponent {
 
   protected readonly form = createCustomerFormGroup(this.fb);
 
+  // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ──
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante il patch programmatico del form (caricamento in modifica). */
+  private suppressDirtyMarking = false;
+
   constructor() {
     toObservable(this.loadState)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state) => {
         if (state.status === 'ready' && state.customer) {
-          patchCustomerFormGroup(this.form, state.customer);
-          setCustomerAnagraficaReadOnly(this.form, state.customer.source === 'shopify');
+          // Patch programmatico: non è una modifica dell'utente.
+          this.suppressDirtyMarking = true;
+          try {
+            patchCustomerFormGroup(this.form, state.customer);
+            setCustomerAnagraficaReadOnly(this.form, state.customer.source === 'shopify');
+          } finally {
+            this.suppressDirtyMarking = false;
+          }
         }
       });
+
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.markFormDirty();
+    });
   }
 
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante il 25/08/2026,
+   * il parametro non ha piu' chiamanti e i suoi rami erano irraggiungibili.
+   */
   protected submit(): void {
     this.form.markAllAsTouched();
     if (this.form.hasError('identityRequired')) {
@@ -134,6 +159,8 @@ export class CustomerFormComponent {
     request$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (customer: Customer) => {
         this.saving.set(false);
+        // Cliente salvato: il guard di uscita non deve più fermare la navigazione.
+        this.dirtySinceLastSave.set(false);
         void this.router.navigate(['/app/customers', customer.id]);
       },
       error: (err: unknown) => {
@@ -141,5 +168,39 @@ export class CustomerFormComponent {
         this.saveError.set(isAppError(err) ? err.message : 'Salvataggio non riuscito');
       },
     });
+  }
+
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
+
+  private markFormDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
   }
 }

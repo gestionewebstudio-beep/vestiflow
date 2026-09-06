@@ -1,0 +1,22 @@
+<!--
+  ⛔ `type="text"`, non `type="number"`: il formato dei soldi lo decide
+  l'applicazione. `inputmode="decimal"` è il contratto globale dei campi
+  monetari — da lì la regola di progetto toglie le frecce e la guardia spegne la
+  rotella.
+-->
+<input
+  [attr.id]="inputId() || null"
+  [class]="inputClass()"
+  type="text"
+  inputmode="decimal"
+  autocomplete="off"
+  [value]="testo()"
+  [readOnly]="readOnly()"
+  [disabled]="disabled()"
+  [placeholder]="placeholder()"
+  [attr.aria-label]="ariaLabel() || null"
+  [attr.aria-invalid]="invalid() || fuoriSoglia() ? true : null"
+  (input)="onInput($any($event.target).value)"
+  (focus)="onFocus($event.target)"
+  (blur)="onBlur()"
+/>

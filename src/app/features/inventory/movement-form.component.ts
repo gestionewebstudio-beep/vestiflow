@@ -7,12 +7,19 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, ActivatedRoute } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, switchMap } from 'rxjs';
 
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { LocationContextService } from '@core/services/location-context.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
@@ -29,6 +36,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { CustomerService } from '@domain/customers/services/customer.service';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
@@ -65,9 +73,6 @@ const UNLOAD_REASON_PRESETS = [
 
 const ADJUSTMENT_DEFAULT_REASON = 'Rettifica giacenza';
 
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
-const VARIANT_SEARCH_PAGE_SIZE = 8;
 /** Deep-link productId: massimo consentito dall'API (Max(100) su pageSize). */
 const PRODUCT_DEEP_LINK_PAGE_SIZE = 100;
 
@@ -112,11 +117,12 @@ type SubmitState =
     DateInputComponent,
     DocumentMobilePanelComponent,
     SelectMenuComponent,
+    DocumentActionsComponent,
   ],
   templateUrl: './movement-form.component.html',
   styleUrl: './movement-form.component.scss',
 })
-export class MovementFormComponent {
+export class MovementFormComponent implements CanComponentDeactivate {
   private readonly inventoryService = inject(InventoryService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
@@ -129,7 +135,9 @@ export class MovementFormComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
   protected readonly scanFeedback = signal<string | null>(null);
 
   // ── Testata ────────────────────────────────────────────────────────────────
@@ -244,6 +252,15 @@ export class MovementFormComponent {
     return state.status === 'error' ? state.error : null;
   });
 
+  // ── Uscita con modifiche non salvate (guard di route) ─────────────────────
+  // Variante a due scelte (Annulla / Esci senza salvare): il submit ha già la
+  // sua conferma con riepilogo, un «Salva e chiudi» qui annidererebbe dialoghi.
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante i popolamenti programmatici (deep-link variantId/productId). */
+  private suppressDirtyMarking = false;
+
   constructor() {
     // Tipo scelto A MONTE (bottoni del tab Movimenti, query param `type`):
     // il form nasce già impostato, senza selettore interno. Default: Carico.
@@ -280,7 +297,7 @@ export class MovementFormComponent {
         .subscribe((rows) => {
           const summary = rows[0];
           if (summary) {
-            this.addVariant(summary);
+            this.addVariantWithoutDirty(summary);
           }
         });
     }
@@ -294,7 +311,7 @@ export class MovementFormComponent {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((rows) => {
           for (const summary of rows) {
-            this.addVariant(summary);
+            this.addVariantWithoutDirty(summary);
           }
         });
     }
@@ -305,6 +322,24 @@ export class MovementFormComponent {
   protected readonly typeLabel = computed(
     () => MANUAL_TYPES.find((option) => option.value === this.type())?.label ?? '',
   );
+
+  /**
+   * L'etichetta del salvataggio: **«Salva carico», «Salva scarico», «Salva
+   * rettifica», «Salva trasferimento»** — quello che si sta facendo.
+   *
+   * ⛔ Ha avuto due nomi sbagliati prima di questo. «Salva» sulla scrivania e
+   * «Salva movimento» sul telefono, cioe' due parole per lo stesso comando a
+   * seconda dello schermo. Allineate a «Salva movimento» il 25/08/2026, e
+   * corrette di nuovo lo stesso giorno dal proprietario: «altrimenti confonde».
+   *
+   * ⭐ **Non e' un'eccezione alla regola, e' la regola applicata meglio.**
+   * `regole-stile-ui` §5 dice «Salva documento» per cio' che sta in
+   * `documents`, e chi non ci sta nomina la propria entita' — il Corrispettivo
+   * manuale dice «Salva corrispettivo». Un movimento non e' un `Document`, e la
+   * sua entita' non e' «il movimento»: e' il CARICO, lo scarico, la rettifica.
+   * Il titolo lo dice gia' — «Registra carico» — e il pulsante ora concorda.
+   */
+  protected readonly saveLabel = computed(() => `Salva ${this.typeLabel().toLowerCase()}`);
 
   // ── Pannello testata mobile (--m-ref) — SOLO display: concatenazioni di
   // valori già presenti nel form, nessuna logica nuova. ─────────────────────
@@ -396,6 +431,7 @@ export class MovementFormComponent {
 
   protected onOperationDateChange(value: string): void {
     this.operationDate.set(value);
+    this.markDirty();
   }
 
   protected onLocationSelect(value: string | null): void {
@@ -404,19 +440,23 @@ export class MovementFormComponent {
     }
     this.locationId.set(value ?? '');
     this.formError.set(null);
+    this.markDirty();
   }
 
   protected onTargetLocationSelect(value: string | null): void {
     this.targetLocationId.set(value ?? '');
     this.formError.set(null);
+    this.markDirty();
   }
 
   protected onPartySelect(value: string | null): void {
     this.partyId.set(value ?? '');
+    this.markDirty();
   }
 
   protected onReasonInput(event: Event): void {
     this.reason.set((event.target as HTMLInputElement).value);
+    this.markDirty();
   }
 
   // ── Gestione righe ────────────────────────────────────────────────────────
@@ -438,6 +478,7 @@ export class MovementFormComponent {
 
   protected removeLine(variantId: string): void {
     this.lines.update((lines) => lines.filter((line) => line.variantId !== variantId));
+    this.markDirty();
   }
 
   protected onSearchInput(event: Event): void {
@@ -475,6 +516,7 @@ export class MovementFormComponent {
         unitAmountText: this.defaultUnitAmountText(line, this.type()),
       },
     ]);
+    this.markDirty();
     this.searchDraft.set('');
     this.scanFeedback.set(null);
 
@@ -574,6 +616,9 @@ export class MovementFormComponent {
       .subscribe({
         next: () => {
           this.confirmOpen.set(false);
+          // Azzerato PRIMA di navigare: il guard di route non deve fermare
+          // l'uscita di un movimento appena registrato.
+          this.dirtySinceLastSave.set(false);
           void this.router.navigateByUrl('/app/inventory/movements');
         },
         error: (err: unknown) => {
@@ -591,6 +636,31 @@ export class MovementFormComponent {
 
   protected cancel(): void {
     this.navHistory.backOr('/app/inventory/movements');
+  }
+
+  // ── Uscita con modifiche non salvate ──────────────────────────────────────
+
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
   }
 
   private validate(): string | null {
@@ -627,6 +697,27 @@ export class MovementFormComponent {
     this.lines.update((lines) =>
       lines.map((line) => (line.variantId === variantId ? { ...line, ...patch } : line)),
     );
+    this.markDirty();
+  }
+
+  /** Segna il form come modificato, salvo popolamenti programmatici. */
+  private markDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
+  }
+
+  /**
+   * Aggiunta da deep-link (?variantId= / ?productId=): la lista si popola da
+   * sola, un form appena aperto e mai toccato non deve risultare modificato.
+   */
+  private addVariantWithoutDirty(summary: VariantSummary): void {
+    this.suppressDirtyMarking = true;
+    try {
+      this.addVariant(summary);
+    } finally {
+      this.suppressDirtyMarking = false;
+    }
   }
 
   /** Costo unitario (carico) / prezzo unitario (scarico) proposti dalla variante. */

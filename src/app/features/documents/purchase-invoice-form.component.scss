@@ -9,6 +9,12 @@
 // linguaggio comune delle maschere documento.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Il documento della controparte non ha più delta locale: la sua fascia — in
+// testata desktop e nel pannello mobile — la disegna il componente condiviso
+// domain/documents/components/document-counterparty-ref, e le sue celle
+// indossano `.doc-form__field` / `.doc-panel__field`, quindi misure e riquadro
+// arrivano dai fogli in styles/ come per ogni altra cella di testata.
+
 // Tabelle riepilogative. NON adottano .doc-form__table-wrap: sotto `lg` quel
 // wrapper si nasconde in favore della vista a card (.doc-form__cards), che
 // questa maschera non ha — qui le tabelle restano visibili a ogni larghezza
@@ -70,6 +76,20 @@
 .pi-form__table-input {
   inline-size: 100%;
   min-inline-size: 6rem;
+}
+
+/* ⭐ **La stessa larghezza, per il campo di denaro comune.**
+
+   `app-money-input` ha `:host { display: contents }`: nel flusso ci sta il suo
+   `<input>`, che porta l'attributo di incapsulamento di QUEL componente. Una
+   classe passata da fuori non aggancerebbe — e non fallirebbe: smetterebbe di
+   agganciare in silenzio, che è peggio.
+
+   Le custom property attraversano il confine per costruzione, ed è il canale
+   che `regole-stile-ui` §5 prescrive. */
+.pi-form__table app-money-input {
+  --money-input-inline-size: 100%;
+  --money-input-min-inline-size: 6rem;
 }
 
 .pi-form__table-input--rate {

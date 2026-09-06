@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import {
   CUSTOMERS_VIEW_PERMISSIONS,
@@ -10,28 +11,30 @@ import {
 export const customersRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Clienti',
+    title: 'Clienti',
     loadComponent: () => import('./customer-list.component').then((m) => m.CustomerListComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CUSTOMERS_VIEW_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CUSTOMERS_VIEW_PERMISSIONS, reuse: true },
   },
   {
     path: 'new',
-    title: 'VestiFlow · Nuovo cliente',
+    title: 'Nuovo cliente',
     loadComponent: () => import('./customer-form.component').then((m) => m.CustomerFormComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: [TenantPermission.CustomersManage] },
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CustomersManage },
   },
   {
     path: ':id/edit',
-    title: 'VestiFlow · Modifica cliente',
+    title: 'Modifica cliente',
     loadComponent: () => import('./customer-form.component').then((m) => m.CustomerFormComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: [TenantPermission.CustomersManage] },
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CustomersManage },
   },
   {
     path: ':id',
-    title: 'VestiFlow · Dettaglio cliente',
+    title: 'Dettaglio cliente',
     loadComponent: () =>
       import('./customer-detail.component').then((m) => m.CustomerDetailComponent),
     canActivate: [tenantPermissionGuard],

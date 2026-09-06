@@ -294,6 +294,10 @@ export class InventoryCountService {
             quantity,
             direction,
             reason,
+            // Rettifica da conta fisica: non compra niente, quindi nessun costo
+            // autorevole — e «nessun costo» vale zero (`regole-gestionale`).
+            unitCostMinor: 0,
+            totalCostMinor: 0,
             createdByName: 'API',
             externalRef: `inventory-count:${session.id}:${line.id}`,
           },
@@ -380,11 +384,7 @@ export class InventoryCountService {
     return this.getById(tenantId, sessionId, user);
   }
 
-  async deleteCancelled(
-    tenantId: string,
-    sessionId: string,
-    user: UserProfileDto,
-  ): Promise<void> {
+  async deleteCancelled(tenantId: string, sessionId: string, user: UserProfileDto): Promise<void> {
     const session = await this.prisma.inventoryCountSession.findFirst({
       where: { id: sessionId, tenantId },
     });

@@ -46,10 +46,13 @@ import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductMediaService } from './product-media.service';
-import { ProductPriceModePreferenceService } from './product-price-mode-preference.service';
+import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
+import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
 import { ProductsService, type ProductWithVariants } from './products.service';
+
+import type { Serialized } from '../common/serialized.type';
 import { SkuGeneratorService } from './sku-generator.service';
 import { ExportProductsQueryDto } from './dto/export-products.query.dto';
 import { ImportProductsBodyDto } from './dto/import-products-body.dto';
@@ -105,16 +108,19 @@ export class ProductsController {
     private readonly productsExport: ProductsExportService,
     private readonly suppliers: SuppliersService,
     private readonly skuGenerator: SkuGeneratorService,
-    private readonly priceModePreference: ProductPriceModePreferenceService,
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
 
+  // L'utente serve al service per il costo d'acquisto (dato sensibile
+  // §permessi): senza permesso il campo non entra nella risposta.
   @Get()
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
-  list(
+  async list(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListProductsQueryDto,
-  ): Promise<Paginated<ProductWithVariants>> {
-    return this.products.list(tenantId, query);
+  ): Promise<Serialized<Paginated<ProductWithVariants>>> {
+    return normalizeDecimals(await this.products.list(tenantId, query, user));
   }
 
   @Get('facets')
@@ -229,14 +235,18 @@ export class ProductsController {
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   importProducts(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: ImportProductsBodyDto,
   ) {
     this.assertCsvFile(file);
     const handles = body.handles?.filter((handle) => handle.trim().length > 0);
-    return this.productsImport.importCsv(tenantId, file.buffer.toString('utf-8'), {
-      handles,
-    });
+    return this.productsImport.importCsv(
+      tenantId,
+      file.buffer.toString('utf-8'),
+      { handles },
+      user,
+    );
   }
 
   @Get('export/csv')
@@ -258,36 +268,41 @@ export class ProductsController {
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   listSupplierLinks(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.suppliers.listVariantLinksByProduct(tenantId, id);
+    return this.suppliers.listVariantLinksByProduct(tenantId, id, user);
   }
 
   /**
-   * Modalità prezzo (netto/ivato) della sezione Listini da proporre a un articolo
-   * nuovo: preferenza ricordata dell'operatore ?? primo utilizzo (ivato).
+   * Modalità prezzo (netto/ivato) della sezione Listini: la **convenzione
+   * aziendale** sui prezzi di vendita.
+   *
+   * ⚠️ Dal 16/08/2026 non è più una preferenza dell'operatore. L'anagrafica
+   * non è un documento: è una vista del catalogo, e sta dalla stessa parte di
+   * report, movimenti e liste — dove serve un riferimento comune, o due
+   * colleghi guardano lo stesso listino e ne leggono due. La memoria
+   * personale resta solo dove si CREA qualcosa: i documenti di vendita.
+   *
    * Rotta statica: DEVE precedere `@Get(':id')`, altrimenti `:id` la cattura.
    */
   @Get('price-mode-preference')
   @RequirePermissions(TenantPermission.CatalogManage)
   async getPriceModePreference(
     @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
   ): Promise<{ pricesIncludeVat: boolean }> {
-    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
-      tenantId,
-      user.id,
-    );
+    const pricesIncludeVat = await this.priceModePreference.salesPricesIncludeVat(tenantId);
     return { pricesIncludeVat };
   }
 
   @Get(':id')
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
-  getById(
+  async getById(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<ProductWithVariants> {
-    return this.products.getById(tenantId, id);
+  ): Promise<Serialized<ProductWithVariants>> {
+    return normalizeDecimals(await this.products.getById(tenantId, id, user));
   }
 
   @Post()
@@ -296,33 +311,33 @@ export class ProductsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateProductDto,
-  ): Promise<ProductWithVariants> {
-    const product = await this.products.create(tenantId, dto);
-    // Ricorda la modalità Listini scelta (solo alla creazione, come i documenti).
-    if (dto.listinoPricesIncludeVat !== undefined) {
-      await this.priceModePreference.remember(tenantId, user.id, dto.listinoPricesIncludeVat);
-    }
+  ): Promise<Serialized<ProductWithVariants>> {
+    const product = normalizeDecimals(await this.products.create(tenantId, dto, user));
+    // ⚠️ Qui la modalità Listini veniva ricordata come preferenza personale.
+    // Rimosso il 16/08/2026: l'anagrafica segue la convenzione aziendale.
     return product;
   }
 
   @Patch(':id')
   @RequirePermissions(TenantPermission.CatalogManage)
-  update(
+  async update(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
-  ): Promise<ProductWithVariants> {
-    return this.products.update(tenantId, id, dto);
+  ): Promise<Serialized<ProductWithVariants>> {
+    return normalizeDecimals(await this.products.update(tenantId, id, dto, user));
   }
 
   /** Duplica anagrafica prodotto (audit cliente): nuovo id, SKU/barcode univoci. */
   @Post(':id/duplicate')
   @RequirePermissions(TenantPermission.CatalogManage)
-  duplicate(
+  async duplicate(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<ProductWithVariants> {
-    return this.products.duplicateProduct(tenantId, id);
+  ): Promise<Serialized<ProductWithVariants>> {
+    return normalizeDecimals(await this.products.duplicateProduct(tenantId, id, user));
   }
 
   @Post(':id/sync-shopify')

@@ -1,0 +1,8 @@
+@if (store().message(); as fallito) {
+  <app-inline-banner
+    tone="error"
+    [message]="fallito"
+    dismissLabel="Ho capito"
+    (dismissed)="store().dismiss()"
+  />
+}

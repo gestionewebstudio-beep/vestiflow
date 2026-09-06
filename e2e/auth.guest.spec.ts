@@ -31,7 +31,12 @@ test.describe('Accesso (guest)', () => {
     await page.locator('#login-password').fill('wrong-password-12345');
     await page.getByRole('button', { name: 'Accedi' }).click();
 
-    await expect(page.locator('.login__alert')).toBeVisible({ timeout: 15_000 });
+    // Il messaggio d'errore è un `app-inline-banner`, che a tono `error`
+    // espone `role="alert"`. Si aggancia il RUOLO, non la classe: la classe
+    // cambia con una rinomina e il test smette di guardare in silenzio — è
+    // proprio quello che era successo con `.login__alert`, che in `src/` non
+    // esiste più da un pezzo.
+    await expect(page.getByRole('alert')).toBeVisible({ timeout: 15_000 });
     await expect(page).toHaveURL(/\/login/);
   });
 

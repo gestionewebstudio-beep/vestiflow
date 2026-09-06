@@ -21,7 +21,6 @@ export interface BusinessAnalyticsSales {
 export interface BusinessAnalyticsMargin {
   readonly grossMinor: number | null;
   readonly grossPercent: number | null;
-  readonly costCoveragePercent: number;
 }
 
 export interface BusinessAnalyticsInventory {

@@ -105,6 +105,54 @@ describe('BarcodeLookupService', () => {
       );
     });
 
+    // ── Le quattro chiavi di identità ───────────────────────────────────────
+    // Codice articolo, SKU, EAN e codice fornitore sono chiavi di ricerca allo
+    // stesso modo. Il codice fornitore in particolare è il modo naturale di
+    // ordinare: il fornitore manda il suo listino con i suoi codici, e quello è
+    // il codice che si ha sotto gli occhi mentre si compila l'ordine.
+    it('accetta il match esatto sul codice fornitore', async () => {
+      const { service } = setup({
+        findVariantByCode: vi.fn(() => throwError(() => new Error('404'))),
+        searchVariantSummaries: vi.fn(() =>
+          of([
+            { variantId: 'var-altro', sku: 'SKU-9', barcode: null, supplierSku: 'FORN-999' },
+            { variantId: 'var-atteso', sku: 'SKU-1', barcode: null, supplierSku: 'forn-123' },
+          ]),
+        ),
+      });
+
+      await expect(firstValueFrom(service.resolveVariantIdByCode('FORN-123'))).resolves.toBe(
+        'var-atteso',
+      );
+    });
+
+    it('accetta il match esatto sul codice articolo', async () => {
+      const { service } = setup({
+        findVariantByCode: vi.fn(() => throwError(() => new Error('404'))),
+        searchVariantSummaries: vi.fn(() =>
+          of([{ variantId: 'var-1', sku: 'SKU-1', barcode: null, articleCode: 'ART-77' }]),
+        ),
+      });
+
+      await expect(firstValueFrom(service.resolveVariantIdByCode('art-77'))).resolves.toBe('var-1');
+    });
+
+    // Fornitori diversi possono usare lo stesso codice per articoli diversi:
+    // indovinare fra due è peggio che lasciare la scelta a chi sta ordinando.
+    it('non sceglie quando lo stesso codice fornitore porta a due articoli', async () => {
+      const { service } = setup({
+        findVariantByCode: vi.fn(() => throwError(() => new Error('404'))),
+        searchVariantSummaries: vi.fn(() =>
+          of([
+            { variantId: 'var-a', sku: 'SKU-A', barcode: null, supplierSku: 'FORN-123' },
+            { variantId: 'var-b', sku: 'SKU-B', barcode: null, supplierSku: 'FORN-123' },
+          ]),
+        ),
+      });
+
+      await expect(firstValueFrom(service.resolveVariantIdByCode('FORN-123'))).resolves.toBeNull();
+    });
+
     it('ritorna null se nessun match esatto e su errore della ricerca', async () => {
       const { service } = setup({
         findVariantByCode: vi.fn(() => throwError(() => new Error('404'))),

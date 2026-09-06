@@ -1,0 +1,12 @@
+<app-button type="button" variant="secondary" (click)="openPrintPreview()">
+  Anteprima stampa
+</app-button>
+<app-button
+  type="button"
+  variant="secondary"
+  [loading]="downloadingPdf()"
+  [disabled]="downloadingPdf()"
+  (click)="downloadDocumentPdf()"
+>
+  Scarica PDF
+</app-button>

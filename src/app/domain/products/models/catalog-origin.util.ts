@@ -23,8 +23,3 @@ export function catalogOriginShortLabel(origin: CatalogOriginType): string {
 export function catalogOriginTone(origin: CatalogOriginType): BadgeTone {
   return origin === CatalogOrigin.Shopify ? 'info' : 'vestiflow';
 }
-
-export const SHOPIFY_CATALOG_READONLY_BANNER =
-  'Il catalogo ecommerce di questo prodotto è gestito in Shopify Admin. In VestiFlow puoi aggiornare solo stagione e prezzo di acquisto.';
-
-export const SHOPIFY_CATALOG_EDIT_TITLE = 'Modifica dati operativi';

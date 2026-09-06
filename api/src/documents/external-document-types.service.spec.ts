@@ -1,4 +1,8 @@
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
@@ -19,7 +23,12 @@ function createPrismaMock() {
       delete: vi.fn(),
     },
     document: { count: vi.fn().mockResolvedValue(0) },
-    goodsReceiptCausal: { count: vi.fn().mockResolvedValue(0) },
+    salesOrder: { count: vi.fn().mockResolvedValue(0) },
+    supplierOrder: { count: vi.fn().mockResolvedValue(0) },
+    goodsReceiptCausal: {
+      count: vi.fn().mockResolvedValue(0),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
     $transaction: vi.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
   };
   return prisma;
@@ -97,7 +106,7 @@ describe('ExternalDocumentTypesService', () => {
   });
 
   describe('update (casi 6 e 9)', () => {
-    it('disattiva un tipo mantenendolo in tabella (mai eliminato)', async () => {
+    it('disattiva un tipo lasciandolo nel pannello, riattivabile', async () => {
       prisma.externalDocumentType.findFirst.mockResolvedValue({
         id: 'type-1',
         tenantId,
@@ -127,25 +136,122 @@ describe('ExternalDocumentTypesService', () => {
     });
   });
 
-  describe('delete (§6)', () => {
-    it('elimina un tipo mai utilizzato', async () => {
+  describe('delete', () => {
+    it('elimina davvero un tipo che nessun documento porta', async () => {
       prisma.externalDocumentType.findFirst.mockResolvedValue({ id: 'type-1', tenantId });
-      prisma.document.count.mockResolvedValue(0);
-      prisma.goodsReceiptCausal.count.mockResolvedValue(0);
 
       await service.delete(tenantId, 'type-1');
 
       expect(prisma.externalDocumentType.delete).toHaveBeenCalledWith({
         where: { id: 'type-1' },
       });
+      expect(prisma.externalDocumentType.update).not.toHaveBeenCalled();
     });
 
-    it('rifiuta la cancellazione di un tipo usato in un documento (caso 6)', async () => {
+    it('un tipo gia’ usato resta in tabella: sparisce dalle tendine, non dai documenti', async () => {
       prisma.externalDocumentType.findFirst.mockResolvedValue({ id: 'type-1', tenantId });
       prisma.document.count.mockResolvedValue(2);
 
-      await expect(service.delete(tenantId, 'type-1')).rejects.toBeInstanceOf(ConflictException);
+      await service.delete(tenantId, 'type-1');
+
       expect(prisma.externalDocumentType.delete).not.toHaveBeenCalled();
+      const update = prisma.externalDocumentType.update.mock.calls[0]![0]!;
+      expect(update.where).toEqual({ id: 'type-1' });
+      expect(update.data.isActive).toBe(false);
+      // `deletedAt` valorizzato = fuori anche dal pannello di gestione, che e'
+      // cio' che distingue «eliminato» da «disattivato».
+      expect(update.data.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('conta anche gli ordini cliente e fornitore, non i soli documenti', async () => {
+      prisma.externalDocumentType.findFirst.mockResolvedValue({ id: 'type-1', tenantId });
+      prisma.document.count.mockResolvedValue(0);
+      prisma.salesOrder.count.mockResolvedValue(0);
+      prisma.supplierOrder.count.mockResolvedValue(1);
+
+      await service.delete(tenantId, 'type-1');
+
+      expect(prisma.externalDocumentType.delete).not.toHaveBeenCalled();
+      expect(prisma.externalDocumentType.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('scollega le causali: senza, resterebbero a proporre il modello di un tipo che non c’e’ piu’', async () => {
+      prisma.externalDocumentType.findFirst.mockResolvedValue({ id: 'type-1', tenantId });
+      prisma.document.count.mockResolvedValue(5);
+
+      await service.delete(tenantId, 'type-1');
+
+      expect(prisma.goodsReceiptCausal.updateMany).toHaveBeenCalledWith({
+        where: { tenantId, externalDocumentTypeId: 'type-1' },
+        data: { externalDocumentTypeId: null },
+      });
+    });
+  });
+
+  describe('findByIdIncludingDeleted', () => {
+    it('vede anche i tipi eliminati: e’ la lettura del salvataggio', async () => {
+      prisma.externalDocumentType.findFirst.mockResolvedValue({
+        id: 'type-1',
+        tenantId,
+        deletedAt: new Date('2026-08-10T10:00:00.000Z'),
+      });
+
+      const found = await service.findByIdIncludingDeleted(tenantId, 'type-1');
+
+      expect(found).not.toBeNull();
+      // Nessun filtro `deletedAt: null`: e' tutta la differenza con `getById`.
+      expect(prisma.externalDocumentType.findFirst).toHaveBeenCalledWith({
+        where: { id: 'type-1', tenantId },
+      });
+    });
+  });
+
+  describe('resolveForWrite', () => {
+    it('scrive sempre id e snapshot insieme, e lo snapshot e’ lo shortLabel', async () => {
+      prisma.externalDocumentType.findFirst.mockResolvedValue({
+        id: 'type-1',
+        tenantId,
+        name: 'Documento di trasporto',
+        shortLabel: 'DDT',
+      });
+
+      const resolved = await service.resolveForWrite(tenantId, 'type-1');
+
+      expect(resolved).toEqual({
+        externalDocumentTypeId: 'type-1',
+        externalDocumentTypeSnapshot: 'DDT',
+      });
+    });
+
+    it('risolve un tipo ELIMINATO senza lamentarsi: riaprire un vecchio documento non e’ un errore', async () => {
+      prisma.externalDocumentType.findFirst.mockResolvedValue({
+        id: 'type-1',
+        tenantId,
+        name: 'Bolla doganale',
+        shortLabel: 'Bolla',
+        deletedAt: new Date('2026-08-01T00:00:00.000Z'),
+      });
+
+      await expect(service.resolveForWrite(tenantId, 'type-1')).resolves.toEqual({
+        externalDocumentTypeId: 'type-1',
+        externalDocumentTypeSnapshot: 'Bolla',
+      });
+    });
+
+    it('senza id azzera la coppia', async () => {
+      await expect(service.resolveForWrite(tenantId, null)).resolves.toEqual({
+        externalDocumentTypeId: null,
+        externalDocumentTypeSnapshot: null,
+      });
+      expect(prisma.externalDocumentType.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('un id sconosciuto e’ un 404, non un silenzioso null', async () => {
+      prisma.externalDocumentType.findFirst.mockResolvedValue(null);
+
+      await expect(service.resolveForWrite(tenantId, 'ignoto')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

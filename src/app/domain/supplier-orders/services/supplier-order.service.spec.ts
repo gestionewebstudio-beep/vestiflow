@@ -70,16 +70,6 @@ describe('SupplierOrderService (HTTP)', () => {
     expect(result.meta.total).toBe(1);
   });
 
-  it('getMeta espone anteprima numerazione', async () => {
-    const promise = firstValueFrom(service.getMeta());
-
-    const req = httpMock.expectOne(`${API_BASE}/supplier-orders/meta`);
-    expect(req.request.method).toBe('GET');
-    req.flush({ nextReferencePreview: 'OF-2026-0042' });
-
-    await expect(promise).resolves.toEqual({ nextReferencePreview: 'OF-2026-0042' });
-  });
-
   it('exportPdf richiede il blob PDF', async () => {
     const promise = firstValueFrom(service.exportPdf('ord-1'));
 

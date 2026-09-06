@@ -1,3 +1,4 @@
+import { serializeDataTableSort } from '@shared/components/data-table/data-table.model';
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
@@ -21,11 +22,6 @@ import {
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
-/** Anteprima numerazione dal numeratore supplier_order (Numeratori). */
-export interface SupplierOrderMeta {
-  readonly nextReferencePreview: string;
-}
-
 /**
  * Accesso HTTP agli ordini fornitori (NestJS). L'ordine è solo commerciale:
  * la ricezione merce passa dall'Arrivo merce collegato.
@@ -45,6 +41,11 @@ export class SupplierOrderService {
     if (query.search) params = params.set('search', query.search);
     if (query.status) params = params.set('status', query.status);
     if (query.supplierId) params = params.set('supplierId', query.supplierId);
+    if (query.dateFrom) params = params.set('dateFrom', query.dateFrom);
+    if (query.dateTo) params = params.set('dateTo', query.dateTo);
+    const sort = serializeDataTableSort(query.sort ?? []);
+    if (sort) params = params.set('sort', sort);
+    if (query.all) params = params.set('all', '1');
 
     return this.http
       .get<ApiPaginated<SupplierOrderApiRow>>(this.url('/supplier-orders'), { params })
@@ -66,13 +67,6 @@ export class SupplierOrderService {
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
   }
 
-  /** Anteprima prossimo riferimento (numeratore supplier_order). */
-  getMeta(): Observable<SupplierOrderMeta> {
-    return this.http
-      .get<SupplierOrderMeta>(this.url('/supplier-orders/meta'))
-      .pipe(timeout(HTTP_TIMEOUT_MS));
-  }
-
   createOrder(body: CreateSupplierOrderBody): Observable<SupplierOrder> {
     return this.http
       .post<SupplierOrderApiRow>(this.url('/supplier-orders'), body)
@@ -89,6 +83,32 @@ export class SupplierOrderService {
     return this.http
       .post<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}/cancel`), {})
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
+  }
+
+  /**
+   * **Excel dell'elenco** come blob (`14` §5.2).
+   *
+   * ```text
+   * senza ids → tutto il risultato dei filtri
+   * con ids   → soltanto gli ordini selezionati
+   * ```
+   *
+   * ⛔ **I filtri viaggiano insieme**, sempre: senza, il server esporterebbe
+   * tutti gli ordini del tenant invece di quelli che l'operatore sta guardando.
+   *
+   * ⚠️ Nessuna paginazione: il client ha in mano una pagina, il file no. È il
+   * server a sapere quante righe rispondono al filtro.
+   */
+  exportSpreadsheet(query: SupplierOrderListQuery = {}, ids?: readonly string[]): Observable<Blob> {
+    let params = new HttpParams();
+    if (query.search) params = params.set('search', query.search);
+    if (query.status) params = params.set('status', query.status);
+    if (query.supplierId) params = params.set('supplierId', query.supplierId);
+    if (ids && ids.length > 0) params = params.set('ids', ids.join(','));
+
+    return this.http
+      .get(this.url('/supplier-orders/export/spreadsheet'), { params, responseType: 'blob' })
+      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 
   /** PDF dell'ordine come blob (stesso pattern di DocumentService.exportPdf). */

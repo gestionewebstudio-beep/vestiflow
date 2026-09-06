@@ -1,45 +1,106 @@
 import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
-import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
+import {
+  MANUAL_RECEIPT_WRITE_GROUPS,
+  ONLINE_SALES_VIEW_GROUPS,
+  REQUIRED_TENANT_PERMISSION_GROUPS_KEY,
+  REQUIRED_TENANT_PERMISSIONS_KEY,
+} from '@core/permissions/tenant-permissions.util';
 
-export const reportsRoutes: Routes = [
+/**
+ * Il registro corrispettivi **canonico**, montato su `/app/sales/corrispettivi`.
+ *
+ * Sta qui e non sotto `online-sales` perché il componente vive in questa
+ * feature; la rotta la dichiara `app.routes.ts`, che è la radice e può
+ * comporre.
+ *
+ * **Permessi: quelli delle vendite online**, non quelli dei Report — sono gli
+ * stessi che l'API `/corrispettivi/*` richiede. La vecchia rotta sotto Report
+ * chiedeva `SectionReports`, e chi aveva solo quello apriva una pagina che poi
+ * riceveva 403 dalle sue stesse chiamate.
+ */
+export const corrispettiviRegisterRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Report',
-    loadComponent: () => import('./reports.component').then((m) => m.ReportsComponent),
-    canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
-  },
-  {
-    path: 'corrispettivi',
-    title: 'VestiFlow · Corrispettivi',
+    title: 'Corrispettivi',
     loadComponent: () =>
       import('./pages/corrispettivi-report/corrispettivi-report.component').then(
         (m) => m.CorrispettiviReportComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: ONLINE_SALES_VIEW_GROUPS, reuse: true },
   },
   {
-    path: 'corrispettivi/print',
-    title: 'VestiFlow · Stampa corrispettivi',
+    path: 'print',
+    title: 'Stampa corrispettivi',
     loadComponent: () =>
       import('./pages/corrispettivi-print/corrispettivi-print.component').then(
         (m) => m.CorrispettiviPrintComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: ONLINE_SALES_VIEW_GROUPS },
   },
+  // ── Il Corrispettivo manuale (`docs/10` §12) ──────────────────────────────
+  //
+  // Sta SOTTO il Registro e non in una sezione sua: la schermata Corrispettivi
+  // resta unica, e dentro convivono le sorgenti derivate e le registrazioni
+  // manuali. Non ha un elenco proprio — si arriva qui dalla CTA della pagina o
+  // dal numero di una riga.
+  //
+  // I permessi sono quelli della SCRITTURA sul Registro: la vista non basta,
+  // perché questa maschera crea e corregge righe che entrano nei totali.
   {
-    path: 'accountant-register',
-    title: 'VestiFlow · Registro commercialista',
+    path: 'nuovo',
+    title: 'Nuovo corrispettivo manuale',
     loadComponent: () =>
-      import('./pages/accountant-register/accountant-register.component').then(
-        (m) => m.AccountantRegisterComponent,
+      import('./pages/manual-receipt-form/manual-receipt-form.component').then(
+        (m) => m.ManualReceiptFormComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: MANUAL_RECEIPT_WRITE_GROUPS },
   },
+  {
+    path: ':id/modifica',
+    title: 'Modifica corrispettivo manuale',
+    loadComponent: () =>
+      import('./pages/manual-receipt-form/manual-receipt-form.component').then(
+        (m) => m.ManualReceiptFormComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: MANUAL_RECEIPT_WRITE_GROUPS },
+  },
+];
+
+export const reportsRoutes: Routes = [
+  {
+    path: '',
+    title: 'Report',
+    loadComponent: () => import('./reports.component').then((m) => m.ReportsComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports, reuse: true },
+  },
+  // ⛔ Qui c'erano i due reindirizzamenti da `/app/reports/corrispettivi`
+  // (+ `/print`) verso `/app/sales/corrispettivi`. Tolti il 25/08/2026.
+  //
+  // ⚠️ **Non erano solo inutili: erano ROTTI.** Il collaudo del 17/08 li aveva
+  // già misurati (P2.13) — un `redirectTo` scarta TUTTI i parametri di query,
+  // quindi un segnalibro sulla stampa per il commercialista usciva con un altro
+  // periodo. Un 404 è una risposta migliore di una stampa sbagliata.
+  //
+  // ⛔ **Qui c’era «E nel codice non ci puntava più nessuno: solo i documenti».
+  //    Era FALSO**, e il 27/08 la pagina Report aveva ancora il suo link.
+  //
+  //    ⚠️ Non era distrazione: il link era `routerLink="corrispettivi"`,
+  //    RELATIVO, quindi cercare `reports/corrispettivi` non lo trovava — un
+  //    link relativo non contiene il percorso che apre. La misura era giusta
+  //    sulla domanda sbagliata.
+  //
+  //    ⭐ Ora il link è assoluto su `/app/sales/corrispettivi`, e
+  //    `check:router-links` (in `npm run lint`) impedisce che ne ricompaia uno
+  //    relativo: era l’unico dell’app.
 ];

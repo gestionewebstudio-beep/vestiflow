@@ -64,8 +64,6 @@ app-customer-order-form {
   --doc-m-icon: 2.375rem; // 38px — medaglione icona del pannello
   --doc-m-dock-icon: 1.75rem; // 28px — medaglione icona nel dock
   --doc-m-back-h: 2.625rem; // 42px — pulsante Indietro
-  --doc-m-include-h: 2.5rem; // 40px — «Includi documento»
-  --doc-m-empty-h: 10rem; // 160px — riquadro dello stato vuoto
   --doc-m-gutter: 0.75rem; // 12px — margine laterale della pagina
   --doc-m-totals-pad: 0.75rem; // 12px — padding della card totali
   --doc-m-notes-min: 5rem; // 80px — note documento: altezza di partenza
@@ -81,7 +79,6 @@ app-customer-order-form {
 
   --doc-m-accent-soft: #e9f2f1; // tinta del medaglione icona
   --doc-m-lines-bg: rgb(255 255 255 / 0.58);
-  --doc-m-empty-bg: rgb(255 255 255 / 0.46);
 }
 
 // Titolo + stato/riferimento sulla stessa riga; il back e' il chip standard
@@ -94,12 +91,18 @@ app-customer-order-form {
   min-inline-size: 0;
 }
 
+/*
+  ⭐ **Solo `margin`.** Il resto lo dà già la regola globale degli heading
+  (`styles.scss:128-143`): il titolo è un `<h1>`, e `font-size`, `color`,
+  `letter-spacing` e `line-height` arrivano da lì.
+
+  ⛔ Qui c'erano quattro proprietà duplicate, di cui `font-weight: bold`
+  sovrascriveva il `semibold` globale. Erano **quattro copie in quattro file**
+  — questo, `_list-page`, `_detail-page` e il telaio elenco — libere di
+  divergere. Unificate il 29/08/2026: i titoli di pagina pesano `semibold`.
+*/
 .doc-form__title {
   margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--color-text);
 }
 
 .doc-form__po-link {
@@ -201,6 +204,34 @@ app-customer-order-form {
   gap: var(--space-1);
 }
 
+// ⭐ **Una fascia di testata è larga quanto la card che la contiene** _(02/09/2026)_.
+//
+// ⚠️ `display: block` non è pleonastico: un componente Angular senza `display`
+// dichiarato ha l'host **inline**, e un elemento inline ignora `inline-size`.
+// `app-document-header` non ha foglio proprio — è tutto template inline — quindi
+// il suo host non l'ha mai avuto. Sono **29 su 77** i componenti condivisi nella
+// stessa condizione (censiti il 02/09/2026): per quelli che rendono struttura è
+// una mina che esplode solo in certe combinazioni.
+//
+// ⛔ **Queste due regole NON sono la correzione della fascia stretta**, e va
+// detto perché il commento che stava qui lo affermava — sbagliando. Il difetto
+// dell'Arrivo merce («Dati del documento ricevuto» largo 336px su 1041) non era
+// un mancato stiramento: era che `.doc-form__grid` da `md` in su ha **tre
+// colonne** (`repeat(3, minmax(0, 1fr))`, riga ~427) e la fascia ne occupava
+// **una**. Su un grid item `inline-size: 100%` vale il 100% *della sua colonna*:
+// è il motivo per cui tre tentativi di fila hanno mancato il bersaglio.
+//
+// ⭐ La correzione vera è `grid-column: 1 / -1`, e sta nel componente che rende
+// la fascia (`document-counterparty-ref`), dove c'è la misura completa.
+.doc-form__header > app-document-header {
+  display: block;
+  inline-size: 100%;
+}
+
+.doc-form__header .doc-form__grid--header {
+  inline-size: 100%;
+}
+
 // Testata a CELLE UNITE (v4, dal riferimento): griglia con bordi interni,
 // label piccola sopra, input nudo dentro la cella; il focus tinge la cella
 // e accende una linea accento sul bordo inferiore.
@@ -228,25 +259,35 @@ app-customer-order-form {
 // `display: contents` lascia i figli dentro la griglia/flex del contenitore
 // (il fieldset non genera box: margin/padding/border non servono);
 // l'attributo disabled del fieldset blocca comunque i controlli nativi.
+// Il gruppo dei campi che restano bloccati finché la testata non è completa.
+// Blocca e basta: **non spegne**.
+//
+// Spegneva al 55%, e le conseguenze erano tre. Una tabella intera resa a metà
+// tinta occupava mezzo schermo per non poter essere usata; il gruppo di
+// composizione creato dall'opacità faceva trasparire il piede della tabella
+// sopra la fascia note; e sopra tutto questo il layout mobile di riferimento
+// riaccendeva con `opacity: 1`, perché lì si era già capito che «titolo e
+// stato vuoto vanno letti — sono proprio loro a spiegare cosa fare».
+//
+// Tre regole in fila per tornare al punto di partenza. Ora la regola è una: a
+// testata incompleta le righe **non si mostrano affatto**, e al loro posto c'è
+// uno stato vuoto che dice cosa manca.
 .doc-form__gate-fields {
   display: contents;
 }
 
-.doc-form__gate-fields:disabled > * {
-  opacity: 0.55;
-}
-
-.doc-form__gate-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  background-color: var(--color-primary-subtle);
-  border: var(--border-width) solid var(--color-primary);
-  border-radius: var(--radius-md);
+// ⚠️ **Secondo contenitore `display: contents` nella fascia**, e per la stessa
+// ragione va raggiunto allo stesso modo: `app-document-header-group` affianca
+// due campi brevi dentro il pannello mobile ed e' TRASPARENTE su scrivania, ma
+// `display: contents` toglie la scatola e non l'elemento — il combinatore `>`
+// delle regole della fascia (piu’ sotto, media-up lg) guarda il DOM e senza un
+// secondo livello si ferma qui.
+//
+// ⛔ Misurato il 26/08/2026, subito dopo la migrazione dell’Ordine cliente: Data,
+// Stato e Consegna restavano senza quota flex E con il filo inferiore che le
+// celle sorelle non hanno — una riga orizzontale sotto quelle tre sole.
+.doc-form__header-group {
+  display: contents;
 }
 
 // Ultima colonna della riga senza bordo destro, per ogni breakpoint della
@@ -286,6 +327,49 @@ app-customer-order-form {
 .doc-form__header .doc-form__field:focus-within {
   background-color: var(--color-primary-subtle);
   box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--color-primary);
+}
+
+/**
+ * Campo obbligatorio ancora da compilare, mentre le righe aspettano.
+ *
+ * Serve perché lo stato vuoto al centro dice COSA manca ma non DOVE si fa: lo
+ * sguardo resta in mezzo alla pagina mentre l'azione è in testata. Il filo
+ * colorato porta l'occhio lì.
+ *
+ * ⚠️ **Tinta d'attesa, non rossa.** Il rosso in questa maschera vuol dire già
+ * un'altra cosa — «hai provato a salvare e questo campo è sbagliato» — e usarlo
+ * anche per «non l'hai ancora compilato» rende i due stati indistinguibili
+ * proprio quando servirebbe distinguerli: dopo un salvataggio rifiutato il
+ * campo sarebbe rosso come un minuto prima. Aprire un documento nuovo non è un
+ * errore dell'operatore, è l'inizio del lavoro.
+ *
+ * Stessa forma del focus qui sopra — filo in basso, non cornice — così i due
+ * stati si sommano senza litigare.
+ */
+// Il colore sta sul CONTROLLO, non sulla cella.
+//
+// La cella di testata è alta: contiene l'etichetta, il campo e spesso un
+// comando sotto («+ Nuovo fornitore»). Un filo sul suo bordo inferiore finiva
+// a un centimetro dal campo, sotto il comando, e non si leggeva come «questo
+// campo aspetta» — si leggeva come una riga di separazione qualsiasi.
+//
+// `--field-border-color` è il punto di regolazione che i campi condivisi
+// espongono apposta (regole-stile-ui §5): il contenitore lo imposta su di sé e
+// il campo dentro lo legge. Niente `::ng-deep`, niente stile che scavalca il
+// confine di un componente.
+.doc-form__header // Campo di riga in ATTESA: c'è un articolo ma il costo non è ancora scritto.
+// Ambra, non rosso — il rosso in una maschera vuol dire «hai sbagliato», e qui
+// non è sbagliato niente: il documento si salva, e al salvataggio un avviso
+// dice quali righe sono partite senza costo. Fino all'11/08/2026 il campo
+// vuoto si tingeva di rosso con «Importo non valido», che era il residuo di
+// quando il costo era obbligatorio.
+.doc-form__input--waiting {
+  border-color: var(--color-field-waiting);
+  box-shadow: inset 0 0 0 1px var(--color-field-waiting);
+}
+
+.doc-form__field--waiting {
+  --field-border-color: var(--color-field-waiting);
 }
 
 .doc-form__header .doc-form__label {
@@ -345,13 +429,19 @@ app-customer-order-form {
 // l'altezza occupata dalla testata rispetto alla tabella righe. Dichiarata
 // dopo la regola base di .doc-form__grid perché stessa specificità e stesso
 // breakpoint devono vincere qui (altrimenti resta bloccata a 3 colonne).
+// ⚠️ `minmax(0, …)` lasciava le celle stringersi SOTTO il loro contenuto, e su
+// uno schermo stretto il danno era doppio: la data (dieci caratteri, sempre) si
+// troncava in «GG/MM/AA…», mentre il protocollo — un numero — restava largo
+// quanto il fornitore, che di caratteri ne ha trenta. Sei parti uguali danno a
+// ogni campo la stessa larghezza, che è il contrario di «un campo è largo quanto
+// il dato che ospita» (regole-stile-ui §4).
+//
+// Con un minimo dichiarato le colonne non scendono sotto la misura di una data e
+// la fila si spezza da sola quando lo spazio finisce: a 1280 restano sei campi in
+// riga, a 1024 diventano cinque, e nessuno viene schiacciato.
 .doc-form__grid--header-compact {
   @include bp.media-up('md') {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  @include bp.media-up('xl') {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--field-w-md), 1fr));
   }
 }
 
@@ -687,7 +777,10 @@ app-customer-order-form {
   margin-inline-start: auto;
 }
 
-.doc-form__totals-row--field dd {
+// Vedi più sotto: la misura sta sul campo, non sulla cella — altrimenti il
+// pulsante «+ Aggiungi sconto», che nella stessa cella si alterna al campo,
+// sborda.
+.doc-form__totals-row--field dd .doc-form__totals-input {
   inline-size: var(--space-16);
 }
 
@@ -808,18 +901,6 @@ app-customer-order-form {
   padding-inline: var(--space-1);
 }
 
-// Colonna selezione righe (operazioni massive): checkbox stretta a sinistra.
-.doc-form__col--select {
-  width: var(--space-8);
-}
-
-.doc-form__select-check {
-  inline-size: var(--space-4);
-  block-size: var(--space-4);
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
 // Colonna numero riga (v4): stretta, centrata, su fondo attenuato; ospita
 // anche le frecce compatte di riordino (a sinistra, come da richiesta).
 // Sui <col> vale solo `width` fisico: le logical properties vengono ignorate.
@@ -827,7 +908,18 @@ app-customer-order-form {
   width: var(--space-12);
 }
 
-.doc-form__table .doc-form__cell--select,
+// La colonna del numero riga è larga uguale ovunque, che la misura arrivi dal
+// <colgroup> (arrivo merce, ordine cliente) o dalla cella (ordine fornitore e
+// trasferimento, che un colgroup non ce l'hanno). Senza questa riga la stessa
+// colonna nasce **a 0px** dove le altre sono in percentuale — aggiunta e
+// invisibile — e **a un sesto della tabella** dove le larghezze sono
+// automatiche. Misurato l'11/08/2026: 0px sull'ordine fornitore, 193px sul
+// trasferimento.
+.doc-form__table th.doc-form__cell--index {
+  inline-size: var(--space-12);
+  width: var(--space-12);
+}
+
 .doc-form__table .doc-form__cell--index {
   text-align: center;
   background-color: var(--color-surface-sunken);
@@ -867,29 +959,6 @@ app-customer-order-form {
 // colgroup: con table-layout fixed una inline-size qui non avrebbe effetto.)
 .doc-form .doc-form__table tbody td.doc-form__cell--actions {
   padding-inline-end: var(--space-2);
-}
-
-// Riga selezionata per operazioni massive: tinta leggera su tutta la riga.
-.doc-form__table tbody tr.doc-form__table-row--selected td {
-  background-color: var(--color-primary-subtle);
-}
-
-// ── Barra operazioni massive (selezione multipla righe) ─────────────────────
-.doc-form__bulk-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  background-color: var(--color-primary-subtle);
-  border: var(--border-width) solid var(--color-primary);
-  border-radius: var(--radius-md);
-}
-
-.doc-form__bulk-count {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary);
 }
 
 .doc-form__cell--readonly {
@@ -999,6 +1068,14 @@ app-customer-order-form {
   padding: 0;
   font: inherit;
   font-weight: var(--font-weight-medium);
+  // Il browser mette `text-transform: none` sui controlli di form, e il
+  // maiuscoletto dell'intestazione NON arriva dentro il pulsante: nella stessa
+  // tabella le colonne ordinabili si leggevano «Cod. fornitore» accanto a
+  // «COD. ARTICOLO». Non era una scelta — era il default del browser che
+  // vinceva. `font: inherit` non basta: la scorciatoia `font` non porta
+  // `text-transform`.
+  text-transform: inherit;
+  letter-spacing: inherit;
   color: inherit;
   background: none;
   border: none;
@@ -1310,41 +1387,11 @@ app-customer-order-form {
   gap: var(--space-2);
 }
 
-// Punto E: il combobox "Causale di carico" non esiste più (causale generata
-// in silenzio). Le classi doc-form__causal-* residue servono al pannello
-// "Gestisci tipi documento fornitore", che ne riusa la struttura.
-
-.doc-form__causal-empty {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-// ── Pannello "Gestisci tipi documento" (struttura condivisa) ────────────────
-
-.doc-form__causal-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.doc-form__causal-panel-hint {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  line-height: var(--leading-normal);
-}
-
-.doc-form__type-new {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-
-  .doc-form__input {
-    flex: 1;
-    min-inline-size: 0;
-  }
-}
+// Le classi doc-form__causal-* sono il residuo del combobox "Causale di carico",
+// che non esiste più (la causale si genera in silenzio). Quelle rimaste vestono
+// la gestione delle causali dentro il Documento di vendita: il pannello
+// "Gestisci tipi documento" ha traslocato in un componente di dominio e si porta
+// dietro il proprio foglio, quindi le sue regole sono state tolte da qui.
 
 .doc-form__causal-manage-list {
   margin: 0;
@@ -1410,31 +1457,6 @@ app-customer-order-form {
   &--danger:hover:not(:disabled) {
     color: var(--color-danger);
   }
-}
-
-// Gestione tipi documento fornitore (§6) — riusa il layout del pannello causali.
-.doc-form__type-inactive .doc-form__causal-manage-label {
-  color: var(--color-text-muted);
-}
-
-.doc-form__type-short {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
-
-.doc-form__type-edit-fields {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-// Finestra "Nuovo tipo documento fornitore" (§5).
-.doc-form__type-dialog-fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-block-end: var(--space-4);
 }
 
 .doc-form__actions-note-sep {
@@ -1637,6 +1659,29 @@ app-customer-order-form {
   gap: var(--space-2);
 }
 
+// ── Riga dell'etichetta: nome del campo a sinistra, comandi a destra ───────
+//
+// I comandi della controparte — «Nuovo cliente», «Scheda cliente» — stavano
+// sotto il campo, e da lì aggiungevano una terza riga a ogni cella di testata.
+// Sulla riga dell'etichetta costano zero altezza, perché lì c'è solo una parola
+// e il resto è vuoto. Stessa disposizione del pannello mobile: un documento non
+// deve mettere i suoi comandi in due posti diversi a seconda dello schermo.
+.doc-form .doc-form__field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+// I comandi restano uniti a destra: senza contenitore proprio, `space-between`
+// con tre figli spargerebbe il primo in mezzo alla riga.
+.doc-form .doc-form__field-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
 // ── Testata: una card, due fasce di celle unite ─────────────────────────────
 .doc-form .doc-form__header {
   gap: 0;
@@ -1655,6 +1700,14 @@ app-customer-order-form {
 .doc-form .doc-form__header .doc-form__header-row--secondary {
   background-color: var(--color-surface-soft);
   border-block-start: var(--border-width) solid var(--color-border);
+}
+
+// Gli angoli bassi li arrotonda SOLO l'ultima fascia: e' lei a chiudere la card.
+// Da quando il documento della controparte porta la propria fascia, una testata
+// puo' averne due (Fattura di vendita: fascia fiscale + controparte), e dando i
+// raggi a entrambe si vedrebbe il bianco della card affiorare ai due angoli a
+// meta' testata.
+.doc-form .doc-form__header .doc-form__header-row--secondary:last-child {
   border-end-start-radius: var(--radius-lg);
   border-end-end-radius: var(--radius-lg);
 }
@@ -1730,11 +1783,29 @@ app-customer-order-form {
     gap: 0;
   }
 
+  // ⚠️ `flex: 1 1 0` + `min-inline-size: 0` dava a ogni campo la STESSA quota e
+  // gli permetteva di scendere sotto il proprio contenuto. Su schermi stretti il
+  // danno era doppio, e in due direzioni opposte: la data — dieci caratteri,
+  // sempre gli stessi — si troncava in «GG/MM/AA…», mentre il protocollo, che
+  // ospita un numero, restava largo quanto il fornitore, che di caratteri ne ha
+  // trenta. È il contrario di «un campo è largo quanto il dato che ospita»
+  // (regole-stile-ui §4).
+  //
+  // Ora il minimo di un campo è la misura del suo dato, dichiarata dal campo
+  // stesso con `--doc-field-min` (ripiego: la misura di una data). Sotto quella
+  // soglia la fascia **va a capo** invece di schiacciare: a schermo largo la
+  // fila resta una, stringendo si spezza in due, e nessun campo diventa
+  // illeggibile.
+  .doc-form .doc-form__header-row {
+    flex-wrap: wrap;
+  }
+
   .doc-form .doc-form__header-row > .doc-form__field,
   .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field,
+  .doc-form .doc-form__header-row > .doc-form__header-group > .doc-form__field,
   .doc-form .doc-form__header-row app-document-number-field .doc-number__field {
-    flex: 1 1 0;
-    min-inline-size: 0;
+    flex: 1 1 var(--doc-field-min, var(--field-w-md));
+    min-inline-size: var(--doc-field-min, var(--field-w-md));
     border-block-end: 0;
     border-inline-end: var(--border-width) solid var(--color-border);
   }
@@ -1743,9 +1814,10 @@ app-customer-order-form {
   // della fascia, ma il combinatore > guarda il DOM — vanno raggiunti
   // attraverso il fieldset (selettore qui sopra) e chiusi qui sotto.
   .doc-form .doc-form__header-row > .doc-form__field:last-child,
+  .doc-form .doc-form__header-row > .doc-form__gate-fields:last-child > .doc-form__field:last-child,
   .doc-form
     .doc-form__header-row
-    > .doc-form__gate-fields:last-child
+    > .doc-form__header-group:last-child
     > .doc-form__field:last-child {
     border-inline-end: 0;
   }
@@ -1753,7 +1825,8 @@ app-customer-order-form {
   // La quota doppia del campo principale (Cliente, Fornitore) vale anche
   // nella fascia flex, dove il grid-column dello span2 non ha effetto.
   .doc-form .doc-form__header-row > .doc-form__field--span2,
-  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field--span2 {
+  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field--span2,
+  .doc-form .doc-form__header-row > .doc-form__header-group > .doc-form__field--span2 {
     flex-grow: 2;
   }
 }
@@ -1878,6 +1951,39 @@ app-customer-order-form {
   flex-wrap: wrap;
 }
 
+// ── Intestazioni: due righe, poi si taglia ─────────────────────────────────
+//
+// Prima andavano a capo quante volte serviva, e restringendo una colonna
+// l'intera riga di intestazione si alzava — spazio verticale tolto alle righe
+// del documento, che sono la ragione per cui la tabella esiste. Ora il tetto è
+// **due righe**: quasi tutte le etichette ci stanno per intero («Prezzo al
+// pubblico» diventa due parole su due righe), e solo le più lunghe si tagliano.
+//
+// ⚠️ Il taglio sta sull'ETICHETTA, non sulla cella, e non è una raffinatezza:
+// dentro l'intestazione dell'IVA vive un menu a tendina, e `overflow: hidden`
+// sulla cella lo taglierebbe insieme all'etichetta. La maniglia per
+// ridimensionare, che sporge di 4px oltre il bordo, sparirebbe con lui.
+//
+// L'etichetta tagliata resta leggibile per intero al passaggio del mouse: le
+// intestazioni portano il proprio nome nel `title`.
+//
+// ⚠️ **`.doc-form__th-menu-wrap` era in questo elenco, ed è stato tolto il
+// 15/08/2026.** La precauzione qui sopra — «non sulla cella, o taglierebbe il
+// menu» — veniva annullata due righe più giù: il wrap È l'elemento che ospita
+// il menu, che gli sta dentro in `position: absolute` sotto il bordo inferiore.
+// Con `overflow: hidden` la tendina si apriva e veniva ritagliata via: a
+// schermo la freccia sembrava morta, in tutte le maschere che hanno un menu di
+// intestazione — modalità prezzo del DDT, costo dell'Arrivo merce, Ordine
+// fornitore.
+//
+// Il tetto di due righe sull'etichetta **non si perde**: dentro il wrap
+// l'etichetta è un `.doc-form__th-sort`, che resta in elenco.
+.doc-form .doc-form__th-label,
+.doc-form .doc-form__th-sort {
+  max-block-size: calc(2 * var(--leading-tight) * var(--text-label));
+  overflow: hidden;
+}
+
 // I tooltip delle intestazioni (Sconto, Impegna) si aprono verso SINISTRA:
 // il componente decide da solo in base al bordo dello schermo, ma qui il
 // limite è la tabella — aperti verso destra la farebbero scorrere.
@@ -1922,6 +2028,32 @@ app-customer-order-form {
 .doc-form .doc-form__table tbody td.doc-form__col--calc,
 .doc-form .doc-form__table tbody td.doc-form__col--tax {
   background-color: var(--table-cell-calc);
+}
+
+/*
+  ⚠️ **Il Codice IVA si SCEGLIE: deve sembrare un campo, non un risultato.**
+
+  La cella porta la tinta del gruppo «calcoli» — ed è giusto, perché quel
+  gruppo è dove sta l'imposta (`regole-stile-ui` §6) — ma il controllo dentro
+  ereditava lo stesso fondo, e finiva indistinguibile da Imponibile e Imposta,
+  che invece si leggono soltanto. L'unico indizio restava il chevron, che è
+  poco: nella stessa riga l'importo si digita ed è bianco, e la differenza fra
+  «lo compilo io» e «lo calcola il gestionale» è la prima cosa che l'occhio
+  cerca in una riga documento.
+
+  Sotto `lg` questo vestito la cella ce l'aveva già, per la stessa ragione
+  scritta nel suo componente: dentro una card, accanto a campi che il bordo ce
+  l'hanno, un testo nudo non sembra scrivibile. Su desktop mancava.
+*/
+.doc-form .doc-form__table tbody td.doc-form__col--tax .doc-select-cell {
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-input-border);
+  border-radius: var(--radius-sm);
+}
+
+.doc-form .doc-form__table tbody td.doc-form__col--tax .doc-select-cell:focus-within {
+  border-color: var(--color-interactive);
+  box-shadow: var(--field-focus-ring);
 }
 
 .doc-form .doc-form__table tbody td.doc-form__col--total {
@@ -2041,6 +2173,36 @@ app-customer-order-form {
   .doc-form .doc-form__table-summary {
     display: none;
   }
+
+  // ── La barra strumenti righe, su schermo compatto ────────────────────────
+  //
+  // ⛔ **Qui non c'era niente, e sei maschere su sei tenevano in pagina la
+  // barra del desktop.** Il difetto non era l'ingombro: il selettore Colonne
+  // non raggiungeva le card, quindi l'operatore lo apriva, spegneva una
+  // colonna, e nella card non cambiava nulla — un comando che non comanda.
+  //
+  // ⭐ **Adesso comanda.** Il corpo della card è guidato dal catalogo colonne,
+  // quindi il selettore governa anche la vista compatta: la barra resta, e si
+  // adatta al dito invece di sparire. Toglierla ora significherebbe togliere
+  // due comandi che funzionano.
+  //
+  // Due colonne, altezza tappabile, e il comando primario a tutta larghezza in
+  // fondo: è la forma che l'Ordine cliente aveva già in locale.
+  .doc-form .doc-form__lines-tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    --field-height: var(--control-h-touch);
+    --button-font-size: var(--text-sm);
+
+    app-button {
+      inline-size: 100%;
+    }
+
+    > app-button:last-child {
+      --button-grid-column: 1 / -1;
+    }
+  }
 }
 
 .doc-form .doc-form__totals dt {
@@ -2057,7 +2219,16 @@ app-customer-order-form {
   white-space: nowrap;
 }
 
+// La cella ospita DUE cose che si alternano: il campo percentuale (stretto) e,
+// finché lo sconto non c'è, il pulsante «+ Aggiungi sconto» (largo). Una
+// larghezza fissa andava bene al primo e faceva sbordare il secondo — invisibile
+// finché la casella era stirata, sopra la casella accanto da quando è
+// dimensionata sul contenuto. La misura va al campo, non alla cella.
 .doc-form .doc-form__totals-row--field dd {
+  inline-size: auto;
+}
+
+.doc-form .doc-form__totals-row--field dd .doc-form__totals-input {
   inline-size: var(--space-16);
 }
 
@@ -2117,8 +2288,7 @@ app-customer-order-form {
 }
 
 // ── §CONTROLLI: quantità oltre la disponibile ──────────────────────────────
-// Bordo/sfondo ambra sulla cella, testo discreto «disponibili solo N».
-// Mai un blocco.
+// Bordo/sfondo ambra sulla cella: è il segnale, e da solo. Mai un blocco.
 .doc-form .doc-form__cell--exceeds {
   position: relative;
   background: var(--color-warning-subtle);
@@ -2136,16 +2306,20 @@ app-customer-order-form {
   background-color: var(--color-warning-subtle);
 }
 
-// L'avviso va a capo dentro la cella: su colonne strette restava su una riga
-// sola e sbordava sulle colonne vicine.
-.doc-form .doc-form__exceeds-hint {
-  display: block;
-  font-size: var(--text-label);
-  line-height: var(--leading-tight);
-  color: var(--color-warning);
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
+// ⛔ **Qui c'era `.doc-form__exceeds-hint`**, il testo «disponibili solo N»
+// dentro la cella della quantità. Tolto il 02/09/2026: il colore della cella
+// diceva già la stessa cosa, e il testo occupava una seconda riga nella colonna
+// più stretta — per ogni riga in eccesso, su una tabella densa.
+//
+// ⚠️ **E con lui cade la ragione dei 72px.** Il commento del catalogo colonne
+// dell'Ordine cliente dice «Q.tà ospita l'avviso: qualche pixel in più a lei»:
+// quel bisogno non esiste più. (Non esisteva già: il ritorno a capo qui sopra e
+// l'allargamento furono due rimedi allo stesso sintomo, scritti nello stesso
+// commit del 23/07 — e con `table-layout: fixed` il contenuto di una cella non
+// influenza mai la larghezza della colonna.)
+//
+// ⭐ **Su MOBILE il testo resta**, in `document-line-card`: lì non c'è
+// passaggio del mouse per il tooltip, e la card ha spazio in verticale.
 
 // Riga «documento collegato» e riordino delle righe per trascinamento —
 // terzo foglio del componente (customer-order-form.component.ts, styleUrls).
@@ -2185,4 +2359,143 @@ app-customer-order-form {
 
 .doc-form .doc-form__table tbody tr.cdk-drag-dragging {
   opacity: 0.5;
+}
+
+// ── Card di riga: la misura dei controlli proiettati ───────────────────────
+//
+// `app-document-line-card-field` dà al campo la forma (etichetta sopra,
+// controllo sotto, mezza colonna della griglia) ma NON può vestire il controllo:
+// quello arriva proiettato dalla maschera, quindi porta l'incapsulamento di chi
+// lo scrive e nessuna regola del componente lo raggiunge — e `::ng-deep` per
+// arrivarci è vietato.
+//
+// Queste regole stanno qui perché è l'unico livello che vede sia la card sia
+// `doc-form__input`, che è già una classe globale. Sono la stessa misura che la
+// card dell'Ordine cliente applicava dentro di sé quando il markup era suo.
+// ⛔ **Le celle CONDIVISE portano classi proprie, non `doc-form__input`.**
+//
+// Dentro una card restavano quindi alte come in tabella — 24px invece di 44 — e
+// col carattere della riga densa, sotto la soglia iOS che fa zoomare al fuoco.
+// Non si vedeva in nessun test: e' geometria, e i test guardano il DOM.
+//
+// ⭐ Non si scavalca l'incapsulamento: le celle espongono gia' i propri punti di
+// regolazione con fallback (`--doc-line-row-height`, e ora
+// `--doc-line-cell-font`), che e' il canale che `regole-stile-ui` §5 prescrive.
+// Il contenitore li imposta su di se', le celle li leggono.
+.doc-line-card-field {
+  --doc-line-row-height: var(--control-h-touch);
+  --doc-line-cell-font: var(--text-lg);
+}
+
+.doc-line-card-field .doc-form__input,
+.doc-line-card-field select.doc-form__input {
+  block-size: var(--control-h-touch);
+  min-block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-size: var(--text-lg);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+// La tendina Si'/No delle spunte magazzino tiene la freccia del sistema: su
+// telefono e' l'indizio che il campo si apre, e ricostruirla costerebbe uno
+// stile in piu' senza aggiungere niente.
+.doc-line-card-field__select {
+  appearance: auto;
+}
+
+// Valori calcolati: stessa altezza dei campi, ma si vede che non si scrivono.
+.doc-line-card-field--readonly p {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-readonly-fg);
+  background-color: var(--color-readonly-bg);
+  border: var(--border-width) solid var(--color-readonly-border);
+  border-radius: var(--radius-sm);
+}
+
+// ── Riga «documento collegato» ────────────────────────────────────────────
+//
+// Sta qui, e non nel foglio dell'Ordine cliente, perche' il markup vive nella
+// riga CONDIVISA (`document-line-row`): una regola incapsulata nel componente
+// che la ospitava non raggiungerebbe il DOM di quella condivisa. Il blocco
+// mobile dell'Ordine cliente riusa le stesse classi.
+.doc-form__source-index {
+  font-size: 0.6875rem; // 11px
+  color: var(--color-doc-ref-muted);
+}
+
+.doc-form__source-info-cell {
+  padding-inline: 0;
+}
+
+.doc-form__source-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-05);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.doc-form__source-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 1rem; // 16px
+  block-size: 1rem;
+  color: var(--color-doc-ref-accent);
+}
+
+.doc-form__source-icon i {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.doc-form__source-kind {
+  flex: 0 0 auto;
+  padding: var(--space-05) var(--space-1-5);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-head);
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  color: var(--color-doc-ref-chip-fg);
+  background-color: var(--color-doc-ref-chip-bg);
+  border: var(--border-width) solid var(--color-doc-ref-chip-line);
+  border-radius: var(--radius-sm);
+}
+
+// Titolo del riferimento: resta un campo modificabile (il testo è libero),
+// ma pesa e si comporta come il titolo statico delle specifiche.
+.doc-form__source-title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  inline-size: 100%;
+  block-size: var(--control-h-cell);
+  padding: 0 var(--space-05);
+  font-size: 0.75rem; // 12px
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-doc-ref-title);
+  text-overflow: ellipsis;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.doc-form__source-title:hover {
+  border-color: var(--color-doc-ref-chip-line);
+  background-color: var(--color-surface);
+}
+
+.doc-form__source-title:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
 }

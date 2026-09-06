@@ -7,15 +7,19 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
 
 import { AuthService } from '@core/auth';
@@ -24,13 +28,14 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
-import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando } from '@shared/models/list-action-catalog';
+import type { ListAction } from '@shared/models/list-selection.model';
 
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -42,7 +47,6 @@ import {
 import {
   DEFAULT_SUPPLIER_PAGE_SIZE,
   parseSupplierListQuery,
-  SUPPLIER_PAGE_SIZE_OPTIONS,
   supplierListQueryToParams,
 } from './models/supplier-list-query.model';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
@@ -69,14 +73,10 @@ type SupplierListState =
   selector: 'app-supplier-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
-    ButtonComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
-    PaginationComponent,
-    TableSkeletonComponent,
+    ListActionsBarComponent,
+    ListPageComponent,
     SupplierTableComponent,
-    TableColumnPickerComponent,
+    DeleteConfirmComponent,
   ],
   templateUrl: './supplier-list.component.html',
   styleUrl: './supplier-list.component.scss',
@@ -93,12 +93,16 @@ export class SupplierListComponent {
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 5;
-  protected readonly pageSizeOptions = SUPPLIER_PAGE_SIZE_OPTIONS;
   protected readonly canManage = computed(() =>
     canManageSupplierOrders(this.authService.currentUser()),
   );
 
   private readonly refreshTick = signal(0);
+  /**
+   * ⚠️ Lo scrive il telaio: `app-list-page` possiede il campo di ricerca e
+   *    emette la stringa. Qui non c'è più un gestore di evento — il
+   *    `(input)` con il cast a `HTMLInputElement` viveva in undici pagine.
+   */
   protected readonly searchDraft = signal('');
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
 
@@ -110,14 +114,13 @@ export class SupplierListComponent {
   private readonly state = toSignal(
     toObservable(this.listQuery).pipe(
       switchMap(({ page, pageSize, search }) =>
-        this.service.list({ page, pageSize, search }).pipe(
-          map(
-            (response): SupplierListState => ({
-              status: 'success',
-              suppliers: response.data,
-              meta: response.meta,
-            }),
-          ),
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        this.service.list({ page, pageSize, search }, { tutto: true }).pipe(
+          map((response): SupplierListState => ({
+            status: 'success',
+            suppliers: response.data,
+            meta: response.meta,
+          })),
           startWith<SupplierListState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
         ),
@@ -141,9 +144,6 @@ export class SupplierListComponent {
   });
   protected readonly isEmpty = computed(
     () => this.state().status === 'success' && this.suppliers().length === 0,
-  );
-  protected readonly hasActiveFilters = computed(
-    () => parseSupplierListQuery(this.queryParams()).search.trim().length > 0,
   );
 
   constructor() {
@@ -178,44 +178,199 @@ export class SupplierListComponent {
       });
   }
 
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
+  /*
+    ⛔ **Qui c'era `resetFilters()`, e azzerava la RICERCA** — tolto il
+    31/08/2026, decisione del proprietario: «ricerca e periodo possono restare
+    fuori».
+
+    `14` §0.2 lo dice già: Ricerca e Periodo non seguono il pulsante «Filtri»,
+    perché hanno il proprio controllo sempre a vista. Su questo elenco la
+    ricerca era l'unica cosa che quel metodo azzerava, e i filtri di colonna li
+    pulisce lo store.
+  */
+
+  /**
+   * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
+   *
+   * ⚠️ L'etichetta è corta perché il nome dell'entità è già scritto sopra, a
+   * caratteri grandi: «Nuovo» sotto «Fornitori» non è ambiguo. Il nome per
+   * esteso resta nell'`ariaLabel`, per chi la pagina non la vede.
+   */
+  protected readonly listActions = computed<readonly ListAction[]>(() =>
+    this.canManage()
+      ? [
+          comando('new', {
+            ariaLabel: 'Nuovo fornitore',
+            run: () => this.createSupplier(),
+          }),
+          /*
+            ⭐ **Duplica**: `requires: 'one'` dal catalogo — una scheda per volta.
+            Apre la copia, perché si duplica per rifinire.
+          */
+          comando('duplicate', {
+            ariaLabel: 'Duplica il fornitore selezionato',
+            run: (target) => {
+              if (target.scope === 'selection' && target.ids[0]) {
+                this.duplicaFornitore(target.ids[0]);
+              }
+            },
+          }),
+          /*
+            ⭐ **Elimina**: `requires: 'oneOrMore'`, con la doppia conferma del
+            componente condiviso. Lo storico resta — vedi `delete` nel servizio API.
+          */
+          comando('delete', {
+            busy: this.deleteBusy(),
+            ariaLabel: 'Elimina i fornitori selezionati',
+            run: (target) => {
+              if (target.scope === 'selection') {
+                this.requestDeleteSelection(target.ids);
+              }
+            },
+          }),
+        ]
+      : [],
+  );
+
+  // ── Selezione ─────────────────────────────────────────────────────────────
+  private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
+  protected readonly selectedSupplierIds = this.selection.ids;
+
+  /**
+   * ⛔ **Al cambio di filtro la selezione si restringe alle righe caricate.**
+   * Senza, la barra conterebbe schede che l'operatore non vede più e un'azione —
+   * eliminare, per esempio — agirebbe su fornitori che credeva di aver lasciato
+   * indietro. È la «selezione invisibile o ingannevole» che `14` §15 vieta.
+   */
+  private readonly potaturaSelezione = toObservable(this.suppliers)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((righe) => this.selection.prune(righe.map((r) => r.id)));
+
+  protected toggleSupplierSelection(supplierId: string, selected: boolean): void {
+    this.selection.toggle(supplierId, selected);
   }
 
-  protected resetFilters(): void {
-    const current = parseSupplierListQuery(this.queryParams());
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: supplierListQueryToParams({ ...current, page: 1, search: '' }),
-    });
+  protected toggleSelectAll(selected: boolean): void {
+    this.selection.setAll(
+      this.suppliers().map((s) => s.id),
+      selected,
+    );
   }
 
-  protected goToPage(page: number): void {
-    const current = parseSupplierListQuery(this.queryParams());
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: supplierListQueryToParams({ ...current, page }),
-    });
+  protected clearSelection(): void {
+    this.selection.clear();
   }
 
-  protected onPageSizeChange(pageSize: number): void {
-    const current = parseSupplierListQuery(this.queryParams());
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: supplierListQueryToParams({ ...current, page: 1, pageSize }),
-    });
+  // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  private readonly pendingDeleteIds = signal<readonly string[]>([]);
+
+  /** ⚠️ Il titolo NOMINA chi sparisce, non l'operazione. */
+  protected readonly deleteWarnTitle = computed(() => {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 1) {
+      const fornitore = this.suppliers().find((s) => s.id === ids[0]);
+      return fornitore ? `Elimina ${fornitore.name}` : 'Elimina fornitore';
+    }
+    return `Elimina ${ids.length} fornitori`;
+  });
+
+  /*
+    ⭐ **La conseguenza dice che cosa NON sparisce.** Chi elimina un fornitore teme
+    di perdere ordini e fatture d'acquisto: non li perde — il nome resta scritto su
+    ognuno.
+
+    ⚠️ **E dice anche che cosa sparisce davvero**: i legami prodotto-fornitore,
+    che erano SUOI. È l'unica cosa che si perde, e va detta prima.
+  */
+  protected readonly deleteWarnMessage = computed(() => {
+    const n = this.pendingDeleteIds().length;
+    const soggetto = n === 1 ? 'La scheda sparisce' : `Le ${n} schede spariscono`;
+    return `${soggetto} dall'anagrafica, insieme ai collegamenti con gli articoli. Ordini e documenti restano invariati: il nome resta scritto su ognuno.`;
+  });
+
+  private duplicaFornitore(id: string): void {
+    this.service
+      .duplicateSupplier(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (copia) => void this.router.navigate(['/app/suppliers', copia.id, 'edit']),
+      });
+  }
+
+  private requestDeleteSelection(ids: readonly string[]): void {
+    if (ids.length === 0 || this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set(ids);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set([]);
+  }
+
+  /*
+    ⚠️ **`concatMap`, non `forkJoin`**: una per una, così un fallimento a metà
+    lascia uno stato leggibile invece di un esito unico che non dice quali.
+  */
+  protected onDeleteConfirm(): void {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 0 || this.deleteBusy()) {
+      this.deleteWarnOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(ids)
+      .pipe(
+        concatMap((id) =>
+          this.service.deleteSupplier(id).pipe(
+            map(() => ({ ok: true, id })),
+            catchError(() => of({ ok: false, id })),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((esiti) => {
+        this.deleteBusy.set(false);
+        this.deleteWarnOpen.set(false);
+        this.pendingDeleteIds.set([]);
+        const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
+        if (eliminati.size > 0) {
+          for (const id of eliminati) {
+            this.selection.toggle(id, false);
+          }
+        }
+        this.reload();
+      });
   }
 
   protected openSupplier(supplier: Supplier): void {
     void this.router.navigate(['/app/suppliers', supplier.id]);
   }
 
-  protected reload(): void {
-    this.refreshTick.update((tick) => tick + 1);
+  private createSupplier(): void {
+    void this.router.navigate(['/app/suppliers/new']);
   }
 
-  protected goToNew(): void {
-    void this.router.navigate(['/app/suppliers/new']);
+  protected reload(): void {
+    this.refreshTick.update((tick) => tick + 1);
   }
 
   private toErrorState(err: unknown): SupplierListState {

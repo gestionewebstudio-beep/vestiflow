@@ -11,6 +11,10 @@ import {
   shopifyInventoryReadScopeError,
 } from './shopify-scopes.util';
 import { ShopifySyncService } from './shopify-sync.service';
+import {
+  ShopifyInventoryRepublishService,
+  type InventoryRepublishResult,
+} from './shopify-inventory-republish.service';
 
 const INVENTORY_ITEM_ID_BATCH_SIZE = 50;
 const IMPORT_REASON = 'Import giacenze Shopify';
@@ -23,6 +27,10 @@ export interface ShopifyInventoryPullResult {
   readonly linkedVariantCount: number;
   readonly linkedLocationCount: number;
   readonly remoteLevelCount: number;
+  /** Disallineamenti rimasti in sospeso e ripubblicati in questa passata. */
+  readonly republishedLevels: number;
+  /** Disallineamenti ancora in coda dopo la passata: falliti od oltre il tetto. */
+  readonly pendingMismatches: number;
 }
 
 @Injectable()
@@ -36,6 +44,7 @@ export class ShopifyInventoryPullService {
     private readonly shopifyOAuth: ShopifyOAuthService,
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifySync: ShopifySyncService,
+    private readonly inventoryRepublish: ShopifyInventoryRepublishService,
   ) {}
 
   async pullInventory(tenantId: string): Promise<ShopifyInventoryPullResult> {
@@ -135,10 +144,33 @@ export class ShopifyInventoryPullService {
       }
     }
 
+    // In coda: si svuota la coda delle ripubblicazioni rimaste in sospeso.
+    //
+    // Quando il webhook porta un valore che VestiFlow non sa giustificare
+    // («Caso D»), la ripubblicazione del valore VestiFlow è un tentativo solo,
+    // lanciato senza attenderne l'esito — e se fallisce nessuno riprova. Questo
+    // è il momento naturale per riprovare: l'operatore sta già aspettando
+    // Shopify, e nell'applicazione non esiste nessuno scheduler.
+    //
+    // Non blocca l'importazione: se il ritentativo fallisce, le giacenze
+    // importate restano importate.
+    let republish: InventoryRepublishResult = {
+      pending: 0,
+      attempted: 0,
+      succeeded: 0,
+      remaining: 0,
+    };
+    try {
+      republish = await this.inventoryRepublish.retryPending(tenantId);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      this.logger.warn(`Ripubblicazione disallineamenti non riuscita (${tenantId}): ${message}`);
+    }
+
     await this.shopifyConnection.touchSync(tenantId);
 
     this.logger.log(
-      `Import giacenze Shopify (${tenantId}): +${imported} ~${updated} =${unchanged} skip=${skipped} remote=${remoteLevelCount}`,
+      `Import giacenze Shopify (${tenantId}): +${imported} ~${updated} =${unchanged} skip=${skipped} remote=${remoteLevelCount} ripubblicate=${republish.succeeded} in-coda=${republish.remaining}`,
     );
 
     return {
@@ -149,6 +181,8 @@ export class ShopifyInventoryPullService {
       linkedVariantCount: inventoryItemIds.length,
       linkedLocationCount: shopifyLocationIds.length,
       remoteLevelCount,
+      republishedLevels: republish.succeeded,
+      pendingMismatches: republish.remaining,
     };
   }
 }

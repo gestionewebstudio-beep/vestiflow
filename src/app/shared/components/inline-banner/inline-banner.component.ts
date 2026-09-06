@@ -18,10 +18,17 @@ export type InlineBannerTone = 'error' | 'success' | 'warning' | 'info' | 'neutr
 @Component({
   selector: 'app-inline-banner',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: {
-    class: 'inline-banner-host',
-    '[class.inline-banner-host--block]': 'true',
-  },
+  /*
+    ⛔ **QUI C'ERA `'[class.inline-banner-host--block]': 'true'`**, tolta il
+    01/09/2026: una classe applicata sempre (`'true'`), che nessun foglio
+    vestiva e nessun selettore nominava. Ciò che prometteva — il blocco — lo fa
+    già `:host { display: block }` nel foglio.
+
+    ⚠️ È stata trovata dalla guardia `check:classi-orfane` il giorno in cui è
+    stata estesa alle classi dell'host: prima leggeva i soli `.component.html`,
+    e una classe dichiarata qui le era invisibile.
+  */
+  host: { class: 'inline-banner-host' },
   templateUrl: './inline-banner.component.html',
   styleUrl: './inline-banner.component.scss',
 })

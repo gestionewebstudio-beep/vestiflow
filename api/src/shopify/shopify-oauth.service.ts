@@ -19,11 +19,11 @@ import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyCryptoService } from './shopify-crypto.service';
+import { isShopifyDeliverableAddress } from './shopify-webhook-address.util';
 import {
   ShopifyLocationSyncService,
   type ShopifyLocationSyncResult,
 } from './shopify-location-sync.service';
-import { ShopifyShopChangeService } from './shopify-shop-change.service';
 import {
   buildShopifyScopeDiagnostics,
   mergeShopifyScopes,
@@ -48,7 +48,6 @@ export class ShopifyOAuthService {
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyLocationSync: ShopifyLocationSyncService,
-    private readonly shopifyShopChange: ShopifyShopChangeService,
   ) {}
 
   async beginAuth(tenantId: string, shopInput: string): Promise<{ authorizeUrl: string }> {
@@ -211,23 +210,59 @@ export class ShopifyOAuthService {
       await this.shopifyConnection.recordSetupWarning(tenantId, message, 'location_sync_failed');
     }
 
+    // Qui la registrazione non deve interrompere la connessione: il negozio e' collegato,
+    // e' solo l'automatismo che non parte. Ma non deve nemmeno sparire in silenzio — che e'
+    // il difetto 2.2-bis, «un negozio puo' risultare connesso con zero webhook e nessuna
+    // traccia». Quindi si prova, e se non si puo' resta scritto perche'.
     const webhookUrl = this.shopifyConfig.webhookUrl;
-    if (webhookUrl) {
-      await this.registerWebhooksForTenant(
+    if (!webhookUrl) {
+      await this.shopifyConnection.recordSetupWarning(
         tenantId,
-        shopDomain,
-        tokenJson.access_token,
-        webhookUrl,
+        'Aggiornamenti automatici non attivati: indirizzo webhook non configurato sul server (SHOPIFY_APP_URL).',
+        'webhook_url_missing',
       );
+    } else {
+      try {
+        await this.registerWebhooksForTenant(
+          tenantId,
+          shopDomain,
+          tokenJson.access_token,
+          webhookUrl,
+        );
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Registrazione webhook fallita';
+        this.logger.warn(`Shopify OAuth post-connect (webhook): ${message}`);
+        await this.shopifyConnection.recordSetupWarning(
+          tenantId,
+          message,
+          'webhook_registration_skipped',
+        );
+      }
     }
 
     return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=connected`;
   }
 
+  /**
+   * Disconnettere SOSPENDE, non cancella (registro difetti 1.3).
+   *
+   * Fino all'08/08/2026 qui c'era una pulizia delle sedi Shopify che cancellava
+   * sessioni di conteggio, giacenze, movimenti e ordini fornitore chiusi — per
+   * SEDE, quindi anche di articoli nati solo in VestiFlow — e nel caso piu'
+   * probabile riusciva in silenzio, archiviando la sede DOPO che quei dati
+   * erano spariti. Nessun errore, nessun sintomo.
+   *
+   * La dipendenza da ShopifyShopChangeService e' stata rimossa apposta: cosi'
+   * questo percorso non ha piu' modo di cancellare, e la stessa correzione vale
+   * per le tre chiamate del wizard che passavano di qui — compresa
+   * «Disconnetti senza rimuovere», che prometteva esattamente di non farlo.
+   *
+   * La rimozione dei dati resta possibile, ma solo dove e' dichiarata: il
+   * wizard «Disconnetti e rimuovi dati», che chiede il dominio come conferma.
+   */
   async disconnect(tenantId: string): Promise<void> {
     await this.revokeShopifyAccessToken(tenantId);
     await this.shopifyConnection.clearSetupStatus(tenantId);
-    await this.shopifyShopChange.cleanupResidualShopifyLocations(tenantId);
     await this.prisma.$transaction([
       this.prisma.shopifyCredential.deleteMany({ where: { tenantId } }),
       this.prisma.shopifyConnection.updateMany({
@@ -242,6 +277,13 @@ export class ShopifyOAuthService {
           autoSyncEnabled: false,
           webhooksActivatedAt: null,
           webhooksActiveCount: null,
+          webhookTopics: [],
+          webhookAddress: null,
+          webhooksCheckedAt: null,
+          // Qui si azzera anche l'ultimo evento ricevuto, mentre nel semplice spegnimento
+          // degli aggiornamenti automatici resta: li' e' un fatto del passato che vale
+          // ancora, qui il negozio che verra' collegato dopo potrebbe essere un altro.
+          lastWebhookEventAt: null,
           lastErrorMessage: null,
           lastErrorCode: null,
           lastErrorAt: null,
@@ -356,10 +398,37 @@ export class ShopifyOAuthService {
     accessToken: string,
     webhookUrl: string,
   ): Promise<ShopifyWebhookRegistrationResult> {
+    // ⛔ La guardia sta QUI perche' qui passano tutte e tre le strade — OAuth iniziale,
+    // interruttore «Attiva aggiornamenti automatici», riparazione dei mancanti — e il
+    // pericolo e' comune a tutte: si registra verso l'indirizzo dell'AMBIENTE DA CUI PARTE
+    // la chiamata, non verso quello del negozio.
+    //
+    // Da una macchina di sviluppo quel valore e' `http://localhost:3000/...`, ereditato dal
+    // modello `.env.example`. Registrarci sopra crea sottoscrizioni che non consegneranno
+    // mai, sul negozio reale del cliente — e siccome la deduplica confronta gli indirizzi
+    // per uguaglianza esatta, si SOMMANO a quelle buone invece di sostituirle.
+    //
+    // Nasconderlo dietro la visibilita' di un pulsante non basterebbe: si corregge dove il
+    // comportamento accade, non dove si vede. Chi sviluppa con ngrok o cloudflared ha un
+    // indirizzo pubblico in HTTPS e passa: si esclude cio' che non e' un riferimento, non
+    // cio' che e' insolito. Vedi registro 1.7.
+    if (!isShopifyDeliverableAddress(webhookUrl)) {
+      throw new ServiceUnavailableException(
+        `Impossibile registrare le notifiche: ${webhookUrl} non è un indirizzo a cui Shopify possa consegnare. Serve un indirizzo pubblico in HTTPS (in sviluppo, un tunnel tipo ngrok).`,
+      );
+    }
+
     const result = await this.shopifyAdmin.registerWebhooks(shopDomain, accessToken, webhookUrl);
-    const activeCount = result.registered.length + result.skipped.length;
-    if (activeCount > 0) {
-      await this.shopifyConnection.recordWebhooksActivated(tenantId, activeCount);
+
+    // Attivi = creati adesso PIU' quelli che c'erano gia'. Il conteggio fondeva le due cose
+    // in un numero solo e i falliti non ci entravano affatto: «7» poteva descrivere sette
+    // insiemi diversi. L'elenco li rende tutti visibili, per differenza dagli attesi.
+    const activeTopics = [...result.registered, ...result.skipped];
+    if (activeTopics.length > 0) {
+      await this.shopifyConnection.recordWebhooksActivated(tenantId, {
+        topics: activeTopics,
+        address: webhookUrl,
+      });
     }
     const warning = this.formatWebhookRegistrationWarning(result);
 

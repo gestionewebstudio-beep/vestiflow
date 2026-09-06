@@ -36,6 +36,45 @@ export function shopifyHasInventoryReadScope(scopes: readonly string[]): boolean
 export const SHOPIFY_READ_ORDERS_SCOPE = 'read_orders';
 export const SHOPIFY_READ_CUSTOMERS_SCOPE = 'read_customers';
 
+/**
+ * Publication (canali di vendita). Servono a `publishablePublish` /
+ * `publishableUnpublish`, cioè all'atto commerciale con cui una variante smette
+ * di essere acquistabile senza toccare le quantità (docs/24 §10.1).
+ *
+ * ⚠️ Un negozio collegato PRIMA della Tranche 2A non li ha: il token è vecchio.
+ *    Va dichiarato «da riautorizzare», non lasciato fallire alla prima chiamata.
+ */
+export const SHOPIFY_READ_PUBLICATIONS_SCOPE = 'read_publications';
+export const SHOPIFY_WRITE_PUBLICATIONS_SCOPE = 'write_publications';
+
+export const SHOPIFY_PUBLICATIONS_SCOPES = [
+  SHOPIFY_READ_PUBLICATIONS_SCOPE,
+  SHOPIFY_WRITE_PUBLICATIONS_SCOPE,
+] as const;
+
+/** Gli ambiti publication mancanti fra quelli concessi. Vuoto = ci sono entrambi. */
+export function shopifyMissingPublicationsScopes(
+  scopes: readonly string[],
+): readonly string[] {
+  return SHOPIFY_PUBLICATIONS_SCOPES.filter((scope) => !shopifyHasScope(scopes, scope));
+}
+
+export function shopifyHasPublicationsScopes(scopes: readonly string[]): boolean {
+  return shopifyMissingPublicationsScopes(scopes).length === 0;
+}
+
+/** Messaggio utente se mancano gli ambiti publication (pubblicazione per canale). */
+export function shopifyPublicationsScopeError(scopes: readonly string[]): string | null {
+  const missing = shopifyMissingPublicationsScopes(scopes);
+  if (missing.length === 0) {
+    return null;
+  }
+  return (
+    `Il collegamento Shopify non può gestire i canali di vendita (mancano: ${missing.join(', ')}). ` +
+    'Disconnetti e riconnetti lo store da Impostazioni per aggiornare i permessi.'
+  );
+}
+
 export function shopifyHasOrdersReadScope(scopes: readonly string[]): boolean {
   return shopifyHasScope(scopes, SHOPIFY_READ_ORDERS_SCOPE);
 }
@@ -90,6 +129,14 @@ export interface ShopifyScopeDiagnostics {
   readonly missingFromGrant: readonly string[];
   readonly missingForCatalogImport: readonly string[];
   readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
+  /** Ambiti publication mancanti (Tranche 2A): vuoto = il canale si può gestire. */
+  readonly missingForPublications: readonly string[];
+  /**
+   * Perché la gestione dei canali è bloccata. `not_requested` = il server non li
+   * chiede (variabile d'ambiente); `not_granted` = il negozio ha un token vecchio
+   * e va **riautorizzato**. La distinzione dice a chi tocca correggere.
+   */
+  readonly publicationsBlockedReason: 'none' | 'not_requested' | 'not_granted';
 }
 
 export function buildShopifyScopeDiagnostics(
@@ -108,12 +155,24 @@ export function buildShopifyScopeDiagnostics(
       : 'not_requested';
   }
 
+  const missingForPublications = shopifyMissingPublicationsScopes(granted);
+  let publicationsBlockedReason: ShopifyScopeDiagnostics['publicationsBlockedReason'] = 'none';
+  if (missingForPublications.length > 0) {
+    // Se il server li chiede e il negozio non li ha, il token è vecchio: si
+    // riautorizza. Se non li chiede nemmeno, riconnettere non servirebbe a nulla.
+    publicationsBlockedReason = missingForPublications.every((scope) => requested.includes(scope))
+      ? 'not_granted'
+      : 'not_requested';
+  }
+
   return {
     requested,
     granted,
     missingFromGrant,
     missingForCatalogImport,
     catalogImportBlockedReason,
+    missingForPublications,
+    publicationsBlockedReason,
   };
 }
 

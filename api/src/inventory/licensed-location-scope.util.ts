@@ -74,6 +74,44 @@ export async function resolveOperationalLocationScope(
     : applyReadLocationScope(licensed, user);
 }
 
+/** Una sede proponibile in una tendina: l'identità e il nome, niente altro. */
+export interface ScopedLocationDto {
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * Le sedi che l'utente può **consultare** o su cui può **operare**, con i nomi.
+ *
+ * Esiste perché ogni tendina Sede faceva da sé la stessa cosa in modo un po'
+ * diverso — chi filtrava per licenza e chi no, chi passava dallo scope centrale
+ * e chi rifaceva il controllo a mano con un `try/catch` attorno a un `assert`.
+ * Il risultato erano elenchi che differivano per motivi che il modello centrale
+ * non conosceva.
+ *
+ * ⚠️ **Il `mode` è l'unica differenza ammessa fra un elenco e l'altro**, e non
+ * è una differenza di questa funzione: è quella del modello centrale, dove la
+ * lettura ammette anche `inventory.view_all_locations` e la scrittura no.
+ * Chi ha bisogno di un insieme diverso da questi due sta introducendo una
+ * policy nuova, e va discussa prima di scriverla.
+ */
+export async function listLocationsInScope(
+  db: LocationReader,
+  tenantId: string,
+  user: UserProfileDto | undefined,
+  mode: LocationScopeMode,
+): Promise<ScopedLocationDto[]> {
+  const scope = await resolveOperationalLocationScope(db, tenantId, user, undefined, mode);
+  if (!scope || scope.length === 0) {
+    return [];
+  }
+  return db.location.findMany({
+    where: { tenantId, id: { in: [...scope] } },
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+}
+
 /**
  * Scope location per le LISTE di risorse legate a una sede (documenti, ordini
  * fornitore): 'unrestricted' = nessun filtro da applicare (nessun utente,
@@ -121,4 +159,43 @@ export function locationScopeToCountSessionFilter(
     return { locationId: scope[0]! };
   }
   return { locationId: { in: [...scope] } };
+}
+
+/**
+ * Il filtro sede che tiene insieme **perimetro autorizzato** e **sede chiesta**.
+ *
+ * ⛔ **La richiesta RESTRINGE, non sostituisce.** I tre percorsi di
+ * consultazione della Cassa scrivevano prima il perimetro e poi la sede del
+ * client, sulla stessa proprieta`:
+ *
+ * ```ts
+ * ...(scope === 'unrestricted' ? {} : { locationId: { in: [...scope] } }),
+ * ...(query.locationId ? { locationId: query.locationId } : {}),   // ⛔ vince questa
+ * ```
+ *
+ * In JavaScript la seconda chiave sovrascrive la prima: un utente limitato alla
+ * sede A che chiedeva la sede B **vedeva la sede B**. Non era un caso di
+ * frontiera — era il filtro Sede della schermata, con un id copiato.
+ *
+ * ⚠️ **Non e` il caso cross-tenant**, che e` un'altra cosa e ha le sue prove: li`
+ * le due sedi stanno in tenant diversi e a fermarle e` il `tenantId` del where.
+ * Qui stanno nello STESSO tenant, ed e` la ragione per cui nessuna prova
+ * esistente lo prendeva.
+ *
+ * @returns il filtro da spandere nel `where`, oppure **`null`** quando la sede
+ * chiesta e` fuori perimetro — e allora il chiamante risponde **vuoto**, come
+ * gia` fa quando il perimetro e` vuoto. ⛔ Non un errore: distinguere «non
+ * esiste» da «esiste altrove» direbbe cosa c'e` nelle sedi che non si vedono.
+ */
+export function scopedLocationFilter(
+  scope: LicensedLocationScope | 'unrestricted',
+  requested?: string,
+): { locationId?: string | { in: string[] } } | null {
+  if (scope === 'unrestricted') {
+    return requested ? { locationId: requested } : {};
+  }
+  if (!requested) {
+    return { locationId: { in: [...scope] } };
+  }
+  return scope.includes(requested) ? { locationId: requested } : null;
 }

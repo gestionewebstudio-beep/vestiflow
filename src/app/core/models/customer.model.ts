@@ -21,6 +21,15 @@ export interface Customer extends TenantScoped, Timestamped {
   readonly lastName: string;
   readonly email?: string;
   readonly phone?: string;
+  /** Cellulare: secondo recapito del soggetto (Danea: «Cell.»). */
+  readonly mobilePhone?: string;
+  /**
+   * IBAN del soggetto: il conto su cui SI PAGA lui.
+   *
+   * ⚠️ Sta sul soggetto, quindi è lo STESSO dell'eventuale ruolo fornitore: è
+   * il conto della persona giuridica, non un patto commerciale.
+   */
+  readonly iban?: string;
   readonly address?: Address;
   readonly notes?: string;
   readonly companyName?: string;
@@ -58,6 +67,8 @@ export interface CustomerInput {
   readonly lastName?: string;
   readonly email?: string;
   readonly phone?: string;
+  readonly mobilePhone?: string;
+  readonly iban?: string;
   readonly notes?: string;
   readonly addressLine1?: string;
   readonly addressLine2?: string;
@@ -81,6 +92,8 @@ export interface CustomerInput {
   readonly documentCreationAlert?: string;
   readonly documentCreationNote?: string;
   readonly commercialNotes?: string;
+  /** Stato del RUOLO cliente: spento, esce dalle tendine dei documenti nuovi. */
+  readonly isActive?: boolean;
   /** Aggiunge/riattiva (true) o disattiva (false) il ruolo fornitore del soggetto. */
   readonly alsoSupplier?: boolean;
 }

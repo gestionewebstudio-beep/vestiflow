@@ -1,0 +1,56 @@
+# Ambiente VestiFlow TEST — PostgreSQL locale, isolato, usa-e-getta.
+#
+# ⛔ NON è l'ambiente di sviluppo. DEV vive su Supabase, è CONDIVISO col
+#    collega, e non va toccato da nessuna suite di prova. Questo compose porta
+#    SOLO il database: nessun servizio applicativo, perché un compose che avvia
+#    anche l'API inviterebbe a usarlo per sviluppare — e allora DEV e TEST
+#    tornerebbero a confondersi, che è esattamente ciò che si vuole impedire.
+#
+# Comandi (da api/):  npm run db:test:up · db:test:down · db:test:reset
+
+services:
+  vestiflow-test-db:
+    # ⭐ **17 è la major di DEV, MISURATA il 28/08/2026** con una sola lettura
+    #    (`current_setting('server_version')` → `17.6`), non dedotta dal default
+    #    Supabase. Allineare l'ambiente di prova a DEV è la ragione per cui
+    #    questa riga esiste: su una major diversa un test può passare per una
+    #    funzionalità che DEV non ha, o fallire per una che DEV non applica.
+    #
+    # ⚠️ Il PAVIMENTO comunque è 15, e non è una preferenza: cinque migration
+    #    usano `NULLS NOT DISTINCT` sugli indici unici dei numeratori
+    #    (document_counters, serie, note di credito, corrispettivi manuali), che
+    #    esiste da PostgreSQL 15. Sotto, la storia si ferma lì.
+    #
+    # ⛔ Mai `postgres:latest`: un aggiornamento silenzioso dell'immagine
+    #    cambierebbe il database sotto i test.
+    image: postgres:17
+    container_name: vestiflow-test-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vestiflow
+      # Non è un segreto: il database ascolta su localhost, nasce vuoto ed è
+      # usa-e-getta. Trattarla da segreto significherebbe un file in più da
+      # gestire per proteggere nulla.
+      POSTGRES_PASSWORD: vestiflow_test_local
+      POSTGRES_DB: vestiflow_test
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8'
+    ports:
+      # ⭐ 5433, non 5432: qualunque strumento che assume il Postgres locale di
+      #    default non arriva qui, e questo non intercetta le sue connessioni.
+      - '5433:5432'
+    volumes:
+      - vestiflow-test-data:/var/lib/postgresql/data
+      # Gira SOLO alla prima inizializzazione del volume: dopo un `down -v` i
+      # ruoli tornano da soli, e nessuno deve ricordarsene.
+      - ./docker/test-db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vestiflow -d vestiflow_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  # Volume nominato, non bind mount: `docker compose -f docker-compose.test.yml
+  # down -v` è l'azzeramento completo in un comando, e non può cancellare
+  # niente del repository.
+  vestiflow-test-data:

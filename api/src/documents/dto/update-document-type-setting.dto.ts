@@ -22,10 +22,6 @@ export class UpdateDocumentTypeSettingDto {
   defaultSeries?: string;
 
   @IsOptional()
-  @IsBoolean()
-  pricesIncludeVat?: boolean;
-
-  @IsOptional()
   @IsString()
   @MaxLength(2000)
   defaultNotes?: string;
