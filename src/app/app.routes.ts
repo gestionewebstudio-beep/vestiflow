@@ -86,6 +86,14 @@ export const routes: Routes = [
           import('@features/documents/documents.routes').then((m) => m.documentsRoutes),
       },
       {
+        // ⭐ La Cassa: tre aree — Vendita · Operazioni · Sessioni. Reso e
+        // chiusura sono SUBORDINATI a un'operazione e a una sessione, quindi
+        // stanno dentro queste rotte e non nel menu (`docs/25` §3).
+        path: 'cassa',
+        canActivate: [tenantWorkspaceGuard],
+        loadChildren: () => import('@features/cash/cash.routes').then((m) => m.cashRoutes),
+      },
+      {
         // Area Vendite: composizione di tre feature. Le pagine di online-sales
         // e store-sales vivono sotto /app/sales ma appartengono ad altre
         // feature: montarle qui (il composition root può importare le feature)

@@ -5,6 +5,67 @@ import type { VatCodeWithNature } from '../vat/vat-codes.service';
 
 import { computeGoodsReceiptLines, computeGoodsReceiptTotals } from './goods-receipt-vat.util';
 
+// Evidenza per la proposta Cassa: distinguere l'aritmetica condivisa dalla
+// registrazione di acquisto e dal suo dovuto. Non abilita alcun regime retail.
+describe('modalità IVA esistenti — calcolo di riga e dovuto Arrivo merce', () => {
+  it.each([
+    { mode: 'standard', rate: 22, affects: true, vat: 660, gross: 3660, payable: 3660, tax: 660 },
+    { mode: 'standard', rate: 22, affects: false, vat: 660, gross: 3660, payable: 3000, tax: 0 },
+    { mode: 'zero_rate', rate: 0, affects: false, vat: 0, gross: 3000, payable: 3000, tax: 0 },
+    {
+      mode: 'reverse_charge',
+      rate: 22,
+      affects: false,
+      vat: 660,
+      gross: 3000,
+      payable: 3000,
+      tax: 0,
+    },
+    {
+      mode: 'split_payment',
+      rate: 22,
+      affects: false,
+      vat: 660,
+      gross: 3660,
+      payable: 3000,
+      tax: 0,
+    },
+    { mode: 'margin_scheme', rate: 0, affects: false, vat: 0, gross: 3000, payable: 3000, tax: 0 },
+    { mode: 'informational', rate: 0, affects: false, vat: 0, gross: 3000, payable: 3000, tax: 0 },
+  ] as const)('$mode, flag fornitore=$affects: lordo=$gross, dovuto=$payable', (item) => {
+    const code = {
+      id: 'iva',
+      code: 'TEST',
+      ratePercent: item.rate,
+      calculationMode: item.mode,
+      vatAffectsSupplierTotal: item.affects,
+      nonDeductiblePercent: 0,
+      nature: null,
+    } as unknown as VatCodeWithNature;
+    const lines = computeGoodsReceiptLines({
+      lines: [{ description: 'TEST', quantity: 3, unitPriceMinor: 1000.1234, vatCodeId: 'iva' }],
+      documentType: 'goods_receipt',
+      costEntryMode: 'vat_excluded',
+      vatCodesById: new Map([['iva', code]]),
+      buildSnapshot: () => ({}),
+    });
+    expect(lines[0]).toMatchObject({
+      unitPriceMinor: 1000.1234,
+      unitCostNet: '10.001234',
+      lineTotalMinor: 3000,
+      lineVatTotalMinor: item.vat,
+      lineGrossTotalMinor: item.gross,
+      supplierPayableLineMinor: item.payable,
+      reverseChargeVatMinor: item.mode === 'reverse_charge' ? item.vat : 0,
+    });
+    expect(computeGoodsReceiptTotals(lines)).toMatchObject({
+      subtotalMinor: 3000,
+      taxMinor: item.tax,
+      totalMinor: item.payable,
+    });
+  });
+});
+
 /**
  * **Il costo unitario canonico dell'Arrivo merce conserva la coda dello
  * scorporo.**
@@ -57,8 +118,7 @@ describe('computeGoodsReceiptLines — precisione del costo unitario', () => {
   };
 
   /** Il netto canonico memorizzato, in unità minori. */
-  const nettoCanonico = (righe: ReturnType<typeof calcola>) =>
-    Number(righe[0]!.unitCostNet) * 100;
+  const nettoCanonico = (righe: ReturnType<typeof calcola>) => Number(righe[0]!.unitCostNet) * 100;
 
   describe('⛔ Ivato → Netto → Ivato torna allo stesso centesimo', () => {
     // 1,03 EUR e' il PRIMO caso in cui l'arrotondamento cambia davvero il

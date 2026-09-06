@@ -21,14 +21,93 @@
  *    fa `createMany` con le righe così come stanno — nessuna whitelist di colonne.
  *    Senza questo scatto Prisma alzerebbe `Unknown argument` a metà ripristino.
  */
-export const TENANT_BACKUP_FORMAT_VERSION = 3;
+// 4: dati Cassa, dipendenze e riferimenti ai cataloghi globali. Import v3 supportato.
+export const TENANT_BACKUP_FORMAT_VERSION = 4;
+export const TENANT_BACKUP_MIN_FORMAT_VERSION = 3;
 
 export const TENANT_BACKUP_MANIFEST_FILE = 'manifest.json';
 export const TENANT_BACKUP_DATA_DIR = 'data';
 export const TENANT_BACKUP_ATTACHMENTS_DIR = 'attachments';
 
-/** Entità esportate (nome file JSON senza estensione). */
-export const TENANT_BACKUP_ENTITY_FILES = [
+/** Unico registro per export, import e cancellazione del tenant. */
+export const TENANT_BACKUP_MODELS = {
+  tenant: 'Tenant',
+  stores: 'Store',
+  locations: 'Location',
+  users: 'User',
+  userStores: 'UserStore',
+  userLocations: 'UserLocation',
+  vatCodes: 'VatCode',
+  externalDocumentTypes: 'ExternalDocumentType',
+  goodsReceiptCausals: 'GoodsReceiptCausal',
+  documentTypeSettings: 'DocumentTypeSetting',
+  companyProfile: 'CompanyProfile',
+  tenantFeatureSettings: 'TenantFeatureSettings',
+  documentSequences: 'DocumentSequence',
+  documentCounters: 'DocumentCounter',
+  paymentOptions: 'PaymentOption',
+  unitOfMeasureOptions: 'UnitOfMeasureOption',
+  parties: 'Party',
+  suppliers: 'Supplier',
+  customers: 'Customer',
+  catalogCategories: 'CatalogCategory',
+  products: 'Product',
+  productVariants: 'ProductVariant',
+  productImages: 'ProductImage',
+  supplierVariantLinks: 'SupplierVariantLink',
+  supplierOrders: 'SupplierOrder',
+  supplierOrderLines: 'SupplierOrderLine',
+  fiscalDevices: 'FiscalDevice',
+  posTerminals: 'PosTerminal',
+  cashSessions: 'CashSession',
+  cashSessionMovements: 'CashSessionMovement',
+  cashSessionDeviceChanges: 'CashSessionDeviceChange',
+  salesOrders: 'SalesOrder',
+  salesOrderLines: 'SalesOrderLine',
+  salesOrderRefunds: 'SalesOrderRefund',
+  salesOrderRefundTaxLines: 'SalesOrderRefundTaxLine',
+  stockReservations: 'StockReservation',
+  stockReservationEvents: 'StockReservationEvent',
+  onlineOrderEvents: 'OnlineOrderEvent',
+  onlineSales: 'OnlineSale',
+  onlineSaleLines: 'OnlineSaleLine',
+  documents: 'Document',
+  documentLines: 'DocumentLine',
+  documentPaymentInstallments: 'DocumentPaymentInstallment',
+  storeSalePayments: 'StoreSalePayment',
+  fiscalReceipts: 'FiscalReceipt',
+  purchaseInvoiceGoodsReceiptLinks: 'PurchaseInvoiceGoodsReceiptLink',
+  invoiceSalesDdtLinks: 'InvoiceSalesDdtLink',
+  documentRevisions: 'DocumentRevision',
+  documentAttachments: 'DocumentAttachment',
+  attachments: 'Attachment',
+  supplierAttachments: 'SupplierAttachment',
+  inventoryLevels: 'InventoryLevel',
+  inventoryLots: 'InventoryLot',
+  inventorySerials: 'InventorySerial',
+  stockMovements: 'StockMovement',
+  inventoryCountSessions: 'InventoryCountSession',
+  inventoryCountLines: 'InventoryCountLine',
+  manualReceipts: 'ManualReceipt',
+  manualReceiptLines: 'ManualReceiptLine',
+  creationIntents: 'CreationIntent',
+  shopifyConnections: 'ShopifyConnection',
+  shopifyCredentials: 'ShopifyCredential',
+  shopifyInventorySyncStates: 'ShopifyInventorySyncState',
+  tiktokConnections: 'TikTokConnection',
+  tiktokCredentials: 'TikTokCredential',
+  userTableViewPreferences: 'UserTableViewPreference',
+  userDocumentChronologyWarningPreferences: 'UserDocumentChronologyWarningPreference',
+  userDocumentPriceModePreferences: 'UserDocumentPriceModePreference',
+} as const;
+
+export type TenantBackupEntityFile = keyof typeof TENANT_BACKUP_MODELS;
+export const TENANT_BACKUP_ENTITY_FILES = Object.keys(
+  TENANT_BACKUP_MODELS,
+) as TenantBackupEntityFile[];
+
+/** File obbligatori degli archivi v3, conservati senza inventare dati assenti. */
+export const TENANT_BACKUP_V3_ENTITY_FILES: readonly TenantBackupEntityFile[] = [
   'tenant',
   'users',
   'stores',
@@ -70,55 +149,21 @@ export const TENANT_BACKUP_ENTITY_FILES = [
   'tiktokConnections',
   'tiktokCredentials',
   'userTableViewPreferences',
-] as const;
-
-export type TenantBackupEntityFile = (typeof TENANT_BACKUP_ENTITY_FILES)[number];
-
-/** Ordine di inserimento rispettando FK (import). */
-export const TENANT_BACKUP_IMPORT_ORDER: readonly TenantBackupEntityFile[] = [
-  'stores',
-  'locations',
-  'users',
-  'userStores',
-  'documentTypeSettings',
-  'vatCodes',
-  'companyProfile',
-  'tenantFeatureSettings',
-  'documentSequences',
-  'paymentOptions',
-  'parties',
-  'suppliers',
-  'customers',
-  'products',
-  'productVariants',
-  'productImages',
-  'supplierVariantLinks',
-  'inventoryLevels',
-  'inventoryLots',
-  'inventorySerials',
-  'stockMovements',
-  'inventoryCountSessions',
-  'inventoryCountLines',
-  'supplierOrders',
-  'supplierOrderLines',
-  'salesOrders',
-  'salesOrderLines',
-  'stockReservations',
-  'stockReservationEvents',
-  'onlineOrderEvents',
-  'documents',
-  'documentLines',
-  'documentRevisions',
-  'documentAttachments',
-  'supplierAttachments',
-  'shopifyConnections',
-  'shopifyCredentials',
-  'tiktokConnections',
-  'tiktokCredentials',
-  'userTableViewPreferences',
 ];
 
-/** Ordine di cancellazione (figli prima dei genitori). */
-export const TENANT_BACKUP_DELETE_ORDER: readonly TenantBackupEntityFile[] = [
-  ...[...TENANT_BACKUP_IMPORT_ORDER].reverse(),
-];
+/** FK circolari e autorelazioni sono completate nella stessa transazione. */
+export const TENANT_BACKUP_DEFERRED_FIELDS: Partial<
+  Record<TenantBackupEntityFile, readonly string[]>
+> = {
+  catalogCategories: ['parentId'],
+  salesOrders: ['documentId'],
+  documents: ['sourceDocumentId'],
+  documentLines: ['returnedFromLineId'],
+  storeSalePayments: ['refundedFromPaymentId'],
+  fiscalReceipts: ['originalReceiptId'],
+};
+
+export const TENANT_BACKUP_IMPORT_ORDER = TENANT_BACKUP_ENTITY_FILES.filter(
+  (key) => key !== 'tenant',
+);
+export const TENANT_BACKUP_DELETE_ORDER = [...TENANT_BACKUP_IMPORT_ORDER].reverse();

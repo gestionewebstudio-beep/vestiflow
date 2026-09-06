@@ -31,6 +31,26 @@ enum TenantChannelProfile {
 
 /// Tipo di voce pagamento gestibile: modalità (Contanti, Bonifico…) o
 /// condizioni (Vista fattura, 30 gg d.f.…). Due elenchi separati, come Danea.
+/// Come un Tipo pagamento si incassa AL BANCO (tranche C2B, `docs/25` §7).
+///
+/// ⭐ E' una classificazione **operativa**, non fiscale: risponde alla domanda
+/// «questo Tipo si puo' incassare alla Cassa, e come si comporta la maschera?».
+///
+/// ⛔ NON e' `PaymentMethodCode`, che e' il catalogo normativo globale
+/// (MP01-MP23); NON e' un codice MP; NON e' un valore del protocollo di un
+/// registratore telematico; e NON rappresenta il **non riscosso**, che e'
+/// fiscale, vive nel blocco 4.1 dello schema AdE per aliquota IVA, ed e' C5.
+///
+/// ⚠️ `voucher` e' modellato ma NON selezionabile nella prima versione del
+/// checkout: un buono porta un CONTEGGIO oltre all'importo e ha regole di resto
+/// proprie. Modellarlo ora costa una riga; aggiungerlo dopo costerebbe una
+/// migration sull'enum.
+enum PaymentTenderKind {
+  cash
+  electronic
+  voucher
+}
+
 enum PaymentOptionKind {
   method
   terms
@@ -426,6 +446,13 @@ model Tenant {
   tenantUserAuditLogs                      TenantUserAuditLog[]
   manualReceipts                           ManualReceipt[]
   creationIntents                          CreationIntent[]
+  storeSalePayments                        StoreSalePayment[]
+  cashSessions                             CashSession[]
+  cashSessionMovements                     CashSessionMovement[]
+  cashSessionDeviceChanges                 CashSessionDeviceChange[]
+  fiscalDevices                            FiscalDevice[]
+  fiscalReceipts                           FiscalReceipt[]
+  posTerminals                             PosTerminal[]
 
   @@map("tenants")
 }
@@ -662,6 +689,12 @@ model Location {
   shopifyInventorySyncStates ShopifyInventorySyncState[]
   documentCounters           DocumentCounter[]
   manualReceipts             ManualReceipt[]
+  /// Piu' dispositivi fiscali possono stare sulla stessa sede (C1B): due
+  /// casse affiancate, o un muletto durante un guasto.
+  fiscalDevices              FiscalDevice[]
+  cashSessions               CashSession[]
+  cashSessionDeviceChanges   CashSessionDeviceChange[]
+  posTerminals               PosTerminal[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -1349,21 +1382,80 @@ model Customer {
 /// sono due elenchi separati, preimpostati e ampliabili dalle Impostazioni.
 /// I ruoli salvano il nome come stringa: rinominare una voce non riscrive
 /// le anagrafiche già salvate (snapshot, come per i documenti).
-model PaymentOption {
-  id        String            @id @default(uuid()) @db.Uuid
-  tenantId  String            @map("tenant_id") @db.Uuid
-  kind      PaymentOptionKind
-  name      String
-  sortOrder Int               @default(0) @map("sort_order")
-  isSystem  Boolean           @default(false) @map("is_system")
-  isActive  Boolean           @default(true) @map("is_active")
-  createdAt DateTime          @default(now()) @map("created_at")
-  updatedAt DateTime          @updatedAt @map("updated_at")
+/// Catalogo GLOBALE delle Modalita' di pagamento normative FatturaPA
+/// (MP01-MP23). Di sistema: nessun `tenantId`, non modificabile dall'utente.
+///
+/// ⭐ UNA sola colonna codice, non `key` + `officialCode` come `VatNature`.
+/// Li' sono distinte per due ragioni misurate — il formato differisce (`N2_1`
+/// contro `N2.1`) e quattro voci non hanno codice normativo — che nel
+/// perimetro MP01-MP23 non esistono: sarebbero identiche su tutte e 23 le
+/// righe (`docs/25` §7).
+///
+/// ⛔ Non ospita modalita' NON normative. `PayPal` e `Contrassegno` restano
+/// `PaymentOption` aziendali con `methodCodeId` nullo: righe finte accanto
+/// agli MP renderebbero il catalogo qualcos'altro da cio' che dichiara.
+model PaymentMethodCode {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Codice normativo FatturaPA: `MP01`…`MP23`. Unico.
+  code      String   @unique
+  /// Descrizione ufficiale (es. «Bonifico» per MP05).
+  label     String
+  sortOrder Int      @default(0) @map("sort_order")
+  /// Si DISATTIVA, non si cancella: la FK e' `RESTRICT` apposta.
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  paymentOptions PaymentOption[]
+
+  @@index([sortOrder])
+  @@map("payment_method_codes")
+}
+
+/// Tipo pagamento AZIENDALE: il preset che l'operatore vede nei documenti.
+///
+/// ⭐ Un tenant puo' avere piu' Tipi sulla stessa Modalita' — «Bonifico 30 gg»
+/// e «Bonifico 60 gg» sono entrambi MP05 — quindi NESSUN vincolo unico su
+/// `(tenantId, methodCodeId)`. Resta l'unicita' del nome nel proprio `kind`.
+model PaymentOption {
+  id           String             @id @default(uuid()) @db.Uuid
+  tenantId     String             @map("tenant_id") @db.Uuid
+  kind         PaymentOptionKind
+  name         String
+  sortOrder    Int                @default(0) @map("sort_order")
+  isSystem     Boolean            @default(false) @map("is_system")
+  isActive     Boolean            @default(true) @map("is_active")
+  /// Modalita' normativa referenziata. NULL e' uno stato valido e previsto:
+  /// le condizioni (`kind = terms`) non ne hanno mai una, e un Tipo puo'
+  /// restare scollegato finche' l'utente non ne assegna una esplicitamente.
+  ///
+  /// ⛔ Valorizzabile SOLO per `kind = method`. Il vincolo e' un `CHECK`
+  /// nella migration — `kind = 'method' OR method_code_id IS NULL` — che
+  /// Prisma non sa esprimere: qui lo dichiara solo questo commento.
+  methodCodeId String?            @map("method_code_id") @db.Uuid
+  /// Come si incassa al banco. ⭐ `NULL` e' uno stato PIENO e frequente:
+  /// «non utilizzabile nella Cassa» — bonifico, RIBA, MAV e tutte le condizioni
+  /// di pagamento restano `NULL` e devono restarci.
+  ///
+  /// ⛔ Valorizzabile SOLO per `kind = method`, come `methodCodeId`: il vincolo
+  /// e' un `CHECK` nella migration `20260904170000` — Prisma non sa esprimerlo.
+  ///
+  /// ⚠️ Non si deduce dal nome (l'utente lo rinomina) ne' dal codice normativo
+  /// (MP01 e MP04 sono entrambi «contanti», ma solo uno si incassa al banco).
+  /// Il backfill usa una mappa dichiarata di due voci: `docs/25` §7.
+  tenderKind   PaymentTenderKind? @map("tender_kind")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  methodCode        PaymentMethodCode? @relation(fields: [methodCodeId], references: [id], onDelete: Restrict)
+  /// Le quote di incasso che lo hanno usato. ⚠️ `SetNull`: eliminare il Tipo
+  /// non cancella le quote, che restano leggibili dai propri snapshot.
+  storeSalePayments StoreSalePayment[]
 
   @@unique([tenantId, kind, name])
   @@index([tenantId, kind, sortOrder])
+  @@index([methodCodeId])
   @@map("payment_options")
 }
 
@@ -2299,6 +2391,10 @@ model Document {
   /// Descrizione libera quando paymentMethod = 'other' (Vendita in negozio):
   /// es. «Assegno», «Bonifico». Mostrata accanto ad «Altro» in elenco/dettaglio.
   paymentMethodNote            String?               @map("payment_method_note")
+  /// Sessione di cassa che ha concluso la vendita (`docs/25` §4). NULL su
+  /// ogni Vendita al banco ordinaria: e' cio' che distingue i due flussi,
+  /// senza bisogno di un flag di origine.
+  cashSessionId                String?               @map("cash_session_id") @db.Uuid
   /// Condizioni di pagamento in testata (Preventivo: campo «Pagamento»,
   /// stesso snapshot testo dell'Ordine cliente manuale).
   paymentTerms                 String?               @map("payment_terms")
@@ -2363,6 +2459,13 @@ model Document {
   ddtLinks               InvoiceSalesDdtLink[]             @relation("InvoiceLinkInvoice")
   /// Link DDT vendita → fatture che lo agganciano (questo doc è il DDT).
   invoiceLinks           InvoiceSalesDdtLink[]             @relation("InvoiceLinkDdt")
+  /// Quote incassate dal checkout Cassa (`docs/25` §6): FONTE CANONICA del
+  /// pagamento. Il riepilogo «Misto» si calcola da qui e non si persiste.
+  storeSalePayments      StoreSalePayment[]
+  /// Documento commerciale emesso dall'RT: al piu' uno per documento.
+  fiscalReceipt          FiscalReceipt?
+  /// Sessione che ha concluso la vendita in Cassa; NULL sul banco ordinario.
+  cashSession            CashSession?                      @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
 
   // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
   // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)
@@ -2376,6 +2479,7 @@ model Document {
   @@index([sourceDocumentId, type, status])
   @@index([tenantId, supplierOrderId])
   @@index([tenantId, onlineSaleId])
+  @@index([tenantId, cashSessionId])
   @@map("documents")
 }
 
@@ -2386,6 +2490,28 @@ model DocumentLine {
   tenantId                 String                 @map("tenant_id") @db.Uuid
   documentId               String                 @map("document_id") @db.Uuid
   lineNumber               Int                    @map("line_number")
+  /// ⭐ La riga di VENDITA che questa riga di reso rettifica (tranche C4R,
+  /// `docs/25` §12). Un solo significato:
+  ///
+  ///   questa riga `store_return` restituisce quantita' e valore della
+  ///   PRECISA riga di vendita indicata.
+  ///
+  /// ⛔ NON si chiama `sourceDocumentLineId`, e il nome e' la decisione: quel
+  /// nome esiste gia' come riferimento TRANSIENTE per duplicazioni e
+  /// conversioni — `CreateDocumentLineDto`, con un `FormControl` omonimo lato
+  /// client — e `regole-gestionale` dice «il riferimento non si persiste».
+  /// Una colonna cosi' chiamata si riempirebbe di legami di derivazione dal
+  /// primo salvataggio, dentro un campo che significa un'altra cosa.
+  ///
+  /// ⚠️ `NULL` su tutte le righe che non sono resi collegati, e sui 15 resi
+  /// STORICI: la loro origine non e' ricostruibile, e dedurla per variante o
+  /// per prezzo sarebbe inventarla. Nel registro si leggono come
+  /// «Reso storico — origine non disponibile».
+  ///
+  /// ⛔ Obbligatorio a livello di SERVIZIO per ogni riga di reso creata dalla
+  /// Cassa: il database lo ammette nullo perche' deve ammettere le righe che
+  /// resi non sono.
+  returnedFromLineId       String?                @map("returned_from_line_id") @db.Uuid
   /// Nullable: riga non a magazzino (spesa/servizio) o articolo non ancora identificato.
   variantId                String?                @map("variant_id") @db.Uuid
   sku                      String?
@@ -2501,9 +2627,21 @@ model DocumentLine {
   vatCode            VatCode?           @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
   inventorySerials   InventorySerial[]
 
+  /// ⛔ `Restrict`, mai `SetNull`: azzerare il riferimento perderebbe
+  /// l'origine IN SILENZIO, ed e' un collegamento permanente quanto quello
+  /// fra ricevute fiscali.
+  ///
+  /// ⚠️ MISURATO: con questa FK il `Cascade` da `documents` non puo' piu'
+  /// attraversare le righe — cancellare la vendita mentre un reso la
+  /// referenzia da' 23503. E' la protezione, non un effetto collaterale.
+  returnSourceLine DocumentLine?  @relation("DocumentLineReturn", fields: [returnedFromLineId], references: [id], onDelete: Restrict)
+  returnLines      DocumentLine[] @relation("DocumentLineReturn")
+
+  @@unique([documentId, returnedFromLineId])
   @@index([documentId])
   @@index([tenantId])
   @@index([linkedGoodsReceiptId])
+  @@index([returnedFromLineId])
   @@map("document_lines")
 }
 
@@ -3010,4 +3148,508 @@ model ManualReceiptLine {
 
   @@index([receiptId, lineNumber], map: "manual_receipt_lines_receipt_idx")
   @@map("manual_receipt_lines")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CASSA — schema DORMIENTE, portato in Prisma dalla tranche C1 (`docs/25`).
+//
+// ⛔ Le sei tabelle ESISTONO GIA' nel database condiviso: le hanno create le
+//    migration del 06-07/08/2026, applicate e mai annullate. Qui non si crea
+//    niente e non si genera nessuna migration: si dichiara a Prisma cio' che
+//    il database e' gia', perche' il client possa leggerlo.
+//
+// ⚠️ Nessun servizio, nessuna rotta e nessuna UI le usa ancora: la Cassa
+//    arriva da C3. Misurate il 04/09/2026: tutte vuote tranne
+//    `store_sale_payments`, che ha UNA riga del 22/07 (`docs/25` §8).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum CashSessionStatus {
+  open
+  closed
+}
+
+/// Movimento di cassetto durante la sessione: versamento (entra contante) o
+/// prelievo (esce contante). Entrambi con causale obbligatoria.
+enum CashSessionMovementType {
+  deposit
+  withdrawal
+}
+
+enum FiscalDeviceBrand {
+  epson
+  custom
+  rch
+  olivetti
+  other
+}
+
+/// Stato del documento commerciale: `pending` = da fiscalizzare (dispositivo
+/// non raggiungibile alla conferma), `emitted` = emesso, `failed` = ultimo
+/// tentativo fallito, `cancelled` = annullato con documento di annullo.
+///
+/// ⛔ Mai `emitted` prima della conferma effettiva dell'RT (`docs/25` §10).
+enum FiscalReceiptStatus {
+  pending
+  emitted
+  failed
+  cancelled
+}
+
+/// Quota incassata dal checkout Cassa: una riga per metodo usato.
+///
+/// ⭐ E' la FONTE CANONICA del pagamento di una vendita Cassa (`docs/25` §6).
+/// «Misto» si calcola contando queste righe e non si persiste mai: un
+/// riepilogo salvato puo' divergere dalle righe che riassume.
+///
+/// ⚠️ `method` porta oggi il vocabolario legacy della Vendita al banco
+/// (`cash`/`card`/`other`). Il nuovo codice Cassa usera' invece le modalita'
+/// condivise, quando C2 avra' implementato i due livelli decisi dalla
+/// specifica Pagamenti/Tesoreria §2.1-2.3.
+model StoreSalePayment {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  documentId String  @map("document_id") @db.Uuid
+  /// Ordine di visualizzazione (1-based).
+  position   Int     @default(1)
+  /// ⛔ **LEGACY, e solo per la Vendita al banco**: e' il vocabolario
+  /// `cash | card | other` di quel documento. La CASSA non lo scrive mai —
+  /// usa `paymentOptionId` e i due snapshot (tranche C4A, `docs/25` §5-bis).
+  ///
+  /// ⚠️ Nullable da C4A: una quota della Cassa non ha nulla da metterci, e
+  /// lasciarlo obbligatorio avrebbe costretto a inventare un valore di quel
+  /// vocabolario — cio' che C2B ha smesso di fare.
+  method     String?
+  /// Descrizione libera quando `method` = 'other' (es. «Assegno»). Legacy.
+  methodNote String? @map("method_note")
+
+  /// Il Tipo pagamento del tenant con cui si e' incassato (C2A).
+  ///
+  /// ⚠️ `SetNull` e non `Restrict`, ed e' l'opposto della scelta fatta per il
+  /// reso: qui il riferimento e' una comodita' di navigazione, non l'identita'
+  /// del dato. Il titolare deve poter eliminare un Tipo che non usa piu', e la
+  /// quota storica resta leggibile dai propri snapshot.
+  paymentOptionId    String?            @map("payment_option_id") @db.Uuid
+  /// Il NOME come si leggeva al momento dell'incasso.
+  optionNameSnapshot String?            @map("option_name_snapshot")
+  /// La CLASSE come si leggeva al momento dell'incasso (C2B).
+  ///
+  /// ⭐ E' il dato da cui **C4B** calcola gli attesi di chiusura: senza,
+  /// riclassificare un Tipo a settembre cambierebbe la quadratura di una
+  /// sessione chiusa a marzo.
+  tenderKindSnapshot PaymentTenderKind? @map("tender_kind_snapshot")
+
+  /// ⭐ La QUOTA dell'incasso originale che questo rimborso restituisce.
+  ///
+  /// ⛔ L'identita' di una quota non e' il suo TIPO: e' la quota. Prima il
+  /// cumulativo del rimborso si contava per `paymentOptionId`, e bastava
+  /// eliminare un Tipo pagamento — cosa che C4A permette — perche' quel
+  /// denaro non si potesse piu' rimborsare E perche' i rimborsi gia' fatti
+  /// sparissero dal conteggio, rendendone possibile un secondo.
+  ///
+  /// ⚠️ `NULL` sulle quote di VENDITA, che non rimborsano niente, e sulle
+  /// quote legacy: nessun backfill dedotto.
+  refundedFromPaymentId String?  @map("refunded_from_payment_id") @db.Uuid
+  /// Quota del totale documento coperta da questo metodo (lordo).
+  amountMinor           Int      @map("amount_minor")
+  /// Solo contanti: denaro CONSEGNATO dal cliente. Il resto e' derivato
+  /// (`tendered - amount`) e non si memorizza; a pagare la vendita e'
+  /// `amountMinor`, ed e' quello che va anche all'RT (`docs/25` §9).
+  tenderedMinor         Int?     @map("tendered_minor")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  tenant              Tenant             @relation(fields: [tenantId], references: [id])
+  document            Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  paymentOption       PaymentOption?     @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  /// ⛔ `Restrict`: azzerare il riferimento perderebbe l'origine del rimborso
+  /// in silenzio, e con lei il cumulativo — il difetto che questo campo
+  /// esiste per chiudere.
+  refundedFromPayment StoreSalePayment?  @relation("StoreSalePaymentRefund", fields: [refundedFromPaymentId], references: [id], onDelete: Restrict)
+  refunds             StoreSalePayment[] @relation("StoreSalePaymentRefund")
+
+  /// ⛔ Due `CHECK` nella migration `20260904210000`, che Prisma non sa
+  /// esprimere: `amount_minor >= 0` (e non `> 0`: la riga legacy a importo
+  /// zero esiste, e a pretendere quote positive e' il SERVIZIO), e
+  /// `tendered_minor IS NULL OR tendered_minor >= amount_minor` — il denaro
+  /// consegnato non puo' essere inferiore alla quota che paga.
+  @@unique([documentId, position])
+  @@unique([documentId, refundedFromPaymentId])
+  @@index([documentId])
+  @@index([paymentOptionId])
+  @@index([refundedFromPaymentId])
+  @@index([tenantId])
+  @@map("store_sale_payments")
+}
+
+/// Sessione di cassa di una sede: apertura con fondo dichiarato, vendite e
+/// resi agganciati man mano, chiusura con conteggio per metodo.
+///
+/// ⛔ **Al piu' una sessione APERTA per sede**, e il vincolo e' un indice
+/// unico PARZIALE — `UNIQUE(location_id) WHERE status = 'open'` — che vive
+/// nella migration `20260806220000_sessioni_di_cassa`. Prisma non lo sa
+/// esprimere: qui NON si dichiara `@@unique([locationId])`, o il vincolo
+/// diventerebbe totale e una sede potrebbe avere una sola sessione PER
+/// SEMPRE invece che una sola aperta. Stessa disciplina di
+/// `ExternalDocumentType`.
+model CashSession {
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  locationId        String            @map("location_id") @db.Uuid
+  /// ⭐ Il dispositivo fiscale di QUESTA sessione, scelto all'apertura
+  /// (tranche C1C, `docs/25` §10). Tolta l'unicita' per sede, una sede puo'
+  /// avere piu' dispositivi: la sessione dichiara quale usa, cosi' la
+  /// selezione e' un dato e non una ricerca.
+  ///
+  /// ⛔ `NULL` NON significa «prendi il predefinito»: significa che questa
+  /// sessione non ha un dispositivo, e allora non si emette. La selezione
+  /// implicita e' cio' che questa tranche elimina.
+  ///
+  /// ⚠️ Passare al muletto e' un'AZIONE ESPLICITA che riscrive questo campo,
+  /// e va tracciata: le ricevute gia' emesse continuano a riferire il
+  /// dispositivo che le ha prodotte (`FiscalReceipt.deviceId`), che e' un
+  /// dato diverso da questo.
+  fiscalDeviceId    String?           @map("fiscal_device_id") @db.Uuid
+  status            CashSessionStatus @default(open)
+  openedAt          DateTime          @default(now()) @map("opened_at")
+  openedById        String?           @map("opened_by_id") @db.Uuid
+  /// Snapshot operatore: l'audit regge anche se l'utente cambia nome.
+  openedByName      String            @map("opened_by_name")
+  /// Fondo cassa dichiarato all'apertura (contanti nel cassetto).
+  openingFloatMinor Int               @default(0) @map("opening_float_minor")
+  closedAt          DateTime?         @map("closed_at")
+  closedById        String?           @map("closed_by_id") @db.Uuid
+  closedByName      String?           @map("closed_by_name")
+  notes             String?
+  /// ⭐ Il CONTANTE si CONTA: l'operatore apre il cassetto e conta. `NULL`
+  /// finche' la sessione e' aperta (tranche C2C, `docs/25` §9).
+  countedCashMinor  Int?              @map("counted_cash_minor")
+
+  /// ⭐ L'ELETTRONICO si RICONCILIA, non si conta: e' il totale che
+  /// l'operatore LEGGE sul terminale di pagamento e dichiara.
+  ///
+  /// ⛔ NON e' una risposta tecnica del POS: VestiFlow non parla col
+  /// terminale e non finge di averlo fatto. Facoltativo — `NULL` significa
+  /// «non riconciliato», che e' una chiusura legittima.
+  ///
+  /// ⚠️ Era `countedCardMinor`, e il nome presupponeva che la carta si
+  /// contasse: cambia il nome E il significato.
+  declaredElectronicMinor Int? @map("declared_electronic_minor")
+
+  /// Attesi CALCOLATI dalle quote e CONGELATI alla chiusura: la differenza
+  /// di cassa e' un fatto storico, non un ricalcolo.
+  ///
+  /// ⚠️ Restano `NULL` finche' non esistono le quote da cui derivano: il
+  /// calcolo e il congelamento sono di **C4B**, non di C3.
+  ///
+  /// ⛔ La DIFFERENZA non e' una colonna: e' `countedCash - expectedCash`,
+  /// entrambi congelati. Persisterla creerebbe un terzo valore capace di
+  /// contraddire i due da cui deriva.
+  expectedCashMinor       Int? @map("expected_cash_minor")
+  expectedElectronicMinor Int? @map("expected_electronic_minor")
+
+  /// ⛔ Non esiste una colonna VOUCHER, e non e' una dimenticanza: C2B li
+  /// modella ma non li abilita. Le vecchie `*_other_minor` sono state
+  /// RIMOSSE invece che rinominate — `other` era la discarica dei metodi
+  /// sconosciuti, non i buoni, e tradurla in `voucher` sarebbe stato
+  /// scrivere una cosa per un'altra.
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant        Tenant                    @relation(fields: [tenantId], references: [id])
+  location      Location                  @relation(fields: [locationId], references: [id])
+  /// ⛔ `Restrict`: una sessione che ha incassato non puo' perdere CON QUALE
+  /// dispositivo lo ha fatto. Un dispositivo si disabilita, non si cancella.
+  device        FiscalDevice?             @relation(fields: [fiscalDeviceId], references: [id], onDelete: Restrict)
+  movements     CashSessionMovement[]
+  deviceChanges CashSessionDeviceChange[]
+  documents     Document[]
+
+  @@index([fiscalDeviceId])
+  @@index([tenantId, locationId, status])
+  @@index([tenantId, openedAt(sort: Desc)])
+  @@map("cash_sessions")
+}
+
+/// Versamento o prelievo dal cassetto durante la sessione.
+///
+/// ⚠️ Non ha `updatedAt`: un movimento di cassetto e' un fatto avvenuto, e
+/// non si corregge in posto. La colonna nel database non esiste.
+model CashSessionMovement {
+  id            String                  @id @default(uuid()) @db.Uuid
+  tenantId      String                  @map("tenant_id") @db.Uuid
+  sessionId     String                  @map("session_id") @db.Uuid
+  type          CashSessionMovementType
+  amountMinor   Int                     @map("amount_minor")
+  reason        String
+  createdById   String?                 @map("created_by_id") @db.Uuid
+  createdByName String                  @map("created_by_name")
+  createdAt     DateTime                @default(now()) @map("created_at")
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id])
+  session CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("cash_session_movements")
+}
+
+/// Storico APPEND-ONLY dei cambi di dispositivo di una sessione di cassa
+/// (tranche C2C, `docs/25` §10).
+///
+/// ⭐ C1C ha reso `CashSession.fiscalDeviceId` il dispositivo OPERATIVO
+/// corrente. Riscriverlo perde il momento e la ragione del passaggio al
+/// muletto — che e' proprio cio' che serve quando si riconcilia una chiusura
+/// con due serie fiscali, perche' ogni RT ha numerazione e chiusura proprie.
+///
+/// ⛔ NON e' un `CashSessionMovement`: un cambio dispositivo non e' un
+/// movimento di denaro, e rappresentarlo la' richiederebbe di inventare un
+/// importo e di aggiungere un terzo valore a `deposit | withdrawal`.
+///
+/// ⛔ Nessun `updatedAt`, ed e' la garanzia strutturale dell'append-only:
+/// una riga di storico non si corregge in posto. Se e' sbagliata, il rimedio
+/// e' una riga nuova che lo dice. Nessuna API di modifica o cancellazione.
+model CashSessionDeviceChange {
+  /// RLS e revoche Data API: migration correttiva 20260905210000.
+  /// Prisma non rappresenta questi privilegi; si verificano su PostgreSQL TEST.
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  /// ⚠️ Ridondante rispetto alla sessione, e tenuto lo stesso: stessa scelta
+  /// di `CashSessionMovement.tenantId`, e serve a interrogare lo storico
+  /// senza passare da una join.
+  locationId String @map("location_id") @db.Uuid
+  sessionId  String @map("session_id") @db.Uuid
+
+  /// ⭐ `NULL` al PRIMO assegnamento: non e' un dato mancante, e' l'inizio.
+  previousDeviceId String? @map("previous_device_id") @db.Uuid
+  /// ⭐ `NULL` quando il dispositivo si TOGLIE: la sessione smette di
+  /// fiscalizzare.
+  newDeviceId      String? @map("new_device_id") @db.Uuid
+
+  /// ⛔ UN `CHECK` nella migration `20260904180000`, che Prisma non sa
+  /// esprimere: `previous IS DISTINCT FROM new`. Garantisce DUE cose in una,
+  /// ed e' la ragione per cui non e' `<>`:
+  ///
+  ///   A → A        `false`  rifiutata: un cambio che non cambia
+  ///   NULL → NULL  `false`  rifiutata: due NULL NON sono distinti
+  ///
+  /// ⚠️ Un secondo CHECK «almeno uno presente» c'era, ed e' stato RIMOSSO da
+  /// `20260904190000`: era implicato dal primo, e provando a falsificarlo la
+  /// prova restava verde. Un vincolo che non puo' fallire fa credere protetto
+  /// cio' che lo e' gia' per un'altra ragione.
+  ///
+  /// Causale obbligatoria, come su `CashSessionMovement`: un passaggio al
+  /// muletto senza motivo non e' ricostruibile a distanza di mesi.
+  reason        String
+  changedById   String?  @map("changed_by_id") @db.Uuid
+  /// Snapshot operatore: lo storico regge anche se l'utente cambia nome.
+  changedByName String   @map("changed_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  location Location    @relation(fields: [locationId], references: [id])
+  /// `Cascade`, come per i movimenti: se la sessione non esiste piu', il suo
+  /// storico non ha piu' un soggetto.
+  session  CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// ⛔ `Restrict`, mai `SetNull`: azzerare il riferimento cancellerebbe
+  /// proprio l'identita' che questo storico esiste per conservare, e lo
+  /// farebbe in silenzio. Un dispositivo si DISABILITA, non si cancella.
+  previousDevice FiscalDevice? @relation("DeviceChangePrevious", fields: [previousDeviceId], references: [id], onDelete: Restrict)
+  newDevice      FiscalDevice? @relation("DeviceChangeNew", fields: [newDeviceId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, createdAt])
+  @@index([tenantId])
+  @@map("cash_session_device_changes")
+}
+
+/// Dispositivo fiscale configurato su una sede.
+///
+/// ⛔ **Nessuna assunzione sul produttore, sul trasporto o sul numero di
+/// dispositivi per sede** (tranche C1B, `docs/25` §10). La Cassa parla il
+/// contratto normalizzato; a tradurlo e' l'adapter, che a sua volta non
+/// decide da dove parte la chiamata.
+model FiscalDevice {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  /// ⚠️ NON e' unico: una sede puo' avere piu' dispositivi — oggi un
+  /// principale e una riserva (`docs/25` §10, deciso il 04/09/2026).
+  ///
+  /// ⭐ Quale si usa lo dichiara la SESSIONE (`CashSession.fiscalDeviceId`),
+  /// mai «il primo trovato». Una postazione di cassa non esiste e non si
+  /// inventa qui: se servira', sara' un'entita' propria.
+  locationId String @map("location_id") @db.Uuid
+
+  /// Produttore, come **informazione descrittiva**: serve a chi guarda
+  /// l'elenco, non a scegliere il codice. `other` e' la valvola che permette
+  /// una marca nuova senza toccare il dominio.
+  ///
+  /// ⛔ Non e' il selettore dell'adapter: quello e' `adapterKey`.
+  brand           FiscalDeviceBrand
+  /// Modello dichiarato dal dispositivo (testo: i cataloghi dei produttori
+  /// non sono enumerabili a priori).
+  model           String?
+
+
+  /// ⭐ Chiave dell'adapter che parla con questo dispositivo, APERTA e
+  /// VERSIONABILE: `<fornitore>.<protocollo>.<versione>`.
+  ///
+  /// ⛔ Testo e non enum, di proposito: un enum obbligherebbe a una migration
+  /// — cioe' a toccare il dominio della Cassa — per ogni fornitore nuovo, che
+  /// e' esattamente cio' che C1B impedisce. Un catalogo globale sarebbe
+  /// l'altra strada, ma qui non serve: non c'e' nulla da condividere fra
+  /// tenant, e `VatNature` esiste perche' porta dati normativi.
+  ///
+  /// ⛔ **Si risolve SOLO contro un registro statico di adapter compilati
+  /// nell'applicazione.** Mai import dinamici, percorsi di file, URL o
+  /// esecuzione di codice: e' testo che arriva da una scrittura del tenant, e
+  /// usarlo per caricare qualcosa sarebbe esecuzione di codice arbitrario. Un
+  /// valore sintatticamente valido ma non nel registro si RIFIUTA.
+  ///
+  /// ⭐ E' la garanzia che `brand` forniva implicitamente quando era l'unico
+  /// selettore: l'enum faceva da whitelist. Aperta la chiave, la whitelist
+  /// deve tornare esplicita — nel codice, non nel database.
+  ///
+  /// NULL finche' non e' stato scelto: il dispositivo si censisce prima di
+  /// saper parlare con lui.
+  adapterKey    String? @map("adapter_key")
+  /// Configurazione dell'adapter (parametri, non credenziali).
+  ///
+  /// ⛔ Nessun segreto qui dentro: chiavi e password stanno dove stanno gli
+  /// altri segreti (`regole-sicurezza`), mai in una colonna del tenant. Un
+  /// segreto che vi comparisse si RIFIUTA o si reda.
+  ///
+  /// ⚠️ Ogni adapter valida la propria configurazione con uno schema
+  /// ESPLICITO: campi sconosciuti e configurazione incompleta si rifiutano.
+  /// Un `Json` senza schema e' il modo di non modellare i dati.
+  adapterConfig Json?   @map("adapter_config")
+
+  /// Indirizzo di collegamento, **opzionale nello schema**: un adapter cloud
+  /// o un agente locale possono non averne uno, e la forma di trasporto non
+  /// e' decisa (`docs/25` §10).
+  ///
+  /// ⚠️ Opzionale non vuol dire facoltativo: lo richiede **l'adapter** il cui
+  /// trasporto ne ha bisogno, nella validazione della propria configurazione.
+  /// Il NOT NULL di prima impediva configurazioni incomplete per TUTTI, e
+  /// quella garanzia si ricostruisce li', non qui.
+  endpoint       String?
+  /// Matricola fiscale: finisce sul documento commerciale.
+  serialNumber   String?   @map("serial_number")
+  /// ⛔ Nasce SPENTO, al contrario di prima.
+  ///
+  /// ⭐ Quando la sede aveva un solo dispositivo e l'indirizzo era
+  /// obbligatorio, salvare la configurazione la rendeva subito operativa e
+  /// non poteva essere incompleta. Tolti quei due vincoli, `@default(true)`
+  /// significherebbe «attivo appena censito, anche senza saperci parlare».
+  ///
+  /// ⛔ Non si abilita senza `adapterKey`: e' un CHECK nella migration
+  /// `20260904150000`, perche' la guardia vera non deve poter essere
+  /// aggirata da un'altra strada.
+  enabled        Boolean   @default(false)
+  /// Mappa aliquota -> reparto: molte RT italiane associano l'IVA ai reparti
+  /// configurati a bordo invece che alla riga. Resta opzionale perche' non
+  /// ogni dispositivo lavora cosi'.
+  vatDepartments Json?     @map("vat_departments")
+  notes          String?
+  /// Diagnostica dell'ultimo contatto riuscito e dell'ultimo errore.
+  lastSeenAt     DateTime? @map("last_seen_at")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant            Tenant                    @relation(fields: [tenantId], references: [id])
+  location          Location                  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  receipts          FiscalReceipt[]
+  sessions          CashSession[]
+  /// Storico dei cambi in cui questo dispositivo compare, da una parte o
+  /// dall'altra. Entrambe `Restrict`: finche' e' nominato qui, non si
+  /// cancella.
+  changesAsPrevious CashSessionDeviceChange[] @relation("DeviceChangePrevious")
+  changesAsNew      CashSessionDeviceChange[] @relation("DeviceChangeNew")
+
+  @@index([tenantId])
+  @@index([locationId])
+  @@map("fiscal_devices")
+}
+
+/// Documento commerciale emesso dall'RT per una vendita o un reso di Cassa:
+/// al piu' uno per documento.
+///
+/// ⚠️ Se il pagamento riesce e l'RT non risponde, la riga resta `pending` o
+/// `failed` e si ritenta la SOLA emissione fiscale: non si ripetono carta,
+/// contanti ne' scarico di magazzino (`docs/25` §10).
+model FiscalReceipt {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  documentId        String              @unique @map("document_id") @db.Uuid
+  deviceId          String?             @map("device_id") @db.Uuid
+  status            FiscalReceiptStatus @default(pending)
+  /// MATRICOLA del dispositivo emittente, congelata sulla ricevuta: gemella
+  /// di `FiscalDevice.serialNumber` («finisce sul documento commerciale»).
+  serialNumber      String?             @map("serial_number")
+  /// Progressivo del DOCUMENTO COMMERCIALE, e nient'altro.
+  ///
+  /// ⛔ Da C4R NON contiene piu' forme composte. L'unica implementazione mai
+  /// scritta — nel ramo storico, non normativo — ci infilava dentro il numero
+  /// di chiusura come prefisso (`0012-0034`), con degrado silenzioso al solo
+  /// numero quando la chiusura mancava. Nel dominio i due dati restano
+  /// separati; a comporli sara' l'adapter, se un protocollo lo richiede.
+  fiscalNumber      String?             @map("fiscal_number")
+  /// Numero di CHIUSURA/AZZERAMENTO (Z) sotto cui la ricevuta e' stata
+  /// emessa: serve a richiamare fiscalmente l'originale da un reso.
+  ///
+  /// ⚠️ Testo e non intero: puo' avere zeri iniziali, e perderli significa
+  /// non poterlo piu' confrontare con lo scontrino di carta.
+  closureNumber     String?             @map("closure_number")
+  issuedAt          DateTime?           @map("issued_at")
+  /// Ricevuta annullata da questa (annullo/reso): auto-relazione.
+  originalReceiptId String?             @map("original_receipt_id") @db.Uuid
+  errorMessage      String?             @map("error_message")
+  /// Risposta tecnica dell'RT, conservata per la riconciliazione.
+  rawResponse       Json?               @map("raw_response")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// ⛔ `Restrict`, non `SetNull` (tranche C1C): ogni RT ha memoria fiscale,
+  /// numerazione e chiusura giornaliera PROPRIE. Azzerare il riferimento
+  /// renderebbe la ricevuta non riconciliabile con la chiusura che la
+  /// contiene — e lo farebbe in silenzio.
+  device   FiscalDevice?   @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  /// ⛔ `Restrict` da C4R: una ricevuta richiamata da un reso non si cancella
+  /// e non si scollega. Stesso principio della self-FK delle righe, e il
+  /// precedente motivato e' qui accanto (`device`, da C1C).
+  original FiscalReceipt?  @relation("FiscalReceiptOriginal", fields: [originalReceiptId], references: [id], onDelete: Restrict)
+  derived  FiscalReceipt[] @relation("FiscalReceiptOriginal")
+
+  @@index([tenantId, status])
+  @@map("fiscal_receipts")
+}
+
+/// Terminale POS di una sede: anagrafica per l'adempimento del collegamento
+/// logico POS <-> strumento di certificazione.
+///
+/// ⛔ E' un DISPOSITIVO, non una Risorsa finanziaria e non un conto con
+/// saldo (specifica Pagamenti/Tesoreria, Appendice E). L'associazione vera
+/// si fa sul portale dall'esercente: qui se ne tiene traccia.
+model PosTerminal {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  terminalId     String    @map("terminal_id")
+  acquirerName   String    @map("acquirer_name")
+  description    String?
+  /// Solo giorno: sono date di adempimento, non istanti.
+  activatedAt    DateTime  @map("activated_at") @db.Date
+  portalLinkedAt DateTime? @map("portal_linked_at") @db.Date
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, terminalId])
+  @@index([tenantId])
+  @@map("pos_terminals")
 }

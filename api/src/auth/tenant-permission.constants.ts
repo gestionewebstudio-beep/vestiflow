@@ -36,6 +36,32 @@ export const TenantPermission = {
   CatalogDelete: 'catalog.delete',
   CatalogViewPurchaseCosts: 'catalog.view_purchase_costs',
   RetailRegister: 'retail.register',
+  /**
+   * Sessione di cassa: aprirla, e scegliere o cambiare il dispositivo fiscale
+   * operativo. La chiusura, quando arrivera' (C4B), usera' questo stesso
+   * permesso.
+   *
+   * ⛔ Distinto da `retail.register`, che e' registrare vendite: aprire la
+   * cassa significa dichiarare il fondo e firmare la quadratura, ed e' una
+   * responsabilita' diversa dal vendere (`docs/25` §13).
+   */
+  RetailCashSession: 'retail.cash_session',
+  /**
+   * Cassetto: versamenti e prelievi durante la sessione.
+   *
+   * ⭐ Separato da `retail.cash_session` di proposito: prelevare contante e'
+   * piu' delicato che chiudere, e tenerli distinti permette a chi sta al banco
+   * di aprire e chiudere senza poter prelevare.
+   */
+  RetailCashDrawer: 'retail.cash_drawer',
+  /**
+   * Reso di cassa collegato a uno scontrino.
+   *
+   * ⭐ Distinto da `retail.register`: restituire denaro non e' vendere, ed e'
+   * la prima operazione della Cassa che fa USCIRE valore. Chi sta al banco
+   * puo` vendere tutto il giorno senza poter rimborsare.
+   */
+  RetailCashReturn: 'retail.cash_return',
   ReportsExport: 'reports.export',
   SettingsCompany: 'settings.company',
   /**
@@ -214,7 +240,30 @@ export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[
   {
     key: TenantPermission.RetailRegister,
     label: 'Registrare vendite al banco',
-    hint: 'Vendite e storni da registratore/cassiere.',
+    hint: 'Vendite e storni da registratore/cassiere. Da' + String.fromCharCode(39) + ' anche accesso all' + String.fromCharCode(39) + 'area Cassa.',
+    group: 'sales',
+  },
+  {
+    key: TenantPermission.RetailCashSession,
+    label: 'Aprire e chiudere la cassa',
+    hint:
+      'Apre la sessione dichiarando il fondo, sceglie il dispositivo fiscale e passa alla riserva. ' +
+      'Non basta per versamenti e prelievi, che hanno un permesso proprio.',
+    group: 'sales',
+  },
+  {
+    key: TenantPermission.RetailCashReturn,
+    label: 'Resi di cassa',
+    hint:
+      'Richiama uno scontrino e rimborsa articoli restituiti. Il rimborso non puo` superare quanto incassato, e solo con i tipi di pagamento della vendita originale.',
+    group: 'sales',
+  },
+  {
+    key: TenantPermission.RetailCashDrawer,
+    label: 'Versamenti e prelievi di cassa',
+    hint:
+      'Registra entrate e uscite di contante dal cassetto durante la sessione. Ogni movimento ' +
+      'richiede una causale e non si modifica: una correzione e' + String.fromCharCode(39) + ' un movimento opposto.',
     group: 'sales',
   },
   {
@@ -315,6 +364,9 @@ const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.CatalogImportExport,
   TenantPermission.CatalogViewPurchaseCosts,
   TenantPermission.RetailRegister,
+  TenantPermission.RetailCashSession,
+  TenantPermission.RetailCashDrawer,
+  TenantPermission.RetailCashReturn,
   TenantPermission.ReportsExport,
   TenantPermission.DocumentsConfigure,
   TenantPermission.ReportsFiscalRegister,

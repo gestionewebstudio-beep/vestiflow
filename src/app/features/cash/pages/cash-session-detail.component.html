@@ -1,0 +1,247 @@
+<div class="sd">
+  <header class="sd__head">
+    <app-back-button fallbackLink="/app/cassa/sessioni">Sessioni</app-back-button>
+    @if (sessione(); as s) {
+      <div class="sd__identity">
+        <h1 class="sd__title">Sessione del {{ s.openedAt | date: 'dd/MM/yyyy' }}</h1>
+        <p class="sd__meta">
+          {{ s.locationName }} · aperta alle {{ s.openedAt | date: 'HH:mm' }} da
+          {{ s.openedByName }}
+          @if (s.status === 'open') {
+            <span class="sd__open">· aperta</span>
+          } @else {
+            <span
+              >· chiusa {{ s.closedAt | date: 'dd/MM/yyyy HH:mm' }} da {{ s.closedByName }}</span
+            >
+          }
+        </p>
+      </div>
+
+      @if (s.status === 'open' && puoChiudere()) {
+        <a class="sd__action" [routerLink]="['/app/cassa/sessioni', s.id, 'chiusura']">
+          Chiudi la cassa
+        </a>
+      }
+    }
+  </header>
+
+  @if (errore(); as messaggio) {
+    <app-inline-banner
+      tone="error"
+      [message]="messaggio"
+      dismissLabel="Chiudi"
+      (dismissed)="errore.set(null)"
+    />
+  }
+
+  @if (caricamento()) {
+    <p class="sd__loading" role="status">Lettura della sessione…</p>
+  } @else if (!sessione()) {
+    <app-error-state
+      description="Sessione non disponibile."
+      retryLabel="Riprova"
+      (retry)="ricarica()"
+    />
+  } @else if (sessione(); as s) {
+    <!-- ── Quadratura ───────────────────────────────────────────────────── -->
+    <app-form-section class="sd__block" title="Quadratura" [flat]="true">
+      @if (!s.frozen) {
+        <!-- ⛔ La cecità è strutturale: gli attesi non esistono prima. -->
+        <p class="sd__note">
+          La sessione è aperta: gli attesi non esistono ancora. Si calcolano alla chiusura, dopo che
+          hai dichiarato quanto hai contato.
+        </p>
+      } @else {
+        <dl class="sd__figures">
+          <div>
+            <dt>Contante atteso</dt>
+            <dd>{{ soldi(s.frozen.expectedCashMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Contante contato</dt>
+            <dd>
+              {{ s.frozen.countedCashMinor !== null ? soldi(s.frozen.countedCashMinor) : '—' }}
+            </dd>
+          </div>
+          <div>
+            <dt>Differenza</dt>
+            <dd [class.sd__off]="(s.frozen.cashDifferenceMinor ?? 0) !== 0">
+              {{
+                s.frozen.cashDifferenceMinor !== null ? soldi(s.frozen.cashDifferenceMinor) : '—'
+              }}
+            </dd>
+          </div>
+          <div>
+            <dt>Elettronico atteso</dt>
+            <dd>{{ soldi(s.frozen.expectedElectronicMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Elettronico dichiarato</dt>
+            <dd>
+              @if (s.frozen.declaredElectronicMinor !== null) {
+                {{ soldi(s.frozen.declaredElectronicMinor) }}
+              } @else {
+                <span class="sd__muted">non riconciliato</span>
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Differenza elettronica</dt>
+            <dd [class.sd__off]="(s.frozen.electronicDifferenceMinor ?? 0) !== 0">
+              {{
+                s.frozen.electronicDifferenceMinor !== null
+                  ? soldi(s.frozen.electronicDifferenceMinor)
+                  : '—'
+              }}
+            </dd>
+          </div>
+        </dl>
+
+        @if (s.breakdownMatchesFrozen === false) {
+          <!-- ⭐ Si dice, invece di mostrare due numeri diversi senza spiegazione. -->
+          <app-inline-banner
+            tone="warning"
+            message="Gli attesi congelati alla chiusura non coincidono più con i documenti della sessione: qualcosa è stato annullato dopo. I valori congelati restano quelli, ed è giusto così."
+          />
+        }
+      }
+
+      @if (s.breakdown; as b) {
+        <h3 class="sd__sub-title">
+          {{ s.frozen ? 'Addendi ricostruiti' : 'Addendi di adesso' }}
+        </h3>
+        <dl class="sd__figures sd__figures--small">
+          <div>
+            <dt>Fondo</dt>
+            <dd>{{ soldi(b.openingFloatMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Vendite contanti</dt>
+            <dd>{{ soldi(b.salesCashMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Resi contanti</dt>
+            <dd>{{ soldi(b.returnsCashMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Vendite elettronico</dt>
+            <dd>{{ soldi(b.salesElectronicMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Resi elettronico</dt>
+            <dd>{{ soldi(b.returnsElectronicMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Versamenti</dt>
+            <dd>{{ soldi(b.depositsMinor) }}</dd>
+          </div>
+          <div>
+            <dt>Prelievi</dt>
+            <dd>{{ soldi(b.withdrawalsMinor) }}</dd>
+          </div>
+        </dl>
+      }
+    </app-form-section>
+
+    <!-- ── Cassetto ─────────────────────────────────────────────────────── -->
+    <app-form-section class="sd__block" title="Cassetto" [flat]="true">
+      @if (s.movements.length === 0) {
+        <p class="sd__note">Nessun versamento né prelievo.</p>
+      } @else {
+        <ul class="sd__movements">
+          @for (m of s.movements; track m.id) {
+            <li>
+              <span class="sd__mov-type">{{ etichettaMovimento(m.type) }}</span>
+              <span class="sd__mov-amount">{{ soldi(m.amountMinor) }}</span>
+              <span class="sd__mov-reason">{{ m.reason }}</span>
+              <span class="sd__mov-when">
+                {{ m.createdAt | date: 'dd/MM HH:mm' }} · {{ m.createdByName }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (s.status === 'open' && puoMuovereCassetto()) {
+        <form class="sd__mov-form" (ngSubmit)="registraMovimento()">
+          <label class="sd__field">
+            <span class="sd__label">Tipo</span>
+            <select
+              [ngModel]="tipoMovimento()"
+              (ngModelChange)="tipoMovimento.set($event)"
+              name="tipo"
+            >
+              <option value="deposit">Versamento</option>
+              <option value="withdrawal">Prelievo</option>
+            </select>
+          </label>
+          <label class="sd__field" for="sd-importo">
+            <span class="sd__label">Importo</span>
+            <app-money-input
+              inputId="sd-importo"
+              [value]="importoMovimento()"
+              ariaLabel="Importo del movimento"
+              (valueChange)="importoMovimento.set($event)"
+            />
+          </label>
+          <label class="sd__field sd__field--wide">
+            <span class="sd__label">Causale</span>
+            <input
+              type="text"
+              [ngModel]="causale()"
+              (ngModelChange)="causale.set($event)"
+              name="causale"
+              placeholder="Perché il denaro entra o esce"
+            />
+          </label>
+          <app-button variant="secondary" type="submit" [loading]="invioMovimento()">
+            Registra
+          </app-button>
+        </form>
+        <p class="sd__note">
+          Un movimento sbagliato non si cancella: si corregge con un movimento opposto che lo cita.
+        </p>
+      }
+    </app-form-section>
+
+    <!-- ── Documenti ────────────────────────────────────────────────────── -->
+    <app-form-section class="sd__block" title="Operazioni della sessione" [flat]="true">
+      @if (s.documents.length === 0) {
+        <p class="sd__note">Nessuna vendita né reso.</p>
+      } @else {
+        <ul class="sd__documents">
+          @for (d of s.documents; track d.id) {
+            <li [class.sd__doc--cancelled]="d.status === 'cancelled'">
+              <a [routerLink]="['/app/cassa/operazioni', d.id]">
+                {{ d.kind === 'sale' ? 'Vendita' : 'Reso' }} {{ d.reference }}
+              </a>
+              <span>{{ d.documentDate | date: 'dd/MM/yyyy' }}</span>
+              <span>{{ d.createdByName }}</span>
+              <span class="sd__doc-total">{{ soldi(d.totalMinor) }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </app-form-section>
+
+    <!-- ── Dispositivo ──────────────────────────────────────────────────── -->
+    <app-form-section class="sd__block" title="Registratore" [flat]="true">
+      <p class="sd__note">
+        {{ s.fiscalDeviceLabel ?? 'Nessun registratore selezionato per questa sessione.' }}
+      </p>
+      @if (s.deviceChanges.length > 0) {
+        <ul class="sd__movements">
+          @for (c of s.deviceChanges; track c.id) {
+            <li>
+              <span class="sd__mov-type">Cambio</span>
+              <span class="sd__mov-reason">{{ c.reason }}</span>
+              <span class="sd__mov-when">
+                {{ c.createdAt | date: 'dd/MM HH:mm' }} · {{ c.changedByName }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </app-form-section>
+  }
+</div>

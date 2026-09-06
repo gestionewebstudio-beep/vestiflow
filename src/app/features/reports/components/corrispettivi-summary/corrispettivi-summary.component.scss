@@ -641,10 +641,17 @@
     QUALUNQUE larghezza da `lg` in su, quindi non c'è più una soglia da indovinare
     né una larghezza a cui degrada.
   */
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-05);
-  min-inline-size: 0;
+  /*
+    ⭐ **La forma impilata viene dal mixin condiviso** — estratta il 05/09/2026
+    su indicazione del proprietario: era scritta identica anche nella fascia del
+    registro Cassa, e «il riepilogo Operazioni ha ancora struttura propria e
+    condivide soltanto i mixin tipografici».
+
+    ⚠️ **Le decisioni che l'hanno prodotta restano qui sopra**: sono di questa
+    schermata, e il mixin porta la forma, non la loro storia.
+  */
+  @include ls.voce-riepilogo();
+
   /*
     ⚠️ **`--space-2`, non `--space-3`**: gli 8px risparmiati per lato su sette
     voci sono 56px, ed è esattamente ciò che fa entrare la fila su una finestra
@@ -1002,6 +1009,10 @@
   Una rettifica è ciò che esce: si legge col SOLO colore di chi toglie — non
   con più peso o più taglia, la stessa scelta già presa per «Reso»/«Rimborso»
   nella tabella (testo colorato, non un riquadro).
+*/
+/*
+  ⭐ **Il negativo e la forma impilata vengono dal mixin condiviso.** Le
+  dichiarazioni erano identiche a quelle della fascia del registro Cassa.
 */
 .corrispettivi-summary__item--negative dd {
   color: var(--color-danger);

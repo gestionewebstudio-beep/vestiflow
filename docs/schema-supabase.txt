@@ -1,0 +1,2667 @@
+SCHEMA DEL DATABASE — VestiFlow
+==============================================================================
+
+Ambiente:   database condiviso utilizzato anche dall'app distribuita; dati di
+            prova.
+Estratto:   2026-09-06T10:28:33.027Z
+Commit:     6d1976a6
+Schema:     public — esclusi gli schemi interni di Supabase, che non sono
+            nostri.
+Contenuto:  solo STRUTTURA. Nessuna riga di dati, nessun conteggio di righe,
+            nessuna credenziale, nessun host, nessun identificativo di
+            progetto, nessun nome utente.
+
+Rigenerare: npm run schema:export
+
+QUANDO rigenerarlo — dopo ogni migration applicata al database condiviso, e
+prima di un preflight di rilascio. Uno script permette di rigenerare il file,
+non lo tiene aggiornato: senza questa abitudine invecchia e mente con
+l'autorevolezza di un file versionato.
+
+LE QUATTRO FONTI, che non si fondono:
+  1  LETTO DAL DATABASE   pg_catalog + information_schema, in sola lettura
+  2  ATTESO DA PRISMA     i modelli con @@map in api/prisma/schema.prisma
+  3  FILE DI MIGRATION    le cartelle in api/prisma/migrations
+  4  STORICO APPLICATO    le righe di _prisma_migrations
+
+Le differenze fra le fonti si RIPORTANO. Questo comando non scrive niente sul
+database: la transazione dichiara SET TRANSACTION READ ONLY.
+
+Il confronto fra due estrazioni va fatto sul CORPO, non sul file intero: la
+riga «Estratto» e quella «Commit» cambiano per costruzione. Il corpo si
+ottiene con `npm run schema:export -- --corpo`.
+
+QUADRO
+==============================================================================
+
+  tabelle nel database (fonte 1)      75   (compresa _prisma_migrations)
+  tabelle dichiarate da Prisma (2)    74
+  cartelle di migration in locale (3) 158
+  righe di _prisma_migrations (4)     147
+    di cui concluse e non annullate   147
+    di cui annullate                  0
+    di cui interrotte (mai concluse)  0
+  migration da applicare (3 meno 4)   11
+  tipi enumerati                      38
+
+DIFFERENZE FRA IL DATABASE E LO SCHEMA DEL RAMO
+------------------------------------------------------------------------------
+
+  Si RIPORTANO, non si allineano: questo comando non scrive niente.
+
+  Dichiarate da Prisma e assenti dal database (2):
+    cash_session_device_changes
+    payment_method_codes
+
+  Presenti nel database e non dichiarate da Prisma (2):
+    _backup_customers_pre_party
+    _backup_suppliers_pre_party
+
+  Tabelle con colonne che non corrispondono (7):
+    cash_sessions
+      dichiarate da Prisma, assenti dal database: declared_electronic_minor, expected_electronic_minor, fiscal_device_id
+      presenti nel database, non dichiarate: counted_card_minor, counted_other_minor, expected_card_minor, expected_other_minor
+    document_lines
+      dichiarate da Prisma, assenti dal database: returned_from_line_id
+    fiscal_devices
+      dichiarate da Prisma, assenti dal database: adapter_config, adapter_key
+    fiscal_receipts
+      dichiarate da Prisma, assenti dal database: closure_number
+    payment_options
+      dichiarate da Prisma, assenti dal database: method_code_id, tender_kind
+    store_sale_payments
+      dichiarate da Prisma, assenti dal database: option_name_snapshot, payment_option_id, refunded_from_payment_id, tender_kind_snapshot
+    tenant_feature_settings
+      presenti nel database, non dichiarate: default_unit_of_measure
+
+TABELLE
+==============================================================================
+
+  Lo stato RLS dice SOLTANTO se ROW LEVEL SECURITY e` abilitata sulla
+  tabella. NON dice quali policy esistano, ne` quali privilegi abbiano i
+  ruoli `anon` e `authenticated`.
+
+  `npm run check:rls` e` una SONDA DI ESPOSIZIONE: interroga la Data API
+  con la chiave pubblica e fallisce se torna anche una sola riga. Non
+  ispeziona policy ne` privilegi, e non sostituisce quella ispezione.
+
+  Con RLS abilitata: 74 tabelle su 75. Dichiarate nello schema Prisma: 74.
+
+  Nessuna tabella DICHIARATA NELLO SCHEMA e` senza RLS.
+
+  Senza RLS e non dichiarate nello schema (1) — fuori dal perimetro
+  di `check:rls`, che scopre le tabelle dallo schema Prisma:
+    _prisma_migrations
+
+── _backup_customers_pre_party  [RLS abilitata]
+     id                                 uuid                           null
+     tenant_id                          uuid                           null
+     first_name                         text                           null
+     last_name                          text                           null
+     email                              text                           null
+     phone                              text                           null
+     notes                              text                           null
+     address_line1                      text                           null
+     address_line2                      text                           null
+     city                               text                           null
+     province                           text                           null
+     postal_code                        text                           null
+     country_code                       text                           null
+     shopify_customer_id                text                           null
+     created_at                         timestamp(3) without time zone null
+     updated_at                         timestamp(3) without time zone null
+     company_name                       text                           null
+     vat_number                         text                           null
+     customer_discount                  text                           null
+     payment_terms                      text                           null
+     commercial_notes                   text                           null
+     linked_supplier_id                 uuid                           null
+
+── _backup_suppliers_pre_party  [RLS abilitata]
+     id                                 uuid                           null
+     tenant_id                          uuid                           null
+     name                               text                           null
+     email                              text                           null
+     phone                              text                           null
+     notes                              text                           null
+     created_at                         timestamp(3) without time zone null
+     updated_at                         timestamp(3) without time zone null
+     code                               text                           null
+     vat_number                         text                           null
+     tax_code                           text                           null
+     pec                                text                           null
+     contact_name                       text                           null
+     website                            text                           null
+     address_line1                      text                           null
+     address_line2                      text                           null
+     city                               text                           null
+     province                           text                           null
+     postal_code                        text                           null
+     country_code                       text                           null
+     payment_terms                      text                           null
+     supplier_discount                  text                           null
+     transport_responsible              text                           null
+     freight_terms                      text                           null
+     document_creation_note             text                           null
+     default_vat_code_id                uuid                           null
+
+── _prisma_migrations  [RLS ASSENTE]
+     id                                 character varying(36)          NOT NULL
+     checksum                           character varying(64)          NOT NULL
+     finished_at                        timestamp with time zone       null
+     migration_name                     character varying(255)         NOT NULL
+     logs                               text                           null
+     rolled_back_at                     timestamp with time zone       null
+     started_at                         timestamp with time zone       NOT NULL  default now()
+     applied_steps_count                integer                        NOT NULL  default 0
+   vincoli:
+     [CHIAVE PRIMARIA] _prisma_migrations_pkey
+       PRIMARY KEY (id)
+   indici:
+     _prisma_migrations_pkey
+       CREATE UNIQUE INDEX _prisma_migrations_pkey ON public._prisma_migrations USING btree (id)
+
+── attachments  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     entity_type                        text                           NOT NULL
+     entity_id                          uuid                           NOT NULL
+     file_name                          text                           NOT NULL
+     mime_type                          text                           NOT NULL
+     storage_path                       text                           NOT NULL
+     size_bytes                         integer                        NOT NULL
+     created_by_name                    text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] attachments_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] attachments_pkey
+       PRIMARY KEY (id)
+   indici:
+     attachments_pkey
+       CREATE UNIQUE INDEX attachments_pkey ON public.attachments USING btree (id)
+     attachments_tenant_id_entity_type_entity_id_idx
+       CREATE INDEX attachments_tenant_id_entity_type_entity_id_idx ON public.attachments USING btree (tenant_id, entity_type, entity_id)
+
+── cash_session_movements  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     session_id                         uuid                           NOT NULL
+     type                               "CashSessionMovementType"      NOT NULL
+     amount_minor                       integer                        NOT NULL
+     reason                             text                           NOT NULL
+     created_by_id                      uuid                           null
+     created_by_name                    text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] cash_session_movements_session_id_fkey
+       FOREIGN KEY (session_id) REFERENCES cash_sessions(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] cash_session_movements_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] cash_session_movements_pkey
+       PRIMARY KEY (id)
+   indici:
+     cash_session_movements_pkey
+       CREATE UNIQUE INDEX cash_session_movements_pkey ON public.cash_session_movements USING btree (id)
+     cash_session_movements_session_id_idx
+       CREATE INDEX cash_session_movements_session_id_idx ON public.cash_session_movements USING btree (session_id)
+     cash_session_movements_tenant_id_idx
+       CREATE INDEX cash_session_movements_tenant_id_idx ON public.cash_session_movements USING btree (tenant_id)
+
+── cash_sessions  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     status                             "CashSessionStatus"            NOT NULL  default 'open'::"CashSessionStatus"
+     opened_at                          timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     opened_by_id                       uuid                           null
+     opened_by_name                     text                           NOT NULL
+     opening_float_minor                integer                        NOT NULL  default 0
+     closed_at                          timestamp(3) without time zone null
+     closed_by_id                       uuid                           null
+     closed_by_name                     text                           null
+     notes                              text                           null
+     counted_cash_minor                 integer                        null
+     counted_card_minor                 integer                        null
+     counted_other_minor                integer                        null
+     expected_cash_minor                integer                        null
+     expected_card_minor                integer                        null
+     expected_other_minor               integer                        null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] cash_sessions_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] cash_sessions_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] cash_sessions_pkey
+       PRIMARY KEY (id)
+   indici:
+     cash_sessions_open_per_location
+       CREATE UNIQUE INDEX cash_sessions_open_per_location ON public.cash_sessions USING btree (location_id) WHERE (status = 'open'::"CashSessionStatus")
+     cash_sessions_pkey
+       CREATE UNIQUE INDEX cash_sessions_pkey ON public.cash_sessions USING btree (id)
+     cash_sessions_tenant_id_location_id_status_idx
+       CREATE INDEX cash_sessions_tenant_id_location_id_status_idx ON public.cash_sessions USING btree (tenant_id, location_id, status)
+     cash_sessions_tenant_id_opened_at_idx
+       CREATE INDEX cash_sessions_tenant_id_opened_at_idx ON public.cash_sessions USING btree (tenant_id, opened_at DESC)
+
+── catalog_categories  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     name                               text                           NOT NULL
+     parent_id                          uuid                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] catalog_categories_parent_id_fkey
+       FOREIGN KEY (parent_id) REFERENCES catalog_categories(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] catalog_categories_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] catalog_categories_pkey
+       PRIMARY KEY (id)
+   indici:
+     catalog_categories_pkey
+       CREATE UNIQUE INDEX catalog_categories_pkey ON public.catalog_categories USING btree (id)
+     catalog_categories_tenant_id_parent_id_idx
+       CREATE INDEX catalog_categories_tenant_id_parent_id_idx ON public.catalog_categories USING btree (tenant_id, parent_id)
+     catalog_categories_tenant_id_parent_id_name_key
+       CREATE UNIQUE INDEX catalog_categories_tenant_id_parent_id_name_key ON public.catalog_categories USING btree (tenant_id, parent_id, name)
+
+── company_profiles  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     legal_name                         text                           null
+     vat_number                         text                           null
+     fiscal_code                        text                           null
+     phone                              text                           null
+     pec                                text                           null
+     sdi_code                           text                           null
+     iban                               text                           null
+     address_line1                      text                           null
+     address_line2                      text                           null
+     city                               text                           null
+     province                           text                           null
+     postal_code                        text                           null
+     country_code                       text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     email                              text                           null
+     website                            text                           null
+     tax_regime                         text                           null
+     rea_office                         text                           null
+     rea_number                         text                           null
+     share_capital_minor                integer                        null
+     sole_shareholder                   boolean                        null
+     in_liquidation                     boolean                        NOT NULL  default false
+   vincoli:
+     [CHIAVE ESTERNA] company_profiles_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] company_profiles_pkey
+       PRIMARY KEY (id)
+   indici:
+     company_profiles_pkey
+       CREATE UNIQUE INDEX company_profiles_pkey ON public.company_profiles USING btree (id)
+     company_profiles_tenant_id_key
+       CREATE UNIQUE INDEX company_profiles_tenant_id_key ON public.company_profiles USING btree (tenant_id)
+
+── creation_intents  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     intent_id                          text                           NOT NULL
+     scope                              text                           NOT NULL
+     fingerprint                        text                           NOT NULL
+     result_ref                         text                           null
+     created_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] creation_intents_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] creation_intents_pkey
+       PRIMARY KEY (id)
+   indici:
+     creation_intents_pkey
+       CREATE UNIQUE INDEX creation_intents_pkey ON public.creation_intents USING btree (id)
+     creation_intents_tenant_created_idx
+       CREATE INDEX creation_intents_tenant_created_idx ON public.creation_intents USING btree (tenant_id, created_at DESC)
+     creation_intents_tenant_intent_unique
+       CREATE UNIQUE INDEX creation_intents_tenant_intent_unique ON public.creation_intents USING btree (tenant_id, intent_id)
+
+── customers  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     shopify_customer_id                text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     customer_discount                  text                           null
+     payment_terms                      text                           null
+     commercial_notes                   text                           null
+     party_id                           uuid                           NOT NULL
+     code                               text                           null
+     is_active                          boolean                        NOT NULL  default true
+     payment_method                     text                           null
+     transport_responsible              text                           null
+     document_creation_alert            text                           null
+     document_creation_note             text                           null
+   vincoli:
+     [CHIAVE ESTERNA] customers_party_id_fkey
+       FOREIGN KEY (party_id) REFERENCES parties(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] customers_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] customers_pkey
+       PRIMARY KEY (id)
+   indici:
+     customers_party_id_key
+       CREATE UNIQUE INDEX customers_party_id_key ON public.customers USING btree (party_id)
+     customers_pkey
+       CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)
+     customers_tenant_id_code_key
+       CREATE UNIQUE INDEX customers_tenant_id_code_key ON public.customers USING btree (tenant_id, code)
+     customers_tenant_id_idx
+       CREATE INDEX customers_tenant_id_idx ON public.customers USING btree (tenant_id)
+     customers_tenant_id_shopify_customer_id_key
+       CREATE UNIQUE INDEX customers_tenant_id_shopify_customer_id_key ON public.customers USING btree (tenant_id, shopify_customer_id)
+
+── document_attachments  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     document_id                        uuid                           NOT NULL
+     file_name                          text                           NOT NULL
+     mime_type                          text                           NOT NULL
+     storage_path                       text                           NOT NULL
+     size_bytes                         integer                        NOT NULL
+     created_by_name                    text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] document_attachments_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] document_attachments_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] document_attachments_pkey
+       PRIMARY KEY (id)
+   indici:
+     document_attachments_document_id_idx
+       CREATE INDEX document_attachments_document_id_idx ON public.document_attachments USING btree (document_id)
+     document_attachments_pkey
+       CREATE UNIQUE INDEX document_attachments_pkey ON public.document_attachments USING btree (id)
+     document_attachments_tenant_id_idx
+       CREATE INDEX document_attachments_tenant_id_idx ON public.document_attachments USING btree (tenant_id)
+
+── document_counters  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     type                               "DocumentType"                 NOT NULL
+     series                             text                           null
+     location_id                        uuid                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     is_default                         boolean                        NOT NULL  default false
+   vincoli:
+     [CHIAVE ESTERNA] document_counters_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] document_counters_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] document_counters_pkey
+       PRIMARY KEY (id)
+   indici:
+     document_counters_default_per_type
+       CREATE UNIQUE INDEX document_counters_default_per_type ON public.document_counters USING btree (tenant_id, type) WHERE is_default
+     document_counters_pkey
+       CREATE UNIQUE INDEX document_counters_pkey ON public.document_counters USING btree (id)
+     document_counters_tenant_id_idx
+       CREATE INDEX document_counters_tenant_id_idx ON public.document_counters USING btree (tenant_id)
+     document_counters_tenant_id_type_series_key
+       CREATE UNIQUE INDEX document_counters_tenant_id_type_series_key ON public.document_counters USING btree (tenant_id, type, series) NULLS NOT DISTINCT
+
+── document_lines  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     document_id                        uuid                           NOT NULL
+     line_number                        integer                        NOT NULL
+     variant_id                         uuid                           null
+     sku                                text                           null
+     description                        text                           NOT NULL
+     quantity                           integer                        NOT NULL  default 0
+     unit_price_minor                   numeric(16,6)                  NOT NULL  default 0
+     discount_percent                   numeric(7,4)                   NOT NULL  default 0
+     line_total_minor                   integer                        NOT NULL  default 0
+     loads_stock                        boolean                        NOT NULL  default true
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     supplier_order_line_id             uuid                           null
+     lot_code                           text                           null
+     lot_expiry_date                    date                           null
+     serial_numbers                     jsonb                          NOT NULL  default '[]'::jsonb
+     linked_goods_receipt_id            uuid                           null
+     vat_code_id                        uuid                           null
+     vat_snapshot                       jsonb                          null
+     entered_unit_cost                  numeric(16,6)                  null
+     cost_entry_mode_snapshot           "PurchaseCostEntryMode"        null
+     unit_cost_net                      numeric(16,6)                  null
+     unit_cost_gross                    numeric(16,6)                  null
+     unit_vat_amount                    numeric(16,6)                  null
+     line_vat_total_minor               integer                        NOT NULL  default 0
+     line_gross_total_minor             integer                        NOT NULL  default 0
+     supplier_payable_line_minor        integer                        NOT NULL  default 0
+     reverse_charge_vat_minor           integer                        NOT NULL  default 0
+     non_deductible_vat_minor           integer                        NOT NULL  default 0
+     line_source                        text                           null
+     is_reference                       boolean                        NOT NULL  default false
+     unit_of_measure                    text                           null
+     variant_label                      text                           NOT NULL  default ''::text
+     article_code                       text                           null
+     product_name                       text                           null
+     barcode                            text                           null
+   vincoli:
+     [CHIAVE ESTERNA] document_lines_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] document_lines_linked_goods_receipt_id_fkey
+       FOREIGN KEY (linked_goods_receipt_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] document_lines_supplier_order_line_id_fkey
+       FOREIGN KEY (supplier_order_line_id) REFERENCES supplier_order_lines(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] document_lines_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] document_lines_vat_code_id_fkey
+       FOREIGN KEY (vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE PRIMARIA] document_lines_pkey
+       PRIMARY KEY (id)
+   indici:
+     document_lines_document_id_idx
+       CREATE INDEX document_lines_document_id_idx ON public.document_lines USING btree (document_id)
+     document_lines_linked_goods_receipt_id_idx
+       CREATE INDEX document_lines_linked_goods_receipt_id_idx ON public.document_lines USING btree (linked_goods_receipt_id)
+     document_lines_pkey
+       CREATE UNIQUE INDEX document_lines_pkey ON public.document_lines USING btree (id)
+     document_lines_tenant_id_idx
+       CREATE INDEX document_lines_tenant_id_idx ON public.document_lines USING btree (tenant_id)
+
+── document_payment_installments  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     document_id                        uuid                           NOT NULL
+     position                           integer                        NOT NULL  default 1
+     due_date                           date                           NOT NULL
+     amount_minor                       integer                        NOT NULL  default 0
+     settled                            boolean                        NOT NULL  default false
+     settled_at                         date                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] document_payment_installments_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] document_payment_installments_pkey
+       PRIMARY KEY (id)
+   indici:
+     document_payment_installments_document_id_idx
+       CREATE INDEX document_payment_installments_document_id_idx ON public.document_payment_installments USING btree (document_id)
+     document_payment_installments_pkey
+       CREATE UNIQUE INDEX document_payment_installments_pkey ON public.document_payment_installments USING btree (id)
+     document_payment_installments_tenant_id_idx
+       CREATE INDEX document_payment_installments_tenant_id_idx ON public.document_payment_installments USING btree (tenant_id)
+
+── document_revisions  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     document_id                        uuid                           NOT NULL
+     revision_number                    integer                        NOT NULL
+     summary                            text                           NOT NULL
+     changed_by_id                      uuid                           null
+     changed_by_name                    text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] document_revisions_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] document_revisions_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] document_revisions_pkey
+       PRIMARY KEY (id)
+   indici:
+     document_revisions_document_id_revision_number_key
+       CREATE UNIQUE INDEX document_revisions_document_id_revision_number_key ON public.document_revisions USING btree (document_id, revision_number)
+     document_revisions_pkey
+       CREATE UNIQUE INDEX document_revisions_pkey ON public.document_revisions USING btree (id)
+     document_revisions_tenant_id_document_id_created_at_idx
+       CREATE INDEX document_revisions_tenant_id_document_id_created_at_idx ON public.document_revisions USING btree (tenant_id, document_id, created_at DESC)
+
+── document_sequences  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     type                               "DocumentType"                 NOT NULL
+     series                             text                           NOT NULL  default 'A'::text
+     year                               integer                        NOT NULL
+     last_number                        integer                        NOT NULL  default 0
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] document_sequences_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] document_sequences_pkey
+       PRIMARY KEY (id)
+   indici:
+     document_sequences_pkey
+       CREATE UNIQUE INDEX document_sequences_pkey ON public.document_sequences USING btree (id)
+     document_sequences_tenant_id_idx
+       CREATE INDEX document_sequences_tenant_id_idx ON public.document_sequences USING btree (tenant_id)
+     document_sequences_tenant_id_type_series_year_key
+       CREATE UNIQUE INDEX document_sequences_tenant_id_type_series_year_key ON public.document_sequences USING btree (tenant_id, type, series, year)
+
+── document_type_settings  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     type                               "DocumentType"                 NOT NULL
+     print_title                        text                           null
+     auto_numbering                     boolean                        NOT NULL  default true
+     number_prefix                      text                           null
+     default_series                     text                           NOT NULL  default 'A'::text
+     default_notes                      text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] document_type_settings_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] document_type_settings_pkey
+       PRIMARY KEY (id)
+   indici:
+     document_type_settings_pkey
+       CREATE UNIQUE INDEX document_type_settings_pkey ON public.document_type_settings USING btree (id)
+     document_type_settings_tenant_id_idx
+       CREATE INDEX document_type_settings_tenant_id_idx ON public.document_type_settings USING btree (tenant_id)
+     document_type_settings_tenant_id_type_key
+       CREATE UNIQUE INDEX document_type_settings_tenant_id_type_key ON public.document_type_settings USING btree (tenant_id, type)
+
+── documents  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     type                               "DocumentType"                 NOT NULL
+     status                             "DocumentStatus"               NOT NULL  default 'draft'::"DocumentStatus"
+     series                             text                           null
+     number                             integer                        null
+     year                               integer                        NOT NULL
+     reference                          text                           null
+     document_date                      date                           NOT NULL
+     registration_date                  timestamp(3) without time zone null
+     print_title                        text                           null
+     notes                              text                           null
+     internal_comment                   text                           null
+     supplier_id                        uuid                           null
+     supplier_name                      text                           null
+     customer_id                        uuid                           null
+     customer_name                      text                           null
+     location_id                        uuid                           null
+     target_location_id                 uuid                           null
+     external_doc_number                text                           null
+     external_doc_date                  date                           null
+     external_ref                       text                           null
+     currency                           text                           NOT NULL  default 'EUR'::text
+     subtotal_minor                     integer                        NOT NULL  default 0
+     tax_minor                          integer                        NOT NULL  default 0
+     total_minor                        integer                        NOT NULL  default 0
+     prices_include_vat                 boolean                        NOT NULL  default false
+     created_by_id                      uuid                           null
+     created_by_name                    text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     confirmed_at                       timestamp(3) without time zone null
+     cancelled_at                       timestamp(3) without time zone null
+     source_document_id                 uuid                           null
+     billing_cause                      text                           null
+     supplier_order_id                  uuid                           null
+     externally_issued_at               timestamp(3) without time zone null
+     adjustment_direction               "AdjustmentDirection"          null
+     document_discount_percent          numeric(7,4)                   NOT NULL  default 0
+     causal_text                        text                           null
+     external_document_type_id          uuid                           null
+     external_document_type_snapshot    text                           null
+     causal_generation_mode             text                           null
+     causal_template_snapshot           text                           null
+     purchase_cost_entry_mode           "PurchaseCostEntryMode"        NOT NULL  default 'vat_excluded'::"PurchaseCostEntryMode"
+     online_sale_id                     uuid                           null
+     payment_method                     text                           null
+     payment_terms                      text                           null
+     expected_delivery_date             date                           null
+     followed_by_sales_doc              boolean                        NOT NULL  default false
+     transport_causal                   text                           null
+     transport_start_at                 timestamp(3) without time zone null
+     transport_port                     text                           null
+     transport_carrier                  text                           null
+     transport_packages_count           integer                        null
+     transport_weight                   text                           null
+     transport_goods_aspect             text                           null
+     transport_shipping_code            text                           null
+     transport_tracking_code            text                           null
+     recipient_address                  jsonb                          null
+     destination_address                jsonb                          null
+     outstanding_minor                  integer                        NOT NULL  default 0
+     payment_due_date                   date                           null
+     iban                               text                           null
+     payment_method_note                text                           null
+     cash_session_id                    uuid                           null
+     issuer_snapshot                    jsonb                          null
+   vincoli:
+     [CHIAVE ESTERNA] documents_cash_session_id_fkey
+       FOREIGN KEY (cash_session_id) REFERENCES cash_sessions(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_customer_id_fkey
+       FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_external_document_type_id_fkey
+       FOREIGN KEY (external_document_type_id) REFERENCES external_document_types(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_online_sale_id_fkey
+       FOREIGN KEY (online_sale_id) REFERENCES online_sales(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_source_document_id_fkey
+       FOREIGN KEY (source_document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_supplier_id_fkey
+       FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_supplier_order_id_fkey
+       FOREIGN KEY (supplier_order_id) REFERENCES supplier_orders(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_target_location_id_fkey
+       FOREIGN KEY (target_location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] documents_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] documents_pkey
+       PRIMARY KEY (id)
+   indici:
+     documents_number_unique
+       CREATE UNIQUE INDEX documents_number_unique ON public.documents USING btree (tenant_id, (
+CASE
+    WHEN (type = ANY (ARRAY['invoice_accompanying'::"DocumentType", 'credit_note'::"DocumentType"])) THEN 'invoice'::"DocumentType"
+    ELSE type
+END), series, number) NULLS NOT DISTINCT WHERE (number IS NOT NULL)
+     documents_numbering_date_idx
+       CREATE INDEX documents_numbering_date_idx ON public.documents USING btree (tenant_id, type, series, document_date, number) WHERE (number IS NOT NULL)
+     documents_pkey
+       CREATE UNIQUE INDEX documents_pkey ON public.documents USING btree (id)
+     documents_source_document_id_type_status_idx
+       CREATE INDEX documents_source_document_id_type_status_idx ON public.documents USING btree (source_document_id, type, status)
+     documents_tenant_id_cash_session_id_idx
+       CREATE INDEX documents_tenant_id_cash_session_id_idx ON public.documents USING btree (tenant_id, cash_session_id)
+     documents_tenant_id_document_date_idx
+       CREATE INDEX documents_tenant_id_document_date_idx ON public.documents USING btree (tenant_id, document_date DESC)
+     documents_tenant_id_online_sale_id_idx
+       CREATE INDEX documents_tenant_id_online_sale_id_idx ON public.documents USING btree (tenant_id, online_sale_id)
+     documents_tenant_id_source_document_id_idx
+       CREATE INDEX documents_tenant_id_source_document_id_idx ON public.documents USING btree (tenant_id, source_document_id)
+     documents_tenant_id_status_idx
+       CREATE INDEX documents_tenant_id_status_idx ON public.documents USING btree (tenant_id, status)
+     documents_tenant_id_supplier_order_id_idx
+       CREATE INDEX documents_tenant_id_supplier_order_id_idx ON public.documents USING btree (tenant_id, supplier_order_id)
+     documents_tenant_id_type_series_idx
+       CREATE INDEX documents_tenant_id_type_series_idx ON public.documents USING btree (tenant_id, type, series)
+     documents_tenant_id_type_series_number_idx
+       CREATE INDEX documents_tenant_id_type_series_number_idx ON public.documents USING btree (tenant_id, type, series, number DESC) WHERE (number IS NOT NULL)
+     documents_tenant_id_type_status_idx
+       CREATE INDEX documents_tenant_id_type_status_idx ON public.documents USING btree (tenant_id, type, status)
+
+── external_document_types  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     name                               text                           NOT NULL
+     short_label                        text                           NOT NULL
+     causal_template                    text                           null
+     is_system                          boolean                        NOT NULL  default false
+     is_active                          boolean                        NOT NULL  default true
+     sort_order                         integer                        NOT NULL  default 0
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     deleted_at                         timestamp(3) without time zone null
+   vincoli:
+     [CHIAVE ESTERNA] external_document_types_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] external_document_types_pkey
+       PRIMARY KEY (id)
+   indici:
+     external_document_types_pkey
+       CREATE UNIQUE INDEX external_document_types_pkey ON public.external_document_types USING btree (id)
+     external_document_types_tenant_id_name_key
+       CREATE UNIQUE INDEX external_document_types_tenant_id_name_key ON public.external_document_types USING btree (tenant_id, name) WHERE (deleted_at IS NULL)
+     external_document_types_tenant_id_sort_order_idx
+       CREATE INDEX external_document_types_tenant_id_sort_order_idx ON public.external_document_types USING btree (tenant_id, sort_order)
+     external_document_types_tenant_lower_name_key
+       CREATE UNIQUE INDEX external_document_types_tenant_lower_name_key ON public.external_document_types USING btree (tenant_id, lower(name)) WHERE (deleted_at IS NULL)
+
+── fiscal_devices  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     brand                              "FiscalDeviceBrand"            NOT NULL
+     model                              text                           null
+     endpoint                           text                           NOT NULL
+     serial_number                      text                           null
+     enabled                            boolean                        NOT NULL  default true
+     notes                              text                           null
+     last_seen_at                       timestamp(3) without time zone null
+     last_error                         text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     vat_departments                    jsonb                          null
+   vincoli:
+     [CHIAVE ESTERNA] fiscal_devices_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] fiscal_devices_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] fiscal_devices_pkey
+       PRIMARY KEY (id)
+   indici:
+     fiscal_devices_location_id_key
+       CREATE UNIQUE INDEX fiscal_devices_location_id_key ON public.fiscal_devices USING btree (location_id)
+     fiscal_devices_pkey
+       CREATE UNIQUE INDEX fiscal_devices_pkey ON public.fiscal_devices USING btree (id)
+     fiscal_devices_tenant_id_idx
+       CREATE INDEX fiscal_devices_tenant_id_idx ON public.fiscal_devices USING btree (tenant_id)
+
+── fiscal_receipts  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     document_id                        uuid                           NOT NULL
+     device_id                          uuid                           null
+     status                             "FiscalReceiptStatus"          NOT NULL  default 'pending'::"FiscalReceiptStatus"
+     serial_number                      text                           null
+     fiscal_number                      text                           null
+     issued_at                          timestamp(3) without time zone null
+     original_receipt_id                uuid                           null
+     error_message                      text                           null
+     raw_response                       jsonb                          null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] fiscal_receipts_device_id_fkey
+       FOREIGN KEY (device_id) REFERENCES fiscal_devices(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] fiscal_receipts_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] fiscal_receipts_original_receipt_id_fkey
+       FOREIGN KEY (original_receipt_id) REFERENCES fiscal_receipts(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] fiscal_receipts_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] fiscal_receipts_pkey
+       PRIMARY KEY (id)
+   indici:
+     fiscal_receipts_document_id_key
+       CREATE UNIQUE INDEX fiscal_receipts_document_id_key ON public.fiscal_receipts USING btree (document_id)
+     fiscal_receipts_pkey
+       CREATE UNIQUE INDEX fiscal_receipts_pkey ON public.fiscal_receipts USING btree (id)
+     fiscal_receipts_tenant_id_status_idx
+       CREATE INDEX fiscal_receipts_tenant_id_status_idx ON public.fiscal_receipts USING btree (tenant_id, status)
+
+── goods_receipt_causals  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     label                              text                           NOT NULL
+     sort_order                         integer                        NOT NULL  default 0
+     is_default                         boolean                        NOT NULL  default false
+     is_active                          boolean                        NOT NULL  default true
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     external_document_type_id          uuid                           null
+   vincoli:
+     [CHIAVE ESTERNA] goods_receipt_causals_external_document_type_id_fkey
+       FOREIGN KEY (external_document_type_id) REFERENCES external_document_types(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] goods_receipt_causals_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] goods_receipt_causals_pkey
+       PRIMARY KEY (id)
+   indici:
+     goods_receipt_causals_pkey
+       CREATE UNIQUE INDEX goods_receipt_causals_pkey ON public.goods_receipt_causals USING btree (id)
+     goods_receipt_causals_tenant_id_label_key
+       CREATE UNIQUE INDEX goods_receipt_causals_tenant_id_label_key ON public.goods_receipt_causals USING btree (tenant_id, label)
+     goods_receipt_causals_tenant_id_sort_order_idx
+       CREATE INDEX goods_receipt_causals_tenant_id_sort_order_idx ON public.goods_receipt_causals USING btree (tenant_id, sort_order)
+
+── inventory_count_lines  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     session_id                         uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     sku                                text                           NOT NULL
+     product_name                       text                           NOT NULL
+     system_quantity                    integer                        NOT NULL
+     counted_quantity                   integer                        null
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] inventory_count_lines_session_id_fkey
+       FOREIGN KEY (session_id) REFERENCES inventory_count_sessions(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] inventory_count_lines_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] inventory_count_lines_pkey
+       PRIMARY KEY (id)
+   indici:
+     inventory_count_lines_pkey
+       CREATE UNIQUE INDEX inventory_count_lines_pkey ON public.inventory_count_lines USING btree (id)
+     inventory_count_lines_session_id_idx
+       CREATE INDEX inventory_count_lines_session_id_idx ON public.inventory_count_lines USING btree (session_id)
+     inventory_count_lines_session_id_variant_id_key
+       CREATE UNIQUE INDEX inventory_count_lines_session_id_variant_id_key ON public.inventory_count_lines USING btree (session_id, variant_id)
+     inventory_count_lines_tenant_id_idx
+       CREATE INDEX inventory_count_lines_tenant_id_idx ON public.inventory_count_lines USING btree (tenant_id)
+
+── inventory_count_sessions  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     name                               text                           NOT NULL
+     notes                              text                           null
+     status                             "InventoryCountStatus"         NOT NULL  default 'in_progress'::"InventoryCountStatus"
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     completed_at                       timestamp(3) without time zone null
+     created_by_name                    text                           NOT NULL
+     document_id                        uuid                           null
+   vincoli:
+     [CHIAVE ESTERNA] inventory_count_sessions_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] inventory_count_sessions_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] inventory_count_sessions_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] inventory_count_sessions_pkey
+       PRIMARY KEY (id)
+   indici:
+     inventory_count_sessions_pkey
+       CREATE UNIQUE INDEX inventory_count_sessions_pkey ON public.inventory_count_sessions USING btree (id)
+     inventory_count_sessions_tenant_id_created_at_idx
+       CREATE INDEX inventory_count_sessions_tenant_id_created_at_idx ON public.inventory_count_sessions USING btree (tenant_id, created_at DESC)
+     inventory_count_sessions_tenant_id_status_idx
+       CREATE INDEX inventory_count_sessions_tenant_id_status_idx ON public.inventory_count_sessions USING btree (tenant_id, status)
+
+── inventory_levels  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     on_hand                            integer                        NOT NULL  default 0
+     available                          integer                        NOT NULL  default 0
+     committed                          integer                        NOT NULL  default 0
+     incoming                           integer                        NOT NULL  default 0
+     reserved                           integer                        NOT NULL  default 0
+     min_threshold                      integer                        NOT NULL  default 0
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] inventory_levels_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] inventory_levels_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] inventory_levels_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] inventory_levels_pkey
+       PRIMARY KEY (id)
+   indici:
+     inventory_levels_location_id_idx
+       CREATE INDEX inventory_levels_location_id_idx ON public.inventory_levels USING btree (location_id)
+     inventory_levels_pkey
+       CREATE UNIQUE INDEX inventory_levels_pkey ON public.inventory_levels USING btree (id)
+     inventory_levels_tenant_id_idx
+       CREATE INDEX inventory_levels_tenant_id_idx ON public.inventory_levels USING btree (tenant_id)
+     inventory_levels_tenant_id_location_id_idx
+       CREATE INDEX inventory_levels_tenant_id_location_id_idx ON public.inventory_levels USING btree (tenant_id, location_id)
+     inventory_levels_variant_id_location_id_key
+       CREATE UNIQUE INDEX inventory_levels_variant_id_location_id_key ON public.inventory_levels USING btree (variant_id, location_id)
+
+── inventory_lots  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     lot_code                           text                           NOT NULL
+     expiry_date                        date                           null
+     quantity                           integer                        NOT NULL  default 0
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] inventory_lots_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] inventory_lots_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] inventory_lots_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] inventory_lots_pkey
+       PRIMARY KEY (id)
+   indici:
+     inventory_lots_pkey
+       CREATE UNIQUE INDEX inventory_lots_pkey ON public.inventory_lots USING btree (id)
+     inventory_lots_tenant_id_variant_id_idx
+       CREATE INDEX inventory_lots_tenant_id_variant_id_idx ON public.inventory_lots USING btree (tenant_id, variant_id)
+     inventory_lots_tenant_id_variant_id_location_id_lot_code_key
+       CREATE UNIQUE INDEX inventory_lots_tenant_id_variant_id_location_id_lot_code_key ON public.inventory_lots USING btree (tenant_id, variant_id, location_id, lot_code)
+
+── inventory_serials  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     serial_number                      text                           NOT NULL
+     status                             "InventorySerialStatus"        NOT NULL  default 'in_stock'::"InventorySerialStatus"
+     document_line_id                   uuid                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] inventory_serials_document_line_id_fkey
+       FOREIGN KEY (document_line_id) REFERENCES document_lines(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] inventory_serials_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] inventory_serials_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] inventory_serials_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] inventory_serials_pkey
+       PRIMARY KEY (id)
+   indici:
+     inventory_serials_document_line_id_idx
+       CREATE INDEX inventory_serials_document_line_id_idx ON public.inventory_serials USING btree (document_line_id)
+     inventory_serials_pkey
+       CREATE UNIQUE INDEX inventory_serials_pkey ON public.inventory_serials USING btree (id)
+     inventory_serials_tenant_id_serial_number_key
+       CREATE UNIQUE INDEX inventory_serials_tenant_id_serial_number_key ON public.inventory_serials USING btree (tenant_id, serial_number)
+     inventory_serials_tenant_id_variant_id_location_id_idx
+       CREATE INDEX inventory_serials_tenant_id_variant_id_location_id_idx ON public.inventory_serials USING btree (tenant_id, variant_id, location_id)
+
+── invoice_sales_ddt_links  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     invoice_id                         uuid                           NOT NULL
+     sales_ddt_id                       uuid                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] invoice_sales_ddt_links_invoice_id_fkey
+       FOREIGN KEY (invoice_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] invoice_sales_ddt_links_sales_ddt_id_fkey
+       FOREIGN KEY (sales_ddt_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] invoice_sales_ddt_links_pkey
+       PRIMARY KEY (id)
+   indici:
+     invoice_sales_ddt_links_invoice_id_sales_ddt_id_key
+       CREATE UNIQUE INDEX invoice_sales_ddt_links_invoice_id_sales_ddt_id_key ON public.invoice_sales_ddt_links USING btree (invoice_id, sales_ddt_id)
+     invoice_sales_ddt_links_pkey
+       CREATE UNIQUE INDEX invoice_sales_ddt_links_pkey ON public.invoice_sales_ddt_links USING btree (id)
+     invoice_sales_ddt_links_tenant_id_invoice_id_idx
+       CREATE INDEX invoice_sales_ddt_links_tenant_id_invoice_id_idx ON public.invoice_sales_ddt_links USING btree (tenant_id, invoice_id)
+     invoice_sales_ddt_links_tenant_id_sales_ddt_id_idx
+       CREATE INDEX invoice_sales_ddt_links_tenant_id_sales_ddt_id_idx ON public.invoice_sales_ddt_links USING btree (tenant_id, sales_ddt_id)
+
+── locations  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     name                               text                           NOT NULL
+     code                               text                           null
+     is_active                          boolean                        NOT NULL  default true
+     store_id                           uuid                           null
+     address_line1                      text                           null
+     address_line2                      text                           null
+     city                               text                           null
+     province                           text                           null
+     postal_code                        text                           null
+     country_code                       text                           null
+     shopify_location_id                text                           null
+     shopify_sync_status                "ShopifySyncStatus"            NOT NULL  default 'not_connected'::"ShopifySyncStatus"
+     shopify_last_sync_at               timestamp(3) without time zone null
+     shopify_last_error                 text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     licensed_in_vf                     boolean                        NOT NULL  default false
+   vincoli:
+     [CHIAVE ESTERNA] locations_store_id_fkey
+       FOREIGN KEY (store_id) REFERENCES stores(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] locations_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] locations_pkey
+       PRIMARY KEY (id)
+   indici:
+     locations_pkey
+       CREATE UNIQUE INDEX locations_pkey ON public.locations USING btree (id)
+     locations_tenant_id_idx
+       CREATE INDEX locations_tenant_id_idx ON public.locations USING btree (tenant_id)
+     locations_tenant_id_shopify_location_id_idx
+       CREATE INDEX locations_tenant_id_shopify_location_id_idx ON public.locations USING btree (tenant_id, shopify_location_id)
+
+── manual_receipt_lines  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     receipt_id                         uuid                           NOT NULL
+     line_number                        integer                        NOT NULL
+     description                        text                           NOT NULL
+     entered_amount_minor               numeric(16,6)                  NOT NULL
+     net_amount_minor                   numeric(16,6)                  NOT NULL
+     vat_code_id                        uuid                           null
+     vat_snapshot                       jsonb                          NOT NULL
+     net_minor                          integer                        NOT NULL  default 0
+     vat_minor                          integer                        NOT NULL  default 0
+     gross_minor                        integer                        NOT NULL  default 0
+     created_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] manual_receipt_lines_receipt_id_fkey
+       FOREIGN KEY (receipt_id) REFERENCES manual_receipts(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] manual_receipt_lines_vat_code_id_fkey
+       FOREIGN KEY (vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE PRIMARIA] manual_receipt_lines_pkey
+       PRIMARY KEY (id)
+   indici:
+     manual_receipt_lines_pkey
+       CREATE UNIQUE INDEX manual_receipt_lines_pkey ON public.manual_receipt_lines USING btree (id)
+     manual_receipt_lines_receipt_idx
+       CREATE INDEX manual_receipt_lines_receipt_idx ON public.manual_receipt_lines USING btree (receipt_id, line_number)
+
+── manual_receipts  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     series                             text                           null
+     number                             integer                        NOT NULL
+     document_date                      date                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     prices_include_vat                 boolean                        NOT NULL  default true
+     notes                              text                           null
+     currency                           text                           NOT NULL  default 'EUR'::text
+     subtotal_minor                     integer                        NOT NULL  default 0
+     tax_minor                          integer                        NOT NULL  default 0
+     total_minor                        integer                        NOT NULL  default 0
+     created_by_id                      uuid                           null
+     created_by_name                    text                           NOT NULL
+     created_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] manual_receipts_created_by_id_fkey
+       FOREIGN KEY (created_by_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] manual_receipts_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] manual_receipts_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] manual_receipts_pkey
+       PRIMARY KEY (id)
+   indici:
+     manual_receipts_number_unique
+       CREATE UNIQUE INDEX manual_receipts_number_unique ON public.manual_receipts USING btree (tenant_id, series, number) NULLS NOT DISTINCT
+     manual_receipts_pkey
+       CREATE UNIQUE INDEX manual_receipts_pkey ON public.manual_receipts USING btree (id)
+     manual_receipts_tenant_date_idx
+       CREATE INDEX manual_receipts_tenant_date_idx ON public.manual_receipts USING btree (tenant_id, document_date)
+     manual_receipts_tenant_location_idx
+       CREATE INDEX manual_receipts_tenant_location_idx ON public.manual_receipts USING btree (tenant_id, location_id)
+
+── online_order_events  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     channel                            "SalesOrderSource"             NOT NULL
+     type                               "OnlineOrderEventType"         NOT NULL
+     sales_order_id                     uuid                           NOT NULL
+     external_order_id                  text                           NOT NULL
+     dedupe_key                         text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] online_order_events_sales_order_id_fkey
+       FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] online_order_events_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] online_order_events_pkey
+       PRIMARY KEY (id)
+   indici:
+     online_order_events_pkey
+       CREATE UNIQUE INDEX online_order_events_pkey ON public.online_order_events USING btree (id)
+     online_order_events_tenant_id_dedupe_key_key
+       CREATE UNIQUE INDEX online_order_events_tenant_id_dedupe_key_key ON public.online_order_events USING btree (tenant_id, dedupe_key)
+     online_order_events_tenant_id_sales_order_id_created_at_idx
+       CREATE INDEX online_order_events_tenant_id_sales_order_id_created_at_idx ON public.online_order_events USING btree (tenant_id, sales_order_id, created_at DESC)
+
+── online_sale_lines  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     online_sale_id                     uuid                           NOT NULL
+     line_number                        integer                        NOT NULL
+     variant_id                         uuid                           null
+     sku                                text                           NOT NULL
+     barcode                            text                           null
+     description                        text                           NOT NULL
+     quantity                           integer                        NOT NULL
+     unit_price_minor                   integer                        NOT NULL  default 0
+     discount_minor                     integer                        NOT NULL  default 0
+     subtotal_minor                     integer                        NOT NULL  default 0
+     tax_minor                          integer                        NOT NULL  default 0
+     total_minor                        integer                        NOT NULL  default 0
+     sales_order_line_id                uuid                           null
+     reservation_id                     uuid                           null
+     location_id                        uuid                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     vat_code_id                        uuid                           null
+     vat_snapshot                       jsonb                          null
+   vincoli:
+     [CHIAVE ESTERNA] online_sale_lines_online_sale_id_fkey
+       FOREIGN KEY (online_sale_id) REFERENCES online_sales(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] online_sale_lines_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] online_sale_lines_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] online_sale_lines_vat_code_id_fkey
+       FOREIGN KEY (vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE PRIMARIA] online_sale_lines_pkey
+       PRIMARY KEY (id)
+   indici:
+     online_sale_lines_online_sale_id_idx
+       CREATE INDEX online_sale_lines_online_sale_id_idx ON public.online_sale_lines USING btree (online_sale_id)
+     online_sale_lines_pkey
+       CREATE UNIQUE INDEX online_sale_lines_pkey ON public.online_sale_lines USING btree (id)
+     online_sale_lines_tenant_id_idx
+       CREATE INDEX online_sale_lines_tenant_id_idx ON public.online_sale_lines USING btree (tenant_id)
+
+── online_sales  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     series                             text                           NOT NULL  default 'A'::text
+     number                             integer                        NOT NULL
+     year                               integer                        NOT NULL
+     reference                          text                           NOT NULL
+     channel                            "SalesOrderSource"             NOT NULL
+     sales_order_id                     uuid                           NOT NULL
+     order_number                       text                           NOT NULL
+     external_order_id                  text                           NOT NULL
+     external_fulfillment_id            text                           null
+     dedupe_key                         text                           NOT NULL
+     order_placed_at                    timestamp(3) without time zone NOT NULL
+     fulfilled_at                       timestamp(3) without time zone NOT NULL
+     customer_id                        uuid                           null
+     customer_name                      text                           NOT NULL
+     customer_address                   text                           null
+     location_id                        uuid                           null
+     payment_status                     "SalesOrderFinancialStatus"    NOT NULL
+     currency                           text                           NOT NULL  default 'EUR'::text
+     subtotal_minor                     integer                        NOT NULL  default 0
+     discount_minor                     integer                        NOT NULL  default 0
+     shipping_minor                     integer                        NOT NULL  default 0
+     tax_minor                          integer                        NOT NULL  default 0
+     total_minor                        integer                        NOT NULL  default 0
+     inventory_status                   "OnlineSaleInventoryStatus"    NOT NULL
+     refunded_at                        timestamp(3) without time zone null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] online_sales_customer_id_fkey
+       FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] online_sales_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] online_sales_sales_order_id_fkey
+       FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] online_sales_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] online_sales_pkey
+       PRIMARY KEY (id)
+   indici:
+     online_sales_pkey
+       CREATE UNIQUE INDEX online_sales_pkey ON public.online_sales USING btree (id)
+     online_sales_sales_order_id_key
+       CREATE UNIQUE INDEX online_sales_sales_order_id_key ON public.online_sales USING btree (sales_order_id)
+     online_sales_tenant_id_channel_fulfilled_at_idx
+       CREATE INDEX online_sales_tenant_id_channel_fulfilled_at_idx ON public.online_sales USING btree (tenant_id, channel, fulfilled_at DESC)
+     online_sales_tenant_id_dedupe_key_key
+       CREATE UNIQUE INDEX online_sales_tenant_id_dedupe_key_key ON public.online_sales USING btree (tenant_id, dedupe_key)
+     online_sales_tenant_id_fulfilled_at_idx
+       CREATE INDEX online_sales_tenant_id_fulfilled_at_idx ON public.online_sales USING btree (tenant_id, fulfilled_at DESC)
+     online_sales_tenant_id_series_year_number_key
+       CREATE UNIQUE INDEX online_sales_tenant_id_series_year_number_key ON public.online_sales USING btree (tenant_id, series, year, number)
+
+── parties  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     company_name                       text                           null
+     first_name                         text                           null
+     last_name                          text                           null
+     vat_number                         text                           null
+     tax_code                           text                           null
+     email                              text                           null
+     pec                                text                           null
+     phone                              text                           null
+     website                            text                           null
+     contact_name                       text                           null
+     address_line1                      text                           null
+     address_line2                      text                           null
+     city                               text                           null
+     province                           text                           null
+     postal_code                        text                           null
+     country_code                       text                           null
+     notes                              text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     sdi_code                           text                           null
+     mobile_phone                       text                           null
+     iban                               text                           null
+   vincoli:
+     [CHIAVE ESTERNA] parties_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] parties_pkey
+       PRIMARY KEY (id)
+   indici:
+     parties_pkey
+       CREATE UNIQUE INDEX parties_pkey ON public.parties USING btree (id)
+     parties_tenant_id_company_name_idx
+       CREATE INDEX parties_tenant_id_company_name_idx ON public.parties USING btree (tenant_id, company_name)
+     parties_tenant_id_idx
+       CREATE INDEX parties_tenant_id_idx ON public.parties USING btree (tenant_id)
+     parties_tenant_id_last_name_first_name_idx
+       CREATE INDEX parties_tenant_id_last_name_first_name_idx ON public.parties USING btree (tenant_id, last_name, first_name)
+
+── payment_options  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     kind                               "PaymentOptionKind"            NOT NULL
+     name                               text                           NOT NULL
+     sort_order                         integer                        NOT NULL  default 0
+     is_system                          boolean                        NOT NULL  default false
+     is_active                          boolean                        NOT NULL  default true
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] payment_options_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] payment_options_pkey
+       PRIMARY KEY (id)
+   indici:
+     payment_options_pkey
+       CREATE UNIQUE INDEX payment_options_pkey ON public.payment_options USING btree (id)
+     payment_options_tenant_id_kind_name_key
+       CREATE UNIQUE INDEX payment_options_tenant_id_kind_name_key ON public.payment_options USING btree (tenant_id, kind, name)
+     payment_options_tenant_id_kind_sort_order_idx
+       CREATE INDEX payment_options_tenant_id_kind_sort_order_idx ON public.payment_options USING btree (tenant_id, kind, sort_order)
+
+── pos_terminals  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     terminal_id                        text                           NOT NULL
+     acquirer_name                      text                           NOT NULL
+     description                        text                           null
+     activated_at                       date                           NOT NULL
+     portal_linked_at                   date                           null
+     notes                              text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] pos_terminals_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] pos_terminals_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] pos_terminals_pkey
+       PRIMARY KEY (id)
+   indici:
+     pos_terminals_pkey
+       CREATE UNIQUE INDEX pos_terminals_pkey ON public.pos_terminals USING btree (id)
+     pos_terminals_tenant_id_idx
+       CREATE INDEX pos_terminals_tenant_id_idx ON public.pos_terminals USING btree (tenant_id)
+     pos_terminals_tenant_id_terminal_id_key
+       CREATE UNIQUE INDEX pos_terminals_tenant_id_terminal_id_key ON public.pos_terminals USING btree (tenant_id, terminal_id)
+
+── product_images  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     product_id                         uuid                           NOT NULL
+     url                                text                           NOT NULL
+     storage_path                       text                           null
+     alt_text                           text                           null
+     sort_order                         integer                        NOT NULL  default 0
+     shopify_image_id                   text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] product_images_product_id_fkey
+       FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] product_images_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] product_images_pkey
+       PRIMARY KEY (id)
+   indici:
+     product_images_pkey
+       CREATE UNIQUE INDEX product_images_pkey ON public.product_images USING btree (id)
+     product_images_product_id_sort_order_idx
+       CREATE INDEX product_images_product_id_sort_order_idx ON public.product_images USING btree (product_id, sort_order)
+     product_images_tenant_id_idx
+       CREATE INDEX product_images_tenant_id_idx ON public.product_images USING btree (tenant_id)
+
+── product_variants  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     product_id                         uuid                           NOT NULL
+     sku                                text                           null
+     option_values                      jsonb                          NOT NULL  default '[]'::jsonb
+     barcode                            text                           null
+     currency                           text                           NOT NULL  default 'EUR'::text
+     selling_price_minor                numeric(16,6)                  NOT NULL
+     purchase_price_minor               numeric(16,6)                  NOT NULL  default 0
+     shopify_variant_id                 text                           null
+     shopify_inventory_item_id          text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     tiktok_sku_id                      text                           null
+     shopify_price_minor                numeric(16,6)                  NOT NULL  default 0
+     lifecycle_status                   "VariantLifecycleStatus"       NOT NULL  default 'active'::"VariantLifecycleStatus"
+     deleted_at                         timestamp(3) without time zone null
+     deleted_by_id                      uuid                           null
+     deletion_reason                    text                           null
+   vincoli:
+     [CHIAVE ESTERNA] product_variants_product_id_fkey
+       FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] product_variants_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] product_variants_pkey
+       PRIMARY KEY (id)
+   indici:
+     product_variants_pkey
+       CREATE UNIQUE INDEX product_variants_pkey ON public.product_variants USING btree (id)
+     product_variants_product_id_idx
+       CREATE INDEX product_variants_product_id_idx ON public.product_variants USING btree (product_id)
+     product_variants_tenant_id_barcode_key
+       CREATE UNIQUE INDEX product_variants_tenant_id_barcode_key ON public.product_variants USING btree (tenant_id, barcode)
+     product_variants_tenant_id_deleted_at_idx
+       CREATE INDEX product_variants_tenant_id_deleted_at_idx ON public.product_variants USING btree (tenant_id, deleted_at)
+     product_variants_tenant_id_idx
+       CREATE INDEX product_variants_tenant_id_idx ON public.product_variants USING btree (tenant_id)
+     product_variants_tenant_id_lifecycle_status_idx
+       CREATE INDEX product_variants_tenant_id_lifecycle_status_idx ON public.product_variants USING btree (tenant_id, lifecycle_status)
+     product_variants_tenant_id_shopify_inventory_item_id_idx
+       CREATE INDEX product_variants_tenant_id_shopify_inventory_item_id_idx ON public.product_variants USING btree (tenant_id, shopify_inventory_item_id)
+     product_variants_tenant_id_shopify_variant_id_idx
+       CREATE INDEX product_variants_tenant_id_shopify_variant_id_idx ON public.product_variants USING btree (tenant_id, shopify_variant_id)
+     product_variants_tenant_id_sku_key
+       CREATE UNIQUE INDEX product_variants_tenant_id_sku_key ON public.product_variants USING btree (tenant_id, sku)
+     product_variants_tenant_id_tiktok_sku_id_idx
+       CREATE INDEX product_variants_tenant_id_tiktok_sku_id_idx ON public.product_variants USING btree (tenant_id, tiktok_sku_id)
+
+── products  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     name                               text                           NOT NULL
+     description                        text                           null
+     brand                              text                           null
+     category                           text                           null
+     season                             text                           null
+     status                             "ProductStatus"                NOT NULL  default 'draft'::"ProductStatus"
+     options                            jsonb                          NOT NULL  default '[]'::jsonb
+     shopify_product_id                 text                           null
+     shopify_sync_status                "ShopifySyncStatus"            NOT NULL  default 'not_connected'::"ShopifySyncStatus"
+     shopify_last_sync_at               timestamp(3) without time zone null
+     shopify_last_error                 text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     tags                               text[]                         NOT NULL  default ARRAY[]::text[]
+     seo_title                          text                           null
+     seo_description                    text                           null
+     shopify_collections                jsonb                          NOT NULL  default '[]'::jsonb
+     shopify_metafields                 jsonb                          NOT NULL  default '[]'::jsonb
+     shopify_taxonomy_category_id       text                           null
+     shopify_taxonomy_category_full_name text                           null
+     shopify_category_metafields        jsonb                          NOT NULL  default '[]'::jsonb
+     tiktok_category_id                 text                           null
+     tiktok_product_id                  text                           null
+     tiktok_sync_status                 "TikTokSyncStatus"             NOT NULL  default 'not_connected'::"TikTokSyncStatus"
+     tiktok_last_sync_at                timestamp(3) without time zone null
+     tiktok_last_error                  text                           null
+     catalog_origin                     "CatalogOrigin"                NOT NULL  default 'vestiflow'::"CatalogOrigin"
+     shopify_catalog_link_kind          "ShopifyCatalogLinkKind"       null
+     import_handle                      text                           null
+     unit_of_measure                    text                           NOT NULL  default 'pz'::text
+     inventory_tracking                 "InventoryTrackingMode"        NOT NULL  default 'standard'::"InventoryTrackingMode"
+     manages_stock                      boolean                        NOT NULL  default true
+     default_vat_code_id                uuid                           null
+     kind                               "ProductKind"                  NOT NULL  default 'article'::"ProductKind"
+     article_code                       text                           NOT NULL
+     subcategory                        text                           null
+     internal_notes                     text                           null
+     shopify_sync_enabled               boolean                        NOT NULL  default true
+     selling_price_minor                numeric(16,6)                  NOT NULL  default 0
+     compare_at_price_minor             numeric(16,6)                  null
+     purchase_price_minor               numeric(16,6)                  NOT NULL  default 0
+     shopify_price_minor                numeric(16,6)                  NOT NULL  default 0
+     listino1_price_minor               numeric(16,6)                  null
+     listino2_price_minor               numeric(16,6)                  null
+     listino3_price_minor               numeric(16,6)                  null
+     shopify_title                      text                           null
+     deleted_at                         timestamp(3) without time zone null
+     deleted_by_id                      uuid                           null
+     deletion_reason                    text                           null
+   vincoli:
+     [CHIAVE ESTERNA] products_default_vat_code_id_fkey
+       FOREIGN KEY (default_vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] products_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] products_pkey
+       PRIMARY KEY (id)
+   indici:
+     products_pkey
+       CREATE UNIQUE INDEX products_pkey ON public.products USING btree (id)
+     products_tenant_id_article_code_key
+       CREATE UNIQUE INDEX products_tenant_id_article_code_key ON public.products USING btree (tenant_id, article_code)
+     products_tenant_id_deleted_at_idx
+       CREATE INDEX products_tenant_id_deleted_at_idx ON public.products USING btree (tenant_id, deleted_at)
+     products_tenant_id_import_handle_idx
+       CREATE INDEX products_tenant_id_import_handle_idx ON public.products USING btree (tenant_id, import_handle)
+     products_tenant_id_name_idx
+       CREATE INDEX products_tenant_id_name_idx ON public.products USING btree (tenant_id, name)
+     products_tenant_id_shopify_product_id_idx
+       CREATE INDEX products_tenant_id_shopify_product_id_idx ON public.products USING btree (tenant_id, shopify_product_id)
+     products_tenant_id_status_idx
+       CREATE INDEX products_tenant_id_status_idx ON public.products USING btree (tenant_id, status)
+     products_tenant_id_tiktok_product_id_idx
+       CREATE INDEX products_tenant_id_tiktok_product_id_idx ON public.products USING btree (tenant_id, tiktok_product_id)
+
+── purchase_invoice_goods_receipt_links  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     purchase_invoice_id                uuid                           NOT NULL
+     goods_receipt_id                   uuid                           NOT NULL
+     linked_net_minor                   integer                        NOT NULL  default 0
+     linked_vat_minor                   integer                        NOT NULL  default 0
+     linked_gross_minor                 integer                        NOT NULL  default 0
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     totals_check_pending               boolean                        NOT NULL  default false
+   vincoli:
+     [CHIAVE ESTERNA] purchase_invoice_goods_receipt_links_goods_receipt_id_fkey
+       FOREIGN KEY (goods_receipt_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] purchase_invoice_goods_receipt_links_purchase_invoice_id_fkey
+       FOREIGN KEY (purchase_invoice_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] purchase_invoice_goods_receipt_links_pkey
+       PRIMARY KEY (id)
+   indici:
+     purchase_invoice_goods_receipt_links_pkey
+       CREATE UNIQUE INDEX purchase_invoice_goods_receipt_links_pkey ON public.purchase_invoice_goods_receipt_links USING btree (id)
+     purchase_invoice_goods_receipt_links_purchase_invoice_id_go_key
+       CREATE UNIQUE INDEX purchase_invoice_goods_receipt_links_purchase_invoice_id_go_key ON public.purchase_invoice_goods_receipt_links USING btree (purchase_invoice_id, goods_receipt_id)
+     purchase_invoice_goods_receipt_links_tenant_id_goods_receip_idx
+       CREATE INDEX purchase_invoice_goods_receipt_links_tenant_id_goods_receip_idx ON public.purchase_invoice_goods_receipt_links USING btree (tenant_id, goods_receipt_id)
+     purchase_invoice_goods_receipt_links_tenant_id_purchase_inv_idx
+       CREATE INDEX purchase_invoice_goods_receipt_links_tenant_id_purchase_inv_idx ON public.purchase_invoice_goods_receipt_links USING btree (tenant_id, purchase_invoice_id)
+
+── sales_order_lines  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     order_id                           uuid                           NOT NULL
+     variant_id                         uuid                           null
+     sku                                text                           NOT NULL
+     title                              text                           NOT NULL
+     quantity                           integer                        NOT NULL
+     unit_price_minor                   numeric(16,6)                  NOT NULL
+     total_minor                        integer                        NOT NULL
+     external_line_id                   text                           null
+     line_number                        integer                        NOT NULL  default 0
+     barcode                            text                           null
+     unit_of_measure                    text                           null
+     discount                           text                           null
+     vat_code_id                        uuid                           null
+     vat_snapshot                       jsonb                          null
+     line_vat_total_minor               integer                        NOT NULL  default 0
+     commits_stock                      boolean                        NOT NULL  default true
+     is_reference                       boolean                        NOT NULL  default false
+     variant_label                      text                           NOT NULL  default ''::text
+   vincoli:
+     [CHIAVE ESTERNA] sales_order_lines_order_id_fkey
+       FOREIGN KEY (order_id) REFERENCES sales_orders(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] sales_order_lines_vat_code_id_fkey
+       FOREIGN KEY (vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE PRIMARIA] sales_order_lines_pkey
+       PRIMARY KEY (id)
+   indici:
+     sales_order_lines_order_id_external_line_id_key
+       CREATE UNIQUE INDEX sales_order_lines_order_id_external_line_id_key ON public.sales_order_lines USING btree (order_id, external_line_id)
+     sales_order_lines_order_id_idx
+       CREATE INDEX sales_order_lines_order_id_idx ON public.sales_order_lines USING btree (order_id)
+     sales_order_lines_pkey
+       CREATE UNIQUE INDEX sales_order_lines_pkey ON public.sales_order_lines USING btree (id)
+
+── sales_order_refund_tax_lines  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     refund_id                          uuid                           NOT NULL
+     rate_percent                       numeric(7,4)                   null
+     taxable_minor                      integer                        NOT NULL  default 0
+     tax_minor                          integer                        NOT NULL  default 0
+   vincoli:
+     [CHIAVE ESTERNA] sales_order_refund_tax_lines_refund_id_fkey
+       FOREIGN KEY (refund_id) REFERENCES sales_order_refunds(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] sales_order_refund_tax_lines_pkey
+       PRIMARY KEY (id)
+   indici:
+     sales_order_refund_tax_lines_pkey
+       CREATE UNIQUE INDEX sales_order_refund_tax_lines_pkey ON public.sales_order_refund_tax_lines USING btree (id)
+     sales_order_refund_tax_lines_refund_idx
+       CREATE INDEX sales_order_refund_tax_lines_refund_idx ON public.sales_order_refund_tax_lines USING btree (refund_id)
+
+── sales_order_refunds  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     sales_order_id                     uuid                           NOT NULL
+     external_refund_id                 text                           NOT NULL
+     occurred_at                        timestamp with time zone       NOT NULL
+     currency                           text                           NOT NULL  default 'EUR'::text
+     subtotal_minor                     integer                        NOT NULL  default 0
+     tax_minor                          integer                        NOT NULL  default 0
+     shipping_minor                     integer                        NOT NULL  default 0
+     total_minor                        integer                        NOT NULL  default 0
+     note                               text                           null
+     created_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+     kind                               "SalesOrderRefundKind"         NOT NULL  default 'refund_only'::"SalesOrderRefundKind"
+     adjustment_minor                   integer                        NOT NULL  default 0
+   vincoli:
+     [CHIAVE ESTERNA] sales_order_refunds_sales_order_id_fkey
+       FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] sales_order_refunds_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] sales_order_refunds_pkey
+       PRIMARY KEY (id)
+   indici:
+     sales_order_refunds_order_idx
+       CREATE INDEX sales_order_refunds_order_idx ON public.sales_order_refunds USING btree (sales_order_id)
+     sales_order_refunds_pkey
+       CREATE UNIQUE INDEX sales_order_refunds_pkey ON public.sales_order_refunds USING btree (id)
+     sales_order_refunds_tenant_external_key
+       CREATE UNIQUE INDEX sales_order_refunds_tenant_external_key ON public.sales_order_refunds USING btree (tenant_id, external_refund_id)
+     sales_order_refunds_tenant_kind_occurred_idx
+       CREATE INDEX sales_order_refunds_tenant_kind_occurred_idx ON public.sales_order_refunds USING btree (tenant_id, kind, occurred_at DESC)
+     sales_order_refunds_tenant_occurred_idx
+       CREATE INDEX sales_order_refunds_tenant_occurred_idx ON public.sales_order_refunds USING btree (tenant_id, occurred_at DESC)
+
+── sales_orders  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     order_number                       text                           NOT NULL
+     source                             "SalesOrderSource"             NOT NULL  default 'manual'::"SalesOrderSource"
+     financial_status                   "SalesOrderFinancialStatus"    NOT NULL  default 'pending'::"SalesOrderFinancialStatus"
+     fulfillment_status                 "SalesOrderFulfillmentStatus"  NOT NULL  default 'unfulfilled'::"SalesOrderFulfillmentStatus"
+     customer_id                        uuid                           null
+     customer_name                      text                           NOT NULL
+     currency                           text                           NOT NULL  default 'EUR'::text
+     subtotal_minor                     integer                        NOT NULL  default 0
+     total_minor                        integer                        NOT NULL  default 0
+     placed_at                          timestamp(3) without time zone NOT NULL
+     shopify_order_id                   text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     tax_minor                          integer                        NOT NULL  default 0
+     shipping_minor                     integer                        NOT NULL  default 0
+     discount_minor                     integer                        NOT NULL  default 0
+     document_id                        uuid                           null
+     cancelled_at                       timestamp(3) without time zone null
+     fulfilled_at                       timestamp(3) without time zone null
+     external_fulfillment_id            text                           null
+     requires_review                    boolean                        NOT NULL  default false
+     review_reason                      text                           null
+     location_id                        uuid                           null
+     external_ref                       text                           null
+     expected_delivery_date             date                           null
+     notes                              text                           null
+     payment_terms                      text                           null
+     document_discount_percent          numeric(7,4)                   NOT NULL  default 0
+     series                             text                           null
+     number                             integer                        null
+     channel_missing_since              timestamp(3) without time zone null
+     external_doc_number                text                           null
+     external_doc_date                  date                           null
+     external_document_type_id          uuid                           null
+     external_document_type_snapshot    text                           null
+     prices_include_vat                 boolean                        NOT NULL  default false
+     internal_comment                   text                           null
+     commercial_state                   "OrderCommercialState"         null
+   vincoli:
+     [CHIAVE ESTERNA] sales_orders_customer_id_fkey
+       FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] sales_orders_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] sales_orders_external_document_type_id_fkey
+       FOREIGN KEY (external_document_type_id) REFERENCES external_document_types(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] sales_orders_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] sales_orders_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] sales_orders_pkey
+       PRIMARY KEY (id)
+   indici:
+     sales_orders_document_id_idx
+       CREATE INDEX sales_orders_document_id_idx ON public.sales_orders USING btree (document_id)
+     sales_orders_includable_idx
+       CREATE INDEX sales_orders_includable_idx ON public.sales_orders USING btree (tenant_id, commercial_state) WHERE ((source = 'manual'::"SalesOrderSource") AND (document_id IS NULL))
+     sales_orders_number_unique
+       CREATE UNIQUE INDEX sales_orders_number_unique ON public.sales_orders USING btree (tenant_id, series, number) NULLS NOT DISTINCT WHERE ((source = 'manual'::"SalesOrderSource") AND (number IS NOT NULL))
+     sales_orders_numbering_date_idx
+       CREATE INDEX sales_orders_numbering_date_idx ON public.sales_orders USING btree (tenant_id, source, series, placed_at, number) WHERE (number IS NOT NULL)
+     sales_orders_pkey
+       CREATE UNIQUE INDEX sales_orders_pkey ON public.sales_orders USING btree (id)
+     sales_orders_tenant_id_external_doc_number_idx
+       CREATE INDEX sales_orders_tenant_id_external_doc_number_idx ON public.sales_orders USING btree (tenant_id, external_doc_number)
+     sales_orders_tenant_id_placed_at_idx
+       CREATE INDEX sales_orders_tenant_id_placed_at_idx ON public.sales_orders USING btree (tenant_id, placed_at DESC)
+     sales_orders_tenant_id_shopify_order_id_key
+       CREATE UNIQUE INDEX sales_orders_tenant_id_shopify_order_id_key ON public.sales_orders USING btree (tenant_id, shopify_order_id)
+
+── shopify_connections  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     status                             "ShopifyConnectionStatus"      NOT NULL  default 'not_connected'::"ShopifyConnectionStatus"
+     shop_domain                        text                           null
+     display_name                       text                           null
+     api_version                        text                           null
+     scopes                             text[]                         null  default ARRAY[]::text[]
+     last_connected_at                  timestamp(3) without time zone null
+     last_sync_at                       timestamp(3) without time zone null
+     last_error_message                 text                           null
+     last_error_code                    text                           null
+     last_error_at                      timestamp(3) without time zone null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     webhooks_activated_at              timestamp(3) without time zone null
+     webhooks_active_count              integer                        null
+     auto_sync_enabled                  boolean                        NOT NULL  default false
+     last_webhook_event_at              timestamp(3) without time zone null
+     webhook_address                    text                           null
+     webhook_topics                     text[]                         null  default ARRAY[]::text[]
+     webhooks_checked_at                timestamp(3) without time zone null
+   vincoli:
+     [CHIAVE ESTERNA] shopify_connections_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] shopify_connections_pkey
+       PRIMARY KEY (id)
+   indici:
+     shopify_connections_pkey
+       CREATE UNIQUE INDEX shopify_connections_pkey ON public.shopify_connections USING btree (id)
+     shopify_connections_tenant_id_key
+       CREATE UNIQUE INDEX shopify_connections_tenant_id_key ON public.shopify_connections USING btree (tenant_id)
+
+── shopify_credentials  [RLS abilitata]
+     tenant_id                          uuid                           NOT NULL
+     shop_domain                        text                           NOT NULL
+     access_token_enc                   text                           NOT NULL
+     scopes                             text[]                         null  default ARRAY[]::text[]
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] shopify_credentials_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] shopify_credentials_pkey
+       PRIMARY KEY (tenant_id)
+   indici:
+     shopify_credentials_pkey
+       CREATE UNIQUE INDEX shopify_credentials_pkey ON public.shopify_credentials USING btree (tenant_id)
+
+── shopify_inventory_sync_states  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     last_pushed_available              integer                        null
+     last_pushed_at                     timestamp with time zone       null
+     last_observed_shopify_available    integer                        null
+     last_observed_at                   timestamp with time zone       null
+     mismatch_detected                  boolean                        NOT NULL  default false
+     mismatch_note                      text                           null
+     created_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE PRIMARIA] shopify_inventory_sync_states_pkey
+       PRIMARY KEY (id)
+   indici:
+     shopify_inventory_sync_states_pkey
+       CREATE UNIQUE INDEX shopify_inventory_sync_states_pkey ON public.shopify_inventory_sync_states USING btree (id)
+     shopify_inventory_sync_states_tenant_mismatch_idx
+       CREATE INDEX shopify_inventory_sync_states_tenant_mismatch_idx ON public.shopify_inventory_sync_states USING btree (tenant_id, mismatch_detected)
+     shopify_inventory_sync_states_tenant_variant_location_key
+       CREATE UNIQUE INDEX shopify_inventory_sync_states_tenant_variant_location_key ON public.shopify_inventory_sync_states USING btree (tenant_id, variant_id, location_id)
+
+── shopify_oauth_states  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     state                              text                           NOT NULL
+     shop_domain                        text                           NOT NULL
+     expires_at                         timestamp(3) without time zone NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] shopify_oauth_states_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] shopify_oauth_states_pkey
+       PRIMARY KEY (id)
+   indici:
+     shopify_oauth_states_expires_at_idx
+       CREATE INDEX shopify_oauth_states_expires_at_idx ON public.shopify_oauth_states USING btree (expires_at)
+     shopify_oauth_states_pkey
+       CREATE UNIQUE INDEX shopify_oauth_states_pkey ON public.shopify_oauth_states USING btree (id)
+     shopify_oauth_states_state_key
+       CREATE UNIQUE INDEX shopify_oauth_states_state_key ON public.shopify_oauth_states USING btree (state)
+
+── stock_movements  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     type                               "StockMovementType"            NOT NULL
+     origin                             "MovementOrigin"               NOT NULL  default 'manual'::"MovementOrigin"
+     variant_id                         uuid                           NOT NULL
+     sku                                text                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     target_location_id                 uuid                           null
+     quantity                           integer                        NOT NULL
+     direction                          "AdjustmentDirection"          null
+     reason                             text                           null
+     external_ref                       text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     created_by_id                      uuid                           null
+     created_by_name                    text                           NOT NULL
+     source_document_type               "DocumentType"                 null
+     source_document_id                 uuid                           null
+     source_line_id                     uuid                           null
+     unit_cost_minor                    numeric(16,6)                  NOT NULL  default 0
+     total_cost_minor                   integer                        NOT NULL  default 0
+     party_id                           uuid                           null
+     party_name                         text                           null
+   vincoli:
+     [CHIAVE ESTERNA] stock_movements_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] stock_movements_target_location_id_fkey
+       FOREIGN KEY (target_location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] stock_movements_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] stock_movements_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] stock_movements_pkey
+       PRIMARY KEY (id)
+   indici:
+     stock_movements_location_id_idx
+       CREATE INDEX stock_movements_location_id_idx ON public.stock_movements USING btree (location_id)
+     stock_movements_pkey
+       CREATE UNIQUE INDEX stock_movements_pkey ON public.stock_movements USING btree (id)
+     stock_movements_source_document_id_idx
+       CREATE INDEX stock_movements_source_document_id_idx ON public.stock_movements USING btree (source_document_id)
+     stock_movements_source_document_type_source_line_id_key
+       CREATE UNIQUE INDEX stock_movements_source_document_type_source_line_id_key ON public.stock_movements USING btree (source_document_type, source_line_id)
+     stock_movements_tenant_id_created_at_idx
+       CREATE INDEX stock_movements_tenant_id_created_at_idx ON public.stock_movements USING btree (tenant_id, created_at DESC)
+     stock_movements_tenant_id_location_id_created_at_idx
+       CREATE INDEX stock_movements_tenant_id_location_id_created_at_idx ON public.stock_movements USING btree (tenant_id, location_id, created_at DESC)
+     stock_movements_variant_id_idx
+       CREATE INDEX stock_movements_variant_id_idx ON public.stock_movements USING btree (variant_id)
+
+── stock_reservation_events  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     reservation_id                     uuid                           NOT NULL
+     type                               "ReservationEventType"         NOT NULL
+     quantity_delta                     integer                        NOT NULL
+     remaining_after                    integer                        NOT NULL
+     note                               text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] stock_reservation_events_reservation_id_fkey
+       FOREIGN KEY (reservation_id) REFERENCES stock_reservations(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] stock_reservation_events_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] stock_reservation_events_pkey
+       PRIMARY KEY (id)
+   indici:
+     stock_reservation_events_pkey
+       CREATE UNIQUE INDEX stock_reservation_events_pkey ON public.stock_reservation_events USING btree (id)
+     stock_reservation_events_reservation_id_idx
+       CREATE INDEX stock_reservation_events_reservation_id_idx ON public.stock_reservation_events USING btree (reservation_id)
+     stock_reservation_events_tenant_id_created_at_idx
+       CREATE INDEX stock_reservation_events_tenant_id_created_at_idx ON public.stock_reservation_events USING btree (tenant_id, created_at DESC)
+
+── stock_reservations  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     channel                            "SalesOrderSource"             NOT NULL
+     sales_order_id                     uuid                           NOT NULL
+     sales_order_line_id                uuid                           null
+     sku                                text                           NOT NULL
+     quantity                           integer                        NOT NULL
+     remaining_quantity                 integer                        NOT NULL
+     status                             "ReservationStatus"            NOT NULL  default 'active'::"ReservationStatus"
+     external_order_ref                 text                           null
+     external_line_ref                  text                           null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] stock_reservations_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] stock_reservations_sales_order_id_fkey
+       FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] stock_reservations_sales_order_line_id_fkey
+       FOREIGN KEY (sales_order_line_id) REFERENCES sales_order_lines(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] stock_reservations_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] stock_reservations_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] stock_reservations_pkey
+       PRIMARY KEY (id)
+   indici:
+     stock_reservations_location_id_idx
+       CREATE INDEX stock_reservations_location_id_idx ON public.stock_reservations USING btree (location_id)
+     stock_reservations_pkey
+       CREATE UNIQUE INDEX stock_reservations_pkey ON public.stock_reservations USING btree (id)
+     stock_reservations_sales_order_line_id_key
+       CREATE UNIQUE INDEX stock_reservations_sales_order_line_id_key ON public.stock_reservations USING btree (sales_order_line_id)
+     stock_reservations_tenant_id_sales_order_id_idx
+       CREATE INDEX stock_reservations_tenant_id_sales_order_id_idx ON public.stock_reservations USING btree (tenant_id, sales_order_id)
+     stock_reservations_tenant_id_variant_id_location_id_status_idx
+       CREATE INDEX stock_reservations_tenant_id_variant_id_location_id_status_idx ON public.stock_reservations USING btree (tenant_id, variant_id, location_id, status)
+     stock_reservations_variant_id_idx
+       CREATE INDEX stock_reservations_variant_id_idx ON public.stock_reservations USING btree (variant_id)
+
+── store_sale_payments  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     document_id                        uuid                           NOT NULL
+     position                           integer                        NOT NULL  default 1
+     method                             text                           NOT NULL
+     method_note                        text                           null
+     amount_minor                       integer                        NOT NULL
+     tendered_minor                     integer                        null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] store_sale_payments_document_id_fkey
+       FOREIGN KEY (document_id) REFERENCES documents(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] store_sale_payments_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] store_sale_payments_pkey
+       PRIMARY KEY (id)
+   indici:
+     store_sale_payments_document_id_idx
+       CREATE INDEX store_sale_payments_document_id_idx ON public.store_sale_payments USING btree (document_id)
+     store_sale_payments_pkey
+       CREATE UNIQUE INDEX store_sale_payments_pkey ON public.store_sale_payments USING btree (id)
+     store_sale_payments_tenant_id_idx
+       CREATE INDEX store_sale_payments_tenant_id_idx ON public.store_sale_payments USING btree (tenant_id)
+
+── stores  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     name                               text                           NOT NULL
+     code                               text                           null
+     is_active                          boolean                        NOT NULL  default true
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] stores_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] stores_pkey
+       PRIMARY KEY (id)
+   indici:
+     stores_pkey
+       CREATE UNIQUE INDEX stores_pkey ON public.stores USING btree (id)
+     stores_tenant_id_idx
+       CREATE INDEX stores_tenant_id_idx ON public.stores USING btree (tenant_id)
+
+── supplier_attachments  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     supplier_id                        uuid                           NOT NULL
+     file_name                          text                           NOT NULL
+     mime_type                          text                           NOT NULL
+     storage_path                       text                           NOT NULL
+     size_bytes                         integer                        NOT NULL
+     created_by_name                    text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] supplier_attachments_supplier_id_fkey
+       FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] supplier_attachments_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] supplier_attachments_pkey
+       PRIMARY KEY (id)
+   indici:
+     supplier_attachments_pkey
+       CREATE UNIQUE INDEX supplier_attachments_pkey ON public.supplier_attachments USING btree (id)
+     supplier_attachments_supplier_id_idx
+       CREATE INDEX supplier_attachments_supplier_id_idx ON public.supplier_attachments USING btree (supplier_id)
+     supplier_attachments_tenant_id_idx
+       CREATE INDEX supplier_attachments_tenant_id_idx ON public.supplier_attachments USING btree (tenant_id)
+
+── supplier_order_lines  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     order_id                           uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     sku                                text                           NOT NULL
+     ordered_quantity                   integer                        NOT NULL
+     received_quantity                  integer                        NOT NULL  default 0
+     unit_cost_minor                    numeric(16,6)                  NOT NULL
+     description                        text                           NOT NULL  default ''::text
+     entered_unit_cost_minor            numeric(16,6)                  null
+     discount_percent                   numeric(7,4)                   NOT NULL  default 0
+     vat_code_id                        uuid                           null
+     vat_snapshot                       jsonb                          null
+     line_total_minor                   integer                        NOT NULL  default 0
+     line_number                        integer                        NOT NULL  default 0
+     unit_of_measure                    text                           null
+     variant_label                      text                           NOT NULL  default ''::text
+   vincoli:
+     [CHIAVE ESTERNA] supplier_order_lines_order_id_fkey
+       FOREIGN KEY (order_id) REFERENCES supplier_orders(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] supplier_order_lines_vat_code_id_fkey
+       FOREIGN KEY (vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE PRIMARIA] supplier_order_lines_pkey
+       PRIMARY KEY (id)
+   indici:
+     supplier_order_lines_order_id_idx
+       CREATE INDEX supplier_order_lines_order_id_idx ON public.supplier_order_lines USING btree (order_id)
+     supplier_order_lines_order_id_line_number_idx
+       CREATE INDEX supplier_order_lines_order_id_line_number_idx ON public.supplier_order_lines USING btree (order_id, line_number)
+     supplier_order_lines_pkey
+       CREATE UNIQUE INDEX supplier_order_lines_pkey ON public.supplier_order_lines USING btree (id)
+
+── supplier_orders  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     reference                          text                           NOT NULL
+     supplier_id                        uuid                           null
+     supplier_name                      text                           NOT NULL
+     destination_location_id            uuid                           null
+     status                             "SupplierOrderStatus"          NOT NULL  default 'confirmed'::"SupplierOrderStatus"
+     currency                           text                           NOT NULL  default 'EUR'::text
+     total_minor                        integer                        NOT NULL  default 0
+     expected_at                        timestamp(3) without time zone null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     order_date                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     supplier_reference                 text                           null
+     cost_entry_mode                    "PurchaseCostEntryMode"        NOT NULL  default 'vat_excluded'::"PurchaseCostEntryMode"
+     subtotal_minor                     integer                        NOT NULL  default 0
+     tax_minor                          integer                        NOT NULL  default 0
+     series                             text                           null
+     number                             integer                        null
+     external_doc_number                text                           null
+     external_doc_date                  date                           null
+     external_document_type_id          uuid                           null
+     external_document_type_snapshot    text                           null
+     document_discount_percent          numeric(7,4)                   NOT NULL  default 0
+   vincoli:
+     [CHIAVE ESTERNA] supplier_orders_destination_location_id_fkey
+       FOREIGN KEY (destination_location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] supplier_orders_external_document_type_id_fkey
+       FOREIGN KEY (external_document_type_id) REFERENCES external_document_types(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] supplier_orders_supplier_id_fkey
+       FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] supplier_orders_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] supplier_orders_pkey
+       PRIMARY KEY (id)
+   indici:
+     supplier_orders_number_unique
+       CREATE UNIQUE INDEX supplier_orders_number_unique ON public.supplier_orders USING btree (tenant_id, series, number) NULLS NOT DISTINCT WHERE (number IS NOT NULL)
+     supplier_orders_numbering_date_idx
+       CREATE INDEX supplier_orders_numbering_date_idx ON public.supplier_orders USING btree (tenant_id, series, order_date, number) WHERE (number IS NOT NULL)
+     supplier_orders_pkey
+       CREATE UNIQUE INDEX supplier_orders_pkey ON public.supplier_orders USING btree (id)
+     supplier_orders_tenant_id_external_doc_number_idx
+       CREATE INDEX supplier_orders_tenant_id_external_doc_number_idx ON public.supplier_orders USING btree (tenant_id, external_doc_number)
+     supplier_orders_tenant_id_reference_key
+       CREATE UNIQUE INDEX supplier_orders_tenant_id_reference_key ON public.supplier_orders USING btree (tenant_id, reference)
+     supplier_orders_tenant_id_status_idx
+       CREATE INDEX supplier_orders_tenant_id_status_idx ON public.supplier_orders USING btree (tenant_id, status)
+
+── supplier_variant_links  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     supplier_id                        uuid                           NOT NULL
+     variant_id                         uuid                           NOT NULL
+     supplier_sku                       text                           null
+     is_preferred                       boolean                        NOT NULL  default false
+     last_purchase_price_minor          numeric(16,6)                  NOT NULL  default 0
+     min_order_quantity                 integer                        null
+     currency                           text                           NOT NULL  default 'EUR'::text
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] supplier_variant_links_supplier_id_fkey
+       FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] supplier_variant_links_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] supplier_variant_links_variant_id_fkey
+       FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] supplier_variant_links_pkey
+       PRIMARY KEY (id)
+   indici:
+     supplier_variant_links_pkey
+       CREATE UNIQUE INDEX supplier_variant_links_pkey ON public.supplier_variant_links USING btree (id)
+     supplier_variant_links_tenant_id_supplier_id_idx
+       CREATE INDEX supplier_variant_links_tenant_id_supplier_id_idx ON public.supplier_variant_links USING btree (tenant_id, supplier_id)
+     supplier_variant_links_tenant_id_supplier_id_variant_id_key
+       CREATE UNIQUE INDEX supplier_variant_links_tenant_id_supplier_id_variant_id_key ON public.supplier_variant_links USING btree (tenant_id, supplier_id, variant_id)
+     supplier_variant_links_tenant_id_variant_id_idx
+       CREATE INDEX supplier_variant_links_tenant_id_variant_id_idx ON public.supplier_variant_links USING btree (tenant_id, variant_id)
+
+── suppliers  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     code                               text                           null
+     payment_terms                      text                           null
+     supplier_discount                  text                           null
+     transport_responsible              text                           null
+     freight_terms                      text                           null
+     document_creation_alert            text                           null
+     default_vat_code_id                uuid                           null
+     party_id                           uuid                           NOT NULL
+     is_active                          boolean                        NOT NULL  default true
+     payment_method                     text                           null
+     document_creation_note             text                           null
+     our_bank_name                      text                           null
+   vincoli:
+     [CHIAVE ESTERNA] suppliers_default_vat_code_id_fkey
+       FOREIGN KEY (default_vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] suppliers_party_id_fkey
+       FOREIGN KEY (party_id) REFERENCES parties(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] suppliers_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] suppliers_pkey
+       PRIMARY KEY (id)
+   indici:
+     suppliers_party_id_key
+       CREATE UNIQUE INDEX suppliers_party_id_key ON public.suppliers USING btree (party_id)
+     suppliers_pkey
+       CREATE UNIQUE INDEX suppliers_pkey ON public.suppliers USING btree (id)
+     suppliers_tenant_id_code_key
+       CREATE UNIQUE INDEX suppliers_tenant_id_code_key ON public.suppliers USING btree (tenant_id, code)
+     suppliers_tenant_id_idx
+       CREATE INDEX suppliers_tenant_id_idx ON public.suppliers USING btree (tenant_id)
+
+── support_sessions  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     operator_user_id                   uuid                           NOT NULL
+     target_tenant_id                   uuid                           NOT NULL
+     expires_at                         timestamp(3) without time zone NOT NULL
+     ended_at                           timestamp(3) without time zone null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] support_sessions_operator_user_id_fkey
+       FOREIGN KEY (operator_user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] support_sessions_target_tenant_id_fkey
+       FOREIGN KEY (target_tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] support_sessions_pkey
+       PRIMARY KEY (id)
+   indici:
+     support_sessions_operator_user_id_ended_at_idx
+       CREATE INDEX support_sessions_operator_user_id_ended_at_idx ON public.support_sessions USING btree (operator_user_id, ended_at)
+     support_sessions_pkey
+       CREATE UNIQUE INDEX support_sessions_pkey ON public.support_sessions USING btree (id)
+     support_sessions_target_tenant_id_idx
+       CREATE INDEX support_sessions_target_tenant_id_idx ON public.support_sessions USING btree (target_tenant_id)
+
+── tenant_feature_settings  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     lots_enabled                       boolean                        NOT NULL  default false
+     serials_enabled                    boolean                        NOT NULL  default false
+     variants_enabled                   boolean                        NOT NULL  default true
+     barcode_scanner_enabled            boolean                        NOT NULL  default true
+     supplier_orders_enabled            boolean                        NOT NULL  default true
+     goods_receipt_enabled              boolean                        NOT NULL  default true
+     warehouse_valuation_enabled        boolean                        NOT NULL  default true
+     allow_negative_inventory           boolean                        NOT NULL  default false
+     warn_negative_inventory            boolean                        NOT NULL  default true
+     block_negative_inventory           boolean                        NOT NULL  default false
+     default_unit_of_measure            text                           NOT NULL  default 'pz'::text
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     default_vat_code_id                uuid                           null
+     listino1_name                      text                           null
+     listino1_active                    boolean                        NOT NULL  default true
+     listino2_name                      text                           null
+     listino2_active                    boolean                        NOT NULL  default false
+     listino3_name                      text                           null
+     listino3_active                    boolean                        NOT NULL  default false
+     sales_prices_include_vat           boolean                        NOT NULL  default true
+     manual_unload_enabled              boolean                        NOT NULL  default false
+   vincoli:
+     [CHIAVE ESTERNA] tenant_feature_settings_default_vat_code_id_fkey
+       FOREIGN KEY (default_vat_code_id) REFERENCES vat_codes(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] tenant_feature_settings_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] tenant_feature_settings_pkey
+       PRIMARY KEY (id)
+   indici:
+     tenant_feature_settings_pkey
+       CREATE UNIQUE INDEX tenant_feature_settings_pkey ON public.tenant_feature_settings USING btree (id)
+     tenant_feature_settings_tenant_id_key
+       CREATE UNIQUE INDEX tenant_feature_settings_tenant_id_key ON public.tenant_feature_settings USING btree (tenant_id)
+
+── tenant_user_audit_logs  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     actor_user_id                      uuid                           null
+     actor_email                        text                           NOT NULL
+     actor_name                         text                           NOT NULL
+     actor_is_platform_admin            boolean                        NOT NULL  default false
+     target_user_id                     uuid                           null
+     target_email                       text                           NOT NULL
+     action                             "TenantUserAuditAction"        NOT NULL
+     details                            jsonb                          NOT NULL  default '{}'::jsonb
+     created_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] tenant_user_audit_logs_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] tenant_user_audit_logs_pkey
+       PRIMARY KEY (id)
+   indici:
+     tenant_user_audit_logs_pkey
+       CREATE UNIQUE INDEX tenant_user_audit_logs_pkey ON public.tenant_user_audit_logs USING btree (id)
+     tenant_user_audit_logs_tenant_created_idx
+       CREATE INDEX tenant_user_audit_logs_tenant_created_idx ON public.tenant_user_audit_logs USING btree (tenant_id, created_at)
+
+── tenants  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     name                               text                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     legal_name                         text                           null
+     vat_number                         text                           null
+     fiscal_code                        text                           null
+     phone                              text                           null
+     pec                                text                           null
+     sdi_code                           text                           null
+     address_line1                      text                           null
+     address_line2                      text                           null
+     city                               text                           null
+     province                           text                           null
+     postal_code                        text                           null
+     country_code                       text                           null
+     channel_profile                    "TenantChannelProfile"         NOT NULL  default 'shopify'::"TenantChannelProfile"
+     licensed_location_count            integer                        NOT NULL  default 1
+     location_selection_locked          boolean                        NOT NULL  default false
+     location_selection_change_granted  boolean                        NOT NULL  default false
+     iban                               text                           null
+   vincoli:
+     [CHIAVE PRIMARIA] tenants_pkey
+       PRIMARY KEY (id)
+   indici:
+     tenants_pkey
+       CREATE UNIQUE INDEX tenants_pkey ON public.tenants USING btree (id)
+
+── tiktok_connections  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     status                             "TikTokConnectionStatus"       NOT NULL  default 'not_connected'::"TikTokConnectionStatus"
+     shop_id                            text                           null
+     shop_cipher                        text                           null
+     display_name                       text                           null
+     region                             text                           null
+     scopes                             text[]                         null  default ARRAY[]::text[]
+     last_connected_at                  timestamp(3) without time zone null
+     last_sync_at                       timestamp(3) without time zone null
+     last_error_message                 text                           null
+     last_error_code                    text                           null
+     last_error_at                      timestamp(3) without time zone null
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] tiktok_connections_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] tiktok_connections_pkey
+       PRIMARY KEY (id)
+   indici:
+     tiktok_connections_pkey
+       CREATE UNIQUE INDEX tiktok_connections_pkey ON public.tiktok_connections USING btree (id)
+     tiktok_connections_tenant_id_key
+       CREATE UNIQUE INDEX tiktok_connections_tenant_id_key ON public.tiktok_connections USING btree (tenant_id)
+
+── tiktok_credentials  [RLS abilitata]
+     tenant_id                          uuid                           NOT NULL
+     shop_id                            text                           NOT NULL
+     shop_cipher                        text                           NOT NULL
+     access_token_enc                   text                           NOT NULL
+     refresh_token_enc                  text                           NOT NULL
+     access_token_expires_at            timestamp(3) without time zone null
+     refresh_token_expires_at           timestamp(3) without time zone null
+     scopes                             text[]                         null  default ARRAY[]::text[]
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] tiktok_credentials_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] tiktok_credentials_pkey
+       PRIMARY KEY (tenant_id)
+   indici:
+     tiktok_credentials_pkey
+       CREATE UNIQUE INDEX tiktok_credentials_pkey ON public.tiktok_credentials USING btree (tenant_id)
+
+── tiktok_oauth_states  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     state                              text                           NOT NULL
+     expires_at                         timestamp(3) without time zone NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] tiktok_oauth_states_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] tiktok_oauth_states_pkey
+       PRIMARY KEY (id)
+   indici:
+     tiktok_oauth_states_expires_at_idx
+       CREATE INDEX tiktok_oauth_states_expires_at_idx ON public.tiktok_oauth_states USING btree (expires_at)
+     tiktok_oauth_states_pkey
+       CREATE UNIQUE INDEX tiktok_oauth_states_pkey ON public.tiktok_oauth_states USING btree (id)
+     tiktok_oauth_states_state_key
+       CREATE UNIQUE INDEX tiktok_oauth_states_state_key ON public.tiktok_oauth_states USING btree (state)
+
+── unit_of_measure_options  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     name                               text                           NOT NULL
+     sort_order                         integer                        NOT NULL  default 0
+     is_system                          boolean                        NOT NULL  default false
+     is_active                          boolean                        NOT NULL  default true
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     is_default                         boolean                        NOT NULL  default false
+   vincoli:
+     [CHIAVE ESTERNA] unit_of_measure_options_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] unit_of_measure_options_pkey
+       PRIMARY KEY (id)
+   indici:
+     unit_of_measure_options_pkey
+       CREATE UNIQUE INDEX unit_of_measure_options_pkey ON public.unit_of_measure_options USING btree (id)
+     unit_of_measure_options_tenant_default_key
+       CREATE UNIQUE INDEX unit_of_measure_options_tenant_default_key ON public.unit_of_measure_options USING btree (tenant_id) WHERE (is_default = true)
+     unit_of_measure_options_tenant_id_name_key
+       CREATE UNIQUE INDEX unit_of_measure_options_tenant_id_name_key ON public.unit_of_measure_options USING btree (tenant_id, name)
+     unit_of_measure_options_tenant_id_sort_order_idx
+       CREATE INDEX unit_of_measure_options_tenant_id_sort_order_idx ON public.unit_of_measure_options USING btree (tenant_id, sort_order)
+
+── user_document_chronology_warning_preferences  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     user_id                            uuid                           NOT NULL
+     document_type                      "DocumentType"                 NOT NULL
+     dismissed_at                       timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] user_doc_chrono_warn_pref_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] user_doc_chrono_warn_pref_user_id_fkey
+       FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] user_document_chronology_warning_preferences_pkey
+       PRIMARY KEY (id)
+   indici:
+     user_doc_chrono_warn_pref_tenant_user_idx
+       CREATE INDEX user_doc_chrono_warn_pref_tenant_user_idx ON public.user_document_chronology_warning_preferences USING btree (tenant_id, user_id)
+     user_doc_chrono_warn_pref_tenant_user_type_key
+       CREATE UNIQUE INDEX user_doc_chrono_warn_pref_tenant_user_type_key ON public.user_document_chronology_warning_preferences USING btree (tenant_id, user_id, document_type)
+     user_document_chronology_warning_preferences_pkey
+       CREATE UNIQUE INDEX user_document_chronology_warning_preferences_pkey ON public.user_document_chronology_warning_preferences USING btree (id)
+
+── user_document_price_mode_preferences  [RLS abilitata]
+     id                                 uuid                           NOT NULL  default gen_random_uuid()
+     tenant_id                          uuid                           NOT NULL
+     user_id                            uuid                           NOT NULL
+     document_type                      "DocumentType"                 NOT NULL
+     prices_include_vat                 boolean                        NOT NULL
+     updated_at                         timestamp with time zone       NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] user_document_price_mode_preferences_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] user_document_price_mode_preferences_user_id_fkey
+       FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] user_document_price_mode_preferences_pkey
+       PRIMARY KEY (id)
+   indici:
+     user_doc_price_mode_pref_tenant_user_idx
+       CREATE INDEX user_doc_price_mode_pref_tenant_user_idx ON public.user_document_price_mode_preferences USING btree (tenant_id, user_id)
+     user_doc_price_mode_pref_tenant_user_type_key
+       CREATE UNIQUE INDEX user_doc_price_mode_pref_tenant_user_type_key ON public.user_document_price_mode_preferences USING btree (tenant_id, user_id, document_type)
+     user_document_price_mode_preferences_pkey
+       CREATE UNIQUE INDEX user_document_price_mode_preferences_pkey ON public.user_document_price_mode_preferences USING btree (id)
+
+── user_locations  [RLS abilitata]
+     user_id                            uuid                           NOT NULL
+     location_id                        uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+   vincoli:
+     [CHIAVE ESTERNA] user_locations_location_id_fkey
+       FOREIGN KEY (location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] user_locations_user_id_fkey
+       FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] user_locations_pkey
+       PRIMARY KEY (user_id, location_id)
+   indici:
+     user_locations_location_id_idx
+       CREATE INDEX user_locations_location_id_idx ON public.user_locations USING btree (location_id)
+     user_locations_pkey
+       CREATE UNIQUE INDEX user_locations_pkey ON public.user_locations USING btree (user_id, location_id)
+     user_locations_tenant_id_idx
+       CREATE INDEX user_locations_tenant_id_idx ON public.user_locations USING btree (tenant_id)
+
+── user_stores  [RLS abilitata]
+     user_id                            uuid                           NOT NULL
+     store_id                           uuid                           NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] user_stores_store_id_fkey
+       FOREIGN KEY (store_id) REFERENCES stores(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE ESTERNA] user_stores_user_id_fkey
+       FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] user_stores_pkey
+       PRIMARY KEY (user_id, store_id)
+   indici:
+     user_stores_pkey
+       CREATE UNIQUE INDEX user_stores_pkey ON public.user_stores USING btree (user_id, store_id)
+
+── user_table_view_preferences  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     user_id                            uuid                           NOT NULL
+     view_id                            text                           NOT NULL
+     state_json                         text                           NOT NULL
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE ESTERNA] user_table_view_preferences_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] user_table_view_preferences_user_id_fkey
+       FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+     [CHIAVE PRIMARIA] user_table_view_preferences_pkey
+       PRIMARY KEY (id)
+   indici:
+     user_table_view_preferences_pkey
+       CREATE UNIQUE INDEX user_table_view_preferences_pkey ON public.user_table_view_preferences USING btree (id)
+     user_table_view_preferences_tenant_id_user_id_idx
+       CREATE INDEX user_table_view_preferences_tenant_id_user_id_idx ON public.user_table_view_preferences USING btree (tenant_id, user_id)
+     user_table_view_preferences_tenant_id_user_id_view_id_key
+       CREATE UNIQUE INDEX user_table_view_preferences_tenant_id_user_id_view_id_key ON public.user_table_view_preferences USING btree (tenant_id, user_id, view_id)
+
+── users  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     auth_user_id                       uuid                           null
+     email                              text                           NOT NULL
+     display_name                       text                           NOT NULL
+     role                               "UserRole"                     NOT NULL  default 'clerk'::"UserRole"
+     is_active                          boolean                        NOT NULL  default true
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     avatar_url                         text                           null
+     avatar_storage_path                text                           null
+     permissions                        text[]                         NOT NULL  default ARRAY[]::text[]
+     has_all_locations_access           boolean                        NOT NULL  default false
+     default_location_id                uuid                           null
+     must_change_password               boolean                        NOT NULL  default false
+   vincoli:
+     [CHIAVE ESTERNA] users_default_location_id_fkey
+       FOREIGN KEY (default_location_id) REFERENCES locations(id) ON UPDATE CASCADE ON DELETE SET NULL
+     [CHIAVE ESTERNA] users_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] users_pkey
+       PRIMARY KEY (id)
+   indici:
+     users_auth_user_id_key
+       CREATE UNIQUE INDEX users_auth_user_id_key ON public.users USING btree (auth_user_id)
+     users_pkey
+       CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
+     users_tenant_id_email_key
+       CREATE UNIQUE INDEX users_tenant_id_email_key ON public.users USING btree (tenant_id, email)
+     users_tenant_id_idx
+       CREATE INDEX users_tenant_id_idx ON public.users USING btree (tenant_id)
+
+── vat_codes  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     tenant_id                          uuid                           NOT NULL
+     code                               text                           NOT NULL
+     nature_id                          uuid                           NOT NULL
+     rate_percent                       numeric(7,4)                   NOT NULL  default 0
+     non_deductible_percent             numeric(7,4)                   NOT NULL  default 0
+     description                        text                           NOT NULL
+     notes                              text                           null
+     usage_scope                        "VatUsageScope"                NOT NULL  default 'both'::"VatUsageScope"
+     calculation_mode                   "VatCalculationMode"           NOT NULL  default 'standard'::"VatCalculationMode"
+     vat_affects_supplier_total         boolean                        NOT NULL  default true
+     is_default                         boolean                        NOT NULL  default false
+     is_active                          boolean                        NOT NULL  default true
+     is_system                          boolean                        NOT NULL  default false
+     sort_order                         integer                        NOT NULL  default 0
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+     deleted_at                         timestamp(3) without time zone null
+   vincoli:
+     [CHIAVE ESTERNA] vat_codes_nature_id_fkey
+       FOREIGN KEY (nature_id) REFERENCES vat_natures(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE ESTERNA] vat_codes_tenant_id_fkey
+       FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+     [CHIAVE PRIMARIA] vat_codes_pkey
+       PRIMARY KEY (id)
+   indici:
+     vat_codes_pkey
+       CREATE UNIQUE INDEX vat_codes_pkey ON public.vat_codes USING btree (id)
+     vat_codes_tenant_default_key
+       CREATE UNIQUE INDEX vat_codes_tenant_default_key ON public.vat_codes USING btree (tenant_id) WHERE ((is_default = true) AND (deleted_at IS NULL))
+     vat_codes_tenant_id_code_key
+       CREATE UNIQUE INDEX vat_codes_tenant_id_code_key ON public.vat_codes USING btree (tenant_id, code)
+     vat_codes_tenant_id_is_active_idx
+       CREATE INDEX vat_codes_tenant_id_is_active_idx ON public.vat_codes USING btree (tenant_id, is_active)
+     vat_codes_tenant_id_sort_order_idx
+       CREATE INDEX vat_codes_tenant_id_sort_order_idx ON public.vat_codes USING btree (tenant_id, sort_order)
+     vat_codes_tenant_lower_code_key
+       CREATE UNIQUE INDEX vat_codes_tenant_lower_code_key ON public.vat_codes USING btree (tenant_id, lower(code))
+
+── vat_natures  [RLS abilitata]
+     id                                 uuid                           NOT NULL
+     key                                text                           NOT NULL
+     official_code                      text                           null
+     label                              text                           NOT NULL
+     description                        text                           null
+     default_usage_scope                "VatUsageScope"                NOT NULL  default 'both'::"VatUsageScope"
+     default_calculation_mode           "VatCalculationMode"           NOT NULL  default 'standard'::"VatCalculationMode"
+     sort_order                         integer                        NOT NULL  default 0
+     is_system                          boolean                        NOT NULL  default true
+     is_active                          boolean                        NOT NULL  default true
+     created_at                         timestamp(3) without time zone NOT NULL  default CURRENT_TIMESTAMP
+     updated_at                         timestamp(3) without time zone NOT NULL
+   vincoli:
+     [CHIAVE PRIMARIA] vat_natures_pkey
+       PRIMARY KEY (id)
+   indici:
+     vat_natures_key_key
+       CREATE UNIQUE INDEX vat_natures_key_key ON public.vat_natures USING btree (key)
+     vat_natures_pkey
+       CREATE UNIQUE INDEX vat_natures_pkey ON public.vat_natures USING btree (id)
+     vat_natures_sort_order_idx
+       CREATE INDEX vat_natures_sort_order_idx ON public.vat_natures USING btree (sort_order)
+
+TIPI ENUMERATI
+==============================================================================
+
+  AdjustmentDirection: increase · decrease
+  CashSessionMovementType: deposit · withdrawal
+  CashSessionStatus: open · closed
+  CatalogOrigin: vestiflow · shopify
+  DocumentStatus: draft · confirmed · printed · sent · externally_registered · cancelled
+  DocumentType: supplier_order · goods_receipt · supplier_invoice · manual_load · initial_load · sales_ddt · transfer · manual_unload · adjustment · inventory · proforma · invoice · invoice_accompanying · online_sale · corrispettivo · customer_order · store_sale · store_return · quote · credit_note · manual_receipt
+  FiscalDeviceBrand: epson · custom · rch · olivetti · other
+  FiscalReceiptStatus: pending · emitted · failed · cancelled
+  InventoryCountStatus: in_progress · review · completed · cancelled
+  InventorySerialStatus: in_stock · consumed
+  InventoryTrackingMode: none · standard · lot · serial
+  MovementOrigin: manual · shopify · tiktok · vestiflow_pos · vestiflow_online
+  OnlineOrderEventType: online_order_created · online_order_updated · online_order_cancelled · online_order_fulfilled · online_order_partially_fulfilled · online_order_refunded · online_order_restocked
+  OnlineSaleInventoryStatus: unloaded · partially_unloaded · not_applied
+  OrderCommercialState: to_confirm · confirmed · concluded · cancelled
+  PaymentOptionKind: method · terms
+  ProductKind: article · service
+  ProductStatus: draft · active · archived
+  PurchaseCostEntryMode: vat_excluded · vat_included
+  ReservationEventType: created · updated · consumed · released
+  ReservationStatus: active · consumed · released
+  SalesOrderFinancialStatus: pending · authorized · paid · partially_refunded · refunded · voided
+  SalesOrderFulfillmentStatus: unfulfilled · partially_fulfilled · fulfilled
+  SalesOrderRefundKind: return_with_restock · refund_only · cancellation
+  SalesOrderSource: shopify_online · shopify_pos · manual · store
+  ShopifyCatalogLinkKind: imported · pushed
+  ShopifyConnectionStatus: not_connected · connected · reauth_required · error
+  ShopifySyncStatus: not_connected · synced · out_of_sync · syncing · error
+  StockMovementType: load · unload · transfer · adjustment · sale · return · online_sale
+  SupplierOrderStatus: confirmed · concluded · cancelled · to_confirm
+  TenantChannelProfile: gestionale · shopify · tiktok_shop
+  TenantUserAuditAction: created · updated · deleted
+  TikTokConnectionStatus: not_connected · connected · reauth_required · error
+  TikTokSyncStatus: not_connected · synced · out_of_sync · syncing · error
+  UserRole: owner · admin · manager · clerk
+  VariantLifecycleStatus: active · inactive
+  VatCalculationMode: standard · zero_rate · reverse_charge · split_payment · margin_scheme · informational
+  VatUsageScope: purchase · sales · both
+
+MIGRATION
+==============================================================================
+
+  La presenza nello storico NON significa applicazione riuscita.
+
+  Da applicare — cartella in locale, nessuna riga conclusa (11):
+    20260904120000_modalita_pagamento_normative  (mai tentata)
+    20260904140000_dispositivo_fiscale_neutrale  (mai tentata)
+    20260904150000_dispositivo_fiscale_garanzie  (mai tentata)
+    20260904160000_dispositivo_di_sessione  (mai tentata)
+    20260904170000_classificazione_incasso  (mai tentata)
+    20260904180000_vocabolario_chiusura_e_storico_dispositivo  (mai tentata)
+    20260904190000_check_ridondante_e_append_only  (mai tentata)
+    20260904200000_reso_collegato_alla_riga  (mai tentata)
+    20260904210000_quote_di_incasso  (mai tentata)
+    20260904220000_rimborso_collegato_alla_quota  (mai tentata)
+    20260905210000_protezione_storico_dispositivi_cassa  (mai tentata)
+
+  Annullate (0):
+    nessuna
+
+  Interrotte, mai concluse (0):
+    nessuna
+
+  Nello storico ma senza cartella in locale (0):
+    nessuna
+
+  Applicate — concluse e non annullate (147):
+    0001_init
+    0002_shopify_oauth
+    0003_enable_rls
+    0004_shopify_setup_status
+    0005_product_images
+    0006_product_shopify_metadata
+    0007_shopify_auto_sync_enabled
+    0008_inventory_count
+    0009_tenant_profile
+    0010_shopify_taxonomy_category
+    0011_shopify_category_metafields
+    0012_tiktok_integration
+    0013_tenant_channel_profile
+    0014_user_avatar
+    0015_product_variant_barcode_unique
+    0016_product_catalog_origin
+    0017_product_shopify_catalog_link_kind
+    0018_support_sessions
+    0019_vestiflow_pos_movement_origin
+    0020_performance_indexes
+    0021_tenant_location_licensing
+    0022_location_selection_lock
+    0023_user_assigned_location
+    0024_user_permissions
+    20260622003936
+    20260625095706
+    20260626110000_shopify_lookup_indexes
+    20260626150000_product_import_handle
+    20260626160000_vestiflow_online_movement_origin
+    20260701120000_documents_foundation
+    20260701130000_document_supplier_order_link
+    20260701140000_catalog_supplier_anagraphics
+    20260701150000_phase_b_c_foundation
+    20260701160000_document_revisions
+    20260701180000_corrispettivi_fiscal
+    20260701190000_proforma_invoice_draft
+    20260701190000_serial_tracking
+    20260701193000_sales_order_document_link
+    20260701194500_document_adjustment_direction
+    20260701200000_document_pending_invoice_index
+    20260702130000_goods_receipt_load_types_tenant_features
+    20260710120000_supplier_commercial_fields_document_discount
+    20260710130000_customer_commercial_fields_dual_role
+    20260711120000_goods_receipt_invoice_linking
+    20260711121000_stock_movement_costs
+    20260712110000_external_document_types
+    20260712130000_online_order_reservations
+    20260712150000_vat_codes
+    20260712170000_online_sales_corrispettivi
+    20260713010000_store_sales
+    20260713083533
+    20260713140000_shopify_inventory_sync_state
+    20260713160000_purchase_invoice_link_totals_check
+    20260714120000_vat_codes_full_migration
+    20260714150000_drop_legacy_vat_percent
+    20260714160000_user_location_access
+    20260714163000_optional_variant_sku
+    20260714170000_user_default_location
+    20260715120000_party_canonical_anagraphics
+    20260716090000_manual_customer_orders
+    20260716180000_customer_order_doc_discount
+    20260716210000_product_article_code
+    20260717090000_quote_document_type
+    20260718090000_sales_ddt_transport_addresses
+    20260718120000_supplier_order_confirmed_concluded
+    20260718150000_stock_movement_party
+    20260719090000_purchase_invoice_payments
+    20260719100000_catalog_categories_product_fields
+    20260721090000_invoice_module
+    20260722090000_enable_rls_missing_tables
+    20260722140000_store_sale_payment_method_note
+    20260722160000_generic_attachments
+    20260723130000_line_is_reference
+    20260724120000_product_shopify_sync_enabled
+    20260727100000_document_counters
+    20260728100000_document_counters_series_identity
+    20260728110000_numbering_series_prefix_number
+    20260728120000_drop_block_after_confirm
+    20260729100000_drop_document_type_enabled
+    20260730170000_document_price_mode_preference
+    20260730180000_drop_tenant_default_purchase_cost_entry_mode
+    20260731210000_article_level_prices
+    20260803120000_channel_price_and_listini
+    20260803140000_product_price_mode_preference
+    20260803170000_drop_product_listino_prices_include_vat
+    20260803190000_store_sale_lines_net
+    20260803200000_sales_document_lines_net
+    20260803210000_drop_supplier_document_types
+    20260803220000_prices_six_decimals
+    20260804010000_discount_percent_decimals
+    20260806120000_cassa_pagamenti_e_dispositivi_fiscali
+    20260806220000_sessioni_di_cassa
+    20260806233000_corrispettivi_canale_cassa
+    20260806233500_backfill_corrispettivi_cassa
+    20260807003000_fiscal_device_reparti
+    20260807010000_pos_terminals
+    20260807020000_credit_note_document_type
+    20260807120000_supplier_order_line_decimals
+    20260808020000_ordini_spariti_dal_canale
+    20260808180000_verita_stato_webhook
+    20260810120000_documento_controparte_ovunque
+    20260811040000_permessi_materializzati_sui_ruoli
+    20260811041500_utenti_titolare_audit_e_cambio_password
+    20260811090000_numero_unico_per_numeratore
+    20260811103000_indice_appoggio_massimo_numero
+    20260811120000_permessi_sezioni_e_documenti
+    20260811120000_supplier_order_line_number
+    20260811140000_supplier_order_document_discount
+    20260811160000_permessi_configurazione_documenti
+    20260811190000_permesso_registro_fiscale
+    20260811200000_unita_di_misura_sulla_riga
+    20260811200100_elenco_unita_di_misura
+    20260813120000_indice_numerazione_per_data
+    20260813160000_avviso_cronologico_preferenza
+    20260814100000_anagrafica_azienda_gestita
+    20260814120000_rimborsi_ordine_vendita
+    20260814140000_intestazione_congelata_sul_documento
+    20260814160000_azienda_regime_fiscale_e_registro_imprese
+    20260814200000_rimborsi_natura_e_aliquote
+    20260814203000_rinomina_tipo_natura_rimborso
+    20260815210000_credit_note_numerazione_condivisa
+    20260816150000_ritira_consegna_commercialista
+    20260816170000_rimuove_stato_fiscale_ordine
+    20260816190000_ordine_cliente_netto_ivato
+    20260816210000_preferenza_aziendale_prezzi
+    20260817000000_ritira_default_prezzo_per_tipo
+    20260817090000_azzera_memorie_modalita_prezzo
+    20260817110000_barrato_prezzo_canonico
+    20260817140000_ritira_corrispettivo_legacy
+    20260817160000_manual_receipt_tipo_numeratore
+    20260817160100_manual_receipts
+    20260821180000_creation_intents
+    20260822170412_purchase_costs_six_decimals
+    20260823010000_costi_canonici_not_null
+    20260823220000_variante_sulla_riga_ordine_cliente
+    20260824010000_variante_sulla_riga_documento
+    20260824020000_variante_sulla_riga_ordine_fornitore
+    20260825160000_nota_interna_sull_ordine_cliente
+    20260826003840_rinomina_invoice_draft_in_invoice
+    20260826140000_interruttore_vendita_manuale
+    20260826170000_unita_di_misura_predefinita
+    20260828210000_stati_commerciali_ordini
+    20260831110000_ordine_fornitore_senza_fornitore
+    20260901120000_fornitore_iban_cellulare_banca
+    20260903000000_document_line_identity_snapshot
+    20260903120000_prodotto_nome_online
+    20260903150000_stato_variante_e_cestino

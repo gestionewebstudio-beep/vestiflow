@@ -37,6 +37,9 @@ export const TABLE_VIEW_IDS = [
   'supplier_orders_list',
   'online_sales_list',
   'corrispettivi_register',
+  // I due registri della Cassa, entrati nel motore comune il 04/09/2026.
+  'cash_operations',
+  'cash_sessions',
   // Aggiunta il 31/08/2026: l'elenco Inventario dichiarava la vista lato
   // frontend e l'API non la conosceva — 400 su lettura e salvataggio, e le
   // colonne scelte non venivano mai memorizzate. L'ha trovata

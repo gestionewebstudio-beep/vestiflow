@@ -40,17 +40,18 @@ import { assertUserCanAccessLocation } from '../inventory/user-location-scope.ut
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
+import { computeVatLineAmounts, type VatComputationInput } from '../vat/vat-line-calculation.util';
 import {
-  computeVatLineAmounts,
-  vatInputFromLegacyRate,
-  vatInputFromVatCode,
-  type VatComputationInput,
-} from '../vat/vat-line-calculation.util';
-import { variantLabel } from '../common/variant-label.util';
-import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
+  resolveRetailLineVatCode,
+  resolveRetailVariants,
+  resolveRetailVatContext,
+  retailLineDescription,
+  type ResolvedVariant,
+} from '../retail/retail-line.util';
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
 import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';
+import { assertDocumentMutable } from '../documents/document-mutation.util';
 
 /** Esito della registrazione vendita/reso per la UI di cassa. */
 export interface StoreSaleResult {
@@ -65,17 +66,6 @@ export interface StoreSaleResult {
     readonly quantity: number;
     readonly remainingAvailable: number;
   }[];
-}
-
-interface ResolvedVariant {
-  readonly id: string;
-  readonly sku: string;
-  readonly barcode: string | null;
-  readonly productName: string;
-  readonly optionSummary: string;
-  readonly defaultVatCodeId: string | null;
-  /** Costo effettivo corrente: congelato sul movimento di vendita. */
-  readonly purchasePriceMinor: number;
 }
 
 /**
@@ -239,6 +229,7 @@ export class StoreSalesService {
       ? await this.loadEditableStoreDocument(tenantId, dto.id, DocumentType.store_sale)
       : null;
     this.authorizeStoreDocumentLocations(user, existing?.locationId ?? null, dto.locationId);
+    assertDocumentMutable(existing);
     await this.assertLocationExists(tenantId, dto.locationId);
 
     const variants = await this.resolveVariants(
@@ -717,6 +708,7 @@ export class StoreSalesService {
     type: DocumentType,
   ): Promise<{
     readonly id: string;
+    readonly cashSessionId: string | null;
     readonly series: string | null;
     readonly number: number | null;
     readonly reference: string | null;
@@ -762,6 +754,7 @@ export class StoreSalesService {
         reference: true,
         documentDate: true,
         status: true,
+        cashSessionId: true,
         locationId: true,
         paymentMethod: true,
         paymentMethodNote: true,
@@ -815,6 +808,7 @@ export class StoreSalesService {
       ? await this.loadEditableStoreDocument(tenantId, dto.id, DocumentType.store_return)
       : null;
     this.authorizeStoreDocumentLocations(user, existing?.locationId ?? null, dto.locationId);
+    assertDocumentMutable(existing);
     await this.assertLocationExists(tenantId, dto.locationId);
 
     const variants = await this.resolveVariants(
@@ -1337,93 +1331,31 @@ export class StoreSalesService {
     }
   }
 
-  private async resolveVariants(
+  /** @see `retail/retail-line.util` — estratta per la Cassa, corpo invariato. */
+  private resolveVariants(
     tenantId: string,
     variantIds: readonly string[],
   ): Promise<Map<string, ResolvedVariant>> {
-    const unique = [...new Set(variantIds)];
-    const rows = await this.prisma.productVariant.findMany({
-      where: { tenantId, id: { in: unique } },
-      select: {
-        id: true,
-        sku: true,
-        barcode: true,
-        optionValues: true,
-        purchasePriceMinor: true,
-        product: {
-          select: { name: true, defaultVatCodeId: true },
-        },
-      },
-    });
-    const map = new Map<string, ResolvedVariant>(
-      rows.map((row) => [
-        row.id,
-        {
-          id: row.id,
-          sku: row.sku ?? '',
-          barcode: row.barcode,
-          productName: row.product.name,
-          optionSummary: variantLabel(row.optionValues),
-          defaultVatCodeId: row.product.defaultVatCodeId,
-          // Costo che verrà congelato sul movimento di vendita: resta preciso,
-          // `Number(...)` è solo il confine col tipo Prisma.
-          purchasePriceMinor: Number(row.purchasePriceMinor),
-        },
-      ]),
-    );
-    const missing = unique.filter((id) => !map.has(id));
-    if (missing.length > 0) {
-      throw new NotFoundException('Una o più varianti non sono state trovate.');
-    }
-    return map;
+    return resolveRetailVariants(this.prisma, tenantId, variantIds);
   }
-
   /**
    * Precarica i Codici IVA necessari a risolvere le righe del carrello
    * (§Piano IVA fase 2): predefinito per articolo (variante → prodotto),
    * override esplicito di riga, predefinito aziendale come fallback finale.
    */
-  private async resolveVatContext(
+  /** @see `retail/retail-line.util` — estratta per la Cassa, corpo invariato. */
+  private resolveVatContext(
     tenantId: string,
-    // Serve solo l'eventuale Codice IVA di riga: vale per le righe di vendita
-    // come per quelle di reso, che ne hanno una forma più corta.
     lines: readonly { readonly vatCodeId?: string | null }[],
     variants: ReadonlyMap<string, ResolvedVariant>,
   ): Promise<{
     readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
     readonly tenantDefaultVatCodeId: string | null;
   }> {
-    const tenantSettings = await this.prisma.tenantFeatureSettings.findUnique({
-      where: { tenantId },
-      select: { defaultVatCodeId: true },
-    });
-    const tenantDefaultVatCodeId = tenantSettings?.defaultVatCodeId ?? null;
-
-    const idsToFetch = new Set<string>();
-    for (const line of lines) {
-      if (line.vatCodeId) idsToFetch.add(line.vatCodeId);
-    }
-    for (const variant of variants.values()) {
-      if (variant.defaultVatCodeId) idsToFetch.add(variant.defaultVatCodeId);
-    }
-    if (tenantDefaultVatCodeId) idsToFetch.add(tenantDefaultVatCodeId);
-
-    const vatCodesById = new Map<string, VatCodeWithNature>();
-    if (idsToFetch.size > 0) {
-      const found = await this.prisma.vatCode.findMany({
-        where: { tenantId, id: { in: [...idsToFetch] }, deletedAt: null },
-        include: { nature: true },
-      });
-      for (const vatCode of found) {
-        vatCodesById.set(vatCode.id, vatCode);
-      }
-    }
-    return { vatCodesById, tenantDefaultVatCodeId };
+    return resolveRetailVatContext(this.prisma, tenantId, lines, variants);
   }
-
-  /** Precedenza: override esplicito di riga > predefinito articolo > predefinito aziendale. */
+  /** @see `retail/retail-line.util` — estratta per la Cassa, corpo invariato. */
   private resolveLineVatCode(
-    /** Codice IVA scelto sulla riga; le righe di reso non ne hanno uno. */
     lineVatCodeId: string | null | undefined,
     variant: ResolvedVariant,
     vatContext: {
@@ -1434,45 +1366,14 @@ export class StoreSalesService {
     readonly vatCodeId: string | null;
     readonly vatSnapshot: Prisma.InputJsonObject | null;
     readonly vatRatePercent: number | null;
-    /** Dati di calcolo della riga: senza Codice IVA, nessuna imposta. */
     readonly vat: VatComputationInput;
   } {
-    const resolvedId =
-      lineVatCodeId ?? variant.defaultVatCodeId ?? vatContext.tenantDefaultVatCodeId;
-    const vatCode = resolvedId ? (vatContext.vatCodesById.get(resolvedId) ?? null) : null;
-    if (!vatCode) {
-      return {
-        vatCodeId: null,
-        vatSnapshot: null,
-        vatRatePercent: null,
-        vat: vatInputFromLegacyRate(null),
-      };
-    }
-    return {
-      vatCodeId: vatCode.id,
-      vatSnapshot: buildVatCodeSnapshot(vatCode),
-      vatRatePercent: Math.round(Number(vatCode.ratePercent)),
-      vat: vatInputFromVatCode(vatCode),
-    };
+    return resolveRetailLineVatCode(lineVatCodeId, variant, vatContext);
   }
-
-  /**
-   * La descrizione di una riga nuova: **il solo nome del prodotto**.
-   *
-   * ⛔ Qui c'era `${productName} — ${optionSummary}`, e impastava la variante
-   * dentro la descrizione perché la variante non aveva un posto suo. Adesso ce
-   * l'ha — la colonna `variantLabel` — e continuare a concatenare
-   * significherebbe mostrarla **due volte**: una nel nome e una nella sua
-   * colonna (`03d` §6).
-   *
-   * ⚠️ Le righe già salvate restano com'erano: un documento emesso non si
-   * riscrive. Per un periodo convivranno righe vecchie impastate e righe nuove
-   * pulite, ed è la regola della fotografia che funziona — non un difetto.
-   */
+  /** @see `retail/retail-line.util` — estratta per la Cassa, corpo invariato. */
   private lineDescription(variant: ResolvedVariant): string {
-    return variant.productName;
+    return retailLineDescription(variant);
   }
-
   private pushInventoryAsync(
     tenantId: string,
     variantIds: readonly string[],

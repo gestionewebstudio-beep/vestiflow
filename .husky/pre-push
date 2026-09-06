@@ -1,8 +1,13 @@
 # Per primo perche' e' il piu' rapido e il piu' strutturale: se il backend non
 # compila, far girare prima tutta la suite di test non serve a niente.
-# E' anche l'UNICO type-check del backend che esista, in locale come in CI:
-# vitest esegue i .spec.ts con esbuild, che i tipi li strippa senza guardarli.
 npm run build --prefix api
+
+# E poi i TEST del backend, che la build NON guarda: `tsconfig.build.json`
+# esclude `src/test/**` e `**/*spec.ts`, e vitest li esegue con esbuild, che i
+# tipi li strippa. Un test poteva quindi essere verde e non tipizzabile.
+#
+# Misurato il 04/09/2026: ~3 secondi, contro i ~110 della build qui sopra.
+npm run typecheck:test --prefix api
 
 npm run test:everything
 npm run build

@@ -29,15 +29,24 @@ export function minimalTenantBackupManifest(
   };
 }
 
-export async function buildTenantBackupZip(options: {
-  manifest?: Partial<TenantBackupManifest>;
-  manifestRaw?: string;
-  entities?: Partial<Record<TenantBackupEntityFile, unknown[]>>;
-} = {}): Promise<Buffer> {
+export async function buildTenantBackupZip(
+  options: {
+    manifest?: Partial<TenantBackupManifest>;
+    manifestRaw?: string;
+    entities?: Partial<Record<TenantBackupEntityFile, unknown[]>>;
+  } = {},
+): Promise<Buffer> {
   const manifest = minimalTenantBackupManifest(options.manifest);
-  const entities = options.entities ?? {};
+  const entities = {
+    tenant: [{ id: manifest.tenantId, name: manifest.tenantName }],
+    ...options.entities,
+  };
+  const counts = Object.fromEntries(
+    TENANT_BACKUP_ENTITY_FILES.map((key) => [key, entities[key]?.length ?? 0]),
+  );
   const manifestContent =
-    options.manifestRaw ?? `${JSON.stringify({ ...manifest, ...options.manifest }, null, 2)}\n`;
+    options.manifestRaw ??
+    `${JSON.stringify({ ...manifest, entityCounts: counts, ...options.manifest }, null, 2)}\n`;
 
   const archive = new ZipArchive({ zlib: { level: 1 } });
   const output = new PassThrough();
@@ -84,4 +93,23 @@ export async function readZipEntry(buffer: Buffer, entryPath: string): Promise<s
 export async function readZipManifest(buffer: Buffer): Promise<TenantBackupManifest> {
   const raw = await readZipEntry(buffer, TENANT_BACKUP_MANIFEST_FILE);
   return JSON.parse(raw) as TenantBackupManifest;
+}
+
+/** Modifica il pacchetto esportato, mantenendo un vero archivio ZIP nei test di integrità. */
+export async function rewriteTenantBackupZip(
+  buffer: Buffer,
+  change: (files: Map<string, Buffer>) => void,
+): Promise<Buffer> {
+  const directory = await unzipper.Open.buffer(buffer);
+  const files = new Map<string, Buffer>();
+  for (const file of directory.files) files.set(file.path, await file.buffer());
+  change(files);
+  const archive = new ZipArchive({ zlib: { level: 1 } });
+  const output = new PassThrough();
+  archive.on('error', (error: Error) => output.destroy(error));
+  archive.pipe(output);
+  const result = readStreamToBuffer(output);
+  for (const [name, bytes] of files) archive.append(bytes, { name });
+  await archive.finalize();
+  return result;
 }

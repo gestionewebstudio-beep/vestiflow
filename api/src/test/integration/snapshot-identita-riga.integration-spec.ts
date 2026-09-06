@@ -182,10 +182,58 @@ describe('Snapshot identità di riga — su PostgreSQL TEST', () => {
    *
    * ⭐ Tolti quelli, resta il CONTENUTO, che è ciò che questa prova misura.
    */
+  /**
+   * Il primo punto in cui due stampe divergono, con il contesto intorno.
+   *
+   * ⭐ Stringa VUOTA quando sono uguali: così l'asserzione resta una sola, e il
+   * messaggio di fallimento è già la diagnosi.
+   */
+  function divergenza(atteso: string, ottenuto: string): string {
+    if (atteso === ottenuto) {
+      return '';
+    }
+    let i = 0;
+    while (i < atteso.length && i < ottenuto.length && atteso[i] === ottenuto[i]) {
+      i += 1;
+    }
+    const da = Math.max(0, i - 80);
+    return [
+      `le due stampe divergono all'indice ${i}`,
+      `lunghezze: prima ${atteso.length}, dopo ${ottenuto.length}`,
+      `prima: ${JSON.stringify(atteso.slice(da, i + 80))}`,
+      `dopo:  ${JSON.stringify(ottenuto.slice(da, i + 80))}`,
+    ].join('\n');
+  }
+
   function senzaMetadati(corpo: unknown): string {
-    return String(corpo)
-      .replace(/\/ID \[<[0-9a-f]*> <[0-9a-f]*>\]/gi, '/ID []')
-      .replace(/\/(?:Creation|Mod)Date \([^)]*\)/g, '/Date ()');
+    return (
+      String(corpo)
+        .replace(/\/ID \[<[0-9a-f]*> <[0-9a-f]*>\]/gi, '/ID []')
+        .replace(/\/(?:Creation|Mod)Date \([^)]*\)/g, '/Date ()')
+        /*
+          ⛔ **E la data come OGGETTO INDIRETTO**, che è la forma che pdfkit usa
+          davvero:
+
+              13 0 obj
+              (D:20260904202749Z)
+              endobj
+              10 0 obj
+              << /CreationDate 13 0 R >>
+
+          La riga qui sopra cerca `/CreationDate (…)`, cioè la data INLINE nel
+          dizionario. Qui il dizionario porta un riferimento, e la data sta
+          nell'oggetto 13 come stringa nuda: non la toccava.
+
+          ⚠️ **Ne è nato un fallimento INTERMITTENTE, non un fallimento.** Le due
+          stampe distano ~200 ms: differiscono solo quando cadono a cavallo di un
+          secondo — misurato il 04/09/2026, 2 volte su 9 esecuzioni complete e 3
+          su 45 nei giorni prima, sempre `…202749Z` contro `…202750Z`.
+
+          ⭐ E per tre volte la diagnosi è costata un'indagine intera, perché
+          l'asserzione non diceva che cosa differiva. Ora lo dice.
+        */
+        .replace(/\(D:\d{14}(?:[Z+-][0-9'+-]*)?\)/g, '(D:)')
+    );
   }
 
   /** Crea un documento e ne restituisce l'id, dicendo PERCHÉ se fallisce. */
@@ -358,6 +406,27 @@ describe('Snapshot identità di riga — su PostgreSQL TEST', () => {
     contenuto non si può scrivere. Due stampe identiche sono però la stessa
     affermazione, presa dall'altro capo.
   */
+  /**
+   * ⭐ **La normalizzazione, provata da sola.**
+   *
+   * ⛔ La prova qui sotto confronta due stampe byte per byte: se la
+   * normalizzazione azzerasse troppo, resterebbe verde per sempre — e se
+   * azzerasse troppo poco, arrosserebbe a caso. Sono due modi opposti di non
+   * misurare niente, e li tiene fermi solo una prova deterministica.
+   */
+  it('⭐ la normalizzazione toglie la DATA e nient_altro', async () => {
+    const conData = (secondo: string) =>
+      `13 0 obj\n(D:2026090420275${secondo}Z)\nendobj\n10 0 obj\n<<\n/CreationDate 13 0 R\n>>\nRIGA (Maglia cotone)`;
+
+    // ⭐ Due stampe a cavallo di un secondo: dopo la normalizzazione sono uguali.
+    expect(senzaMetadati(conData('0'))).toBe(senzaMetadati(conData('1')));
+
+    // ⛔ …ma una differenza VERA resta una differenza.
+    const altro = conData('0').replace('Maglia cotone', 'Maglia lino');
+    expect(senzaMetadati(altro)).not.toBe(senzaMetadati(conData('0')));
+    expect(divergenza(senzaMetadati(conData('0')), senzaMetadati(altro))).toContain('divergono');
+  });
+
   it('⛔ rinominare l\'anagrafica NON cambia la stampa del documento', async () => {
     const id = await creaDocumento([rigaSuVariante]);
 
@@ -377,7 +446,12 @@ describe('Snapshot identità di riga — su PostgreSQL TEST', () => {
     expect(dopo.stato).toBe(200);
 
     // Stesso documento, stessa stampa: l'anagrafica non entra nel PDF.
-    expect(senzaMetadati(dopo.corpo)).toBe(senzaMetadati(prima.corpo));
+    //
+    // ⚠️ **Il confronto DICE cosa differisce**, e non è un vezzo: questa prova
+    //    è fallita tre volte su ~45 esecuzioni complete lasciando come unico
+    //    indizio «expected … to be …» su due stringhe da 50 kB, cioè niente.
+    //    Un fallimento che non dice niente costa un'indagine intera.
+    expect(divergenza(senzaMetadati(prima.corpo), senzaMetadati(dopo.corpo))).toBe('');
   });
 
   /*

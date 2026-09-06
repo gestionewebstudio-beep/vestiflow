@@ -1,0 +1,145 @@
+@use 'breakpoints' as bp;
+
+.tender {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-12);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.tender__title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.tender__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  margin: 0;
+}
+
+.tender__total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+
+  dt {
+    font-size: var(--text-3xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--color-table-header-fg);
+  }
+
+  dd {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+  }
+}
+
+.tender__total--pending dd {
+  color: var(--color-warning);
+}
+
+.tender__total--change dd {
+  color: var(--color-ok);
+}
+
+.tender__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.tender__quotas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tender__quota {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8);
+  background: var(--color-surface-soft);
+  border-radius: var(--radius-md);
+}
+
+.tender__quota-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.tender__quota-name {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.tender__quota-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+}
+
+.tender__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tender__label {
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-field-label);
+}
+
+.tender__confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+
+  input {
+    inline-size: var(--check-size);
+    block-size: var(--check-size);
+    accent-color: var(--color-primary);
+  }
+}
+
+.tender__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.tender__unclassified {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-warning);
+}
+
+@include bp.media-down('md') {
+  .tender__quota-fields {
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+}

@@ -18,7 +18,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
-import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
+import { DocumentLinesTableComponent } from '@domain/documents/components/document-lines-table/document-lines-table.component';
 import { DocumentDetailComponent } from './document-detail.component';
 import {
   documentReferenceLabel,

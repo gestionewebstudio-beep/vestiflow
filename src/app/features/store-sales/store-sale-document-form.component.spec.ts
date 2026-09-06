@@ -25,7 +25,7 @@ import type {
   CreateStoreSalePayload,
 } from '@domain/store-sales/models/store-sale.model';
 
-import { StoreSalesService } from './services/store-sales.service';
+import { StoreSalesService } from '@domain/store-sales/services/store-sales.service';
 import type { StoreSaleDocumentLine } from '@domain/store-sales/models/store-sale-document-line.model';
 
 import { StoreSaleDocumentFormComponent } from './store-sale-document-form.component';

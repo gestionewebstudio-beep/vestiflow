@@ -1,0 +1,866 @@
+[
+  {
+    "phase": "mobile-after-mobile",
+    "size": 100,
+    "repeat": 0,
+    "loadMs": 664,
+    "responseMs": 497,
+    "afterResponseMs": 167,
+    "scrollMs": 47,
+    "rows": 100,
+    "nodes": 2548,
+    "rafPeak": 100,
+    "scriptMs": 93,
+    "queryInclusiveMs": 0,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 267
+      },
+      {
+        "name": "(program)",
+        "ms": 221
+      },
+      {
+        "name": "visitNode",
+        "ms": 32
+      },
+      {
+        "name": "",
+        "ms": 22
+      },
+      {
+        "name": "formatMoney",
+        "ms": 22
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 5
+      },
+      {
+        "name": "inputValueFn",
+        "ms": 4
+      },
+      {
+        "name": "appendChild",
+        "ms": 4
+      }
+    ]
+  },
+  {
+    "phase": "mobile-after-mobile",
+    "size": 100,
+    "repeat": 1,
+    "loadMs": 688,
+    "responseMs": 518,
+    "afterResponseMs": 170,
+    "scrollMs": 73,
+    "rows": 100,
+    "nodes": 2548,
+    "rafPeak": 100,
+    "scriptMs": 95,
+    "queryInclusiveMs": 0,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 270
+      },
+      {
+        "name": "(program)",
+        "ms": 239
+      },
+      {
+        "name": "visitNode",
+        "ms": 28
+      },
+      {
+        "name": "",
+        "ms": 23
+      },
+      {
+        "name": "formatMoney",
+        "ms": 15
+      },
+      {
+        "name": "createElement",
+        "ms": 5
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 4
+      },
+      {
+        "name": "ÉµÉµinject",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "mobile-after-mobile",
+    "size": 1000,
+    "repeat": 0,
+    "loadMs": 1824,
+    "responseMs": 591,
+    "afterResponseMs": 1233,
+    "scrollMs": 307,
+    "rows": 1000,
+    "nodes": 25048,
+    "rafPeak": 1000,
+    "scriptMs": 392,
+    "queryInclusiveMs": 2,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 823
+      },
+      {
+        "name": "(idle)",
+        "ms": 270
+      },
+      {
+        "name": "visitNode",
+        "ms": 207
+      },
+      {
+        "name": "formatMoney",
+        "ms": 86
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 51
+      },
+      {
+        "name": "",
+        "ms": 27
+      },
+      {
+        "name": "getPropertyValue",
+        "ms": 23
+      },
+      {
+        "name": "setAttribute",
+        "ms": 18
+      }
+    ]
+  },
+  {
+    "phase": "mobile-after-mobile",
+    "size": 1000,
+    "repeat": 1,
+    "loadMs": 1856,
+    "responseMs": 583,
+    "afterResponseMs": 1273,
+    "scrollMs": 288,
+    "rows": 1000,
+    "nodes": 25048,
+    "rafPeak": 1000,
+    "scriptMs": 391,
+    "queryInclusiveMs": 3,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 845
+      },
+      {
+        "name": "(idle)",
+        "ms": 307
+      },
+      {
+        "name": "visitNode",
+        "ms": 196
+      },
+      {
+        "name": "formatMoney",
+        "ms": 70
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 36
+      },
+      {
+        "name": "",
+        "ms": 27
+      },
+      {
+        "name": "visitChild",
+        "ms": 23
+      },
+      {
+        "name": "setAttribute",
+        "ms": 20
+      }
+    ]
+  },
+  {
+    "phase": "mobile-after-mobile",
+    "size": 2000,
+    "repeat": 0,
+    "loadMs": 3002,
+    "responseMs": 653,
+    "afterResponseMs": 2349,
+    "scrollMs": 451,
+    "rows": 2000,
+    "nodes": 50048,
+    "rafPeak": 2000,
+    "scriptMs": 642,
+    "queryInclusiveMs": 3,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 1461
+      },
+      {
+        "name": "visitNode",
+        "ms": 430
+      },
+      {
+        "name": "(idle)",
+        "ms": 320
+      },
+      {
+        "name": "formatMoney",
+        "ms": 153
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 61
+      },
+      {
+        "name": "setAttribute",
+        "ms": 30
+      },
+      {
+        "name": "appendChild",
+        "ms": 27
+      },
+      {
+        "name": "",
+        "ms": 25
+      }
+    ]
+  },
+  {
+    "phase": "mobile-after-mobile",
+    "size": 2000,
+    "repeat": 1,
+    "loadMs": 3000,
+    "responseMs": 596,
+    "afterResponseMs": 2404,
+    "scrollMs": 473,
+    "rows": 2000,
+    "nodes": 50048,
+    "rafPeak": 2000,
+    "scriptMs": 713,
+    "queryInclusiveMs": 5,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 1412
+      },
+      {
+        "name": "visitNode",
+        "ms": 389
+      },
+      {
+        "name": "(idle)",
+        "ms": 318
+      },
+      {
+        "name": "formatMoney",
+        "ms": 176
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 83
+      },
+      {
+        "name": "setAttribute",
+        "ms": 43
+      },
+      {
+        "name": "remove",
+        "ms": 38
+      },
+      {
+        "name": "visitChild",
+        "ms": 31
+      }
+    ]
+  },
+  {
+    "phase": "mobile-after-mobile",
+    "size": 5000,
+    "repeat": 0,
+    "loadMs": 6236,
+    "responseMs": 839,
+    "afterResponseMs": 5397,
+    "scrollMs": 1250,
+    "rows": 5000,
+    "nodes": 125048,
+    "rafPeak": 5000,
+    "scriptMs": 1457,
+    "queryInclusiveMs": 15,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 3044
+      },
+      {
+        "name": "visitNode",
+        "ms": 906
+      },
+      {
+        "name": "(idle)",
+        "ms": 368
+      },
+      {
+        "name": "formatMoney",
+        "ms": 352
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 281
+      },
+      {
+        "name": "setAttribute",
+        "ms": 98
+      },
+      {
+        "name": "insertBefore",
+        "ms": 69
+      },
+      {
+        "name": "visitChild",
+        "ms": 67
+      }
+    ]
+  },
+  {
+    "phase": "mobile-after-mobile",
+    "size": 5000,
+    "repeat": 1,
+    "loadMs": 6362,
+    "responseMs": 877,
+    "afterResponseMs": 5485,
+    "scrollMs": 1175,
+    "rows": 5000,
+    "nodes": 125048,
+    "rafPeak": 5000,
+    "scriptMs": 1467,
+    "queryInclusiveMs": 14,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 3166
+      },
+      {
+        "name": "visitNode",
+        "ms": 950
+      },
+      {
+        "name": "formatMoney",
+        "ms": 392
+      },
+      {
+        "name": "(idle)",
+        "ms": 384
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 228
+      },
+      {
+        "name": "setAttribute",
+        "ms": 102
+      },
+      {
+        "name": "visitChild",
+        "ms": 72
+      },
+      {
+        "name": "insertBefore",
+        "ms": 65
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 100,
+    "repeat": 0,
+    "loadMs": 703,
+    "responseMs": 510,
+    "afterResponseMs": 193,
+    "scrollMs": 46,
+    "rows": 100,
+    "nodes": 2548,
+    "rafPeak": 100,
+    "scriptMs": 103,
+    "queryInclusiveMs": 8,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 260
+      },
+      {
+        "name": "(program)",
+        "ms": 245
+      },
+      {
+        "name": "visitNode",
+        "ms": 34
+      },
+      {
+        "name": "",
+        "ms": 28
+      },
+      {
+        "name": "formatMoney",
+        "ms": 14
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 12
+      },
+      {
+        "name": "visitChild",
+        "ms": 5
+      },
+      {
+        "name": "setCurrentTNode",
+        "ms": 4
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 100,
+    "repeat": 1,
+    "loadMs": 688,
+    "responseMs": 509,
+    "afterResponseMs": 179,
+    "scrollMs": 67,
+    "rows": 100,
+    "nodes": 2548,
+    "rafPeak": 100,
+    "scriptMs": 104,
+    "queryInclusiveMs": 3,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 276
+      },
+      {
+        "name": "(program)",
+        "ms": 225
+      },
+      {
+        "name": "visitNode",
+        "ms": 31
+      },
+      {
+        "name": "",
+        "ms": 26
+      },
+      {
+        "name": "formatMoney",
+        "ms": 22
+      },
+      {
+        "name": "visitChild",
+        "ms": 4
+      },
+      {
+        "name": "storePropertyBindingMetadata",
+        "ms": 3
+      },
+      {
+        "name": "attachPatchData",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 1000,
+    "repeat": 0,
+    "loadMs": 2418,
+    "responseMs": 584,
+    "afterResponseMs": 1834,
+    "scrollMs": 235,
+    "rows": 1000,
+    "nodes": 25048,
+    "rafPeak": 1000,
+    "scriptMs": 1007,
+    "queryInclusiveMs": 509,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 821
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 278
+      },
+      {
+        "name": "(idle)",
+        "ms": 274
+      },
+      {
+        "name": "visitNode",
+        "ms": 182
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 97
+      },
+      {
+        "name": "formatMoney",
+        "ms": 94
+      },
+      {
+        "name": "isLContainer",
+        "ms": 91
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 46
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 1000,
+    "repeat": 1,
+    "loadMs": 2536,
+    "responseMs": 585,
+    "afterResponseMs": 1951,
+    "scrollMs": 250,
+    "rows": 1000,
+    "nodes": 25048,
+    "rafPeak": 1000,
+    "scriptMs": 1062,
+    "queryInclusiveMs": 557,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 819
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 336
+      },
+      {
+        "name": "(idle)",
+        "ms": 307
+      },
+      {
+        "name": "visitNode",
+        "ms": 226
+      },
+      {
+        "name": "formatMoney",
+        "ms": 115
+      },
+      {
+        "name": "isLContainer",
+        "ms": 89
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 72
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 49
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 2000,
+    "repeat": 0,
+    "loadMs": 5635,
+    "responseMs": 666,
+    "afterResponseMs": 4969,
+    "scrollMs": 493,
+    "rows": 2000,
+    "nodes": 50048,
+    "rafPeak": 2000,
+    "scriptMs": 3277,
+    "queryInclusiveMs": 2346,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 1443
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 1146
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 697
+      },
+      {
+        "name": "visitNode",
+        "ms": 376
+      },
+      {
+        "name": "(idle)",
+        "ms": 339
+      },
+      {
+        "name": "isLContainer",
+        "ms": 289
+      },
+      {
+        "name": "formatMoney",
+        "ms": 231
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 92
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 2000,
+    "repeat": 1,
+    "loadMs": 5577,
+    "responseMs": 610,
+    "afterResponseMs": 4967,
+    "scrollMs": 434,
+    "rows": 2000,
+    "nodes": 50048,
+    "rafPeak": 2000,
+    "scriptMs": 3248,
+    "queryInclusiveMs": 2278,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 1433
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 1165
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 627
+      },
+      {
+        "name": "visitNode",
+        "ms": 406
+      },
+      {
+        "name": "(idle)",
+        "ms": 324
+      },
+      {
+        "name": "isLContainer",
+        "ms": 301
+      },
+      {
+        "name": "formatMoney",
+        "ms": 236
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 106
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 5000,
+    "repeat": 0,
+    "loadMs": 31233,
+    "responseMs": 845,
+    "afterResponseMs": 30388,
+    "scrollMs": 1201,
+    "rows": 5000,
+    "nodes": 125048,
+    "rafPeak": 5000,
+    "scriptMs": 26490,
+    "queryInclusiveMs": 23578,
+    "topSelfMs": [
+      {
+        "name": "collectQueryResults",
+        "ms": 9964
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 9506
+      },
+      {
+        "name": "isLContainer",
+        "ms": 3001
+      },
+      {
+        "name": "(program)",
+        "ms": 2974
+      },
+      {
+        "name": "visitNode",
+        "ms": 935
+      },
+      {
+        "name": "formatMoney",
+        "ms": 686
+      },
+      {
+        "name": "getByIndex",
+        "ms": 442
+      },
+      {
+        "name": "(idle)",
+        "ms": 414
+      }
+    ]
+  },
+  {
+    "phase": "mobile-before-mobile",
+    "size": 5000,
+    "repeat": 1,
+    "loadMs": 31633,
+    "responseMs": 835,
+    "afterResponseMs": 30798,
+    "scrollMs": 1151,
+    "rows": 5000,
+    "nodes": 125048,
+    "rafPeak": 5000,
+    "scriptMs": 26991,
+    "queryInclusiveMs": 23989,
+    "topSelfMs": [
+      {
+        "name": "materializeViewResults",
+        "ms": 10340
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 9689
+      },
+      {
+        "name": "isLContainer",
+        "ms": 2879
+      },
+      {
+        "name": "(program)",
+        "ms": 2853
+      },
+      {
+        "name": "visitNode",
+        "ms": 936
+      },
+      {
+        "name": "formatMoney",
+        "ms": 678
+      },
+      {
+        "name": "(idle)",
+        "ms": 445
+      },
+      {
+        "name": "getByIndex",
+        "ms": 412
+      }
+    ]
+  },
+  {
+    "phase": "mobile-check-desktop",
+    "size": 5000,
+    "repeat": 0,
+    "loadMs": 675,
+    "responseMs": 552,
+    "afterResponseMs": 123,
+    "scrollMs": 44,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 80,
+    "queryInclusiveMs": 0,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 309
+      },
+      {
+        "name": "(program)",
+        "ms": 224
+      },
+      {
+        "name": "",
+        "ms": 30
+      },
+      {
+        "name": "visitNode",
+        "ms": 13
+      },
+      {
+        "name": "formatMoney",
+        "ms": 11
+      },
+      {
+        "name": "appendChild",
+        "ms": 5
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 3
+      },
+      {
+        "name": "createComment",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "mobile-check-desktop",
+    "size": 5000,
+    "repeat": 1,
+    "loadMs": 677,
+    "responseMs": 556,
+    "afterResponseMs": 121,
+    "scrollMs": 47,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 82,
+    "queryInclusiveMs": 0,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 316
+      },
+      {
+        "name": "(program)",
+        "ms": 226
+      },
+      {
+        "name": "",
+        "ms": 30
+      },
+      {
+        "name": "visitNode",
+        "ms": 8
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 6
+      },
+      {
+        "name": "formatMoney",
+        "ms": 6
+      },
+      {
+        "name": "appendChild",
+        "ms": 4
+      },
+      {
+        "name": "send",
+        "ms": 4
+      }
+    ]
+  }
+]

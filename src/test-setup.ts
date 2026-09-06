@@ -36,3 +36,52 @@ if (dialogProto && !dialogProto.showModal) {
     this.open = false;
   };
 }
+
+/**
+ * **jsdom non implementa `ResizeObserver`**, e il motore tabella lo usa per la
+ * finestra di rendering. Senza, ogni prova di un elenco con `virtualizza`
+ * acceso stampa `ReferenceError: ResizeObserver is not defined` — un errore
+ * dentro `afterNextRender`, che Angular registra e non propaga: le prove
+ * passano, e l'errore resta a scorrere nel registro.
+ *
+ * ⛔ **Questo doppio NON invoca mai la richiamata, ed è la parte deliberata.**
+ * jsdom non impagina: non esiste nessuna dimensione vera da comunicare, e
+ * fabbricarne una vorrebbe dire far credere alle prove di aver misurato. Un
+ * ridimensionamento che non avviene non si annuncia — che è esattamente ciò che
+ * fa un `ResizeObserver` reale su un documento che non cambia mai geometria.
+ *
+ * ⚠️ **Le verifiche geometriche decisive non stanno qui**, e non possono
+ * starci: altezze delle card, offset, ancoraggio dello scorrimento e finestra
+ * si provano nel browser vero (`e2e/cassa-render-window.spec.ts`,
+ * `e2e/cassa-prestazioni.spec.ts`). Qui si toglie di mezzo un'assenza di API,
+ * non si simula un motore di impaginazione.
+ */
+if (!('ResizeObserver' in globalThis)) {
+  class ResizeObserverAssente implements ResizeObserver {
+    private readonly osservati = new Set<Element>();
+
+    constructor(private readonly callback: ResizeObserverCallback) {
+      // La richiamata si conserva per rispettare il contratto del costruttore:
+      // non viene invocata, perché in jsdom non accade nessun ridimensionamento.
+      void this.callback;
+    }
+
+    observe(target: Element): void {
+      this.osservati.add(target);
+    }
+
+    unobserve(target: Element): void {
+      this.osservati.delete(target);
+    }
+
+    disconnect(): void {
+      this.osservati.clear();
+    }
+  }
+
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    value: ResizeObserverAssente,
+    writable: true,
+    configurable: true,
+  });
+}

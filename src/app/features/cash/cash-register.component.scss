@@ -1,0 +1,396 @@
+@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
+
+.cassa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.cassa__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.cassa__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-label);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+}
+
+.cassa__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.cassa__session--open {
+  color: var(--color-ok);
+  font-weight: var(--font-weight-semibold);
+}
+
+.cassa__no-device {
+  color: var(--color-warning);
+}
+
+.cassa__head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.cassa__link {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-link);
+}
+
+.cassa__loading,
+.cassa__empty {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+// ── Apertura ───────────────────────────────────────────────────────────────
+
+.cassa__opening,
+.cassa__done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.cassa__opening-title,
+.cassa__done-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.cassa__opening-text,
+.cassa__done-note {
+  margin: 0;
+  max-inline-size: var(--field-w-xl);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-muted);
+}
+
+.cassa__opening-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-10);
+}
+
+.cassa__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cassa__label {
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-field-label);
+}
+
+// ── Esito ──────────────────────────────────────────────────────────────────
+
+.cassa__done-ref {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.cassa__done-totals {
+  display: flex;
+  gap: var(--space-16);
+  margin: 0;
+
+  dt {
+    font-size: var(--text-3xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--color-table-header-fg);
+  }
+
+  dd {
+    margin: 0;
+    font-size: var(--text-grand-total);
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-primary);
+  }
+}
+
+.cassa__done-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+// ── Lavoro: ricerca, carrello, incasso ─────────────────────────────────────
+
+.cassa__work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-block-size: 0;
+}
+
+// ⭐ Su scrivania le tre zone restano visibili INSIEME: al banco non si naviga
+//    fra schede col cliente davanti.
+@include bp.media-up('lg') {
+  .cassa__work {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--field-w-xl);
+    grid-template-areas:
+      'ricerca incasso'
+      'carrello incasso';
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--space-8);
+  }
+
+  .cassa__search {
+    grid-area: ricerca;
+  }
+
+  .cassa__cart {
+    grid-area: carrello;
+    min-block-size: 0;
+    overflow: auto;
+  }
+
+  .cassa__payment {
+    grid-area: incasso;
+  }
+}
+
+.cassa__search,
+.cassa__cart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.cassa__section-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.cassa__search-form {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.cassa__search-input {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: var(--field-height);
+  padding-inline: var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+
+  &:focus-visible {
+    border-color: var(--color-focus);
+    outline: none;
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--color-focus-ring-alpha);
+  }
+}
+
+.cassa__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cassa__result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-8);
+  inline-size: 100%;
+  padding: var(--space-6) var(--space-8);
+  text-align: start;
+  background: var(--color-surface-soft);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+
+  &:focus-visible {
+    border-color: var(--color-focus);
+    outline: none;
+  }
+}
+
+.cassa__result-name {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.cassa__result-meta {
+  grid-column: 1;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.cassa__result-price {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+// ── Righe ──────────────────────────────────────────────────────────────────
+
+.cassa__lines {
+  inline-size: 100%;
+  border-collapse: collapse;
+
+  th {
+    padding: 0 var(--table-list-pad-inline);
+    block-size: var(--table-head-h);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    text-align: start;
+    color: var(--color-table-header-fg);
+    background: var(--color-table-header-bg);
+    border-block-end: var(--border-width) solid var(--color-table-header-rule);
+  }
+
+  td {
+    padding: var(--space-4) var(--table-list-pad-inline);
+    font-size: var(--text-xs);
+    color: var(--color-text);
+    border-block-end: var(--border-width) solid var(--color-border-cell);
+  }
+}
+
+.cassa__num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cassa__line-name {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+}
+
+.cassa__line-meta {
+  display: block;
+  font-size: var(--text-2xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+
+.cassa__qty {
+  inline-size: var(--field-w-xs);
+  block-size: var(--control-h-cell);
+  padding-inline: var(--space-4);
+  font-size: var(--text-xs);
+  text-align: end;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+
+  &[aria-invalid='true'] {
+    border-color: var(--color-warning);
+  }
+}
+
+.cassa__payment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+// Stesso adattamento delle righe documentali: un solo campo quantità nel DOM.
+@include rt.data-table-mobile-cards('cassa__lines');
+
+@include bp.media-down('lg') {
+  .cassa__cart {
+    padding: var(--space-4);
+  }
+
+  .cassa__lines tbody td {
+    padding-inline: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .cassa__qty {
+    block-size: var(--control-h-tap);
+    max-inline-size: 100%;
+    justify-self: end;
+    font-size: var(--text-md);
+  }
+}
+
+// ⚠️ Sul telefono il touch target torna a 44px: lo impongono i token, e i
+//    campi non fanno eccezione.
+@include bp.media-down('md') {
+  .cassa__head-actions {
+    inline-size: 100%;
+    justify-content: space-between;
+  }
+
+  .cassa__search-input {
+    font-size: var(--text-md);
+  }
+}
+
+// ⚠️ Classi presenti nel markup: senza una regola qui la grafica si rompe in
+//    silenzio, e `check:classi-orfane` lo dice al primo lint.
+.cassa__identity {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.cassa__session {
+  white-space: nowrap;
+}

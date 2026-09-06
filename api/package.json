@@ -18,6 +18,8 @@
     "db:test:reset": "docker compose -f ../docker-compose.test.yml down -v && npm run db:test:up && npm run prisma:deploy:test",
     "prisma:deploy:test": "node scripts/prisma-deploy-test.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:migration:cassa": "vitest run --config vitest.cassa-migrations.config.ts",
+    "test:browser:cassa": "vitest run --config vitest.cassa-browser.config.ts",
     "test:shopify:contract": "vitest run --config vitest.contract.config.ts",
     "test:migration": "vitest run --config vitest.integration.config.ts --exclude '**/node_modules/**' src/test/integration/stati-ordini-backfill.integration-spec.ts",
     "prisma:studio": "prisma studio",
@@ -31,6 +33,7 @@
     "verify:pdf-all": "npm run build && node scripts/verify-pdf-all-types.mjs",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "typecheck:test": "tsc --noEmit -p tsconfig.spec.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

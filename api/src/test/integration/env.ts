@@ -180,4 +180,15 @@ export function ambienteIntegrazione(): AmbienteIntegrazione {
   };
 }
 
+/** Ambiente del solo processo figlio Prisma: risolve e verifica nuovamente il bersaglio TEST. */
+export function ambienteProcessoIntegrazione(): NodeJS.ProcessEnv {
+  const target = ambienteIntegrazione();
+  return {
+    ...process.env,
+    DATABASE_URL: target.databaseUrl,
+    DIRECT_URL: target.directUrl,
+    PRISMA_HIDE_UPDATE_MESSAGE: '1',
+  };
+}
+
 export { NON_CONFIGURATO };

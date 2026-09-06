@@ -53,3 +53,49 @@
   Registro Corrispettivi, che la fascia ce l'ha ancora perché metà delle sue
   voci colonne non sono («Annullamenti 2», «Rettifiche (4)»).
 */
+
+/// ⭐ **LA VOCE di un riepilogo: etichetta sopra, valore sotto.**
+///
+/// ⛔ **Era scritta due volte** — nel Registro Corrispettivi e nella fascia del
+/// registro Cassa — e la seconda l'ho scritta io il 04/09/2026 riusando i soli
+/// mixin tipografici. Il proprietario l'ha chiamata il giorno dopo: «il
+/// riepilogo Operazioni ha ancora struttura propria e condivide soltanto i
+/// mixin tipografici».
+///
+/// ⚠️ **Qui c'e` SOLO cio` che e` davvero comune**, misurato riga per riga:
+///
+/// ```text
+/// comune      la voce impilata, l'allineamento a destra, la tipografia,
+///             il negativo che si legge dal colore
+/// NON comune  il contenitore (attaccato alla tabella nei Corrispettivi,
+///             staccato nella Cassa) · la banda (flex con `space-between`
+///             e due sotto-bande la`, griglia `auto-fit` qui) · la taglia
+///             del valore evidenziato (13px la`, 14px qui)
+/// ```
+///
+/// ⛔ **Le tre differenze NON si uniformano**: sono decisioni prese guardando
+/// quelle due schermate, e ognuna ha la sua motivazione nel proprio foglio.
+/// Forzarle in un mixin unico cambierebbe la resa di un componente per far
+/// contento l'altro — che e` il contrario del riuso.
+/// ⚠️ **Il mixin NON porta il proprio selettore, e non e` una scelta di stile**:
+/// `check:classi-orfane` legge i nomi di classe LETTERALI dei fogli di
+/// componente, e un selettore interpolato (`.#{$voce}`) non lo vede — la classe
+/// risulterebbe «nel markup e non la veste nessuno», che e` esattamente la
+/// segnalazione con cui la guardia mi ha fermato il 05/09/2026. Ogni componente
+/// lo include dentro la propria classe, scritta per esteso.
+@mixin voce-riepilogo() {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-05);
+  min-inline-size: 0;
+  text-align: end;
+
+  dt {
+    @include etichetta-riepilogo();
+  }
+
+  dd {
+    @include valore-riepilogo();
+  }
+}

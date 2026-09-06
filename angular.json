@@ -115,6 +115,18 @@
                 "fonts": true
               }
             },
+            "integration": {
+              "outputPath": "dist/vestiflow-integration",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.integration.ts"
+                }
+              ],
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": false
+            },
             "e2e": {
               "fileReplacements": [
                 {

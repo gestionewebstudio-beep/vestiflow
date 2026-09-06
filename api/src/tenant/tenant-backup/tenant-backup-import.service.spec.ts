@@ -10,6 +10,8 @@ import { TENANT_BACKUP_FORMAT_VERSION } from './tenant-backup.constants';
 import { TenantBackupImportService } from './tenant-backup-import.service';
 
 interface MockDelegate {
+  findMany: ReturnType<typeof vi.fn>;
+  updateMany: ReturnType<typeof vi.fn>;
   deleteMany: ReturnType<typeof vi.fn>;
   createMany: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
@@ -20,12 +22,19 @@ interface MockDelegate {
  * sono MEMOIZZATI: `tx.user` deve restituire sempre lo stesso oggetto, o le
  * asserzioni guarderebbero una mock diversa da quella invocata dal service.
  */
-function createAutoMockTx(): Record<string, MockDelegate> & {
+// ⚠️ I delegate usati dai test si dichiarano QUI: il Proxy ne restituisce
+//    sempre uno, ma senza la dichiarazione l'accesso cade sull'index
+//    signature e `noUncheckedIndexedAccess` lo tipizza `| undefined`.
+type MockTx = Record<string, MockDelegate> & {
   user: MockDelegate;
   tenant: MockDelegate;
-} {
+  paymentOption: MockDelegate;
+  paymentMethodCode: MockDelegate;
+};
+
+function createAutoMockTx(): MockTx {
   const delegates = new Map<string, MockDelegate>();
-  return new Proxy({} as Record<string, MockDelegate> & { user: MockDelegate; tenant: MockDelegate }, {
+  return new Proxy({} as MockTx, {
     get(_target, prop) {
       if (typeof prop !== 'string') {
         return undefined;
@@ -33,6 +42,10 @@ function createAutoMockTx(): Record<string, MockDelegate> & {
       let delegate = delegates.get(prop);
       if (!delegate) {
         delegate = {
+          findMany: vi
+            .fn()
+            .mockResolvedValue(prop === 'paymentMethodCode' ? [{ id: 'mc-05', code: 'MP05' }] : []),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
           deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
           createMany: vi.fn().mockResolvedValue({ count: 0 }),
           update: vi.fn().mockResolvedValue({}),
@@ -57,9 +70,7 @@ describe('TenantBackupImportService', () => {
 
   const PLATFORM_ADMIN_EMAIL = 'admin@vestiflow.it';
   const platformAdmin = {
-    isPlatformAdmin: vi.fn(
-      (email: string) => email.trim().toLowerCase() === PLATFORM_ADMIN_EMAIL,
-    ),
+    isPlatformAdmin: vi.fn((email: string) => email.trim().toLowerCase() === PLATFORM_ADMIN_EMAIL),
   };
 
   const tx = createAutoMockTx();
@@ -85,6 +96,7 @@ describe('TenantBackupImportService', () => {
       supabase as unknown as SupabaseService,
       config as unknown as ConfigService,
       platformAdmin as never,
+      { invalidateTenant: vi.fn() } as never,
     );
   });
 
@@ -99,7 +111,7 @@ describe('TenantBackupImportService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-/**
+  /**
    * ⭐ **Un archivio più VECCHIO dell'app non è «aggiorna VestiFlow».**
    *
    * ⛔ Il cancello confrontava la versione e rifiutava con un messaggio solo —
@@ -113,7 +125,7 @@ describe('TenantBackupImportService', () => {
    */
   it('⭐ un archivio più VECCHIO dice che è vecchio, non «aggiorna»', async () => {
     const zip = await buildTenantBackupZip({
-      manifest: { formatVersion: TENANT_BACKUP_FORMAT_VERSION - 1 },
+      manifest: { formatVersion: 2 },
     });
 
     await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
@@ -218,7 +230,7 @@ describe('TenantBackupImportService', () => {
         users: [
           {
             id: 'id-falsificato',
-            tenantId: 'tenant-altrui',
+            tenantId,
             authUserId: 'auth-owner',
             email: 'scalata@altro.it',
             displayName: 'Titolare',
@@ -244,25 +256,17 @@ describe('TenantBackupImportService', () => {
     );
   });
 
-  it('impone il tenant corrente su OGNI riga: nessuna scrittura in un altro negozio', async () => {
+  it('rifiuta righe di un altro tenant prima del purge', async () => {
     const zip = await buildTenantBackupZip({
       manifest: { tenantId },
       entities: {
-        // Il tenantId altrui è visibile negli URL degli allegati: un file
-        // ritoccato proverebbe a scrivere prodotti nel negozio di un altro.
-        products: [
-          { id: 'prod-1', tenantId: 'tenant-vittima', name: 'Merce iniettata' },
-          { id: 'prod-2', tenantId, name: 'Merce legittima' },
-        ],
+        products: [{ id: 'prod-1', tenantId: 'tenant-vittima', name: 'Merce iniettata' }],
       },
     });
-
-    await service.importFromZipBuffer(tenantId, currentUserId, zip);
-
-    const call = tx['product']?.createMany.mock.calls[0]?.[0] as { data: { tenantId: string }[] };
-    const rows = call.data;
-    expect(rows).toHaveLength(2);
-    expect(rows.every((row) => row.tenantId === tenantId)).toBe(true);
+    await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
+      /altro negozio/,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('non ripristina i termini di contratto del tenant dal file', async () => {
@@ -289,5 +293,96 @@ describe('TenantBackupImportService', () => {
     expect(data).not.toHaveProperty('licensedLocationCount');
     expect(data).not.toHaveProperty('locationSelectionLocked');
     expect(data).not.toHaveProperty('locationSelectionChangeGranted');
+  });
+  // ── Modalità normative FatturaPA (C2A, `docs/25` §7) ──────────────────
+  //
+  // ⛔ Il contratto è «ripristino nello STESSO tenant»: il catalogo globale
+  //    `payment_method_codes` non entra nel backup e non ne esce. Questi test
+  //    provano il percorso vero — archivio, lettura, importatore, ordine di
+  //    purge — non una `createMany` chiamata a mano.
+
+  it('importa una riga PRECEDENTE a C2A, senza la proprietà: nessun errore', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      entities: {
+        // Come lo scriveva un backup di ieri: `methodCodeId` non esiste.
+        paymentOptions: [{ id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 }],
+      },
+    });
+
+    await service.importFromZipBuffer(tenantId, currentUserId, zip);
+
+    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<string, unknown>[];
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).not.toHaveProperty('methodCodeId');
+  });
+
+  it('un backup SUCCESSIVO conserva il collegamento alla modalità', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: {
+        tenantId,
+        tenantName: 'Negozio Demo',
+        globalReferences: { vatNatures: [], paymentMethodCodes: [{ id: 'mc-05', code: 'MP05' }] },
+      },
+      entities: {
+        paymentOptions: [
+          {
+            id: 'po-1',
+            tenantId,
+            kind: 'method',
+            name: 'Bonifico (MP05)',
+            sortOrder: 5,
+            methodCodeId: 'mc-05',
+          },
+        ],
+      },
+    });
+
+    await service.importFromZipBuffer(tenantId, currentUserId, zip);
+
+    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<string, unknown>[];
+    expect(righe[0]).toMatchObject({ methodCodeId: 'mc-05' });
+  });
+
+  it('il purge NON tocca il catalogo globale, e l_import non lo ricrea', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      entities: {
+        paymentOptions: [{ id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 }],
+      },
+    });
+
+    await service.importFromZipBuffer(tenantId, currentUserId, zip);
+
+    // Il catalogo è di sistema e globale: né cancellato dal purge del tenant,
+    // né duplicato dal ripristino.
+    expect(tx.paymentMethodCode.deleteMany).not.toHaveBeenCalled();
+    expect(tx.paymentMethodCode.createMany).not.toHaveBeenCalled();
+    expect(tx.paymentOption.deleteMany).toHaveBeenCalled();
+  });
+
+  it('una modalità inesistente fa fallire TUTTO il ripristino, non una parte', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      entities: {
+        paymentOptions: [
+          {
+            id: 'po-1',
+            tenantId,
+            kind: 'method',
+            name: 'Bonifico (MP05)',
+            sortOrder: 5,
+            methodCodeId: 'mc-che-non-esiste',
+          },
+        ],
+      },
+    });
+
+    // La FK del database rifiuta: il service non la intercetta, e l'errore
+    // esce dalla transazione — che è ciò che produce il rollback.
+
+    await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
+      /catalogo globale/i,
+    );
   });
 });

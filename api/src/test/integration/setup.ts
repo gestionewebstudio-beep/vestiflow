@@ -87,9 +87,9 @@ for (const [originale, custodia] of [
   ['DIRECT_URL', 'VESTIFLOW_DEV_DIRECT_URL'],
 ] as const) {
   const valore = process.env[originale] ?? daFile[originale];
-  if (valore) {
-    process.env[custodia] = valore;
-  }
+  // Anche l'assenza va conservata: in CI non esiste DEV. Senza questa stringa
+  // vuota, dopo l'override il confronto scambierebbe la connessione TEST per DEV.
+  process.env[custodia] = valore ?? '';
 }
 
 // ── 3 · LA VALIDAZIONE, prima di qualunque override ─────────────────────────
@@ -132,3 +132,7 @@ process.env['SUPABASE_JWT_SECRET'] = SEGRETO_INTEGRAZIONE;
  *    nemmeno per errore.
  */
 process.env['SUPABASE_SERVICE_ROLE_KEY'] = '';
+
+// Allowlist locale letta prima di ConfigModule.forRoot: nessuna identità reale.
+export const ADMIN_EMAIL_INTEGRAZIONE = 'admin-backup@integrazione.local';
+process.env['PLATFORM_ADMIN_EMAILS'] = ADMIN_EMAIL_INTEGRAZIONE;

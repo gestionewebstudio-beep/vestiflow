@@ -2,6 +2,7 @@
 // a carrello e reso collegato. Rispecchiano i contratti API `store-sales`.
 
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
+import type { VatSnapshot } from '@core/models/vat-code.model';
 
 export type StoreSalePaymentMethod = 'cash' | 'card' | 'other';
 
@@ -19,6 +20,7 @@ export interface StoreSaleLookupItem {
   readonly vatRatePercent: number | null;
   readonly vatCodeId: EntityId | null;
   readonly vatCodeLabel: string | null;
+  readonly vatSnapshot?: VatSnapshot | null;
   readonly onHand: number;
   readonly committed: number;
   readonly available: number;

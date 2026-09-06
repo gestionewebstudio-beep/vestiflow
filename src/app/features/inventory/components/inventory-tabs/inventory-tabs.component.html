@@ -1,42 +1,5 @@
-<nav class="inventory-tabs" aria-label="Sezioni magazzino">
-  <a
-    class="inventory-tabs__link"
-    routerLink="/app/inventory"
-    routerLinkActive="inventory-tabs__link--active"
-    [routerLinkActiveOptions]="{ exact: true }"
-  >
-    Giacenze
-  </a>
-  <a
-    class="inventory-tabs__link"
-    routerLink="/app/inventory/situation"
-    routerLinkActive="inventory-tabs__link--active"
-    [routerLinkActiveOptions]="{ exact: true }"
-  >
-    Situazione
-  </a>
-  <a
-    class="inventory-tabs__link"
-    routerLink="/app/inventory/lookup"
-    routerLinkActive="inventory-tabs__link--active"
-    [routerLinkActiveOptions]="{ exact: true }"
-  >
-    Cerca
-  </a>
-  <a
-    class="inventory-tabs__link"
-    routerLink="/app/inventory/movements"
-    routerLinkActive="inventory-tabs__link--active"
-    [routerLinkActiveOptions]="{ exact: true }"
-  >
-    Movimenti
-  </a>
-  <a
-    class="inventory-tabs__link"
-    routerLink="/app/inventory/counts"
-    routerLinkActive="inventory-tabs__link--active"
-    [routerLinkActiveOptions]="{ exact: false }"
-  >
-    Inventario
-  </a>
-</nav>
+<!--
+  ⭐ La veste e il comportamento stanno in `app-nav-tabs` (`shared/`): qui resta
+  soltanto QUALI sono le sezioni di Magazzino.
+-->
+<app-nav-tabs [items]="tabs" ariaLabel="Sezioni magazzino" />

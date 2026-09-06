@@ -1,7 +1,17 @@
 {
+  // Type-check dei test (`npm run typecheck:test`).
+  //
+  // ⛔ Nessun `types` e nessun `include` ristretto: entrambi erano il difetto.
+  //    `types` sostituiva l'elenco dei tipi ambientali; `include` valeva
+  //    `src/**/*.spec.ts`, che NON prende i file `*.integration-spec.ts` — il
+  //    glob vuole un punto prima di `spec`, e loro hanno un trattino. Erano
+  //    zero file di integrazione compilati, misurati il 04/09/2026.
+  //
+  // ⭐ Qui si compila lo STESSO insieme della configurazione base, test
+  //    compresi, con in piu' i globali di Vitest — che arrivano dalla direttiva
+  //    di riferimento in `src/test/vitest-globals.d.ts`, non da un elenco chiuso.
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["vitest/globals", "node"]
-  },
-  "include": ["src/**/*.spec.ts"]
+    "noEmit": true
+  }
 }

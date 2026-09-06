@@ -8,58 +8,32 @@ import {
   readZipEntry,
   readZipManifest,
 } from '../../test/fixtures/tenant-backup.fixture';
-import { TENANT_BACKUP_DATA_DIR, TENANT_BACKUP_FORMAT_VERSION } from './tenant-backup.constants';
+import {
+  TENANT_BACKUP_DATA_DIR,
+  TENANT_BACKUP_FORMAT_VERSION,
+  TENANT_BACKUP_MODELS,
+} from './tenant-backup.constants';
 import { TenantBackupExportService } from './tenant-backup-export.service';
 
 function createExportPrismaMock(tenant: { id: string; name: string }) {
-  const emptyList = vi.fn().mockResolvedValue([]);
-  const emptyUnique = vi.fn().mockResolvedValue(null);
-
-  return {
-    tenant: {
-      findUniqueOrThrow: vi.fn().mockResolvedValue(tenant),
-    },
-    user: { findMany: emptyList },
-    store: { findMany: emptyList },
-    location: { findMany: emptyList },
-    userStore: { findMany: emptyList },
-    documentTypeSetting: { findMany: emptyList },
-    companyProfile: { findUnique: emptyUnique },
-    tenantFeatureSettings: { findUnique: emptyUnique },
-    documentSequence: { findMany: emptyList },
-    paymentOption: { findMany: emptyList },
-    party: { findMany: emptyList },
-    supplier: { findMany: emptyList },
-    customer: { findMany: emptyList },
-    product: { findMany: emptyList },
-    productVariant: { findMany: emptyList },
-    productImage: { findMany: emptyList },
-    supplierVariantLink: { findMany: emptyList },
-    inventoryLevel: { findMany: emptyList },
-    inventoryLot: { findMany: emptyList },
-    inventorySerial: { findMany: emptyList },
-    stockMovement: { findMany: emptyList },
-    inventoryCountSession: { findMany: emptyList },
-    inventoryCountLine: { findMany: emptyList },
-    supplierOrder: { findMany: emptyList },
-    supplierOrderLine: { findMany: emptyList },
-    salesOrder: { findMany: emptyList },
-    salesOrderLine: { findMany: emptyList },
-    vatCode: { findMany: emptyList },
-    stockReservation: { findMany: emptyList },
-    stockReservationEvent: { findMany: emptyList },
-    onlineOrderEvent: { findMany: emptyList },
-    document: { findMany: emptyList },
-    documentLine: { findMany: emptyList },
-    documentRevision: { findMany: emptyList },
-    documentAttachment: { findMany: emptyList },
-    supplierAttachment: { findMany: emptyList },
-    shopifyConnection: { findUnique: emptyUnique },
-    shopifyCredential: { findUnique: emptyUnique },
-    tikTokConnection: { findUnique: emptyUnique },
-    tikTokCredential: { findUnique: emptyUnique },
-    userTableViewPreference: { findMany: emptyList },
+  const delegates = Object.fromEntries(
+    Object.values(TENANT_BACKUP_MODELS).map((model) => {
+      const key = model[0]!.toLowerCase() + model.slice(1);
+      return [key, { findMany: vi.fn().mockResolvedValue(key === 'tenant' ? [tenant] : []) }];
+    }),
+  ) as Record<string, { findMany: ReturnType<typeof vi.fn> }> & {
+    tenant: { findMany: ReturnType<typeof vi.fn> };
+    productImage: { findMany: ReturnType<typeof vi.fn> };
+    documentLine: { findMany: ReturnType<typeof vi.fn> };
+    paymentOption: { findMany: ReturnType<typeof vi.fn> };
   };
+  const mock = {
+    ...delegates,
+    vatNature: { findMany: vi.fn().mockResolvedValue([]) },
+    paymentMethodCode: { findMany: vi.fn().mockResolvedValue([]) },
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(mock)),
+  };
+  return mock;
 }
 
 describe('TenantBackupExportService', () => {
@@ -91,7 +65,7 @@ describe('TenantBackupExportService', () => {
     const zipBuffer = await readStreamToBuffer(stream);
 
     expect(filename).toMatch(/^vestiflow-backup-Negozio-Demo-\d{4}-\d{2}-\d{2}\.zip$/);
-    expect(prisma.tenant.findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: tenantId } });
+    expect(prisma.tenant.findMany).toHaveBeenCalledWith({ where: { id: tenantId } });
 
     const manifest = await readZipManifest(zipBuffer);
     expect(manifest).toMatchObject({
@@ -109,18 +83,11 @@ describe('TenantBackupExportService', () => {
     expect(tenantRows[0]).toMatchObject({ id: tenantId, name: tenant.name });
   });
 
-  it('non scarica allegati quando storage client assente', async () => {
-    const download = vi.fn();
-    supabase.getStorageClient.mockReturnValue(null);
-    prisma.productImage.findMany.mockResolvedValue([{ storagePath: 'tenant-1/products/photo.webp' }]);
-
-    const { stream } = await service.createExportStream(tenantId);
-    const zipBuffer = await readStreamToBuffer(stream);
-    const manifest = await readZipManifest(zipBuffer);
-
-    expect(manifest.entityCounts.productImages).toBe(1);
-    expect(supabase.getStorageClient).toHaveBeenCalled();
-    expect(download).not.toHaveBeenCalled();
+  it('rifiuta un export incompleto quando gli allegati non sono disponibili', async () => {
+    prisma.productImage.findMany.mockResolvedValue([
+      { storagePath: 'tenant-1/products/photo.webp' },
+    ]);
+    await expect(service.createExportStream(tenantId)).rejects.toThrow(/backup incompleto/);
   });
 });
 
@@ -167,8 +134,72 @@ describe('backup: l’etichetta della variante attraversa il round-trip', () => 
     // ⛔ Il punto del test: nessun `select` sulla lettura delle righe. Con un
     // `select` la colonna uscirebbe dal backup senza che niente diventi rosso.
     const chiamata = prisma.documentLine.findMany.mock.calls[0]?.[0] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     expect(chiamata?.['select']).toBeUndefined();
+  });
+  it('le voci pagamento escono col collegamento alla modalità normativa', async () => {
+    const prisma = createExportPrismaMock(tenant);
+    prisma.paymentOption.findMany = vi.fn().mockResolvedValue([
+      {
+        id: 'po-1',
+        tenantId,
+        kind: 'method',
+        name: 'Bonifico (MP05)',
+        sortOrder: 5,
+        isSystem: true,
+        isActive: true,
+        methodCodeId: 'mc-05',
+      },
+      // Una condizione: la modalità non ce l'ha, e `null` deve restare `null`.
+      {
+        id: 'po-2',
+        tenantId,
+        kind: 'terms',
+        name: '60 gg f.m.',
+        sortOrder: 5,
+        isSystem: true,
+        isActive: true,
+        methodCodeId: null,
+      },
+    ]);
+
+    const service = new TenantBackupExportService(
+      prisma as unknown as PrismaService,
+      { getStorageClient: vi.fn().mockReturnValue(null) } as unknown as SupabaseService,
+      { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService,
+    );
+
+    const { stream } = await service.createExportStream(tenantId);
+    const zipBuffer = await readStreamToBuffer(stream);
+    const json = await readZipEntry(zipBuffer, `${TENANT_BACKUP_DATA_DIR}/paymentOptions.json`);
+    const righe = JSON.parse(json) as Array<Record<string, unknown>>;
+
+    expect(righe[0]!['methodCodeId']).toBe('mc-05');
+    expect(righe[1]!['methodCodeId']).toBeNull();
+
+    // ⛔ Nessun `select`: con uno, la colonna nuova uscirebbe dal backup e
+    //    nessun test diventerebbe rosso — è il difetto che questo controllo
+    //    intercetta, lo stesso già visto su `variantLabel`.
+    const chiamata = prisma.paymentOption.findMany.mock.calls[0]?.[0] as
+      Record<string, unknown> | undefined;
+    expect(chiamata?.['select']).toBeUndefined();
+  });
+
+  it('il catalogo globale NON entra nel backup del tenant', async () => {
+    const prisma = createExportPrismaMock(tenant);
+    const service = new TenantBackupExportService(
+      prisma as unknown as PrismaService,
+      { getStorageClient: vi.fn().mockReturnValue(null) } as unknown as SupabaseService,
+      { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService,
+    );
+
+    const { stream } = await service.createExportStream(tenantId);
+    const zipBuffer = await readStreamToBuffer(stream);
+
+    // È di sistema e uguale per tutti: esportarlo lo renderebbe un dato del
+    // tenant, e un ripristino potrebbe riscriverlo.
+    await expect(
+      readZipEntry(zipBuffer, `${TENANT_BACKUP_DATA_DIR}/paymentMethodCodes.json`),
+    ).rejects.toThrow();
   });
 });

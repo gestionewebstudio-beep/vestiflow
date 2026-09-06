@@ -1366,3 +1366,35 @@
   ⭐ **Ora lo decide `select-menu` misurando all'apertura**, e vale per ogni
   colonna e ogni larghezza — dentro una tabella come fuori.
 */
+
+/*
+  ⭐ **La riga distanziatrice: spazio, non una riga.**
+
+  ⛔ **`padding: 0` e nessun bordo, e non e' pignoleria**: la tabella e' in
+  `border-collapse`, quindi un bordo qui si sommerebbe all'altezza dichiarata e
+  la finestra si sfaserebbe di un pixel a ogni schermata — trentacinque righe
+  piu' in basso l'errore e' una riga intera.
+
+  ⚠️ **Non ha `block-size`**: l'altezza gliela da' il template, calcolata dalle
+  righe che sostituisce. Dichiararne una qui la scavalcherebbe.
+*/
+.data-table__spacer > td {
+  padding: 0;
+  border: 0;
+}
+
+/*
+  ⛔ **NIENTE DOPPIA COMPENSAZIONE.**
+
+  Con la finestra accesa e' il motore a tenere ferma la riga guardata: misurate
+  le card rese, sposta `scrollTop` del delta accumulato sopra la finestra
+  (`misuraRigheRese`). Chrome fa da se' la stessa cosa — l'ancoraggio di
+  scorrimento — e i due aggiustamenti si sommerebbero: il contenuto salterebbe
+  del doppio, proprio mentre si scorre.
+
+  ⚠️ Solo con la finestra accesa: dove non c'e' nessuno che compensa,
+  l'ancoraggio del browser e' un miglioramento e resta.
+*/
+.data-table-scroll--finestra {
+  overflow-anchor: none;
+}

@@ -1,0 +1,385 @@
+import { DatePipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
+
+import type { EntityId } from '@core/models/common.model';
+import { formatMoney } from '@core/utils/money.util';
+import { isAppError } from '@core/models/app-error.model';
+import { nuovoId } from '@core/utils/uuid.util';
+import type {
+  CashReturnPayload,
+  CashReturnPreview,
+  CashReturnPreviewPayload,
+  CashSessionState,
+  ReturnLookup,
+} from '@domain/cash/models/cash.model';
+import { CashApiService } from '@domain/cash/services/cash-api.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { FormSectionComponent } from '@shared/components/form-section/form-section.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
+
+import { CashPendingOperationsService } from '../services/cash-pending-operations.service';
+import { CashPendingRecoveryComponent } from '../components/cash-pending-recovery.component';
+
+/**
+ * Il **reso collegato allo scontrino** (`docs/25` §12-bis).
+ *
+ * ⛔ **Non esiste un reso libero.** Si parte sempre da una vendita identificata:
+ * questa schermata riceve il documento richiamato, mostra cosa è stato
+ * comprato, quanto è già stato reso e quanto è ancora rendibile.
+ *
+ * ⭐ **Il rimborso si compone sulle QUOTE dell'incasso originale**, non sui Tipi
+ * pagamento: due quote possono avere lo stesso Tipo, e il Tipo può non esistere
+ * più. È quello che il server pretende, ed è quello che la schermata offre.
+ *
+ * ⛔ **Nessun calcolo autorevole qui**: gli importi proposti sono proporzionali
+ * alla quantità resa, ma a decidere è il server.
+ */
+@Component({
+  selector: 'app-cash-return',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    BackButtonComponent,
+    ButtonComponent,
+    CashPendingRecoveryComponent,
+    DatePipe,
+    ErrorStateComponent,
+    FormSectionComponent,
+    FormsModule,
+    InlineBannerComponent,
+    MoneyInputComponent,
+    RouterLink,
+  ],
+  templateUrl: './cash-return.component.html',
+  styleUrl: './cash-return.component.scss',
+})
+export class CashReturnComponent {
+  private readonly api = inject(CashApiService);
+  private readonly pending = inject(CashPendingOperationsService);
+  protected readonly invioPrecedente = this.pending.watch('returns');
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  private readonly params = toSignal(this.route.paramMap, { requireSync: true });
+  protected readonly documentId = computed(() => this.params().get('id') ?? '');
+
+  protected readonly vendita = signal<ReturnLookup | null>(null);
+  protected readonly stato = signal<CashSessionState | null>(null);
+  protected readonly errore = signal<string | null>(null);
+  protected readonly caricamento = signal(true);
+  protected readonly invio = signal(false);
+  protected readonly fatto = signal<{ reference: string; totalMinor: number } | null>(null);
+
+  protected readonly sedeId = signal<EntityId | null>(null);
+  protected readonly motivo = signal('');
+  protected readonly quantita = signal<Record<string, number>>({});
+  protected readonly rimborsi = signal<Record<string, number>>({});
+  protected readonly confermati = signal<Record<string, boolean>>({});
+  private readonly revisioneAnteprima = signal(0);
+
+  protected readonly sessione = computed(() => this.stato()?.session ?? null);
+
+  private readonly richiestaAnteprima = computed<CashReturnPreviewPayload | null>(() => {
+    this.revisioneAnteprima();
+    const locationId = this.sedeId();
+    const originalDocumentId = this.vendita()?.documentId;
+    const lines = Object.entries(this.quantita())
+      .filter(([, quantity]) => quantity > 0)
+      .map(([originalLineId, quantity]) => ({ originalLineId, quantity }));
+    return locationId && originalDocumentId && lines.length
+      ? { locationId, originalDocumentId, lines }
+      : null;
+  });
+  private readonly statoAnteprima = toSignal(
+    toObservable(this.richiestaAnteprima).pipe(
+      switchMap((input) =>
+        input
+          ? this.api.previewReturn(input).pipe(
+              map((preview): ReturnPreviewState => ({
+                input,
+                preview,
+                loading: false,
+                error: null,
+              })),
+              startWith<ReturnPreviewState>({ input, preview: null, loading: true, error: null }),
+              catchError((error: unknown) =>
+                of<ReturnPreviewState>({
+                  input,
+                  preview: null,
+                  loading: false,
+                  error: messaggio(error, 'Non è stato possibile calcolare il rimborso.'),
+                }),
+              ),
+            )
+          : of<ReturnPreviewState>({ input: null, preview: null, loading: false, error: null }),
+      ),
+    ),
+    {
+      initialValue: {
+        input: null,
+        preview: null,
+        loading: false,
+        error: null,
+      },
+    },
+  );
+  // L'identità dell'input invalida subito una risposta vecchia, prima dell'effetto RxJS.
+  protected readonly anteprima = computed(() =>
+    this.statoAnteprima().input === this.richiestaAnteprima()
+      ? this.statoAnteprima().preview
+      : null,
+  );
+  protected readonly calcoloInCorso = computed(
+    () =>
+      !!this.richiestaAnteprima() &&
+      (this.statoAnteprima().input !== this.richiestaAnteprima() || this.statoAnteprima().loading),
+  );
+  protected readonly erroreAnteprima = computed(() =>
+    this.statoAnteprima().input === this.richiestaAnteprima() ? this.statoAnteprima().error : null,
+  );
+  protected readonly totaleMinor = computed(() => this.anteprima()?.totalMinor ?? 0);
+
+  protected readonly rimborsatoMinor = computed(() =>
+    Object.values(this.rimborsi()).reduce((tot, v) => tot + (v || 0), 0),
+  );
+
+  protected readonly puoConfermare = computed(
+    () =>
+      !!this.sessione() &&
+      !!this.anteprima() &&
+      this.totaleMinor() > 0 &&
+      this.rimborsatoMinor() === this.totaleMinor() &&
+      this.motivo().trim().length > 0 &&
+      !this.invio() &&
+      !this.invioPrecedente().request &&
+      !this.invioPrecedente().error,
+  );
+
+  constructor() {
+    effect(() => {
+      const id = this.documentId();
+      if (id) {
+        this.carica(id);
+      }
+    });
+  }
+
+  protected ricarica(): void {
+    this.carica(this.documentId());
+  }
+
+  private carica(documentId: string): void {
+    this.caricamento.set(true);
+    this.errore.set(null);
+    // La sede del reso è quella CORRENTE, e la si ricava dall'operazione
+    // richiamata solo per leggerla: la merce rientra dove viene riportata.
+    this.api
+      .operation(documentId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (op) => {
+          const sede = op.locationId;
+          this.sedeId.set(sede);
+          if (!sede) {
+            this.errore.set('La vendita non ha una sede: non si può rendere.');
+            this.caricamento.set(false);
+            return;
+          }
+          this.api
+            .current(sede)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (s) => this.stato.set(s),
+              error: () => this.stato.set(null),
+            });
+          this.api
+            .lookupReturn(sede, documentId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (v) => {
+                this.vendita.set(v);
+                this.caricamento.set(false);
+              },
+              error: (e: unknown) => {
+                this.vendita.set(null);
+                this.errore.set(messaggio(e, 'Non è stato possibile richiamare la vendita.'));
+                this.caricamento.set(false);
+              },
+            });
+        },
+        error: () => {
+          this.errore.set('Vendita non trovata, o fuori dal tuo perimetro.');
+          this.caricamento.set(false);
+        },
+      });
+  }
+
+  protected cambiaQuantita(lineId: EntityId, valore: number, massimo: number): void {
+    const q = Math.max(0, Math.min(Math.floor(valore || 0), massimo));
+    this.quantita.set({ ...this.quantita(), [lineId]: q });
+  }
+
+  protected cambiaRimborso(paymentId: EntityId, valore: number | null): void {
+    this.rimborsi.set({ ...this.rimborsi(), [paymentId]: valore ?? 0 });
+  }
+
+  protected cambiaConferma(paymentId: EntityId, valore: boolean): void {
+    this.confermati.set({ ...this.confermati(), [paymentId]: valore });
+  }
+
+  /** Propone il rimborso sulla prima quota capiente: quasi sempre è quello. */
+  protected proponiRimborso(): void {
+    const preview = this.anteprima();
+    if (!preview) {
+      return;
+    }
+    let residuo = this.totaleMinor();
+    const proposta: Record<string, number> = {};
+    for (const quota of preview.payments) {
+      if (residuo <= 0) {
+        break;
+      }
+      const quantita = Math.min(residuo, quota.remainingMinor);
+      proposta[quota.originalPaymentId] = quantita;
+      residuo -= quantita;
+    }
+    this.rimborsi.set(proposta);
+  }
+
+  protected conferma(): void {
+    const v = this.vendita();
+    const sede = this.sedeId();
+    const sessione = this.sessione();
+    if (!v || !sede || !sessione || !this.puoConfermare()) {
+      return;
+    }
+    try {
+      const payload = this.pending.prepare(
+        'returns',
+        {
+          locationId: sede,
+          sessionId: sessione.id,
+          originalDocumentId: v.documentId,
+          // ⛔ `nuovoId()`: in magazzino la pagina non è in contesto sicuro.
+          creationIntentId: nuovoId(),
+          reason: this.motivo().trim(),
+          lines: Object.entries(this.quantita())
+            .filter(([, q]) => q > 0)
+            .map(([originalLineId, quantity]) => ({ originalLineId, quantity })),
+          refunds: Object.entries(this.rimborsi())
+            .filter(([, importo]) => importo > 0)
+            .map(([originalPaymentId, amountMinor]) => ({
+              originalPaymentId,
+              amountMinor,
+              confirmed: this.confermati()[originalPaymentId] ?? false,
+            })),
+        },
+        'Reso della vendita ' + v.reference + ' di ' + this.soldi(this.totaleMinor()),
+      );
+      this.invia(payload, false);
+    } catch (error) {
+      this.errore.set(error instanceof Error ? error.message : 'Invio non disponibile.');
+    }
+  }
+
+  protected recuperaInvio(): void {
+    if (this.invio()) return;
+    try {
+      const payload = this.pending.recover('returns');
+      if (payload) this.invia(payload, true);
+    } catch (error) {
+      this.errore.set(error instanceof Error ? error.message : 'Recupero non disponibile.');
+    }
+  }
+
+  private invia(payload: CashReturnPayload, recovering: boolean): void {
+    this.invio.set(true);
+    this.errore.set(null);
+    this.api
+      .createReturn(payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (esito) => {
+          this.pending.complete('returns', payload.creationIntentId);
+          this.fatto.set({ reference: esito.reference, totalMinor: esito.totaleMinor });
+          this.invio.set(false);
+        },
+        error: (e: unknown) => {
+          this.pending.failed('returns', payload.creationIntentId, e, recovering);
+          if (!this.invioPrecedente().request) this.aggiornaAnteprima();
+          this.errore.set(
+            messaggio(
+              e,
+              this.invioPrecedente().request
+                ? 'Esito del reso da verificare. Recupera l’invio precedente.'
+                : 'Il reso è stato rifiutato.',
+            ),
+          );
+          this.invio.set(false);
+        },
+      });
+  }
+
+  protected tornaAlleOperazioni(): void {
+    void this.router.navigate(['/app/cassa/operazioni']);
+  }
+
+  protected aggiornaAnteprima(): void {
+    this.revisioneAnteprima.update((value) => value + 1);
+  }
+
+  protected soldi(minor: number): string {
+    return formatMoney({ amountMinor: minor, currencyCode: 'EUR' });
+  }
+
+  protected quantitaDi(lineId: EntityId): number {
+    return this.quantita()[lineId] ?? 0;
+  }
+
+  protected rimborsoDi(paymentId: EntityId): number {
+    return this.rimborsi()[paymentId] ?? 0;
+  }
+
+  protected residuoQuota(paymentId: EntityId, storico: number): number {
+    return (
+      this.anteprima()?.payments.find((payment) => payment.originalPaymentId === paymentId)
+        ?.remainingMinor ?? storico
+    );
+  }
+
+  protected confermaDi(paymentId: EntityId): boolean {
+    return this.confermati()[paymentId] ?? false;
+  }
+}
+
+interface ReturnPreviewState {
+  readonly input: CashReturnPreviewPayload | null;
+  readonly preview: CashReturnPreview | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+}
+
+function messaggio(errore: unknown, riserva: string): string {
+  if (isAppError(errore)) return errore.message;
+  const corpo = (errore as { error?: { message?: string | string[] } } | null)?.error;
+  const testo = corpo?.message;
+  if (Array.isArray(testo)) {
+    return testo.join(' · ');
+  }
+  return testo ?? riserva;
+}

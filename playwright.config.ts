@@ -12,9 +12,24 @@ const baseURL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
 const apiURL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const useE2eFrontend = process.env['E2E_USE_MOCK_AUTH'] === '1' || Boolean(process.env['CI']);
 
+/*
+  ⛔ **La porta NON e` piu` cablata nel comando.**
+
+  Qui c_era `--port 4200` fisso, mentre `E2E_BASE_URL` cambiava solo
+  l_indirizzo che Playwright aspetta: puntando la suite altrove, il server
+  partiva comunque sulla 4200 e l_attesa non finiva mai. E con un `ng serve`
+  gia` in ascolto la` sopra, `reuseExistingServer` riusava QUELLO — che non e`
+  la build `e2e` e non contiene l_auth finta.
+
+  ⭐ Ora la porta si deduce dall_URL: `E2E_BASE_URL=http://localhost:4310`
+  avvia il frontend sulla 4310 e ci punta, senza toccare nulla di quello che
+  gira gia`.
+*/
+const frontendPort = Number(new URL(baseURL).port || 4200);
+
 const frontendStartCommand = useE2eFrontend
-  ? 'npm run start -- --host 127.0.0.1 --port 4200 --configuration e2e'
-  : 'npm run start -- --host 127.0.0.1 --port 4200';
+  ? `npm run start -- --host 127.0.0.1 --port ${frontendPort} --configuration e2e`
+  : `npm run start -- --host 127.0.0.1 --port ${frontendPort}`;
 
 const authenticatedProjects = hasE2eCredentials()
   ? [
@@ -86,7 +101,14 @@ export default defineConfig({
         riquadro di una tendina aperta dentro una tabella, cioè l'unica cosa che
         nessuna prova di componente può vedere — jsdom non dipinge.
       */
-      testMatch: /(ci-smoke|filtri-colonna)\.spec\.ts$/,
+      /*
+        ⭐ **E `cassa` per la stessa ragione**: la Vendita tiene ricerca,
+        carrello e incasso visibili INSIEME su scrivania, ed è una griglia —
+        `toBeInViewport()` è una domanda che solo un motore di layout può
+        rispondere. Le sue risposte arrivano da un'intercettazione, quindi non
+        chiede nulla al database.
+      */
+      testMatch: /(ci-smoke|filtri-colonna|cassa|cassa-mobile|cassa-render-window)\.spec\.ts$/,
     },
     ...authenticatedProjects,
   ],

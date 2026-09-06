@@ -1,3 +1,5 @@
+import { giornoDiAttivita, giornoDiAttivitaSpostato } from '@core/utils/business-day.util';
+
 /**
  * Preset periodo del registro movimenti ('' = tutti, senza vincolo date).
  *
@@ -12,6 +14,13 @@
  */
 export const MovementPeriodPreset = {
   All: '',
+  /**
+   * ⭐ **Aggiunti il 06/09/2026** per il registro operazioni della Cassa, ma
+   * **qui**, non in un elenco suo: un secondo sistema di periodi sarebbe la
+   * duplicazione che questo file esiste per chiudere.
+   */
+  Today: 'today',
+  Yesterday: 'yesterday',
   Last7Days: '7d',
   Last30Days: '30d',
   ThisMonth: 'month',
@@ -43,20 +52,24 @@ export const DEFAULT_MOVEMENT_PERIOD: MovementPeriodPreset = MovementPeriodPrese
  * Il calcolo delle date resta in `resolveMovementPeriodRange`, i valori
  * persistiti restano quelli dell'enum, e nessuno dei due cambia.
  */
-export const MOVEMENT_PERIOD_OPTIONS: readonly { readonly value: string; readonly label: string }[] =
-  [
-    // ⭐ «Tutti» resta scegliibile ma NON è il predefinito (`14` §H14-bis): un
-    //    elenco che si apre su tutta la storia del tenant chiede al database di
-    //    leggerla prima ancora che l'operatore abbia guardato qualcosa.
-    { value: MovementPeriodPreset.All, label: 'Tutti' },
-    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
-    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
-    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
-    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
-    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
-    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
-    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
-  ];
+export const MOVEMENT_PERIOD_OPTIONS: readonly {
+  readonly value: string;
+  readonly label: string;
+}[] = [
+  // ⭐ «Tutti» resta scegliibile ma NON è il predefinito (`14` §H14-bis): un
+  //    elenco che si apre su tutta la storia del tenant chiede al database di
+  //    leggerla prima ancora che l'operatore abbia guardato qualcosa.
+  { value: MovementPeriodPreset.All, label: 'Tutti' },
+  { value: MovementPeriodPreset.Today, label: 'Oggi' },
+  { value: MovementPeriodPreset.Yesterday, label: 'Ieri' },
+  { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+  { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
+  { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+  { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+  { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+  { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+  { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+];
 
 /** Estremi inclusivi YYYY-MM-DD (ora locale); assenti = nessun vincolo. */
 export interface MovementDateRange {
@@ -81,6 +94,25 @@ export function resolveMovementPeriodRange(
   const day = referenceDate.getDate();
 
   switch (preset) {
+    /*
+      ⭐ **Oggi e Ieri passano dal fuso dell'ATTIVITÀ**, non da quello del
+      browser: sono gli unici due preset in cui un'ora di scarto cambia il
+      risultato, e sono anche quelli su cui la Cassa si apre.
+
+      ⚠️ **Gli altri preset restano com'erano**, deliberatamente. Spostarli
+      tutti sarebbe stato un cambio di comportamento per cinque elenchi che
+      nessuno ha chiesto, e per un utente in Italia non sposterebbe una riga:
+      «ultimi 30 giorni» calcolati a Roma o sul browser italiano coincidono. Il
+      difetto resta dichiarato in `docs/DA-FARE.md`, non corretto di nascosto.
+    */
+    case MovementPeriodPreset.Today: {
+      const oggi = giornoDiAttivita(referenceDate);
+      return { from: oggi, to: oggi };
+    }
+    case MovementPeriodPreset.Yesterday: {
+      const ieri = giornoDiAttivitaSpostato(-1, referenceDate);
+      return { from: ieri, to: ieri };
+    }
     case MovementPeriodPreset.Last7Days:
       return { from: toIsoDate(year, month, day - 6), to: toIsoDate(year, month, day) };
     case MovementPeriodPreset.Last30Days:

@@ -28,11 +28,10 @@ import {
   tenantProfileCreateData,
   tenantProfileReplaceData,
 } from './tenant-profile.util';
-import {
-  TENANT_LICENSED_LOCATION_MIN,
-} from '../common/tenant-location-license.constants';
+import { TENANT_LICENSED_LOCATION_MIN } from '../common/tenant-location-license.constants';
 import { deleteTenantData } from './tenant-delete.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { AuthProfileCacheService } from '../auth/auth-profile-cache.service';
 
 @Injectable()
 export class AdminTenantsService {
@@ -45,6 +44,7 @@ export class AdminTenantsService {
     private readonly config: ConfigService,
     private readonly locationLicensing: LocationLicensingService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly profileCache: AuthProfileCacheService,
   ) {}
 
   async listTenants(): Promise<TenantSummaryDto[]> {
@@ -279,9 +279,13 @@ export class AdminTenantsService {
       .map((user) => user.authUserId)
       .filter((id): id is string => Boolean(id));
 
-    await this.prisma.$transaction(async (tx) => {
-      await deleteTenantData(tx, tenantId);
-    });
+    await this.prisma.$transaction(
+      async (tx) => {
+        await deleteTenantData(tx, tenantId);
+      },
+      { timeout: 300_000, maxWait: 30_000, isolationLevel: 'Serializable' },
+    );
+    this.profileCache.invalidateTenant(tenantId);
 
     if (this.supabase.isConfigured()) {
       await Promise.all(

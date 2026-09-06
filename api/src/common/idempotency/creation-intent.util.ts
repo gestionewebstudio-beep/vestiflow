@@ -42,6 +42,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class CreationIntentService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Consultazione senza claim né replay: l'assenza non prova un mancato invio.
+   * Il chiamante autorizza il risultato nel proprio dominio prima di esporlo. */
+  readResultTx(tx: Prisma.TransactionClient, tenantId: string, intentId: string) {
+    return tx.creationIntent.findFirst({
+      where: { tenantId, intentId },
+      select: { scope: true, resultRef: true },
+    });
+  }
+
   /**
    * Impronta stabile della richiesta.
    *
@@ -129,6 +138,8 @@ export class CreationIntentService {
     readonly tenantId: string;
     readonly intentId: string;
     readonly fingerprint: string;
+    /** Autorizza il riferimento anche prima di esporlo in un conflitto di contenuto. */
+    readonly authorizeResult?: (resultRef: string | null) => Promise<void>;
   }): Promise<{ readonly replay: string } | null> {
     if (!isCreationIntentConflict(params.error)) {
       return null;
@@ -146,6 +157,7 @@ export class CreationIntentService {
         message: 'La richiesta precedente non è andata a buon fine. Riprova.',
       });
     }
+    await params.authorizeResult?.(esistente.resultRef);
     if (esistente.fingerprint !== params.fingerprint) {
       throw new ConflictException({
         code: 'creation_intent_mismatch',

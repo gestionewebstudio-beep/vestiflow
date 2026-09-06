@@ -50,6 +50,11 @@ export const TableViewId = {
   // Registro Corrispettivi: Cliente, Email, Pagamento e Nota vivono qui, spente
   // di serie. Non sono state rimosse — si riaccendono dal selettore Colonne.
   CorrispettiviRegister: 'corrispettivi_register',
+  // ⭐ I due registri della Cassa, entrati nel motore comune il 04/09/2026.
+  // Erano due tabelle scritte a mano — diciannove `<th>` in tutto — senza
+  // selettore Colonne, senza larghezze regolabili e senza vista a card.
+  CashOperations: 'cash_operations',
+  CashSessions: 'cash_sessions',
 } as const;
 export type TableViewId = (typeof TableViewId)[keyof typeof TableViewId];
 

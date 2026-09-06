@@ -4,7 +4,12 @@ import { timeout, type Observable } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
-import type { PaymentOption, PaymentOptionKind } from '@core/models/payment-option.model';
+import type {
+  PaymentMethodCode,
+  PaymentOption,
+  PaymentOptionKind,
+  PaymentTenderKind,
+} from '@core/models/payment-option.model';
 
 const HTTP_TIMEOUT_MS = 15000;
 
@@ -31,9 +36,31 @@ export class PaymentOptionsService {
     return this.http.post<PaymentOption>(this.url(), { kind, name }).pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * Il catalogo normativo FatturaPA (MP01–MP23): globale, di sola lettura.
+   * Non cambia per tenant, quindi non porta filtri.
+   */
+  listMethodCodes(): Observable<readonly PaymentMethodCode[]> {
+    return this.http
+      .get<readonly PaymentMethodCode[]>(`${this.url()}/method-codes`)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
+   * ⚠️ `methodCodeId: null` SCOLLEGA la Modalità, ometterlo la lascia com'è:
+   * sono due intenzioni diverse, e l'API le distingue. Il tipo lo dichiara
+   * con `| null` invece che con un secondo metodo.
+   */
   update(
     id: string,
-    input: { readonly name?: string; readonly isActive?: boolean; readonly sortOrder?: number },
+    input: {
+      readonly name?: string;
+      readonly isActive?: boolean;
+      readonly sortOrder?: number;
+      readonly methodCodeId?: string | null;
+      /** ⚠️ Stessa disciplina: `null` toglie la classificazione, assente non tocca. */
+      readonly tenderKind?: PaymentTenderKind | null;
+    },
   ): Observable<PaymentOption> {
     return this.http
       .patch<PaymentOption>(`${this.url()}/${id}`, input)

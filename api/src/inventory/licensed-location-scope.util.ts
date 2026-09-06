@@ -160,3 +160,42 @@ export function locationScopeToCountSessionFilter(
   }
   return { locationId: { in: [...scope] } };
 }
+
+/**
+ * Il filtro sede che tiene insieme **perimetro autorizzato** e **sede chiesta**.
+ *
+ * ⛔ **La richiesta RESTRINGE, non sostituisce.** I tre percorsi di
+ * consultazione della Cassa scrivevano prima il perimetro e poi la sede del
+ * client, sulla stessa proprieta`:
+ *
+ * ```ts
+ * ...(scope === 'unrestricted' ? {} : { locationId: { in: [...scope] } }),
+ * ...(query.locationId ? { locationId: query.locationId } : {}),   // ⛔ vince questa
+ * ```
+ *
+ * In JavaScript la seconda chiave sovrascrive la prima: un utente limitato alla
+ * sede A che chiedeva la sede B **vedeva la sede B**. Non era un caso di
+ * frontiera — era il filtro Sede della schermata, con un id copiato.
+ *
+ * ⚠️ **Non e` il caso cross-tenant**, che e` un'altra cosa e ha le sue prove: li`
+ * le due sedi stanno in tenant diversi e a fermarle e` il `tenantId` del where.
+ * Qui stanno nello STESSO tenant, ed e` la ragione per cui nessuna prova
+ * esistente lo prendeva.
+ *
+ * @returns il filtro da spandere nel `where`, oppure **`null`** quando la sede
+ * chiesta e` fuori perimetro — e allora il chiamante risponde **vuoto**, come
+ * gia` fa quando il perimetro e` vuoto. ⛔ Non un errore: distinguere «non
+ * esiste» da «esiste altrove» direbbe cosa c'e` nelle sedi che non si vedono.
+ */
+export function scopedLocationFilter(
+  scope: LicensedLocationScope | 'unrestricted',
+  requested?: string,
+): { locationId?: string | { in: string[] } } | null {
+  if (scope === 'unrestricted') {
+    return requested ? { locationId: requested } : {};
+  }
+  if (!requested) {
+    return { locationId: { in: [...scope] } };
+  }
+  return scope.includes(requested) ? { locationId: requested } : null;
+}

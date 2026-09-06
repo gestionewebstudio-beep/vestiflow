@@ -1,5 +1,909 @@
 # Cosa resta da fare — VestiFlow
 
+## Cassa — correzioni del preflight (aggiornato 06/09/2026)
+
+- Consegna 05/09: corretto l'editing quantità checkout. Il vuoto resta in modifica,
+  la riga si rimuove solo con **Togli**, le quantità invalide bloccano nuovi invii.
+  Totali sull'ultima quantità valida con avviso, quote conservate, recupero del
+  comando incerto senza perdere il draft. Confrontati validator e componenti
+  documentali esistenti; riusato il mixin mobile condiviso per mantenere quantità
+  e Togli accessibili, campo da 44 px. Digitazione e clipboard reali verificate
+  su desktop e mobile, comprese scansioni e risposta persa già committata nel DB.
+- Precisazione IVA: **il controllo netto + IVA = lordo non distingue i regimi**.
+  Il censimento del 05/09 (25 Nature/sei modalità, 72 codici nel condiviso) è
+  storico, non rieseguito. Dopo approvazione, la sola Cassa ora accetta nuovi
+  checkout `standard` o `zero_rate` a zero, escludendo i codici solo acquisti.
+  Rifiuta esplicitamente RC, split, margine, informativo e `zero_rate` positivo,
+  anche con imposta arrotondata a zero. Catalogo, primitive e autorizzazioni
+  invariati; replay e resi conservano lo storico. Prove e limiti aggiornati nella
+  specifica, sezione «Perimetro IVA temporaneo approvato».
+- Verificata l'immutabilità sui percorsi alternativi del banco e dei documenti,
+  inclusi allegati e conversione: 38 prove HTTP su PostgreSQL TEST, a sessione
+  aperta e chiusa. Il normale banco e il reso autonomo restano modificabili.
+- Corretto il retry di vendita e reso: conservazione del comando nel browser,
+  impronta completa e nuova verifica della sede sul replay, anche dopo revoca.
+  Prove dedicate: 28 HTTP sul database isolato e 27 frontend; il collaudo finale
+  browser/API/database resta distinto dai test delle schermate con API simulate.
+- Corretta la ripartizione dei resi successivi sugli importi originali: 36,56 €
+  si esauriscono esattamente, conservando imponibile + IVA = lordo e i prezzi
+  unitari Decimal. L'anteprima usa lo stesso calcolo del salvataggio e le quote
+  ancora rimborsabili. Prove dedicate: 28 HTTP, incluse concorrenza e anomalie
+  storiche; 226 test di integrazione Cassa/collegamenti e 54 economici passati.
+- Applicata solo su PostgreSQL TEST la nuova migration correttiva
+  `20260905210000_protezione_storico_dispositivi_cassa`: RLS e revoche anche a
+  PUBLIC, senza riscrivere la migration originaria. Passano 16 prove sui
+  privilegi reali, accessi con GRANT accidentali e percorsi HTTP dello storico.
+- Corretto il backup tecnico: registro condiviso delle entità, ZIP v4 completo
+  della Cassa e dipendenze, compatibilità v3 quando i riferimenti sono presenti,
+  cataloghi globali risolti per chiave e mai riscritti. Ripristino DB atomico,
+  allegati caricati su nuovi percorsi prima della pubblicazione dei riferimenti,
+  cancellazione amministrativa con lo stesso ordine e revoca della cache profili.
+  Passano 28 prove su PostgreSQL TEST: export/ZIP/import HTTP, privilegi admin,
+  riferimenti invalidi/cross-tenant, rollback e SDK Storage su endpoint HTTP locale.
+  Lo Storage Supabase condiviso non è stato contattato; dettagli e limiti in
+  `BACKUP-DISASTER-RECOVERY.md`, sezione sul backup logico del tenant.
+- Collaudate le 158 migration da zero e l'aggiornamento dal `develop` locale
+  (`d0a1d95b`, 147 migration), con documenti, quota legacy e Decimal rappresentativi.
+  Un terzo percorso verifica la nuova RLS su uno storico dispositivi già popolato
+  con privilegi concessi: dati invariati e privilegi revocati. Comando esplicito
+  `npm --prefix api run test:migration:cassa`, protetto sul solo database TEST.
+  Il baseline supportato mantiene vuote le tabelle dormienti della vecchia Cassa;
+  non è una conversione di una precedente Cassa già in esercizio.
+- Collaudato il percorso browser → API Nest → PostgreSQL TEST su desktop e mobile:
+  accesso con SDK ordinario/emittente locale, apertura, IVA 22% e Decimal,
+  pagamento misto/resto, risposte perse e recupero dopo modifica carrello o reload,
+  resi 1+2 da 36,56 €, versamento/prelievo, chiusura e registro. Due percorsi
+  completi passati senza risposte simulate alle API gestionali. Comando root
+  `npm run test:cassa:real`; screenshot, trace e richieste in
+  `test-results/cassa-browser-real/`. Il provider Auth locale non certifica
+  l'infrastruttura Supabase o il suo MFA reale.
+- Il job CI Cassa esegue migration, integrazione API, browser reale e regressioni
+  UI isolate, sul PostgreSQL effimero senza segreti. Il baseline upgrade è fissato
+  al commit verificato, per conservarlo dopo il futuro merge. La CI remota non
+  è stata avviata: nessun push. Le verifiche complessive locali sono concluse.
+- Corretto il contratto checkout: anteprima IVA dalle primitive condivise con
+  snapshot completo (incluse aliquote frazionarie), arrotondamento a fine riga,
+  traduzione di `totaleMinor`/`restoMinor` dal server. Passano 13 prove frontend
+  e 3 HTTP reali. La Cassa rifiuta codici IVA espliciti non disponibili nel tenant
+  e modalità che produrrebbero imponibile + IVA diversi dal lordo pagato, senza
+  effetti economici. Il supporto dei regimi particolari resta da definire;
+  non è stato cambiato il calcolo della normale Vendita al banco.
+- Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
+  Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
+
+### Tranche 2 — finestra mobile ad altezze variabili (06/09/2026)
+
+**Il motore condiviso è stato ESTESO, non affiancato.** Nessun componente,
+breakpoint o logica della Cassa: `app-data-table`, `appRowCard`, gli stili
+`list-card`, il catalogo e le preferenze colonne, i filtri, l'ordinamento, la
+selezione e i totali restano quelli di tutti.
+
+#### Che cosa è cambiato, in una riga
+
+`altezzaRiga` era **uno scalare**, e tutta la finestra era «altezza × indice».
+Ora sono **offset cumulativi** costruiti su altezze misurate per `rowId`.
+
+| Prima                       | Ora                               |
+| --------------------------- | --------------------------------- |
+| `floor(scorrimento / h)`    | ricerca binaria sugli offset      |
+| `i · h`, `(N − j) · h`      | `offset[i]`, `totale − offset[j]` |
+| una riga misurata per tutte | ogni riga resa, per identità      |
+| finestra spenta sotto `lg`  | accesa a ogni larghezza           |
+
+⛔ **Gli offset NON si ricostruiscono a ogni scorrimento**: il `computed`
+dipende da righe, stima e versione delle misure — **non** da `scorrimento`.
+Scorrere costa una ricerca binaria, non una somma su cinquemila elementi.
+
+⭐ **Le misure si invalidano sulla LARGHEZZA**, non a ogni evento del
+`ResizeObserver`: una card si riimpagina quando cambia la larghezza, non quando
+cambia l'altezza del contenitore.
+
+⭐ **E sulle COLONNE, che è la stessa cosa un piano più in là** — aggiunto il
+06/09/2026. Spegnere una colonna cambia cosa **ogni** card scrive dentro, non
+solo quelle rese: tenere le misure vecchie per le righe fuori finestra lasciava
+la barra di scorrimento lunga come prima — misurato, **29.044px** per un elenco
+che ne vale 19.500.
+
+⚠️ **Il cambio dei DATI no**, ed è la differenza: lì le righe fuori finestra
+possono essere le stesse di prima, e la loro misura è comunque migliore della
+stima. Si rimisurano quelle rese e basta.
+
+⚠️ **Si confronta la FIRMA delle colonne, non l'identità dell'array**: un
+genitore che ricostruisse l'elenco a ogni giro di rilevamento farebbe altrimenti
+azzerare le misure di continuo, e la finestra sfarfallerebbe.
+
+#### L'ancoraggio, che è la parte delicata
+
+⛔ **Niente doppia compensazione**: il contenitore dichiara `overflow-anchor:
+none` **solo** con la finestra accesa. Dove non compensa nessuno, l'ancoraggio
+del browser resta.
+
+⚠️ **CINQUE difetti trovati NEL BROWSER, non ragionandoci sopra.** I primi due
+il 05/09, gli altri tre il 06/09 rispondendo alla verifica mirata chiesta dal
+proprietario sui due punti della finestra.
+
+1. Chi era in fondo non ci restava: le altezze misurate cambiavano
+   `scrollHeight`, il browser conservava `scrollTop`, e restavano **6px** di
+   residuo — con la vista alta 248px l'ultima card sbordava di 2px dal ritaglio
+   e `toBeInViewport({ ratio: 1 })` la vedeva al **97%**.
+2. Il primo rimedio non funzionava: stava dentro la guardia `cambiate`, e quando
+   le righe di coda erano già misurate non si eseguiva. Il ripristino è ora
+   **fuori** da quella guardia e **dopo** il render.
+3. ⛔ **L’ancora era un INDICE RICALCOLATO, non un’identità.** `primaDi` e
+   `dopo` leggevano `offsets()[indicePrimo()]` prima e dopo la misura, e
+   `indicePrimo()` è un `computed` che dipende da `offsets()`: le due letture
+   cadevano su **due righe diverse**. Misurato con una sonda dentro il
+   componente: saltando a metà elenco l’ancora resta `d-150` mentre l’indice
+   ricalcolato dice via via **139, 167, 113, 160**, e i delta applicati a
+   `scrollTop` valgono **+1177, −2260, +4264, −1218** pixel. Chi saltava al 50%
+   della barra atterrava su `d-129` invece che su `d-150` — duemila pixel più
+   su di dove la barra diceva di essere.
+4. ⛔ **Si misurava l’ALTEZZA della riga, non il PASSO del layout.** Sotto `lg`
+   la riga-card porta un `margin-block-end` di 4px che
+   `getBoundingClientRect().height` **non comprende**: il modello avanzava di
+   4px meno del layout a ogni riga, e lo scarto cresceva con la distanza — fra
+   la prima riga resa e quella al bordo della vista faceva **~40px**. Ora si
+   misura il passo fra due righe rese, così qualunque cosa lo produca —
+   margine, `border-spacing`, `gap` — resta giusto.
+5. ⛔ **La misura arrivava sempre UN EVENTO IN RITARDO.** `misuraRigheRese` gira
+   sincrona dentro l’ascoltatore di scorrimento, quindi misura la finestra
+   **precedente**: le righe che il nuovo `scorrimento` fa entrare non esistono
+   ancora nel DOM. Misurato: saltando a metà elenco le righe rese erano
+   `d-138…d-164` e la misura girava su `d-0…d-14`. Ora si rimisura **dopo il
+   render** (`rimisuraDopoIlRender`), ripetendo finché qualcosa cambia, con un
+   numero di giri limitato.
+
+⛔ **Nessuno dei tre falliva niente.** Cima e fondo restavano giusti — lì
+l'indice è zero, o ci si ri-ancora alla coda — e le sette prove esistenti
+guardavano esattamente cima e fondo. Vivevano a **metà elenco**, dove sopra la
+finestra restano righe ancora stimate.
+
+#### Misura prima/dopo, stessa macchina e stessa build
+
+```text
+TELEFONO, 5.000 operazioni       PRIMA       DOPO    variazione
+tempo totale                    6.476ms      803ms      8,1x
+  di cui dopo la risposta       5.586ms      242ms     23,1x
+scorrimento fino in fondo       1.259ms       29ms     43,4x
+righe rese nel DOM                5.000         15    333,3x
+nodi dentro la tabella          125.048        425    294,2x
+memoria JS usata                  371MB       22MB     16,9x
+```
+
+⭐ **E la scrivania non è peggiorata**: 698 ms contro 671-692 di prima, 31 righe
+rese, 825 nodi, 26 MB — tutti dentro la variabilità già osservata. Rimisurata
+dopo le tre correzioni del 06/09: **683 ms**, 31 righe, 825 nodi.
+
+#### La scala mobile, dopo — ed è PIATTA
+
+La misura non bloccante (`cassa-prestazioni.config.ts`, tre giri per volume,
+questa macchina):
+
+```text
+  300 card   min 1002 ms   mediana 1012 ms   max 1120 ms   dispersione 12%
+ 1000 card   min 1001 ms   mediana 1063 ms   max 1094 ms   dispersione  9%
+ 2000 card   min 1034 ms   mediana 1040 ms   max 1105 ms   dispersione  7%
+ 5000 card   min 1061 ms   mediana 1071 ms   max 1134 ms   dispersione  7%
+```
+
+⭐ **Fra 300 e 5.000 card corrono 59 ms**, cioè meno della dispersione dei tre
+giri: il tempo ha smesso di dipendere dal numero di righe, che era lo scopo.
+
+⚠️ **Sono numeri di QUESTA macchina, non del corridore CI a 2 core.** La scelta
+del volume e della soglia del futuro cancello va fatta sui numeri del
+corridore, ed è la ragione per cui quel passo continua a girare non bloccante.
+
+#### Che cosa ho riusato, esteso, creato
+
+|             |                                                                                                                                                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Riusato** | `app-data-table` e il suo template, `appRowCard` e gli stili `list-card`, catalogo e preferenze colonne, filtri di colonna, ordinamento, selezione, totali, gestione del fuoco per identità, righe distanziatrici, `data-row-id`        |
+| **Esteso**  | la finestra: da scalare a offset; la misura: da una riga a tutte quelle rese; `finestraAttiva`: tolto il veto sulle card                                                                                                                |
+| **Creato**  | `indiceAllOffset` (ricerca binaria) e l'ancoraggio dello scorrimento — **le due sole cose che non esistevano**: senza la prima ogni evento di scorrimento costerebbe 5.000 confronti, senza il secondo il contenuto salta sotto il dito |
+
+⭐ **`ViewportService` esiste ed è stato verificato prima di toccare qualsiasi
+rilevamento**: risponde a «è viva la vista a card?» col token
+`--viewport-compact-max`, e lo usano 17 consumatori. **Non serviva**, e non è
+stato introdotto un secondo rilevamento: con gli offset misurati la finestra
+funziona in entrambe le vesti, quindi la domanda «quale modalità?» non si pone
+più. È sparito anche il `getComputedStyle` per evento di scorrimento che il
+vecchio `aggiornaVeste` faceva.
+
+#### `ResizeObserver` nei test
+
+⛔ **Gestito nel setup, non ignorato**: `src/test-setup.ts` definisce un doppio
+che rispetta il contratto — `observe`, `unobserve`, `disconnect` — e **non invoca
+mai la richiamata**. jsdom non impagina: fabbricare una misura vorrebbe dire far
+credere alle prove di aver misurato. Prima l'assenza produceva
+`ReferenceError: ResizeObserver is not defined` dentro `afterNextRender`, che
+Angular registra e non propaga: le prove passavano e l'errore restava nel log.
+
+⚠️ **Le verifiche geometriche decisive restano nel browser vero**, ed è dove
+sono stati trovati entrambi i difetti dell'ancoraggio.
+
+#### Prove aggiornate, nessuna eliminata
+
+Sette asserzioni codificavano la vecchia decisione «sotto `lg` si rende tutto» e
+sono state **riscritte, non cancellate**, ognuna con la nota di che cosa diceva
+prima:
+
+| File                  | Che cosa diceva                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `cassa-render-window` | «sul telefono la finestra NON si accende» → ora si accende, con altezze diverse fra loro       |
+| `cassa-render-window` | `aria-rowcount` nullo in compatto → ora c'è a ogni larghezza                                   |
+| `cassa-render-window` | 300 righe rese dopo il passaggio a compatto → ora poche                                        |
+| `cassa-mobile`        | `toHaveCount(5000)` e `toHaveCount(300)` sulle righe rese → la completezza si legge in testata |
+| `cassa-mobile`        | zero distanziatrici → ora presenti                                                             |
+| `cassa-performance`   | `dom.rows === size` su mobile → ora `< 120`                                                    |
+
+⭐ **Otto prove nuove**, tutte in `cassa-render-window.spec.ts`. Le prime due il
+05/09 — la finestra accesa sul telefono con altezze diverse, e l'ultima card
+raggiungibile senza spazio vuoto in coda — le altre sei il 06/09:
+
+| Prova                                                                        | Che cosa inchioda                                                  |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| «saltando a metà elenco ${donde}, si ATTERRA a metà» ×2                      | l'ancora è un'identità: si atterra su `d-150 ± 12`, non su `d-129` |
+| «scorrendo ${verso} la card resta LA STESSA e si sposta del passo esatto» ×2 | scorrendo di N pixel una card visibile si sposta di N pixel, ±3    |
+| «dati nuovi con gli STESSI rowId»                                            | la geometria segue le altezze nuove                                |
+| «colonna spenta: le card si accorciano e la geometria segue»                 | la rimisura al cambio di colonne                                   |
+
+⭐ **Ognuna è stata FALSIFICATA rimettendo il difetto**, uno per volta:
+
+```text
+ancora per indice ricalcolato   → rosse le 2 «ATTERRA»
+altezza invece del passo        → rosse le 2 «passo esatto»
+niente rimisura dopo il render  → rosse le 2 «passo esatto»
+effetto sul contenuto spento    → rossa «colonna spenta»
+```
+
+⚠️ **Una NON è falsificata da nessuna delle quattro, ed è scritto nel file**:
+«dati nuovi con gli STESSI rowId» resta verde con ognuna, perché il cambio di
+periodo passa da una richiesta — la zona dati si stacca e si riattacca, il
+`ResizeObserver` scatta e la rimisura arriva comunque. Protegge il
+comportamento osservabile, non una riga di codice.
+
+⛔ **E il fixture ha dovuto cambiare forma per provare qualcosa.** Con altezze
+a ciclo di tre righe ogni finestra contiene la stessa mescolanza, la **stima**
+delle righe mai viste non si muove mai e gli offset di ciò che sta sopra
+restano fermi — cioè sparisce proprio la condizione che l'ancoraggio deve
+reggere. Provato: col ciclo di tre, le prove restavano verdi anche rimettendo
+il difetto. Ora sono **blocchi di venti righe** su tre altezze.
+
+⚠️ **E `cassa-prestazioni.spec.ts` è stato riscritto, non cancellato**:
+aspettava `toHaveCount(quante)` sulle righe rese e dichiarava in testa che «la
+finestra è spenta sotto `lg` per scelta». Ora aspetta `aria-rowcount` — il
+risultato intero — e asserisce che le righe rese siano **poche**.
+
+#### Limiti rimasti
+
+⚠️ **La soglia 2.000/7.000 resta non armata**: la misura prestazionale mobile
+continua a girare nel passo CI non bloccante. Con questi numeri andrà ritarata,
+ed è una decisione del proprietario — non un ritocco.
+
+⚠️ **La stima delle righe mai viste è la media di quelle viste**: su un elenco
+molto disomogeneo la barra di scorrimento può cambiare lunghezza mentre si
+scorre. Non produce salti — l'ancoraggio li assorbe — ma è un comportamento da
+guardare su dati reali.
+
+### Tranche 1 — date e periodi della Cassa (06/09/2026)
+
+**Il fuso dell'attività è `Europe/Rome`, costante applicativa centralizzata.**
+Nessuna migration: non è una colonna su tenant o sede, e il giorno in cui lo
+diventerà i punti da cambiare sono **due** — `api/src/common/business-time.util.ts`
+e `src/app/core/utils/business-day.util.ts` — non venti.
+
+#### ⛔ Il difetto non era nel filtro: era nel DATO
+
+`documentDate` è una colonna `@db.Date` e riceveva `new Date()`: Prisma ne prende
+la parte **UTC**. Una vendita alle 00:30 del 7 settembre a Roma si archiviava
+**col 6**. Nessun confine di ricerca poteva rimediarlo — il documento era già
+datato ieri.
+
+⚠️ **Difetto gemello, stesso punto**: l'anno della serie veniva da
+`getFullYear()`, che è locale al **processo**. In produzione i contenitori
+girano in UTC, in locale no: lo stesso codice dava due risposte, e a Capodanno
+un documento poteva prendere la serie dell'anno nuovo con la data dell'anno
+vecchio.
+
+#### ⭐ Data civile e istante sono due cose diverse
+
+| Grandezza                   | Che cosa riceve            |
+| --------------------------- | -------------------------- |
+| `documentDate` (`@db.Date`) | la **data civile** di Roma |
+| `year` della numerazione    | l'anno **di quella data**  |
+| `StockMovement.createdAt`   | l'**istante**, invariato   |
+| `CashSession.openedAt`      | l'**istante**, invariato   |
+
+⛔ **Il movimento poteva finire a mezzanotte**, ed è il difetto che la
+distinzione ha evitato: `movementDate` alimenta `StockMovement.createdAt`, e
+passargli la data civile avrebbe fatto risultare ogni movimento di Cassa fatto a
+mezzanotte. Ora riceve `adesso`.
+
+⛔ **Per una colonna `DATE` la mezzanotte giusta è UTC**, non quella di Roma:
+`dataCivile('2026-09-07')` è `2026-09-07T00:00:00Z`. Passare l'inizio del giorno
+romano (`2026-09-06T22:00Z`) la archivierebbe col 6 — lo stesso difetto con un
+travestimento nuovo, e c'è una prova che lo tiene fermo.
+
+#### I confini: `[inizio, inizio del giorno dopo)`
+
+⛔ Non `lte 23:59:59.999`: perde l'ultimo millisecondo e, nel giorno del cambio
+d'ora, **un'ora intera** — quel giorno dura 23 o 25 ore, non 24.
+
+⚠️ **I due registri usano confini di natura diversa, ed è corretto**: Operazioni
+confronta date `@db.Date` (`dataCivile` + giorno successivo), Sessioni confronta
+l'istante `openedAt` (`intervalloDiGiorni`). Scambiarli sposterebbe i confini di
+due ore.
+
+#### I periodi
+
+⭐ **Oggi e Ieri aggiunti al sistema CONDIVISO**, `movement-period.util`, non a un
+elenco della Cassa: lo usano anche Documenti, Ordini cliente, Ordini fornitore,
+Movimenti e Vendite online, con regressioni che ne tengono fermi gli intervalli.
+
+- **Operazioni**: parte da **Oggi**, visibile nel selettore e azzerabile con
+  «Tutti». Le date nascono già valorizzate: se partissero vuote, la **prima**
+  richiesta chiederebbe tutta la storia.
+- **Sessioni**: **nessun periodo predefinito**. Filtra su `openedAt`, e con
+  «Oggi» una sessione aperta ieri e ancora aperta sparirebbe. «Oggi più quelle
+  aperte» sarebbe un filtro con un'eccezione nascosta, che è peggio.
+- **Richiamo scontrino**: indipendente per costruzione — endpoint separato con
+  `from`/`to` propri e opzionali, che la maschera di reso non collega al
+  periodo del registro.
+
+⛔ **«Oggi» NON è la soluzione del problema mobile**, e non va raccontato così:
+è una scelta funzionale, e il limite a grandi volumi resta aperto (tranche 2).
+
+#### Prove
+
+| Prova                                | Copertura                                                                                                                    |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `business-time.util.spec.ts` (API)   | 10 casi: mezzanotte, cambio anno, entrambi i cambi d'ora (23 e 25 ore), confine `[gte, lt)`, colonna DATE, giorno malformato |
+| `business-day.util.spec.ts` (client) | 4 casi: mezzanotte, «ieri» su mese/anno/cambio d'ora                                                                         |
+| `movement-period.util.spec.ts`       | 13 casi, di cui 4 nuovi + **una regressione** che tiene fermi gli altri preset                                               |
+| `cassa-fuso-orario.integration-spec` | 5 casi **contro il database**, con l'orologio spostato: data, anno di serie, istante del movimento, filtro, storico          |
+| `cash-operations.component.spec.ts`  | 3 casi nuovi: parte da Oggi **nella prima richiesta**, è visibile e azzerabile, «Ieri» è un giorno solo                      |
+
+**Conteggi, per suite e non sommati:**
+
+| Suite                                | File | Prove     |
+| ------------------------------------ | ---- | --------- |
+| Frontend con copertura               | 220  | **2.081** |
+| Componenti (ATL)                     | 89   | **1.315** |
+| API unitari                          | 221  | **2.456** |
+| Integrazione API/PostgreSQL (mirata) | 1    | **5**     |
+
+⚠️ Copertura frontend 85,97 / 80,93 / 81,03 / 86,37. **La suite d'integrazione
+completa non è stata rieseguita** in questa tranche: ho eseguito il solo file
+nuovo, ripetuto nei due fusi di processo.
+
+⭐ **Indipendenza dal fuso del processo, dimostrata**: le prove dell'API girano
+verdi con `TZ=UTC`, `America/New_York`, `Pacific/Kiritimati` ed `Europe/Rome`; le
+attese sono assolute, quindi il corridore CI (UTC) e la macchina di sviluppo
+(Roma) devono concordare.
+
+⚠️ **`Document.createdAt` NON è asseribile in quelle prove, e non è un difetto**:
+è `@default(now())`, quindi lo genera PostgreSQL. È corretto che sia il database
+a datare la riga; l'orologio finto di Node non lo tocca, e il campo che
+l'applicazione decide è `StockMovement.createdAt`, che è asserito.
+
+⭐ **Falsificate, non solo passate**: rimesso il difetto (`documentDate = adesso`,
+`year = getFullYear()`), tre prove d'integrazione arrossano e i messaggi sono
+letteralmente il guasto — «expected '2026-09-06' to be '2026-09-07'» e «expected
+'2026-12-31' to be '2027-01-01'».
+
+#### ⚠️ Altri endpoint: UN difetto riprodotto, sei da VERIFICARE
+
+⛔ **Riprodotto è solo quello della Cassa**, e solo perché ha una prova che lo
+mostra fallire. Degli altri ho letto il codice e il tipo della colonna — è un
+fatto — ma **non ho scritto la prova che dimostri un difetto visibile**, e senza
+quella non si dice «difetto».
+
+⚠️ **Un taglio a mezzanotte UTC su una colonna `DATE` può essere CORRETTO**, e la
+prima stesura di questa sezione lo liquidava come «meno grave»: è una
+semplificazione sbagliata. Una `DATE` non ha ora né fuso, quindi confrontarla con
+una mezzanotte UTC è il confronto giusto — a essere in questione è **come quel
+valore è stato scritto**, che è una domanda diversa e va posta caso per caso.
+
+| Registro                   | Campo filtrato            | Tipo letto nello schema        | Stato                                        |
+| -------------------------- | ------------------------- | ------------------------------ | -------------------------------------------- |
+| Vendite online             | `placedAt`, `fulfilledAt` | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Ordini fornitore           | `orderDate`               | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Ordini cliente             | `placedAt`                | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Corrispettivi (rettifiche) | `occurredAt`              | `DateTime` — **istante**       | da verificare, forma nota rischiosa          |
+| Corrispettivi (registro)   | `documentDate`            | `DateTime @db.Date` — **data** | da verificare: dipende da come viene scritta |
+| Corrispettivo manuale      | data del documento        | `@db.Date` — **data**          | da verificare: dipende da come viene scritta |
+| Analytics / report         | periodo                   | non ispezionato                | da verificare                                |
+
+⭐ **La domanda da porre a ciascuno è una sola**, e sono due domande diverse a
+seconda del tipo:
+
+```text
+colonna ISTANTE   il confine è calcolato nel fuso dell'attività?
+                  (qui il taglio UTC sposta davvero le righe)
+
+colonna DATE      il valore ARCHIVIATO è la data civile dell'attività,
+                  o è la parte UTC di un istante?
+                  (è la domanda a cui la Cassa ha risposto «no»)
+```
+
+⛔ **Nessuno dei sette è stato toccato**, come da mandato, e nessuno è dichiarato
+sano: sono dichiarati **non verificati**.
+
+⚠️ **E anche `resolveMovementPeriodRange` resta al fuso del browser** per tutti i
+preset diversi da Oggi/Ieri: per un utente in Italia non sposta una riga, ma è
+divergenza dichiarata, non risolta.
+
+### Integrazione in develop — PR #2 aperta il 06/09/2026
+
+**Le due evidenze che il preflight dichiarava mancanti sono chiuse.**
+
+⛔ **Nessuna protezione su `develop`, e nemmeno su `main`.** Letto via API con la
+credenziale del repository: `branches/develop` risponde `"protected": false`, i
+ruleset sono un elenco vuoto e `rules/branches/develop` pure. **Nessun controllo
+di stato è obbligatorio**, quindi la CI informa ma non ferma: a impedire un merge
+prematuro c'è solo la disciplina di chi lo esegue.
+
+⚠️ **Il token disponibile ha `push`, non `admin`**: le protezioni si possono
+leggere ma non creare, e non sono state toccate. ⚠️ Registrato anche il fatto che
+il repository risulta **pubblico** (`"private": false`), che non era un
+presupposto di nessuna decisione presa finora e va saputo.
+
+⭐ **La migration col checksum divergente cambia SOLO un commento, dimostrato.**
+`20260811120000_supplier_order_line_number`: la revisione il cui contenuto
+corrisponde al checksum registrato è `25b33168`, e fra quella e HEAD l'**SQL
+eseguibile** — il testo privato delle righe `--` e di quelle vuote — ha lo stesso
+SHA-256, `d2083997…`, 10 righe per parte. Cambiano 13 righe di commento sul
+timestamp doppio. Nessun SQL storico e nessun checksum sono stati modificati.
+
+⚠️ **`migrate status` da solo non lo dimostrava**: dice che non ci sono migration
+modificate, non _che cosa_ è cambiato in un file il cui checksum diverge.
+
+**Consegnato:** ramo spinto (hook `pre-push` passato: build API, type-check dei
+test API, `test:everything`, build frontend) e **PR #2 verso `develop`**, 72
+commit e 211 file. **Nessun merge, nessuna migration applicata, nessuna scrittura
+sul database condiviso.**
+
+#### Esito della prima CI remota — una prova rossa, e non è una sorpresa
+
+| Job                                  | Esito                                   |
+| ------------------------------------ | --------------------------------------- |
+| Security checks                      | ✅ success                              |
+| Lint & unit tests                    | ✅ success                              |
+| Playwright E2E                       | ✅ success                              |
+| Lighthouse CI                        | ✅ success                              |
+| Audit dipendenze                     | ✅ success                              |
+| Cassa API, migration e browser reali | ⛔ **failure** — 31 prove passate su 32 |
+
+⛔ **`e2e/cassa-mobile.spec.ts:42` — «mobile: 5.000 card complete senza stallo
+iniziale»**: `expect(loadMs).toBeLessThan(10_000)` ha ricevuto **10.610 ms**.
+Sforamento del **6%** del budget, sul corridore GitHub a 2 core.
+
+⭐ **È il limite che questo documento dichiara già aperto**, non un difetto nuovo:
+«prestazioni mobile ferme alla tranche conclusa» e il P2 «grandi volumi mobile
+ancora pesanti». Sotto `lg` la finestra di rendering **è spenta per scelta** — le
+card non hanno un'altezza unica — quindi 5.000 card stanno tutte nel DOM.
+
+⚠️ **Non è causato dalla correzione dello stato sessione**: quella prova apre
+`/app/cassa/operazioni`, il registro, mentre la modifica è su
+`cash-register.component`, la schermata di vendita. Rotte e componenti diversi.
+
+⛔ **Il budget NON è stato abbassato, e la prova non è stata disabilitata.** Il
+commento nel test dice a cosa serve quel numero: «distinguere il difetto da 30 s
+dalla normale variabilità CI». 10,6 s non è quel difetto — ma decidere se il
+budget vada tarato sul corridore, o se la prova a 5.000 card debba restare fuori
+dal cancello finché la virtualizzazione mobile non esiste, **è una decisione del
+proprietario**, non un ritocco da fare di passaggio.
+
+⭐ **Seconda misura: 10.366 ms.** Due esecuzioni indipendenti sopra soglia, +3,7%
+e +6,1%: **superamento sistematico sul corridore, non variabilità.**
+
+### ⭐ DEROGA — la sola soglia temporale mobile esce dal cancello (06/09/2026)
+
+**Autorizzata dal proprietario, e circoscritta a un numero.** Non è una funzione
+completata: è un **limite noto e temporaneamente accettato**.
+
+#### Che cosa resta obbligatorio
+
+⛔ **Tutte le verifiche funzionali**, e nessuna prova è stata eliminata. Della
+prova `mobile: 5.000 card complete senza stallo iniziale` è uscita **una riga su
+sei**:
+
+| Verifica                                         | Stato         |
+| ------------------------------------------------ | ------------- |
+| le 5.000 card ci sono tutte (nessun troncamento) | **bloccante** |
+| finestra di rendering spenta sotto `lg`          | **bloccante** |
+| ultima riga raggiungibile scorrendo              | **bloccante** |
+| apertura dell'operazione col tocco               | **bloccante** |
+| ricerca, filtri, azzeramento, testi lunghi       | **bloccante** |
+| totali su 390px, date e calendari                | **bloccante** |
+| `loadMs < 10.000`                                | non bloccante |
+
+⛔ **`continue-on-error` sta sul singolo passo, non sul job.** Preparazione
+dell'ambiente, migration, integrazione API e browser reali restano bloccanti —
+verificato leggendo il workflow: dei tredici passi del job Cassa, **uno solo** è
+non bloccante.
+
+⛔ **Nessun dato è stato troncato e nessun timeout è stato alzato per ottenere
+verde.** Il volume resta 5.000 e la misura continua a essere eseguita e
+pubblicata: log, `test-results/prestazioni-mobile.txt` e allegati, dentro
+l'artefatto `cassa-integration`.
+
+#### Il limite per chi usa l'applicazione
+
+Su telefono il registro Cassa **carica tutte le righe del filtro nel DOM**: sotto
+`lg` la finestra di rendering è spenta per scelta, perché le card non hanno
+un'altezza unica (misurate 83, 105 e 127px sullo stesso elenco) e una finestra
+che sbaglia l'altezza salta righe.
+
+Conseguenza pratica: **con un periodo molto ampio l'elenco impiega secondi ad
+apparire** — misurato su hardware da corridore CI, ~10,5 s per 5.000 operazioni.
+I dati sono completi e corretti: lento è il primo disegno, non il risultato.
+**Il rimedio operativo è restringere il periodo**, e su un telefono in negozio è
+anche il gesto naturale.
+
+⚠️ Su scrivania il problema non esiste: lì la finestra di rendering è accesa e il
+tempo non dipende dal numero di righe (misurato: 1,5 s da 100 a 5.000).
+
+#### Il lavoro futuro, non fatto ora
+
+⛔ **Nessuna virtualizzazione mobile è stata implementata in questa tranche**, e
+non va improvvisata: richiede una finestra ad **altezze variabili** — misurare e
+memorizzare l'altezza di ogni card, o imporne una uniforme, che è una decisione
+di disegno con conseguenze su `regole-stile-ui`. Resta in `DA-FARE` come P2.
+
+#### La misura sul corridore, per scegliere la soglia futura
+
+`e2e/cassa-prestazioni.spec.ts` misura una **scala** — 300, 1.000, 2.000, 5.000
+card — **tre volte per volume nella stessa esecuzione**, e pubblica minimo,
+mediana, massimo e dispersione. Serve a scegliere il volume e la soglia del
+cancello prestazionale obbligatorio **con i numeri del corridore CI**, non con
+quelli della macchina di chi sviluppa.
+
+⚠️ **Riferimento locale (macchina di sviluppo, NON la base della soglia):**
+
+```text
+  300 card   min 1.109  mediana 1.156  max 1.172 ms   dispersione  5%
+1.000 card   min 1.610  mediana 1.650  max 1.810 ms   dispersione 12%
+2.000 card   min 2.717  mediana 2.954  max 2.980 ms   dispersione  9%
+5.000 card   min 5.655  mediana 5.717  max 5.851 ms   dispersione  3%
+```
+
+Il corridore CI è circa **1,8×** più lento (5.000 card: 5,7 s in locale contro
+10,4–10,6 s in CI).
+
+⛔ **Nessuna soglia è ancora armata, e l'assenza è dichiarata invece che
+nascosta.** Sceglierne una prima di avere la scala misurata in CI significherebbe
+sceglierla perché passa. Il volume e la soglia si propongono al proprietario
+dopo la prima esecuzione della scala.
+
+### Residui di processo del preflight — chiusi il 06/09/2026
+
+**Tre residui indicati dal proprietario, chiusi in tre commit locali separati.**
+Ripresa da `ade2d339`, ramo `feature/recupero-cassa`, albero pulito e nessuna
+lavorazione concorrente; `docs/RIPRESA-03-09-2026.md` resta non tracciato e
+intatto. **Nessun push, merge, cambio ramo, intervento sui servizi locali o
+scrittura sul database condiviso.** La tranche IVA non è stata riaperta.
+
+| Commit     | Residuo                                                                                                                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `2f9abf1c` | `check:rls:static` in coda a `npm run lint` (60 passi): fase 1 offline, 74 tabelle, ~1 s. `check:rls` resta invariato e **obbligatorio** in `security.yml` per l'ambiente reale                                  |
+| `5931f727` | Ordine CI: due installazioni e `prisma:generate` in testa, poi lint e type-check, poi i test. Tredici passi, gli stessi di prima — confronto degli elenchi ordinati. `regole-qualita` allineata al percorso vero |
+| `e93609ad` | Soglie di copertura API alla misura reale troncata: **67 / 59 / 69 / 67** contro 44 / 35,5 / 56 / 43. Nessuna esclusione toccata, nessun test indebolito                                                         |
+
+⭐ **Le due guardie si sono viste FALLIRE, non solo passare.**
+
+- RLS: lo script vero eseguito su un albero finto con una tabella priva di
+  `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` esce **1** e nomina la tabella;
+  aggiunta la riga, lo stesso albero esce **0**. Il controllo positivo evita che
+  un albero finto sbagliato faccia sembrare riuscita la falsificazione.
+- Copertura: con le soglie alzate di mezzo punto sopra la misura, **senza toccare
+  il file**, `vitest` esce **1** su lines e functions.
+
+⛔ **Lo scarto di copertura non era solo sulle funzioni.** Branches e lines erano i
+più lontani, oltre 23 punti: il divario nasceva dalle esclusioni allineate il
+05/09 al perimetro di `tsconfig.build` senza rileggere le soglie.
+
+⚠️ **Misura riproducibile**: `npm run test:coverage --prefix api` su `2f9abf1c`,
+albero pulito, **due esecuzioni con esito identico al centesimo** su tutti e
+quattro gli indici — 67,52 / 59,65 / 69,17 / 67,65, 220 file e 2.446 test verdi.
+
+⚠️ **`.claude/rules/regole-qualita.md` committato senza l'hook**: il file non era
+già conforme a Prettier prima della modifica, e lasciarlo riformattare avrebbe
+prodotto **1672 righe cambiate** invece delle poche toccate. Stessa ragione per
+cui il progetto vieta Prettier su un albero intero.
+
+**Non toccati, come da mandato:** letture di layout durante lo scorrimento, query
+DOM del motore tabella, nomi misti dell'API di checkout, fiscalizzazione e
+rifiniture estetiche.
+
+⛔ **I limiti documentati restano aperti e NON sono chiusi da questa consegna:**
+riferimenti tecnici dei pagamenti POS assenti, checkout privi di
+`issuerSnapshot`, storico append-only dei tentativi fiscali. Nessuna migration,
+integrazione o dato sintetico è stato introdotto per completarli. Valgono
+invariate le voci della tabella «Residui prioritari» qui sotto.
+
+### Preflight aggiornato — chiusura per pausa del 06/09/2026
+
+**Consegna locale per revisione, non approvazione al merge o al rilascio.** Stato
+iniziale verificato: `42ff9f86`, ramo `feature/recupero-cassa`, nessuna modifica
+tracciata; solo `docs/RIPRESA-03-09-2026.md` non tracciato, lasciato intatto.
+Cartella: `C:/Users/Utente/Desktop/Progetto-Vestiflow/vestiflow`.
+Riferimento della correzione: `c5e3979f`; questo preflight e la
+specifica sono consegnati in un commit di documentazione separato.
+
+**Chiuso in questa tranche:** perimetro IVA temporaneo approvato sui nuovi
+checkout, con validazione server nella transazione prima degli effetti e dopo
+il recupero dell'intento concluso. Il frontend impedisce le modalità escluse;
+il server controlla anche `usageScope` del codice risolto, compresa l'IVA
+dell'articolo. Nessuna sostituzione con un codice dalla stessa aliquota o nuova
+classificazione. Non si confondono Natura, regime e aliquota. I codici inattivi
+vendite/entrambi non ricevono un nuovo divieto indiscriminato.
+
+Preservati Decimal(16,6), primitive economiche, snapshot storici, prezzo originale,
+quote e resi proporzionali. Replay dopo modifica del catalogo non è bloccato dal
+nuovo filtro, mantiene documento e controlli tenant/sede. Nessuna modifica al
+codice della normale Vendita al banco, al reso autonomo o ai permessi esistenti.
+Il caso IVA solo acquisti continua a funzionare nell'API ordinaria del banco.
+
+**Prove rieseguite in questa consegna:**
+
+| Verifica                   | Esito e confine                                                                                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run test:everything`  | **5.827 passati**: 2.073 frontend con coverage, 1.308 componenti, 2.446 API unitari                                                                                                                                                         |
+| `npm run test:integration` | **469 passati**, 26 file HTTP/PostgreSQL TEST; include protezioni documentali, tenant/sede, idempotenza e recupero, resi, backup/import/delete e privilegi SQL                                                                              |
+| Matrice IVA                | **53 casi** nel file dedicato: 45 nuovi checkout/censimento e 7 storici con replay/consultazione/reso/retry, più IVA articolo solo acquisti e banco indipendente; rifiuti senza effetti su documenti, quote, magazzino/quadratura e intenti |
+| `npm run test:cassa:real`  | **4 percorsi passati**, browser → API Nest → PostgreSQL TEST, desktop 1440 px e Chromium mobile emulato 390 px; quantità/totali, risposte perse, recupero leggibile/illeggibile, copia locale, resi e chiusura                              |
+| Controlli statici/build    | Lint completo, type-check frontend e test API, build frontend production/API; RLS offline su 74 tabelle                                                                                                                                     |
+| Coverage API               | 2.446 test passati, funzioni **69,17%** contro soglia invariata 56%; nessuna esclusione o soglia modificata                                                                                                                                 |
+
+RED conservati: 19 accettazioni API precedenti e sette anteprime frontend
+riproducevano i casi da bloccare. Dopo il filtro tutti i casi sono verdi.
+I sette scenari storici usano fixture TEST rappresentative delle modalità già
+accettate, senza riscrivere dati applicativi reali. L'ultima ripetizione mirata
+verifica anche l'etichetta variante copiata nel reso; nessuna esenzione alla
+guardia degli snapshot. I test reali non sono sostituiti dai mock; l'Auth provider
+è locale e mobile è emulato, non Supabase/MFA reali, Safari o telefono fisico.
+
+Log locali ignorati da Git: `test-results/cassa-pausa-{all-tests,integration,iva-final,browser-real,lint-final,types,api-test-types,build,api-build,api-coverage-final,rls-static}.log`,
+RED `cassa-pausa-{iva-red,frontend-red}.log`; screenshot/trace/richieste in
+`test-results/cassa-browser-real/`. Test e comandi restano versionati.
+
+**Evidenze precedenti, non rieseguite:** tre percorsi migration (installazione
+158, upgrade 147→158 e 157→158 con storico/GRANT), fotografie del condiviso e
+deriva del 05/09, 15 prove UI isolate dei registri dopo rimozione spike, misure
+desktop/mobile a grandi volumi. Nessuna migration o modifica del motore di
+rendering in questa tranche. Non confondere questi risultati con nuove prove.
+
+**Residui prioritari:**
+
+| Priorità / passaggio                             | Cosa rimane                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prima del merge                                  | Revisione della consegna e CI remota sul bersaglio effettivo, sotto mandato successivo; nessun push o fetch eseguito. Le prove locali non certificano l'allineamento remoto                                                                                                                                                                               |
+| Prima del rilascio                               | Piano coordinato delle **11 migration** con client/API e gestione della deriva; RLS/revoche/privilegi e Data API effettivi, backup/restore sull'infrastruttura prevista, Auth/MFA reali. L'accesso all'ambiente del proprietario può attendere l'allineamento; non è dichiarato collaudato                                                                |
+| Dati storici da non promettere come recuperabili | Quote elettroniche prive di terminale/transazione acquirer; checkout senza `issuerSnapshot`. Non si può garantire riconciliazione puntuale degli incassi precedenti o ricostruire l'emittente storico per emissioni retroattive dai soli dati Cassa. Problema segnalato prima di qualsiasi migration, senza inventare riferimenti o riaprire integrazioni |
+| Prima della prima fiscalizzazione reale          | Storico append-only dei tentativi e legame stabile a dispositivo/configurazione/contenuto effettivi; gli adapter compilati e il writer fiscale sono assenti. Il dispositivo corrente della sessione non dimostra chi abbia ricevuto un futuro invio incerto                                                                                               |
+| Pendenze non confermate                          | Recupero rimane sola lettura per dati illeggibili: verifica intenti/tenant/sede/tipo, apertura e conferma esplicita. Identità assente/incompatibile, richiesta in corso/non trovata o accesso revocato non significano «operazione non registrata»; verifica amministrativa, nessuno scarto/retry o sblocco forzato                                       |
+| Limite della copia locale                        | Byte originali e risultato copiati/riletti nello stesso `sessionStorage` per tenant/utente; non è archivio cifrato/durevole e non resiste a chiusura scheda o cancellazione browser. Archiviazione fallita non chiude la pendenza                                                                                                                         |
+| Rinviabili nel perimetro attuale                 | Adapter e fiscalizzazione reale, voucher, stampe/esportazioni operative, prestazioni mobile a grandi volumi. Gli importi/legami gestionali restano conservati; questa affermazione non comprende i metadati storici mancanti sopra                                                                                                                        |
+
+**Migration future prevedibili, non create:** storico fiscale append-only con
+identità e snapshot del dispositivo effettivo, tenant/sede/RLS/revoche e indici;
+estensione compatibile del registro backup/import/delete; eventuali riferimenti
+tecnici dei pagamenti/rimborsi per riconciliazione puntuale, dopo definizione
+del requisito e fonte reale. Sono estensioni additive: non richiedono di
+ricostruire vendite, quote o magazzino. Gli archivi storici senza questi dati
+restano incompleti su quel punto, non si popolano con tentativi sintetici.
+Disegno e prove concrete nella specifica, sezione «Dati per fiscalizzazione e
+riconciliazione future».
+
+Nessun push, merge, cambio ramo, modifica protezioni GitHub, scrittura sul
+database condiviso o intervento sulla porta 4200. Nessun nuovo permesso o sistema
+di attivazione tenant. Il successivo `develop → main` richiede comunque un
+preflight separato dell'intero rilascio. La Cassa si ferma qui per revisione.
+
+### Preflight precedente — recupero e proposta IVA del 06/09/2026
+
+**Evidenza storica consegnata in `42ff9f86`.** La proposta IVA non ancora
+approvata descritta sotto è superata dal perimetro attuale riportato sopra.
+Conteggi, diff e «questa tranche» di questa sezione si riferiscono a quella
+consegna, non alla chiusura per pausa.
+
+**Consegna per revisione, non approvazione al merge o al rilascio.** Ripresa da
+`13a1bbdc` sul ramo `feature/recupero-cassa`. Nessun fetch/push, merge o cambio di
+ramo. Database condiviso e servizio 4200 non toccati. In questa tranche nessun
+file Prisma/schema/migration, motore economico, codice applicativo Vendita al
+banco o permesso esistente viene modificato. I nuovi GET riusano i permessi Cassa;
+non introducono un sistema di attivazione tenant.
+
+Riferimento del codice verificato: `f92418e7`; confronto con `develop` locale
+`d0a1d95b`: 64 commit esclusivi sul feature, nessuno sul lato develop e 210 file
+nel diff. Le migration
+aggiunte nel diff restano 11 e nessuna è cambiata dopo `13a1bbdc`. Il commit di
+documentazione finale segue questo riferimento; non certifica il bersaglio remoto.
+
+| Commit locale | Intervento                                                                                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `bfed74c7`    | RLS: opzione statica senza credenziali/rete; probe reale inconcludente su 500 o risposta 200 non interpretabile ora fallisce             |
+| `3cf25335`    | Rimossi solo i tre file del componente spike senza utilizzatori; test rinominato `cassa-render-window.spec.ts` senza cambiarne i 15 casi |
+| `a21b0199`    | Recupero in sola lettura degli invii illeggibili e relative prove                                                                        |
+| `f92418e7`    | Sette caratterizzazioni delle primitive IVA documentali, senza modificare il calcolo                                                     |
+
+La proposta IVA e questa documentazione sono consegnate in un commit distinto
+dalla correzione e dal commit delle prove di confronto con gli acquisti.
+
+**Problemi chiusi in questa tranche:**
+
+- Invio illeggibile: percorso consultazione → apertura documento → conferma
+  esplicita, con nuova lettura autorizzata del registro intenti. Il server verifica
+  tenant, tipo/scope, documento Cassa concluso, sede e sessione. Nessun POST
+  checkout/reso per cercare l'esito; il normale banco e il reso autonomo non sono
+  recuperati come Cassa. Il carrello in modifica resta da rivedere, senza reinvio.
+- Conservazione: JSON malformato e campi interni incompatibili non vengono
+  scartati. La chiusura scrive e rilegge la copia originale per tenant/utente;
+  errore di archiviazione, contesto diverso o revoca impediscono la chiusura.
+  Una pendenza checkout non blocca il tipo reso e viceversa. Dettagli e confine
+  della protezione locale nella specifica, sezione «Recupero di invii locali
+  illeggibili».
+- RLS locale: `npm run check:rls -- --static` passa su 74 tabelle, anche senza
+  credenziali e senza contattare il condiviso. Dieci test offline provano assenza
+  di rete in modalità statica e corretta distinzione degli esiti della modalità
+  reale. Il workflow conserva il probe reale obbligatorio e aggiunge i test dello
+  stesso script. Non sono state aggiunte guardie per aumentare il conteggio.
+- Pulizia: nessun utilizzatore del vecchio componente spike trovato; rimossi
+  solo quei file. Configurazione ordinaria e isolata, `testMatch` e rapporto
+  prestazioni aggiornati al nuovo nome. Conservate misure e prove su componenti
+  effettivamente in uso; nessuna nuova virtualizzazione o modifica dello scroll.
+
+**Prove di questa consegna:** 455 integrazioni HTTP/PostgreSQL TEST passate (26
+file), comprese le 38 prove di idempotenza/consultazione intenti; quattro percorsi
+browser → API Nest → PostgreSQL TEST, desktop 1440 px e Chromium mobile emulato
+390 px. I due nuovi percorsi corrompono i dati dopo una risposta persa già
+committata, provano JSON rotto/versione ignota, consultazione ripetuta, apertura
+reale del dettaglio, conferma e copia. Resta **un solo POST** originario per
+vendita/reso; snapshot di documenti, quote, magazzino/quadratura e intenti invariati
+durante il recupero. Le API provano anche transazione ancora aperta, revoca della
+sede, altro tenant e riferimenti incompatibili. Dati originali raggiungibili nel
+viewport con lo scroll esistente; nessun overflow orizzontale a 390/1440 px.
+
+Le 15 prove browser conservate dei registri sono passate anche dopo la pulizia;
+sono **API simulate**, distinte dai quattro percorsi reali sopra. Discovery
+ordinaria del file rinominato: 15 casi. Le prove frontend mirate di recupero e
+regressione checkout/reso sono 79, più tre del contratto HTTP frontend. Per l'IVA,
+51 prove sulle primitive documentali (sette nuove) e le 39 caratterizzazioni API
+della matrice, incluse nella suite integrata: nessuna nuova restrizione applicata.
+
+**Controlli complessivi conclusi:** `npm run test:everything` passa con **5.825
+test** (2.073 frontend con coverage, 1.306 componenti, 2.446 API). Passano inoltre
+`npm run lint` completo, `npm run check:types`, `npm --prefix api run typecheck:test`,
+build frontend production e build API. Coverage API rieseguita: funzioni 69,17%
+contro soglia 56%, senza modificare soglie o contratti per uniformità estetica.
+I quattro percorsi browser reali sono passati; i due con dati illeggibili sono
+stati ripetuti dopo aver aggiunto la prova di raggiungibilità dei dati originali
+nel viewport, anch'essa passata. Non è un collaudo su telefono fisico o Safari.
+
+Log locali ignorati da Git: `test-results/cassa-residui-{all-tests,integration,lint,types,api-types,build,api-build,api-coverage}.log`,
+`cassa-unreadable-{api-red,api-green,storage-red,nested-red,final-unit,browser,browser-evidence}.log`,
+`cassa-iva-primitives.log`, `cassa-rls-static{,-red,-green}.log`,
+`cassa-spike-{cleanup,ordinary-list}.log`; screenshot/trace/richieste in
+`cassa-browser-real/`. Le prime prove RED riproducono i GET mancanti (404) e
+l'assenza del recupero; sei ulteriori regressioni riproducono campi annidati
+corrotti che prima passavano la decodifica. Test e comandi sono versionati.
+
+**Residui e decisioni, in ordine:**
+
+| Priorità                                          | Residuo / prossimo passaggio                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 — prima del merge/rilascio                     | CI remota sul bersaglio effettivo e piano coordinato delle 11 migration con client/API. Il dato 147 applicate/158 locali e la deriva descritta sotto sono evidenza del 05/09, non una nuova lettura del condiviso. Nessuna migration applicata qui; le tre prove installazione/upgrade restano evidenze precedenti, non rieseguite perché l'SQL non cambia                            |
+| P1 — decisione IVA prima dell'uso con quei codici | In `25-specifica-cassa.md`, sezione «Proposta IVA circoscritta»: mantenere ordinaria/zero; proporre stop ai nuovi checkout RC, split, margine, informativo anche se l'IVA arrotonda a zero, e `zero_rate` con aliquota positiva; decidere l'ambito solo acquisti. Riutilizzare primitive esistenti per ogni futuro trattamento. **Nessuna delle restrizioni proposte è implementata** |
+| P1 — pendenze non confermate                      | Identità assente, versione incompatibile, intento non trovato, contesto non corrispondente o accesso revocato richiedono verifica amministrativa; nessuno sblocco forzato. Copia protetta dal percorso applicativo nello stesso `sessionStorage`, non archivio cifrato/durevole; chiudere la scheda o cancellare i dati può perdere le evidenze locali                                |
+| P1 — ambiente reale                               | RLS/revoche effettive, privilegi/percorsi alternativi e Data API, backup/ripristino sull'infrastruttura prevista, autenticazione/MFA reali restano obbligatori al rilascio. Il controllo statico cerca `ENABLE RLS` nella storia: non ricostruisce lo stato finale né certifica policy/privilegi                                                                                      |
+| Rinviati invariati                                | Limite mobile a grandi volumi, fiscalizzazione, stampe/esportazioni operative e voucher; nessun lavoro riaperto                                                                                                                                                                                                                                                                       |
+
+Il successivo `develop → main` richiede sempre un preflight separato dell'intero
+rilascio. La sezione seguente conserva le evidenze precedenti; le frasi «questa
+tranche» al suo interno si riferiscono esclusivamente al 05/09.
+
+### Preflight precedente — consegna del 05/09/2026
+
+**Correzioni consegnate per revisione, non approvate per merge; rilascio non
+autorizzato.** Il riferimento della consegna precedente è `3b8a2844`. Perimetro di codice
+revisionato: `develop` locale `d0a1d95b` → `e010d501`, 59 commit e 204 file nel diff
+reale, incluse specifiche e prove. Il ramo discende da quel `develop` senza commit
+esclusivi sul lato develop; non è stato fatto fetch, quindi non certifica il futuro
+bersaglio remoto. I commit da `05ff072c` a `6fcd8acb` separano protezioni documentali,
+idempotenza, resi, RLS, backup, contratto IVA e collaudi. Nessun vecchio SQL di migration
+è modificato dal diff: sono aggiunte 11 migration.
+
+**Commit dell'ultima correzione:** `e010d501` — quantità in modifica, adattamento
+mobile del carrello, prove browser reali e caratterizzazione delle modalità IVA.
+La documentazione di consegna è in un commit locale separato. Questa tranche
+modifica solo il checkout Cassa e le prove: niente codice applicativo API, schema,
+migration, permessi o normale Vendita al banco.
+
+| Ambito                            | Prova conclusiva                                                                                                                                                                                                 | Esito                                                                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Documenti Cassa e banco ordinario | 38 chiamate HTTP: mutazioni alternative rifiutate, nessun effetto su quote/magazzino/quadratura; banco e reso autonomo modificabili                                                                              | Verificato                                                                                                               |
+| Invio incerto e importi originali | HTTP diretto, concorrenza, replay dopo revoca, matrice IVA/sconti/resi e due percorsi browser reali                                                                                                              | Verificato                                                                                                               |
+| Isolamento tenant/sede            | Guardie ordinarie, riferimenti indiretti, replay, restore e cancellazione del solo tenant; privilegi SQL reali dello storico                                                                                     | Verificato nel DB TEST; nessuna pretesa di FK tenant composite                                                           |
+| Backup tecnico                    | Export ZIP/import multipart reali; SDK Storage su HTTP locale, rollback DB e pulizia nuovi oggetti, v3 valido/v4, riferimenti invalidi e cross-tenant                                                            | Verificato; limiti infrastrutturali in `BACKUP-DISASTER-RECOVERY.md`                                                     |
+| Installazione e upgrade           | 158 migration da zero; 147→158 con dati; 157→158 con storico e GRANT preesistenti                                                                                                                                | 3 percorsi passati                                                                                                       |
+| Browser reale                     | Desktop e mobile: editing quantità da tastiera/clipboard, blur e invalidi, scansioni, apertura, IVA/Decimal, incasso misto/resto, perdita risposta e recupero del draft, resi 1+2, cassetto, chiusura e registro | 2 percorsi estesi passati; Auth provider locale, API gestionali e DB reali; mobile Chromium emulato, non telefono fisico |
+| Modalità IVA                      | 39 nuovi casi HTTP: 12 codici seed, tutte le 25 Nature rappresentate, snapshot/Decimal e replay; cinque nuove prove di anteprima                                                                                 | Accettazione attuale censita; nessun nuovo regime o filtro introdotto, limiti nella specifica                            |
+| Regressioni UI isolate            | Componenti condivisi, registri, tastiera, filtri e mobile                                                                                                                                                        | 32 prove passate; API simulate, distinte dal collaudo precedente                                                         |
+
+**Controlli globali:** `npm run lint` completo, `npm run check:types`, type-check
+test API, build frontend production e build API passati. `npm run test:everything`:
+5.784 test (2.051 frontend con coverage + 1.294 componenti + 2.439 API).
+`npm run test:integration`: 445 test su PostgreSQL TEST, 26 file. Il componente
+Cassa è stato rieseguito dopo l'adattamento mobile: 26 prove passate. Le prove
+RED iniziali riproducevano otto fallimenti sull'editing; quella mobile misurava
+24 px contro i 44 px richiesti, oltre al taglio di Togli osservato negli screenshot.
+La copertura API della consegna precedente (`npm --prefix api run test:coverage`,
+non rieseguita in questa tranche senza cambiamenti al codice API) era:
+funzioni 69,31% contro soglia 56%, mantenuta invariata.
+Il conteggio esclude ora le fixture e i test, come `tsconfig.build.json`, senza
+escludere codice applicativo Cassa. Corrette le fixture con date non distinguibili;
+la ripartizione verifica anche lo snapshot della variante dopo modifica del catalogo.
+
+Log dell'ultima tranche in `test-results/cassa-edit-all-tests.log`,
+`cassa-edit-integration.log`, `cassa-edit-lint.log`, `cassa-edit-types.log`,
+`cassa-edit-api-typecheck.log`, `cassa-edit-build.log`, `cassa-edit-api-build.log`,
+`cassa-quantity-red.log`, `cassa-quantity-mobile-red.log`, `cassa-quantity-green.log`,
+`cassa-quantity-browser.log`, `cassa-vat-modes.log` e `cassa-browser-real/`.
+I 42 test del log IVA mirato sono 39 nuovi più tre precedenti.
+
+Evidenze precedenti conservate in `test-results/cassa-preflight-full-tests.log`,
+`cassa-preflight-full-integration.log`, `cassa-preflight-full-lint.log`,
+`cassa-preflight-api-coverage.log`, `cassa-preflight-migrations.log`,
+`cassa-preflight-browser-regressions.log`.
+Le tre prove migration e le 32 regressioni UI isolate restano evidenze della
+consegna precedente, non rieseguite qui; nessun SQL o motore dei registri è cambiato.
+I file di evidenza sono locali e ignorati da Git; i test e i comandi sono committati.
+
+**Database condiviso, sola lettura alle 22:08:** transazione con
+`transaction_read_only=on`; 147 migration applicate contro 158 locali. Sessioni,
+movimenti, dispositivi, ricevute fiscali e POS dormienti hanno zero righe;
+`store_sale_payments` conserva una riga. La precondizione di upgrade è ancora
+coerente, ma va ricontrollata immediatamente prima dell'applicazione autorizzata.
+Permane `tenant_feature_settings.default_unit_of_measure`, assente da Prisma:
+quattro righe, tutte `pz`. Confrontando i checksum applicati con i blob di HEAD,
+sei differiscono: cinque per terminatori di riga, uno per il commento storico
+aggiunto a `20260811120000_supplier_order_line_number` (diff da `25b33168` privo
+di cambiamenti SQL). Non sono stati riscritti file storici o checksum nel database.
+Evidenza: `test-results/cassa-preflight-shared-readonly.json`.
+
+**Interventi ancora necessari, in ordine:**
+
+| Priorità e confine                               | Cosa manca                                                                                                                                   | Criterio di chiusura                                                                                                                                                                             |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P0 — prima del merge che avvii codice su develop | Piano coordinato per le 11 migration e il client/API corrispondenti; CI del bersaglio effettivo ancora da eseguire                           | Autorizzare quel passaggio, verificare il nuovo diff e la CI, applicare le migration solo nel rilascio concordato. Il codice attuale non va avviato contro lo schema condiviso a 147             |
+| P1 — uso reale con regimi IVA particolari        | Il controllo aritmetico lascia passare split payment, margine/informativo a zero e RC con IVA arrotondata a zero, senza trattamento dedicato | Rivedere i controesempi della matrice IVA prima dell'uso con quei codici; eventuali restrizioni o regimi richiedono un mandato successivo. Non sono risolti dal solo bilanciamento degli importi |
+| P1 — uso reale/infrastruttura                    | Verifiche post-deploy RLS/revoche e Data API, backup e ripristino sull'infrastruttura del rilascio, autenticazione/MFA reali                 | Collaudo autorizzato nell'ambiente previsto; il provider locale e il PostgreSQL usa-e-getta non sostituiscono questi passaggi                                                                    |
+| P1 — uso come cassa fiscale                      | C5, adapter e cronologia dei tentativi fiscali non implementati                                                                              | Tranche separata prima di dichiarare emissione fiscale; nessuna fiscalizzazione o stampa aggiunta qui                                                                                            |
+| P2 — rinviabili                                  | Grandi volumi mobile ancora pesanti; voucher; stampe/esportazioni operative                                                                  | Mandati separati. Virtualizzazione e prestazioni non riaperte; per IVA vedere il limite P1 sopra                                                                                                 |
+
+**Quantità chiusa in questa tranche:** il caso `1 → vuoto → 12`, selezione e
+sostituzione, incolla reale, blur vuoto, invalidi e scansioni ripetute sono provati;
+nessun nuovo invio parte con draft invalido. Il recupero mantiene intento e payload
+originali, un solo documento e una sola variazione di magazzino/quadratura. Non
+viene introdotto il salvataggio dei draft non inviati dopo ricarica pagina.
+
+**Abilitazione tenant:** per mandato si mantengono le autorizzazioni esistenti.
+Menu: canale previsto + `section.sales` + `retail.register`. Pagine e API:
+workspace/autenticazione e permessi dell'azione `retail.register`,
+`retail.cash_session`, `retail.cash_drawer`, `retail.cash_return`; controllo
+tenant/sede nei servizi. Menu e accesso diretto non hanno lo stesso filtro di
+sezione/canale. Il titolare ha tutti i permessi. Un'attivazione ulteriore servirebbe
+solo se si volesse negare la Cassa a interi tenant, titolari inclusi, lasciando
+accessibile la normale Vendita al banco. Non è implementata né assunta come nuovo
+blocco di questa consegna; dettaglio verificato in §13 della specifica.
+
+Le annotazioni C0/C1 sui permessi, sulle API assenti e su C3 senza chiusura sono
+state aggiornate nella specifica. `develop` locale usa già `invoice`; il `main`
+locale usa ancora `invoice_draft`: l'indice `00-DECISIONI.md` distingue ora i fatti
+attuali dalla fotografia del 26/08. **`develop → main` richiede il preflight
+dell'intero rilascio**, inclusi i problemi di produzione riportati sotto.
+
 ## 🔴 PRODUZIONE — tre cose da controllare (03/09/2026, sera)
 
 Emerse tutte e tre mentre si cambiava l'app Shopify. Nessuna è stata toccata: sono
@@ -89,6 +993,166 @@ riporta al punto 1.
 
 **Da controllare:** se il pannello debba distinguere «collegato» da «sta ricevendo eventi»,
 e se il conteggio dei rifiuti HMAC valga la pena come primo indicatore.
+
+## ✅ I test dell'API sono type-checked — chiuso il 04/09/2026
+
+⛔ **Qui c'era un debito aperto**: «i test dell'API non sono type-checked da nessun gate»,
+con 62 errori invisibili e un ordine di lavoro in quattro passi. È stato eseguito lo stesso
+giorno. Resta scritto **perché** era invisibile, che è la parte che può tornare.
+
+```text
+npm run typecheck:test --prefix api      0 errori · 224 file di prova · ~3 secondi
+   nel pre-push, dopo la build API      e in CI, prima di test:coverage
+```
+
+### ⛔ La causa: `types` SOSTITUISCE, non aggiunge
+
+`tsconfig.spec.json` dichiarava `"types": ["vitest/globals", "node"]` per avere `describe` e
+`it`. Ma quella chiave **sostituisce** l'elenco dei pacchetti `@types` caricati: toglieva
+`multer`, `express` e gli altri tipi ambientali, e faceva fallire **file di produzione** con
+`TS2694: Namespace 'global.Express' has no exported member 'Multer'`.
+
+⭐ **Il rimedio non è elencare i tipi mancanti**, che è una lista da ricordare a mano a ogni
+dipendenza nuova: è una direttiva di riferimento in `src/test/vitest-globals.d.ts`, che
+**aggiunge** i globali senza togliere niente. La configurazione non restringe più nulla —
+né `types`, né `include`.
+
+### ⚠️ E il glob escludeva proprio i test di integrazione
+
+`"include": ["src/**/*.spec.ts"]` vuole un punto prima di `spec`; i file di integrazione si
+chiamano `*.integration-spec.ts`, col trattino. **Zero** file di integrazione compilati, e
+un controllo che sembrava esserci.
+
+### I due difetti reali trovati, entrambi invisibili a runtime
+
+In `shopify-product-push.service.spec.ts`, e nessuno dei due faceva arrossare un test —
+vitest esegue con esbuild, che i tipi li strippa:
+
+| Difetto                                                            | Perché contava                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `as unknown as ShopifyGraphqlClient` con il tipo **non importato** | il cast non verificava **niente**: il finto client poteva divergere da quello vero   |
+| `mock.calls as [[{ where }]][]`, una parentesi di troppo           | l'argomento risultava un array, quindi l'asserzione era tipizzata su una forma falsa |
+
+---
+
+## ✅ CASSA — i due registri sono passati al motore tabella (04/09/2026)
+
+⛔ **Qui c’era un RINVIO**, e il proprietario l’ha respinto lo stesso giorno: «non
+accetto la duplicazione registrata semplicemente in DA-FARE».
+
+⚠️ **E la stima era sbagliata.** La voce diceva che adottare `app-data-table` «porta con
+sé catalogo colonne, viste salvate, filtri di colonna, card di riga e i sei controlli che
+li presidiano — farlo male costa più che non farlo». Quelle cose **esistevano già**: la
+migrazione è costata un file di configurazione colonne e due template riscritti.
+
+⭐ **A trovare i difetti sono state le guardie citate come costo.** Cinque, una dopo
+l’altra, e nessuno si vedeva compilando:
+
+```text
+check:table-views          le due viste mancavano lato API: preferenza colonne → 400 muto
+check:colonne-rese         `type` e `paymentMethod` dichiarate e non rese: colonne VUOTE
+check:filtri-colonna       filtri mostrati che non restringevano niente
+check:catena-altezze       il contenitore righe non si stirava: piede non ancorato
+check:sticky-scrollport    due intestazioni dichiarate che non esistevano piu’
+```
+
+I due registri caricano **tutto il risultato del filtro** (`all=1`) e lo ordinano
+in memoria dal 05/09/2026. Le precedenti note sul tetto di cento righe e sul sort
+spento erano superate. Le Sessioni sommano le colonne previste con `totaliDiElenco`.
+
+---
+
+## CASSA — corretto il caricamento desktop; compatto ancora aperto (05/09/2026)
+
+La misura a zero del contenitore ancora staccato dal DOM durante il loading
+spegneva la finestra: alla risposta venivano istanziate tutte le righe, poi ridotte
+alle 43 finali. Il campione rAF di 43 **non escludeva** quel rendering temporaneo.
+Ora si conserva la stima iniziale o l'ultima misura positiva fino alla misura valida.
+
+Due prove a 5.000 operazioni: **30.917–35.788 ms prima, 686–704 ms dopo**.
+Stessi dati completi, componenti, template e 1.125 nodi della tabella a regime.
+Le query di contenuto passano da 25.856–30.634 ms a 4–5 ms nel profilo campionato.
+
+**Compatto migliorato, ancora aperto a grandi volumi**: il controllo mobile
+successivo ha spostato le letture dei template fuori dai cicli di riga. A 5.000
+card ad altezza variabile: 31.233–31.633 ms prima, 6.236–6.362 ms dopo, su viewport
+390 × 844. Sei secondi restano troppi; le 5.000 card / 125.048 nodi sono ancora
+tutti presenti. Corretto anche il periodo che usciva dal bordo sui telefoni:
+due campi e calendari completi nei registri Operazioni e Sessioni.
+Dettagli e limiti nel [controllo mobile](test-results/REPORT-CASSA-MOBILE-2026-09-05.md).
+Nessun limite ai dati o taglio del testo.
+La virtualizzazione generale degli altri consumer resta fuori da questa tranche.
+
+Causa, prove, misure a 100/1.000/2.000/5.000 righe, riproduzione senza database e
+limiti nel [report della correzione](test-results/REPORT-CASSA-PERFORMANCE-2026-09-05.md).
+
+---
+
+## ⛔ CASSA — due condizioni OBBLIGATORIE prima di dichiararla completa (04/09/2026)
+
+Decise dal proprietario il 04/09/2026, chiudendo C1C. **Non sono note di analisi**: sono
+condizioni di chiusura, e stanno qui perché le prove che le dimostrano sono **verdi** —
+un test verde si legge come comportamento atteso anche quando il suo nome dice il
+contrario.
+
+Contratto completo in `docs/25-specifica-cassa.md` §13.
+
+### 1 · ⛔ Protezione cross-tenant — prima di esporre servizi e API
+
+Il database **accetta** una sessione del tenant A che punta a un dispositivo censito sulla
+sede del tenant B. Le chiavi esterne legano gli identificativi uno per uno e il `tenant_id`
+viaggia in un vincolo separato: **0 FK su 12** vincolano anche il tenant.
+
+```text
+api/src/test/integration/dispositivo-di-sessione.integration-spec.ts
+  «il database NON verifica tenant e sede: la guardia dovrà essere applicativa»
+api/src/test/integration/dispositivo-fiscale-neutrale.integration-spec.ts
+  «il database NON protegge dal cross-tenant»
+```
+
+⚠️ **Non è un difetto introdotto dalla Cassa**: vale per `documents(location_id)` e
+`documents(source_document_id)`, che esistono da molto prima. Ma ogni percorso di scrittura
+nuovo è un'occasione di dimenticare il tenant, e i servizi Cassa sono percorsi nuovi.
+
+⭐ **Come chiuderla è una decisione da prendere**, non da dedurre: vincoli compositi
+`UNIQUE(tenant_id, id)` sulle tabelle bersaglio, RLS, o verifica applicativa centralizzata.
+
+#### Stato al 04/09/2026 — la terza strada è **presa**, la voce resta aperta
+
+C3 ha scelto la **verifica applicativa centralizzata**: `assertCashContext`
+(`api/src/cash-sessions/cash-context.validator.ts`) è l'unico punto che verifica sede,
+sessione e dispositivo, **riceve la transazione** e non il client globale, e prende il
+tenant dall'utente autenticato. Ci passano **dieci** punti di ingresso, letture comprese:
+apertura, sessione corrente, movimenti, cambio dispositivo e storico, checkout (C4A),
+richiamo scontrino e reso (C4R), chiusura (C4B).
+
+⛔ **Ma il database continua a non garantirlo**, ed è la ragione per cui questa voce non si
+spunta: la guardia vive nel codice, e un percorso nuovo che non chiami il validatore
+scavalcherebbe tutto senza che niente lo fermi. La decisione da prendere è se aggiungere il
+livello di database — e quella non è stata presa.
+
+⚠️ **Nessuna guardia automatica sorveglia oggi che i servizi Cassa passino dal
+validatore**: `check:location-scope` copre il confine controller→servizio, non questo.
+
+### 2 · ⛔ Cronologia dei tentativi append-only — prima della fiscalizzazione reale
+
+`fiscal_receipts.document_id` è **unico** e i campi di esito sono scalari singoli: un secondo
+tentativo **sovrascrive** la risposta del primo, e del fallimento precedente non resta nulla.
+
+```text
+api/src/test/integration/dispositivo-fiscale-neutrale.integration-spec.ts
+  «la cronologia dei tentativi OGGI si perde: il secondo sovrascrive il primo»
+```
+
+⛔ **Serve proprio quando l'esito è INCERTO** — pagamento riuscito, RT che non risponde —
+cioè nell'unico caso in cui la sua assenza costa una doppia emissione. E con due dispositivi
+nella stessa sede (principale + riserva) le memorie fiscali sono due: senza traccia di quale
+tentativo è andato dove, la riconciliazione con la chiusura giornaliera non si può fare.
+
+⚠️ **Restano fuori dalle migration attuali solo perché oggi non esistono né API né utilizzo
+reale**: `fiscal_receipts` e `cash_sessions` hanno zero righe. Non è una deroga permanente.
+
+---
 
 ## ⏸ SHOPIFY — quello che questa tranche lascia aperto (03/09/2026)
 

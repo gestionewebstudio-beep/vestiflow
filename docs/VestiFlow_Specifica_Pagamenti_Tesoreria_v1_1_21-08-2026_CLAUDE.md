@@ -1154,3 +1154,58 @@ Prima di qualunque migration o implementazione sostanziale, Claude deve restitui
 - Codici verificati al 21/08/2026: CondizioniPagamento TP01–TP03; ModalitaPagamento MP01–MP23.
 
 Durante l’implementazione e prima della messa in produzione, il mapping deve essere riconfermato sulle specifiche ufficiali correnti e validato contro lo schema/XSD realmente usato dal generatore FE di VestiFlow.
+
+# Appendice E — La Cassa come consumatore (04/09/2026)
+
+Rimando alla specifica **`docs/25-specifica-cassa.md`**, che descrive il flusso Cassa e la sua
+separazione dalla Vendita al banco. Questa appendice fissa soltanto ciò che riguarda i
+Pagamenti: il resto vive lì.
+
+**Sono due flussi distinti.** La Vendita al banco è un documento gestionale; la Cassa è un
+checkout operativo che _crea_ una normale `store_sale` come documento sottostante. Nessun
+secondo documento economico.
+
+**La Vendita al banco mantiene il solo Tipo pagamento condiviso**, come già deciso in §17: il
+pagamento suddiviso non le appartiene e non le viene introdotto. ⚠️ Va però registrato lo
+scarto misurato il 04/09/2026: oggi non usa affatto l'anagrafica condivisa, ma il vocabolario
+locale `cash | card | other` (`create-store-sale.dto.ts`). La migrazione a `PaymentOption` è
+una **tranche distinta e autonoma**, non implicita nella Cassa.
+
+**Il pagamento suddiviso appartiene al checkout Cassa**, e solo a quello.
+
+### Che cosa NON sono le tabelle della Cassa
+
+| Tabella               | Che cos'è                            | Che cosa **non** è                          |
+| --------------------- | ------------------------------------ | ------------------------------------------- |
+| `store_sale_payments` | le **quote** incassate dal checkout  | ⛔ non un secondo motore finanziario        |
+| `cash_sessions`       | una **sessione** operativa, il turno | ⛔ non una Risorsa, non ha saldo            |
+| `pos_terminals`       | un **dispositivo**                   | ⛔ non una Risorsa e non un conto con saldo |
+
+⛔ **Nessun saldo si inventa su `cash_sessions` o `pos_terminals`.** Le Risorse restano quelle
+di §2.6, un'anagrafica sola.
+
+**Quando la Tesoreria sarà collegata**, una vendita da 60 € contanti + 40 € carta potrà
+produrre due movimenti **idempotenti** — uno sulla risorsa Cassa, uno sulla risorsa POS o
+bancaria configurata — senza duplicarli e senza che le quote diventino esse stesse movimenti.
+
+**Il Registro Corrispettivi conta il documento una volta sola**: 60 + 40 non diventano due
+righe economiche. Le quote servono al dettaglio e alla riconciliazione, mai al totale.
+
+### La dipendenza che la Cassa introduce
+
+⭐ Il modello a due livelli di **§2.1–2.3** — Modalità col codice normativo, Tipo aziendale che
+vi punta — **non è ancora implementato**: `PaymentOption` ha `kind: method | terms` e il codice
+`MP…` sta dentro l'etichetta. La Cassa è il primo consumatore che lo rende necessario, perché
+il mapper fiscale RT deve sapere se una quota è contante o elettronica **senza leggere il nome**.
+
+Il lavoro è diviso in due, e solo il primo è autorizzato (`docs/25` §7, 04/09/2026):
+
+- **C2A** — il catalogo globale delle Modalità normative (`code` MP01–MP23, una sola colonna)
+  e la FK nullable da `PaymentOption`, con migration additiva e backfill a whitelist esplicita.
+  ⛔ Non emette `ModalitaPagamento` nell'XML: resta un intervento fiscale separato.
+- ⏸ **C2B** — la classificazione operativa per l'RT, **non ancora autorizzata**: prima vanno
+  verificate specifiche RT, protocollo Epson e la forma stessa del dato (attributo del
+  catalogo o mapper versionato per dispositivo).
+
+⛔ Non è una classificazione «della Cassa» e non crea una seconda anagrafica: è quella prevista
+qui, finalmente valorizzata.

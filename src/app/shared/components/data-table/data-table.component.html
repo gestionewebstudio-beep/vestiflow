@@ -1,5 +1,33 @@
-<div class="data-table-scroll">
-  <table class="data-table" [attr.aria-label]="caption() || null">
+<!-- Le query si leggono prima dei cicli: creare una vista proiettata può
+     invalidarle. Le righe usano i riferimenti di questo render, aggiornati
+     al render successivo anche quando i template sono condizionali. -->
+@let celle = celleDiColonna();
+@let card = rowCardTemplate();
+@let comando = rowActionsTemplate();
+
+<!--
+  ⚠️ **`tabindex="-1"` sul contenitore, e solo con la finestra accesa**: e`
+  l'approdo del fuoco quando la riga che lo aveva esce dal DOM. Senza, il
+  fuoco torna al `<body>` e da li` la tastiera non naviga piu` niente.
+
+  ⛔ **`-1`, non `0`**: non entra nel giro del Tab — non e` una fermata, e`
+  una rete.
+-->
+<div
+  class="data-table-scroll"
+  [class.data-table-scroll--finestra]="finestraAttiva()"
+  [attr.tabindex]="finestraAttiva() ? -1 : null"
+>
+  <!--
+    ⭐ **`aria-rowcount` dice quante righe ESISTONO**, non quante sono nel
+    DOM: con la finestra accesa un lettore di schermo direbbe altrimenti
+    «riga 3 di 34» su un elenco da cinquemila.
+  -->
+  <table
+    class="data-table"
+    [attr.aria-label]="caption() || null"
+    [attr.aria-rowcount]="finestraAttiva() ? righeTotaliAria() : null"
+  >
     <thead class="data-table__head">
       <tr>
         @if (selectable()) {
@@ -132,7 +160,22 @@
           </tr>
         }
 
-        @for (row of section.rows; track rowId()(row)) {
+        <!--
+          ⭐ **La riga distanziatrice occupa lo spazio di quelle non rese.**
+
+          ⚠️ **`padding: 0` e nessun bordo**, dichiarati nel foglio: con
+          `border-collapse` un bordo qui si sommerebbe all_altezza, e la
+          finestra si sfaserebbe di un pixel a ogni schermata.
+
+          ⛔ Porta `aria-hidden`: non e` una riga, e` spazio.
+        -->
+        @if (spazioSopra() > 0) {
+          <tr class="data-table__spacer" aria-hidden="true" [style.height.px]="spazioSopra()">
+            <td [attr.colspan]="totalColumns()"></td>
+          </tr>
+        }
+
+        @for (row of righeDaRendere(section); track rowId()(row); let i = $index) {
           <tr
             class="data-table__row"
             [attr.data-row-id]="rowId()(row)"
@@ -144,7 +187,10 @@
             [class.is-selected]="selectedIds().has(rowId()(row))"
             [attr.tabindex]="canClickRow(row) ? 0 : null"
             [attr.aria-label]="canClickRow(row) ? rowLabel()(row) : null"
+            [attr.aria-rowindex]="finestraAttiva() ? indiceAccessibile(i) : null"
+            (focusin)="onRowFocus(rowId()(row))"
             (click)="onRowClick(row)"
+            (keydown)="onRowKeydown($event, i)"
             (keydown.enter)="onRowClick(row)"
             (keydown.space)="$event.preventDefault(); onRowClick(row)"
           >
@@ -193,7 +239,7 @@
                 [attr.data-label]="col.label"
                 [attr.title]="cellText()(row, col.id) || null"
               >
-                @if (templateFor(col.id); as cella) {
+                @if (celle.get(col.id); as cella) {
                   <ng-container
                     [ngTemplateOutlet]="cella.template"
                     [ngTemplateOutletContext]="{ $implicit: row }"
@@ -203,7 +249,7 @@
                 }
               </td>
             }
-            @if (hasRowCard()) {
+            @if (card) {
               <!--
                 ⚠️ **Una VESTE, non un dato**: porta `aria-hidden`, e ogni valore che
                 mostra esiste già nelle celle vere qui sopra — che sotto `lg` restano
@@ -211,12 +257,10 @@
                 divisione dei ruoli ogni riga verrebbe annunciata due volte.
               -->
               <td class="data-table__card" [attr.colspan]="totalColumns()" aria-hidden="true">
-                @if (rowCardTemplate(); as card) {
-                  <ng-container
-                    [ngTemplateOutlet]="card.template"
-                    [ngTemplateOutletContext]="{ $implicit: row }"
-                  />
-                }
+                <ng-container
+                  [ngTemplateOutlet]="card.template"
+                  [ngTemplateOutletContext]="{ $implicit: row }"
+                />
               </td>
             }
             @if (hasRowActions()) {
@@ -229,7 +273,7 @@
                 [attr.data-label]="rowActionsLabel()"
                 (click)="$event.stopPropagation()"
               >
-                @if (rowActionsTemplate(); as comando) {
+                @if (comando) {
                   <ng-container
                     [ngTemplateOutlet]="comando.template"
                     [ngTemplateOutletContext]="{ $implicit: row }"
@@ -237,6 +281,12 @@
                 }
               </td>
             }
+          </tr>
+        }
+
+        @if (spazioSotto() > 0) {
+          <tr class="data-table__spacer" aria-hidden="true" [style.height.px]="spazioSotto()">
+            <td [attr.colspan]="totalColumns()"></td>
           </tr>
         }
 

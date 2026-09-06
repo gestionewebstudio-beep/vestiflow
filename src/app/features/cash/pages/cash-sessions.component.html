@@ -1,0 +1,154 @@
+<app-list-page
+  pageTitle="Sessioni di cassa"
+  pageDescription="Aperte e chiuse, con quanto è passato dal cassetto."
+  [count]="
+    pagina() ? pagina()!.total + (pagina()!.total === 1 ? ' sessione' : ' sessioni') : undefined
+  "
+  [loading]="caricamento()"
+  [error]="errore()"
+  [isEmpty]="vuoto()"
+  [skeletonColumns]="colonneVisibili().length"
+  [columnsViewId]="vista"
+  [activeFilterCount]="filtriAttivi()"
+  emptyTitle="Nessuna sessione"
+  emptyDescription="Nel periodo scelto non ci sono sessioni di cassa."
+  emptyIcon="pi-inbox"
+  (filtersCleared)="azzera()"
+  (retry)="carica()"
+>
+  <!--
+    ⭐ **Le tre aree stanno nella casella `[tabs]` del telaio**, che esiste
+    apposta: «non sono filtri e non sono azioni: sono navigazione».
+
+    ⛔ Erano tre `<a>` sciolti nella testata di ogni registro, con la stessa
+    regola di stile copiata nei due fogli.
+  -->
+  <app-nav-tabs tabs [items]="schede" ariaLabel="Aree della Cassa" />
+
+  <div period class="sess__period">
+    <!--
+      ⛔ **Senza periodo predefinito**: una sessione aperta ieri e ancora aperta
+      non deve sparire dall'elenco. Lo strumento c'è, il valore iniziale no.
+    -->
+    <app-select-menu
+      chipLabel="Periodo"
+      [options]="periodOptions"
+      [value]="periodo()"
+      ariaLabel="Filtra per periodo"
+      placeholder="Tutto"
+      [compact]="true"
+      [fitContent]="true"
+      (valueChange)="cambiaPeriodo($event ?? '')"
+    />
+    <!-- Le due date restano una COPPIA: vedi il registro operazioni. -->
+    <div class="sess__dates">
+      <app-date-input
+        inputId="sess-da"
+        ariaLabel="Dal"
+        [value]="da()"
+        [compact]="true"
+        (valueChange)="cambiaData('da', $event)"
+      />
+      <app-date-input
+        inputId="sess-a"
+        ariaLabel="Al"
+        [value]="a()"
+        [compact]="true"
+        (valueChange)="cambiaData('a', $event)"
+      />
+    </div>
+  </div>
+
+  <div filters>
+    @if (sediSelezionabili().length > 1) {
+      <app-select-menu
+        [options]="sediSelezionabili()"
+        [value]="sedeId()"
+        ariaLabel="Sede"
+        placeholder="Tutte le sedi"
+        chipLabel="Sede"
+        [compact]="true"
+        [filterChip]="true"
+        (valueChange)="sedeId.set($event); carica()"
+      />
+    }
+
+    <app-select-menu
+      [options]="statiSelezionabili"
+      [value]="stato()"
+      ariaLabel="Stato della sessione"
+      placeholder="Aperte e chiuse"
+      chipLabel="Stato"
+      [compact]="true"
+      [filterChip]="true"
+      (valueChange)="stato.set($any($event)); carica()"
+    />
+  </div>
+
+  <app-data-table
+    data
+    caption="Sessioni di cassa"
+    [columns]="colonneVisibili()"
+    [viewId]="vista"
+    [sections]="sezioni()"
+    [rowId]="rowId"
+    [cellText]="cellText"
+    [rowClickable]="true"
+    [rowLabel]="rowLabel"
+    [sortable]="true"
+    [virtualizza]="true"
+    [sort]="ordine()"
+    [totals]="totali()"
+    (sortChange)="ordine.set($event)"
+    (rowClick)="apri($event)"
+  >
+    <!-- L'unica cella che non e' testo: lo stato, con la sua pill. -->
+    <ng-template appCell="status" let-riga>
+      <app-badge [flat]="true" [tone]="riga.status === 'open' ? 'success' : 'neutral'">
+        {{ riga.status === 'open' ? 'Aperta' : 'Chiusa' }}
+      </app-badge>
+    </ng-template>
+
+    <ng-template appRowCard let-riga>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          <span class="list-card__when tabular-nums">{{ cellText(riga, 'openedAt') }}</span>
+          <span class="list-card__what">{{ cellText(riga, 'location') }}</span>
+        </span>
+        <span class="list-card__anchor">{{ cellText(riga, 'status') }}</span>
+      </div>
+
+      <div class="list-card__words">
+        @if (visibile('openedBy')) {
+          <span>{{ cellText(riga, 'openedBy') }}</span>
+        }
+        @if (visibile('closedAt')) {
+          <span>{{ cellText(riga, 'closedAt') }}</span>
+        }
+      </div>
+
+      <!--
+        ⭐ **Su una card i numeri portano il proprio NOME** (`regole-stile-ui`):
+        senza intestazione di colonna, «45,00 € 0,00 €» non dice quale sia il
+        fondo e quale il prelievo.
+      -->
+      <div class="list-card__figures">
+        @if (visibile('float')) {
+          <span>Fondo {{ cellText(riga, 'float') }}</span>
+        }
+        @if (visibile('sales')) {
+          <span class="list-card__total">Vendite {{ cellText(riga, 'sales') }}</span>
+        }
+      </div>
+    </ng-template>
+  </app-data-table>
+
+  <!--
+    ⚠️ Resta una nota, non un riepilogo: la quadratura si vede nel dettaglio, e
+    solo dopo la chiusura.
+  -->
+  <p summary class="sess__note">
+    La quadratura si vede nel dettaglio, e solo dopo la chiusura: finché una sessione è aperta gli
+    attesi non esistono.
+  </p>
+</app-list-page>

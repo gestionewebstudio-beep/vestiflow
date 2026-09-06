@@ -1,0 +1,82 @@
+@if (state().error; as error) {
+  <app-inline-banner tone="warning">
+    <p><strong>Esito non confermato</strong> · {{ error }}</p>
+    <p>
+      È sospeso soltanto questo tipo di invio Cassa. Puoi consultare i documenti e usare le altre
+      funzioni indipendenti.
+    </p>
+    <div class="recovery-actions">
+      <app-button variant="secondary" [disabled]="busy() || disabled()" (click)="refresh()"
+        >Rileggi dati locali</app-button
+      >
+      @if (state().evidence?.intentId) {
+        <app-button variant="secondary" [disabled]="busy() || disabled()" (click)="verify()"
+          >Verifica esito sul server</app-button
+        >
+      }
+    </div>
+    @if (busy()) {
+      <p role="status">Verifica in corso…</p>
+    }
+    @if (message(); as text) {
+      <p role="status">{{ text }}</p>
+    }
+    @if (verified(); as value) {
+      <p>
+        Operazione presente nel registro: <strong>{{ value.result.reference }}</strong> ·
+        {{ value.result.documentDate | date: 'dd/MM/yyyy' }} · {{ value.result.locationName }} ·
+        {{ money(value.result.totalMinor) }}
+      </p>
+      <a
+        [routerLink]="['/app/cassa/operazioni', value.result.documentId]"
+        target="_blank"
+        rel="noopener"
+        (click)="opened(value)"
+        >Apri operazione registrata (nuova scheda)</a
+      >
+      @if (compatible(value)) {
+        <p>
+          Apri il documento e controlla che corrisponda all’invio precedente. La conferma chiude la
+          pendenza locale e conserva una copia dei dati originali in questa sessione del browser.
+        </p>
+        <app-button
+          variant="secondary"
+          [disabled]="busy() || disabled() || !value.opened"
+          (click)="confirm(value)"
+          >Conferma recupero dell’operazione</app-button
+        >
+      } @else {
+        <p>
+          Esito non confermato: versione o contesto locale incompatibili. Il riferimento trovato non
+          autorizza a chiudere questa pendenza. Serve verifica amministrativa.
+        </p>
+      }
+    }
+    <p>
+      Per l’amministratore: verifica il tipo di operazione, l’intento, il tenant e la sede nel
+      registro, inclusi invii ancora in corso e documenti già registrati. Confronta riferimento,
+      data, importo, quote e movimenti prima di decidere come procedere. Non creare un nuovo invio
+      per verificare l’esito.
+    </p>
+    @if (state().evidence; as evidence) {
+      <details>
+        <summary>Dati locali conservati per la verifica</summary>
+        <p>
+          Conservazione limitata a questa sessione del browser: non chiudere la scheda prima della
+          verifica amministrativa.
+        </p>
+        <label
+          >Identificazione locale<textarea readonly [value]="evidence.key" rows="2"></textarea>
+        </label>
+        <label
+          >Dati originali dell’invio<textarea readonly [value]="evidence.raw" rows="5"></textarea>
+        </label>
+      </details>
+    }
+  </app-inline-banner>
+} @else if (closed()) {
+  <app-inline-banner
+    tone="success"
+    message="Pendenza locale chiusa dopo il recupero confermato. Dati originali conservati in questa sessione del browser. Nessuna nuova operazione registrata dal recupero."
+  />
+}

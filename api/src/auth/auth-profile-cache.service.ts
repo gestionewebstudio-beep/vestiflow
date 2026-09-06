@@ -31,6 +31,12 @@ export class AuthProfileCacheService {
     this.entries.delete(authUserId);
   }
 
+  invalidateTenant(tenantId: string): void {
+    for (const [authUserId, entry] of this.entries) {
+      if (entry.tenantId === tenantId) this.entries.delete(authUserId);
+    }
+  }
+
   set(authUserId: string, tenantId: string, appUser: UserProfileDto): void {
     this.entries.set(authUserId, {
       tenantId,

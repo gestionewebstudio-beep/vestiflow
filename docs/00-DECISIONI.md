@@ -33,7 +33,16 @@ non lo cita nessuno — zero riferimenti in tutto il repository — quindi un av
 sarebbe scritto nel vuoto. Un rischio così deve essere impossibile da mancare, non nascosto
 dietro un secondo documento.
 
-### I fatti, misurati il 26/08/2026
+### Aggiornamento verificato il 05/09/2026
+
+Il database condiviso espone ancora `invoice`, verificato in transazione read-only.
+Il `develop` **locale** (`d0a1d95b`) e `feature/recupero-cassa` usano già `invoice`;
+il `main` locale (`c4044d98`) usa ancora `invoice_draft`. La tabella seguente è una
+fotografia del 26/08, non lo stato corrente dei rami. Nessun fetch o controllo del
+processo distribuito è stato eseguito: il rilascio `develop → main` richiede la sua
+verifica separata. Non si ripete la migration di rinomina già applicata.
+
+### Fotografia storica del 26/08/2026
 
 |                               |                                                                                                                                                 |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |

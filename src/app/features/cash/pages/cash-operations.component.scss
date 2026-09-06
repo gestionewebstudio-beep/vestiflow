@@ -1,0 +1,235 @@
+@use 'list-page' as lp;
+@use 'list-summary' as ls;
+
+/*
+  ⭐ **Da 308 righe a queste.** Sparito tutto cio' che il telaio e il motore
+  fanno gia': il contenitore pagina, la testata, la riga filtri, lo scorrimento
+  con l'intestazione appiccicata, l'intestazione, le righe, i toni di riga,
+  l'allineamento numerico, il carattere a spaziatura fissa dei codici, lo stato
+  di caricamento e la nota.
+
+  ⛔ **Non e' stato «spostato»: e' stato TOLTO.** Erano copie di regole che
+  `app-list-page` e `app-data-table` portano da soli — e le copie non avevano
+  ne' la vista a card ne' le larghezze regolabili.
+
+  Resta quello che e' davvero di questa schermata: le due date del periodo, la
+  spunta delle anomalie, la cella che apre l'origine, il riepilogo del server e
+  il pannello di richiamo dello scontrino.
+*/
+
+/*
+  ⭐ **La catena di altezze**: la pagina elenco cede solo nella zona righe
+  (`regole-stile-ui`). Senza, il contenitore resta alto quanto le righe e il
+  piede non si ancora in fondo.
+*/
+:host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+/*
+  ⚠️ Il mixin governa la COPPIA di date, non tutta la fascia: dentro c'è anche
+  il selettore Periodo, e la larghezza del calendario si calcola sulle due date.
+*/
+.ops__period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.ops__dates {
+  @include lp.list-date-period;
+}
+
+.ops__check {
+  display: inline-flex;
+  gap: var(--space-4);
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--color-text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/*
+  ⚠️ **Un `<button>`, non un link**: la riga intera e' cliccabile e apre
+  l'operazione; questa cella apre un ALTRO documento, quindi ferma la
+  propagazione. Un `<a>` annidato in una riga cliccabile darebbe due
+  destinazioni allo stesso gesto.
+*/
+.ops__link-cell {
+  padding: 0;
+  font: inherit;
+  color: var(--color-link);
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ── Riepilogo ──────────────────────────────────────────────────────────────
+/*
+  ⭐ **La tipografia viene dai mixin condivisi** (`styles/_list-summary.scss`),
+  che sono li' proprio perche' era scritta due volte: «non duplicare se non
+  serve» — proprietario, 31/08/2026.
+
+  ⚠️ **La forma e' piu' semplice di quella del Registro Corrispettivi**, e non
+  per trascuratezza: la' convivono conteggi e importi in due bande, qui sono
+  sei importi omogenei. Copiare quelle 560 righe avrebbe portato una struttura
+  a bande che qui non ha niente da separare.
+*/
+.ops__summary {
+  padding: var(--space-6) var(--space-10);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.ops__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--summary-item-min-w), 1fr));
+  gap: var(--space-2) var(--space-10);
+  margin: 0;
+}
+
+/*
+  ⭐ **Etichetta sopra, valore sotto** — deciso il 30/08/2026 dopo aver provato
+  la forma affiancata: in fila una voce e' larga quasi il doppio, e la fascia
+  va a capo spezzando il gruppo degli importi.
+
+  ⚠️ Allineate sulla LINEA DI BASE e a destra: e' la convenzione contabile, e
+  centrate «ballano» di un pixel lungo la fila.
+*/
+/*
+  ⭐ **La VOCE viene dal mixin condiviso**, che la rende identica a quella del
+  Registro Corrispettivi: impilata, allineata a destra, con la stessa
+  tipografia e lo stesso negativo.
+
+  ⛔ Qui era riscritta — otto dichiarazioni piu` la variante negativa — e
+  condivideva solo i due mixin tipografici.
+
+  ⚠️ **La GRIGLIA resta di questa fascia**: la` e` un flex con `space-between`
+  e due sotto-bande, qui e` una griglia `auto-fit`. Sono due disposizioni
+  diverse, decise ognuna sulla propria schermata.
+*/
+.ops__summary-item {
+  @include ls.voce-riepilogo();
+}
+
+/* Il negativo si legge dal colore, non dal peso: come le righe di reso. */
+.ops__summary-item--negative dd {
+  color: var(--color-danger);
+}
+
+/*
+  Un solo valore evidenziato, e senza tinta di fondo: una cella colorata dentro
+  il riquadro sarebbe il riquadro nel riquadro (`regole-stile-ui`).
+*/
+.ops__summary-item--highlight dd {
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+// ── Richiamo scontrino ─────────────────────────────────────────────────────
+
+.ops__recall {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin-block-end: var(--space-10);
+}
+
+.ops__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ops__filter-label {
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-field-label);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.ops__recall-hint {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.ops__recall-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops__recall-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-8);
+  inline-size: 100%;
+  padding: var(--space-8);
+  text-align: start;
+  background: var(--color-surface-soft);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+
+  &:focus-visible {
+    border-color: var(--color-focus);
+    outline: none;
+  }
+}
+
+.ops__recall-ref {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.ops__recall-meta,
+.ops__recall-items {
+  grid-column: 1;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.ops__recall-total {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  align-self: center;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+/*
+  ⚠️ **La nota di piede porta due affermazioni sul comportamento**, non un
+  commento: gli annullati restano visibili e fuori dai totali, e la
+  fiscalizzazione non c'è ancora. Sparita nella migrazione al telaio, l'hanno
+  ripresa le due prove che la difendono.
+*/
+.ops__note {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
