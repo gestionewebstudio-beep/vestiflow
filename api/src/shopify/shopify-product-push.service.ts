@@ -58,13 +58,10 @@ export interface ShopifyProductPushResult {
   readonly followUpInBackground?: boolean;
 }
 
-export type ShopifyProductDeleteSkipReason =
-  'not_linked' | 'not_connected' | 'missing_write_products_scope';
-
-export interface ShopifyProductDeleteResult {
-  readonly deleted: boolean;
-  readonly reason?: ShopifyProductDeleteSkipReason | 'shopify_error';
-}
+// ⛔ Qui vivevano `ShopifyProductDeleteSkipReason` e `ShopifyProductDeleteResult`,
+//    il vocabolario con cui il codice descriveva l'esito di una cancellazione
+//    remota. Rimossi insieme al metodo che li produceva: senza un tipo che la
+//    rappresenti, quell'intenzione non e' piu' esprimibile (docs/24 §11.1).
 
 /**
  * Write-through catalogo VestiFlow → Shopify (create/update prodotto).
@@ -317,47 +314,14 @@ export class ShopifyProductPushService {
     }
   }
 
-  /** Elimina su Shopify un prodotto collegato (write-through). */
-  async deleteProduct(
-    tenantId: string,
-    shopifyProductId: string | null,
-  ): Promise<ShopifyProductDeleteResult> {
-    if (!shopifyProductId) {
-      return { deleted: false, reason: 'not_linked' };
-    }
-
-    const connection = await this.prisma.shopifyConnection.findUnique({
-      where: { tenantId },
-      select: { status: true, scopes: true },
-    });
-
-    if (!connection || connection.status !== ShopifyConnectionStatus.connected) {
-      return { deleted: false, reason: 'not_connected' };
-    }
-
-    const credential = await this.prisma.shopifyCredential.findUnique({
-      where: { tenantId },
-      select: { scopes: true },
-    });
-    const effectiveScopes = mergeShopifyScopes(connection.scopes, credential?.scopes);
-
-    if (!shopifyHasScope(effectiveScopes, SHOPIFY_WRITE_PRODUCTS_SCOPE)) {
-      return { deleted: false, reason: 'missing_write_products_scope' };
-    }
-
-    try {
-      const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
-      await this.shopifyAdmin.deleteProduct(shopDomain, accessToken, shopifyProductId);
-      this.logger.log(
-        `Prodotto eliminato su Shopify (${tenantId}, shop=${shopDomain}, id=${shopifyProductId})`,
-      );
-      return { deleted: true };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Eliminazione Shopify fallita';
-      this.logger.warn(`Delete prodotto Shopify (${tenantId}, ${shopifyProductId}): ${message}`);
-      return { deleted: false, reason: 'shopify_error' };
-    }
-  }
+  // ⛔ Qui c'era `deleteProduct`, l'unico percorso che chiamava una DELETE di
+  //    prodotto verso Shopify. Rimosso: VestiFlow non cancella mai su Shopify
+  //    (docs/24 §11.1), e l'eliminazione locale di un prodotto collegato si
+  //    rifiuta in `products.service` prima di arrivare al canale.
+  //
+  // ⚠️ Non e' stato sostituito da un ritiro: `retireProduct` (DRAFT, unpublish)
+  //    aspetta il collaudo mutativo sullo shop di sviluppo — docs/24 §8.5.7,
+  //    passo 7. Questa patch toglie una capacita', non ne aggiunge un'altra.
 
   /**
    * «Sincronizza con Shopify» appena SPENTO su un prodotto collegato: il

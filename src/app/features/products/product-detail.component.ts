@@ -60,6 +60,7 @@ import {
   catalogOriginLabel,
   catalogOriginTone,
   isShopifyCatalogProduct,
+  isShopifyLinkedProduct,
 } from '@domain/products/models/catalog-origin.util';
 import { ProductService } from '@domain/products/services/product.service';
 import { activeListinoSlots } from '@domain/products/models/product-listino.model';
@@ -163,6 +164,11 @@ export class ProductDetailComponent {
   protected readonly canDeleteProduct = computed(() => {
     const product = this.product();
     if (product && isShopifyCatalogProduct(product)) {
+      return false;
+    }
+    // ⛔ Collegato a Shopify: l'API rifiuta (docs/24 §11.1), quindi il comando
+    //    non si propone. Il controllo vero resta lato server.
+    if (product && isShopifyLinkedProduct(product)) {
       return false;
     }
     return canDeleteProducts(this.authService.currentUser());

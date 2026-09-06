@@ -9,6 +9,21 @@ import {
 export const SHOPIFY_CATALOG_DELETE_MESSAGE =
   'Questo prodotto proviene da Shopify: eliminalo da Shopify Admin, non dal gestionale.';
 
+/**
+ * Prodotto COLLEGATO a Shopify: l'eliminazione locale si rifiuta.
+ *
+ * ⛔ VestiFlow non cancella su Shopify (docs/24 §11.1), e fino a ieri lo faceva:
+ * l'eliminazione locale chiamava una DELETE remota. Tolta quella, eliminare in
+ * casa lascerebbe il prodotto vivo sul negozio e senza piu' nulla che lo
+ * colleghi — cioe' il difetto peggiore dei due.
+ *
+ * ⚠️ Messaggio deliberatamente ASCIUTTO: il comando che risolvera' questo caso
+ * ("Disattiva") non esiste ancora, e nominarlo manderebbe l'operatore a cercare
+ * una voce che non c'e' (docs/24 §1.11, passo 9 della sequenza §8.5.7).
+ */
+export const SHOPIFY_LINKED_DELETE_MESSAGE =
+  'Non è possibile eliminare un prodotto collegato a Shopify.';
+
 export function isShopifyCatalogOrigin(origin: CatalogOrigin): boolean {
   return origin === CatalogOrigin.shopify;
 }
@@ -100,5 +115,19 @@ export function resolveShopifyCatalogLinkKindForImport(
 export function assertShopifyCatalogDeleteAllowed(origin: CatalogOrigin): void {
   if (isShopifyCatalogOrigin(origin)) {
     throw new ConflictException(SHOPIFY_CATALOG_DELETE_MESSAGE);
+  }
+}
+
+/**
+ * Blocca l'eliminazione locale di un prodotto ATTUALMENTE collegato a Shopify.
+ *
+ * ⚠️ E' un asse diverso da quello sopra: `catalogOrigin` dice da DOVE viene il
+ * prodotto, `shopifyProductId` dice se e' collegato ADESSO. Un prodotto nato in
+ * VestiFlow e poi pubblicato ha origine `vestiflow` e collegamento presente:
+ * passa la prima guardia e deve fermarsi su questa.
+ */
+export function assertShopifyLinkedDeleteAllowed(shopifyProductId: string | null): void {
+  if (shopifyProductId) {
+    throw new ConflictException(SHOPIFY_LINKED_DELETE_MESSAGE);
   }
 }

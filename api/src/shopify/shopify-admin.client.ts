@@ -278,15 +278,15 @@ export class ShopifyAdminClient {
     return response.product;
   }
 
-  async deleteProduct(
-    shopDomain: string,
-    accessToken: string,
-    shopifyProductId: string,
-  ): Promise<void> {
-    await this.request(shopDomain, accessToken, `/products/${shopifyProductId}.json`, {
-      method: 'DELETE',
-    });
-  }
+  // ⛔ Qui c'era `deleteProduct`, una `DELETE /products/{id}.json`: l'unica
+  //    cancellazione di catalogo che VestiFlow sapesse esprimere verso Shopify.
+  //    Rimossa — VestiFlow non cancella prodotti ne' varianti su Shopify, mai
+  //    (docs/24 §11.1). La pulizia definitiva la fa il titolare dal pannello
+  //    Shopify.
+  //
+  // ⚠️ La guardia che impedisce a questa riga di tornare e' in
+  //    `shopify-no-destructive.spec.ts`: legge il sorgente di QUESTO client e di
+  //    quello GraphQL, e arrossa se ricompare una cancellazione.
 
   async listAllProducts(
     shopDomain: string,
