@@ -538,7 +538,7 @@ describe('ShopifyLocationSyncService', () => {
        VestiFlow dedicata (`docs/24` §1.13.4), e una sincronizzazione di canale
        non e' quella funzione.
 
-    ⭐ **Il contratto delle ventuno relazioni resta verificato**, dalle prove
+    ⭐ **Il contratto delle ventidue relazioni resta verificato**, dalle prove
        generate qui sopra: quelle esercitano `RIFERIMENTI_SEDE` una voce per
        volta, ed e' li' che l'elenco deve dimostrarsi completo.
   */

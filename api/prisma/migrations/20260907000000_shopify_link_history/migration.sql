@@ -1,5 +1,26 @@
 -- Storico dei collegamenti Shopify — FASE 1: solo schema (docs/24 §8.5.1-§8.5.8).
 --
+-- ⛔ STORIA DI QUESTO FILE, e va letta prima di applicarlo.
+--    Una versione PRECEDENTE di questa migration e' stata applicata per
+--    ERRORE al database condiviso, e successivamente rimossa. La versione
+--    attuale — con `shopify_location_links`, `shopify_connections.shop_id` e
+--    l'ausiliaria su `locations` — e' stata collaudata SOLTANTO IN LOCALE.
+--
+-- ⚠️ Non e' un dettaglio di cronaca: se «rimossa» ha riguardato solo la riga di
+--    `_prisma_migrations` e non gli oggetti, il condiviso porta ancora enum e
+--    tabelle di quella versione, e questa migration fallirebbe al primo
+--    `CREATE TYPE` con «type already exists». E' esattamente lo stato in cui e'
+--    stata trovata una copia locale il 07/09/2026: schema avanti, registro
+--    indietro.
+--
+-- ⛔ PRIMA di applicarla al condiviso va quindi verificato, in sola lettura,
+--    che non esistano residui: gli enum `ShopifyLinkStatus` /
+--    `ShopifyLinkCloseReason`, le tabelle `shopify_shops`,
+--    `shopify_product_links`, `shopify_variant_links`, gli indici ausiliari su
+--    `products` / `product_variants`. Se ci sono, la rimozione dei residui e'
+--    un passo dichiarato e autorizzato a parte — non una `IF NOT EXISTS`
+--    aggiunta qui, che nasconderebbe la divergenza invece di chiuderla.
+--
 -- ⛔ NESSUN BACKFILL. Le tabelle nascono vuote e NON sono ancora fonte canonica:
 --    lo diventeranno quando il backfill sara' completo e verificato e i lettori
 --    di push e pull saranno migrati (docs/24 §8.5.5). Le colonne legacy

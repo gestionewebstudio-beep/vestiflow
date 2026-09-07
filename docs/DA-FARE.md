@@ -1906,6 +1906,31 @@ emergere:
 vuote, §8.5.8 fase 3), la doppia scrittura, la migrazione dei lettori e il ritiro
 delle colonne legacy. Le tabelle **non sono ancora fonte canonica**.
 
+#### ⛔ La storia di questo file — corretta il 07/09/2026
+
+⚠️ **Qui e nel messaggio del commit `d3aee37d` era scritto che la migration non
+era «mai stata applicata in alcun ambiente». È FALSO.**
+
+Una **versione precedente** è stata applicata **per errore al database
+condiviso**, e successivamente rimossa. La versione attuale — quella con
+`shopify_location_links`, `shopify_connections.shop_id` e l'ausiliaria su
+`locations` — è stata collaudata **soltanto in locale**.
+
+⛔ **La conseguenza è operativa, non archivistica.** Se «rimossa» ha riguardato
+solo la riga di `_prisma_migrations` e non gli oggetti, il condiviso porta
+ancora enum e tabelle di quella versione, e la nuova migration fallirebbe al
+primo `CREATE TYPE` con «type already exists».
+
+⭐ **Non è un'ipotesi: è lo stato in cui è stata trovata una copia locale il
+07/09/2026** — schema già a 160, registro fermo a 159. Se ne era accorto solo
+un `migrate deploy` che si è rifiutato di partire.
+
+**Prima di applicarla al condiviso** va quindi verificato, in sola lettura, che
+non esistano residui: i due enum, le tre tabelle sorelle, gli indici ausiliari
+su `products`/`product_variants`. ⛔ Se ci sono, la rimozione è un passo
+**dichiarato e autorizzato a parte** — non una `IF NOT EXISTS` aggiunta alla
+migration, che nasconderebbe la divergenza invece di chiuderla.
+
 ⚠️ **E resta aperta una domanda che non riguarda le sedi**: le FK verso
 `products`/`product_variants` sono `ON DELETE RESTRICT`, e §11.8 dichiara che il
 riferimento anti-reimportazione **è** il link chiuso — ma §4.2 descrive

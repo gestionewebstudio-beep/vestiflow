@@ -24,7 +24,7 @@ import type { PrismaService } from '../prisma/prisma.service';
  * ⛔ **E una settima non si difendeva affatto.**
  *    `shopify_inventory_sync_states.location_id` e' dichiarata come relazione
  *    nello schema Prisma e **non ha alcuna chiave esterna nel database**
- *    (misurato: 20 FK verso `locations`, 21 relazioni nello schema). La sede
+ *    (misurato: 21 FK verso `locations`, 22 relazioni nello schema). La sede
  *    veniva cancellata e la riga restava orfana, puntando al nulla.
  *
  * ⚠️ **Da qui la regola: l'elenco e' COMPLETO o non serve.** Distinguere fra
@@ -62,7 +62,7 @@ export interface RiferimentoSede {
 }
 
 /**
- * Ogni relazione verso `Location` dichiarata nello schema. Sono ventuno.
+ * Ogni relazione verso `Location` dichiarata nello schema. Sono ventidue: la ventiduesima e` lo storico dei collegamenti Shopify (07/09/2026).
  *
  * ⛔ Non si tolgono voci da qui per far passare un `DELETE`: se una sede non si
  *    cancella, e' perche' porta con se' qualcosa che non deve sparire.
@@ -217,6 +217,17 @@ export const RIFERIMENTI_SEDE: readonly RiferimentoSede[] = [
     effetto: 'scollegata',
     etichetta: 'utenti che hanno questa sede come predefinita',
   },
+  // ⭐ Lo STORICO dei collegamenti Shopify (docs/24 §1.13.3). Blocca la
+  //    cancellazione, ed e' voluto: e' la traccia che rende distinguibili «il
+  //    collegamento e' stato chiuso» e «non e' mai esistito». Una sede che ha
+  //    una storia con Shopify non si elimina fisicamente — si rende non
+  //    operativa (§1.13.4).
+  {
+    modello: 'shopifyLocationLink',
+    campo: 'locationId',
+    effetto: 'bloccata',
+    etichetta: 'storico dei collegamenti Shopify',
+  },
 ];
 
 export interface EsitoVerificaSede {
@@ -249,7 +260,7 @@ export async function verificaSedeCancellabile(
     /*
       ⚠️ Il client Prisma si indicizza per nome del modello. Il cast e'
          necessario perche' l'elenco e' dato: e' il prezzo di avere UN posto solo
-         dove le relazioni sono dichiarate, invece di ventuno `count` copiati.
+         dove le relazioni sono dichiarate, invece di ventidue `count` copiati.
     */
     const delegato = (
       db as unknown as Record<string, { count?: (args: unknown) => Promise<number> }>

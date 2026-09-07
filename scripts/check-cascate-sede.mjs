@@ -75,7 +75,12 @@ for (let i = 0; i < righeSchema.length; i += 1) {
     testo += ` ${righeSchema[j].trim()}`;
   }
 
-  const campo = /fields:\s*\[(\w+)\]/.exec(testo);
+  // ⚠️ Anche le FK COMPOSITE, che qui sono la forma normale: l'isolamento per
+  //    tenant si impone con `fields: [locationId, tenantId]`, e leggendo solo
+  //    le chiavi a un campo la guardia le segnalava come «(sconosciuto)» —
+  //    cioe' faceva fallire il lint su una relazione dichiarata correttamente.
+  //    Il campo che conta e' il PRIMO: e' quello che punta a `locations`.
+  const campo = /fields:\s*\[(\w+)(?:\s*,\s*\w+)*\]/.exec(testo);
   const azione = /onDelete:\s*(\w+)/.exec(testo);
   const opzionale = /Location\?/.test(testo);
 

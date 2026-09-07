@@ -842,7 +842,7 @@ Una sede si elimina **fisicamente** soltanto quando è tutte queste cose insieme
 - **realmente vuota**;
 - priva di giacenze, movimenti, documenti, conteggi, ordini, dispositivi,
   assegnazioni e qualsiasi altro riferimento;
-- **libera secondo tutte e ventuno le relazioni censite** verso `Location`.
+- **libera secondo tutte e ventidue le relazioni censite** verso `Location`.
 
 Se esiste anche un solo riferimento, la sede **non si elimina**. Deve poter
 essere resa **non operativa** conservando storia e dati.
