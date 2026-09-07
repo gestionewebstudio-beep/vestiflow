@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Location } from '@prisma/client';
-import { InventoryCountStatus, ShopifySyncStatus } from '@prisma/client';
+import { ShopifySyncStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { verificaSedeCancellabile } from './location-delete-safety.util';
@@ -200,43 +200,24 @@ export class ShopifyLocationSyncService {
   }
 
   /*
-    ⛔ **Guardava quattro cose, e le quattro che si difendono da sole.** Giacenze,
-       movimenti, ordini fornitore e conteggi sono relazioni `Restrict` nello
-       schema: un `DELETE` fallirebbe comunque con un errore di chiave esterna.
+    ⛔ **Guardava quattro relazioni su ventuno**, e i quattro `count` scritti
+       qui erano anche più permissivi dell'elenco: contavano le sole sessioni di
+       conteggio `in_progress`, mentre la chiave esterna è `RESTRICT` per TUTTE.
+       Una sessione chiusa faceva quindi passare il controllo e poi esplodere il
+       `DELETE`.
 
-       Le relazioni che NON si difendono erano tutte fuori dal controllo: quattro
-       `Cascade` che cancellano in silenzio — contatori di numerazione dei
-       documenti, dispositivi fiscali, terminali POS, assegnazioni degli utenti —
-       e sette `SetNull` che azzerano un riferimento senza dire niente, fra cui
-       la sede dei DOCUMENTI.
+    ⭐ **Ora la domanda si fa in un posto solo**: `RIFERIMENTI_SEDE` dichiara
+       tutte e ventuno le relazioni, ed è verificato contro lo schema da
+       `npm run check:cascate-sede`. I quattro `count` che stavano qui erano un
+       sottoinsieme di quell'elenco: tenerli sarebbe stato dire due volte la
+       stessa cosa, in due modi che possono divergere.
 
-    ⭐ Ora si controlla `RIFERIMENTI_SEDE_NON_PROTETTIVI`, che le dichiara tutte
-       e undici in un posto solo ed è verificato contro lo schema da
-       `npm run check:cascate-sede`.
-
-    ⚠️ Il controllo sull'inventario resta, ma non perché serva al `DELETE`: serve
-       a rifiutare prima, con un motivo leggibile, invece di lasciare arrivare un
-       errore di chiave esterna.
+    ⚠️ **Chi riceve `false` ARCHIVIA, non forza.** È il contratto: la sede si
+       scollega dal canale e sparisce dal selettore, ma resta leggibile per i
+       documenti che la nominano.
   */
   private async canDeleteLocation(tenantId: string, locationId: string): Promise<boolean> {
-    const [levels, movements, supplierOrders, countSessions, sicurezza] = await Promise.all([
-      this.prisma.inventoryLevel.count({ where: { tenantId, locationId } }),
-      this.prisma.stockMovement.count({
-        where: {
-          tenantId,
-          OR: [{ locationId }, { targetLocationId: locationId }],
-        },
-      }),
-      this.prisma.supplierOrder.count({ where: { tenantId, destinationLocationId: locationId } }),
-      this.prisma.inventoryCountSession.count({
-        where: {
-          tenantId,
-          locationId,
-          status: InventoryCountStatus.in_progress,
-        },
-      }),
-      verificaSedeCancellabile(this.prisma, tenantId, locationId),
-    ]);
+    const sicurezza = await verificaSedeCancellabile(this.prisma, tenantId, locationId);
 
     if (!sicurezza.puoEssereCancellata) {
       this.logger.warn(
@@ -245,7 +226,7 @@ export class ShopifyLocationSyncService {
       return false;
     }
 
-    return levels === 0 && movements === 0 && supplierOrders === 0 && countSessions === 0;
+    return true;
   }
 
   private async cleanupStaleShopifyLocations(

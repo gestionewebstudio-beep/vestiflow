@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
 import {
-  RIFERIMENTI_SEDE_NON_PROTETTIVI,
+  RIFERIMENTI_SEDE,
   type RiferimentoSede,
 } from './location-delete-safety.util';
 import type { ShopifyAdminClient } from './shopify-admin.client';
@@ -13,7 +13,7 @@ import { ShopifyLocationSyncService } from './shopify-location-sync.service';
  * I delegati Prisma delle relazioni che una sede si porterebbe via.
  *
  * ⚠️ **Generati DALL'ELENCO, non scritti a mano.** Una voce aggiunta domani a
- *    `RIFERIMENTI_SEDE_NON_PROTETTIVI` deve comparire qui da sola: un mock
+ *    `RIFERIMENTI_SEDE` deve comparire qui da sola: un mock
  *    scritto a mano non esporrebbe quel modello, e `verificaSedeCancellabile`
  *    fallirebbe con un errore che sembra un problema del test invece che una
  *    protezione mancante.
@@ -30,7 +30,7 @@ import { ShopifyLocationSyncService } from './shopify-location-sync.service';
  */
 function creaDelegatiRiferimento(presenti: Readonly<Record<string, number>> = {}) {
   const campiPerModello = new Map<string, Record<string, number>>();
-  for (const riferimento of RIFERIMENTI_SEDE_NON_PROTETTIVI) {
+  for (const riferimento of RIFERIMENTI_SEDE) {
     const campi = campiPerModello.get(riferimento.modello) ?? {};
     campi[riferimento.campo] = presenti[`${riferimento.modello}.${riferimento.campo}`] ?? 0;
     campiPerModello.set(riferimento.modello, campi);
@@ -448,7 +448,7 @@ describe('ShopifyLocationSyncService', () => {
        prodotto il guasto — una sede collegata che sparisce dal catalogo Shopify
        e che il sync decide di rimuovere.
   */
-  describe.each(RIFERIMENTI_SEDE_NON_PROTETTIVI as readonly RiferimentoSede[])(
+  describe.each(RIFERIMENTI_SEDE as readonly RiferimentoSede[])(
     'sede trattenuta da $modello.$campo',
     ({ modello, campo, effetto }: RiferimentoSede) => {
       it(`non viene cancellata: l'entita collegata ${effetto === 'cancellata' ? 'sparirebbe' : 'perderebbe la sede'}`, async () => {
@@ -525,7 +525,7 @@ describe('ShopifyLocationSyncService', () => {
     expect(prisma.inventoryCountSession.count).toHaveBeenCalled();
 
     // E tutte e undici le relazioni dell'elenco, senza eccezioni.
-    for (const riferimento of RIFERIMENTI_SEDE_NON_PROTETTIVI) {
+    for (const riferimento of RIFERIMENTI_SEDE) {
       const delegato = delegatiRiferimento[riferimento.modello];
       if (!delegato) {
         throw new Error(
