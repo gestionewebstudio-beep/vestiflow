@@ -4,11 +4,14 @@
  *
  * ATTENZIONE: sovrascrive dati nel database di destinazione.
  *
- * Uso (staging consigliato):
- *   npm run backup:restore -- --backup-dir backups/vestiflow-20260702-120000 --confirm
+ * ⛔ **Il bersaglio è OBBLIGATORIO e non ha un valore predefinito.** Fino al
+ *    07/09/2026 ripiegava su `DIRECT_URL` di `api/.env`, cioè sul database
+ *    condiviso: un restore è distruttivo, e il suo bersaglio era l’unico a
+ *    potersi indovinare da solo. Ora va nominato.
  *
- * Override URL (es. progetto Supabase staging):
- *   npm run backup:restore -- --backup-dir ... --confirm --direct-url "$STAGING_DIRECT_URL"
+ * Uso:
+ *   npm run backup:restore -- --backup-dir backups/vestiflow-20260702-120000 \
+ *     --confirm --direct-url "$URL_DEL_BERSAGLIO"
  */
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -49,11 +52,11 @@ Restore database VestiFlow da backup locale
 
 Opzioni:
   --backup-dir <path>   cartella backup (deve contenere database.dump.enc)
-  --direct-url <uri>    override DIRECT_URL (usa progetto staging!)
+  --direct-url <uri>    BERSAGLIO del restore — OBBLIGATORIO, nessun default
   --confirm             obbligatorio: conferma restore distruttivo
 
 Variabili:
-  DIRECT_URL                      target restore (default da api/.env)
+  (il bersaglio NON si legge da api/.env: va indicato con --direct-url)
   BACKUP_ENCRYPTION_PASSPHRASE    passphrase usata al backup
 
 Nota: il restore storage (file) va ricaricato manualmente sui bucket Supabase
@@ -95,11 +98,21 @@ async function main() {
   }
 
   const env = loadApiEnv();
-  const directUrl = args.directUrl?.trim() || env.DIRECT_URL?.trim();
+  /*
+    ⛔ **Nessun ripiego su `env.DIRECT_URL`.** Era la riga che rendeva il
+       database condiviso il bersaglio PREDEFINITO di un comando che
+       sovrascrive i dati: `--confirm` confermava di voler distruggere
+       qualcosa, non QUALE cosa.
+  */
+  const directUrl = args.directUrl?.trim();
   const passphrase = env.BACKUP_ENCRYPTION_PASSPHRASE?.trim();
 
   if (!directUrl) {
-    throw new Error('DIRECT_URL mancante. Usa --direct-url per un database staging.');
+    throw new Error(
+      'Bersaglio del restore non indicato: usa --direct-url <uri>.\n' +
+        'Non viene MAI dedotto da api/.env — un restore sovrascrive i dati del\n' +
+        'database su cui atterra, e quale sia deve dirlo chi lo lancia.',
+    );
   }
   if (!passphrase || passphrase.length < 16) {
     throw new Error('BACKUP_ENCRYPTION_PASSPHRASE mancante o troppo corta.');

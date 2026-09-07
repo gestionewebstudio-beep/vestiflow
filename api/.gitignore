@@ -10,3 +10,9 @@ tmp/
 # database e in un container su localhost) ma un file .env non si committa.
 .env.test
 .env.test.local
+
+# Operazioni eccezionali sul database CONDIVISO (migration, restore).
+# ⛔ Sta qui e NON in .env perche' nessuno lo carica da se': ne' la CLI
+#    Prisma, ne' l'applicazione, ne' gli strumenti di backup. E' la
+#    protezione, non una preferenza di ordine.
+.env.rilascio

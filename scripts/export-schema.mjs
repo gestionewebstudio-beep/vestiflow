@@ -49,15 +49,28 @@ const soloCorpo = process.argv.includes('--corpo');
 
 // ── L'ambiente, letto dal .env dell'API senza stamparne niente ──────────────
 
+/** Percorso passato con `--env-file <percorso>`, se c’è. */
+function fileAmbienteIndicato() {
+  const i = process.argv.indexOf('--env-file');
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
 /**
- * Legge una chiave da `api/.env`.
+ * Legge una chiave dall’ambiente del processo, o dal file che l’operatore ha
+ * indicato con `--env-file`.
+ *
+ * ⛔ **Non legge più `api/.env`.** Ci pescava `DIRECT_URL`, quindi bastava
+    `npm run schema:export` per interrogare il database CONDIVISO senza
+    averlo nominato. La lettura è innocua — la transazione è `READ ONLY` —
+    ma il bersaglio implicito no: è la stessa abitudine che il 07/09/2026 ha
+    portato una migration sul condiviso.
  *
  * ⚠️ **Non si stampa mai il valore**, nemmeno in caso di errore: è una
  * stringa di connessione con dentro una password.
  */
 function daEnv(chiave) {
-  const percorso = join(radice, 'api/.env');
-  if (!existsSync(percorso)) {
+  const percorso = fileAmbienteIndicato();
+  if (!percorso || !existsSync(percorso)) {
     return process.env[chiave];
   }
   for (const riga of readFileSync(percorso, 'utf8').split(/\r?\n/)) {
@@ -234,7 +247,11 @@ const INTERROGAZIONI = {
 async function leggi() {
   const url = daEnv('DIRECT_URL') ?? daEnv('DATABASE_URL');
   if (!url) {
-    console.error('[schema:export] Manca DIRECT_URL/DATABASE_URL in api/.env.');
+    console.error(
+      '[schema:export] Bersaglio non indicato. Non viene dedotto da api/.env:\n' +
+        '  --env-file <percorso>   un file di ambiente che indichi tu, oppure\n' +
+        '  DIRECT_URL=... / DATABASE_URL=...  esportata nell’ambiente di questo comando',
+    );
     process.exit(2);
   }
   const requireApi = createRequire(join(radice, 'api/package.json'));
