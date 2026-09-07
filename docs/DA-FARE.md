@@ -1874,24 +1874,45 @@ reale**: `fiscal_receipts` e `cash_sessions` hanno zero righe. Non è una deroga
 > §12.** Qui c'è solo il lavoro che ne discende: implementazione, collaudi,
 > guide e ciò che resta da decidere.
 
-### 1 · Requisito di schema — `shopify_location_links`
+### ✅ 1 · Requisito di schema — `shopify_location_links` è SCRITTA (07/09/2026)
 
-⛔ **Serve uno storico dei collegamenti delle location**, equivalente a
-`shopify_product_links` e `shopify_variant_links` già introdotti dal commit
-`c82295c4`.
+La tabella è nella migration `20260907000000_shopify_link_history`, insieme alle
+due sorelle, e conserva tutto ciò che questa voce chiedeva: identità della sede
+(FK composita col tenant), identità della location Shopify (GID con `CHECK` di
+forma), identità del negozio (FK verso `shopify_shops`), quando il collegamento
+è nato, quando si è chiuso e **perché**.
 
-Senza, «il collegamento è stato chiuso» e «il collegamento non è mai esistito»
-sono indistinguibili — ed è esattamente la differenza su cui si regge §1.13.3:
-una location scomparsa e poi ricomparsa **non si riaggancia da sola**, e per
-saperlo bisogna ricordare che quel collegamento c'era.
+⚠️ Qui c'era «la migration NON è stata scritta, ed è deliberato: questa tranche è
+documentale». Non vale più.
 
-Deve conservare almeno: identità della sede VestiFlow, identità della location
-Shopify (GID), identità del negozio (`shop_gid`), quando il collegamento è nato,
-quando si è chiuso e **perché**.
+**Quattro decisioni prese dal proprietario prima di scriverla** — il modello non
+era interamente derivabile, e dedurle sarebbe stato inventarle: cardinalità (una
+sede, un solo collegamento vivo), cambio negozio (chiude anche le sedi, con
+`shop_change`), `superseded_by_link_id` (sì, per la sostituzione esplicita),
+unicità sull'inventory item (deliberata come quinta garanzia). Le motivazioni
+stanno in `docs/24` §1.13.3.
 
-⚠️ **La migration NON è stata scritta**, ed è deliberato: questa tranche è
-documentale. Va scritta a mano, come impone `regole-qualita`, e provata sul
-database di prova.
+**Chiuse insieme, nella stessa migration**, due lacune che il confronto ha fatto
+emergere:
+
+- **`shopify_connections.shop_id`** — decisa in §8.5.1 senza condizioni e assente
+  da schema e migration: senza, non esiste modo di sapere quale riga di
+  `shopify_shops` sia la corrente per un tenant;
+- **l'ausiliaria `UNIQUE (id, tenant_id)` su `locations`** — senza, la FK
+  composita col tenant non era nemmeno scrivibile, e l'isolamento sarebbe
+  rimasto affidato al servizio applicativo.
+
+⛔ **Restano fuori, e non per dimenticanza**: il backfill (le tabelle nascono
+vuote, §8.5.8 fase 3), la doppia scrittura, la migrazione dei lettori e il ritiro
+delle colonne legacy. Le tabelle **non sono ancora fonte canonica**.
+
+⚠️ **E resta aperta una domanda che non riguarda le sedi**: le FK verso
+`products`/`product_variants` sono `ON DELETE RESTRICT`, e §11.8 dichiara che il
+riferimento anti-reimportazione **è** il link chiuso — ma §4.2 descrive
+l'eliminazione definitiva locale come «purga fisica, irreversibile». Con
+`RESTRICT` la riga di prodotto non è cancellabile finché esiste un link. Nessun
+testo scioglie la tensione, e §0-bis tiene ancora aperta la domanda se un
+articolo già salvato possa essere eliminato definitivamente.
 
 ### 2 · Storia della connessione — campi da conservare
 

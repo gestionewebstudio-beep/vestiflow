@@ -35,6 +35,13 @@ CREATE UNIQUE INDEX "products_id_tenant_id_key" ON "products" ("id", "tenant_id"
 CREATE UNIQUE INDEX "product_variants_id_tenant_id_key" ON "product_variants" ("id", "tenant_id");
 CREATE UNIQUE INDEX "product_variants_id_product_id_key" ON "product_variants" ("id", "product_id");
 
+-- ⭐ La quarta ausiliaria e' per le SEDI (docs/24 §1.13.3). Senza, la FK
+--    composita col tenant sul collegamento di sede non e' nemmeno scrivibile, e
+--    l'isolamento resterebbe affidato al servizio applicativo — cioe' proprio
+--    cio' che §15.3 vieta. E' ridondante rispetto alla chiave primaria: non puo'
+--    fallire e non tocca dati.
+CREATE UNIQUE INDEX "locations_id_tenant_id_key" ON "locations" ("id", "tenant_id");
+
 -- ── shopify_shops: identita' immutabile del negozio ─────────────────────────
 
 CREATE TABLE "shopify_shops" (
@@ -257,3 +264,154 @@ ALTER TABLE "shopify_variant_links"
 
 ALTER TABLE "shopify_variant_links" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON "shopify_variant_links" FROM PUBLIC, anon, authenticated;
+
+-- ── shopify_location_links: storico dei collegamenti di sede ────────────────
+--
+-- ⭐ Sede VestiFlow e location Shopify sono DUE ENTITA' AUTONOME (docs/24 §1.13):
+--    la sincronizzazione avviene solo dove esiste un collegamento esplicito, e
+--    quel collegamento lo dichiara una persona. Senza collegamento non succede
+--    niente, in nessuna direzione.
+--
+-- ⛔ Questa tabella esiste per rendere distinguibili «il collegamento e' stato
+--    chiuso» e «il collegamento non e' mai esistito» (§1.13.3). Senza, il
+--    divieto di riaggancio automatico per nome o indirizzo e' sorretto solo da
+--    un effetto collaterale — l'identificativo non viene azzerato — e una
+--    location che tornasse con un id nuovo verrebbe riagganciata per nome.
+--
+-- ⚠️ Nessuna colonna di NOME o INDIRIZZO, ed e' deliberato: le anagrafiche non
+--    si sincronizzano (§1.13.2), e un nome in questa tabella sarebbe l'appiglio
+--    per il riaggancio automatico che la tabella esiste per impedire.
+--
+-- ⛔ Nessun `last_event_at` / `last_event_triggered_at`, al contrario delle due
+--    tabelle sorelle. Quelle colonne servono a scartare eventi webhook fuori
+--    ordine (§8.5.4), e per le location NON ESISTE alcun topic: gli otto
+--    registrati sono inventory_levels, orders, customers e products
+--    (`shopify-webhook-topics.ts`). Copiarle sarebbe inventare l'ordinamento di
+--    eventi che non arrivano.
+
+CREATE TABLE "shopify_location_links" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "tenant_id" UUID NOT NULL,
+  "shop_id" UUID NOT NULL,
+  "location_id" UUID NOT NULL,
+  "shopify_location_gid" TEXT NOT NULL,
+  "status" "ShopifyLinkStatus" NOT NULL DEFAULT 'active',
+  "close_reason" "ShopifyLinkCloseReason",
+  "superseded_by_link_id" UUID,
+  "linked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "closed_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
+
+  CONSTRAINT "shopify_location_links_pkey" PRIMARY KEY ("id"),
+
+  -- Solo un GID di LOCATION. La forma e' gia' quella usata dal codice di
+  -- produzione (`shopify-location-id.util.ts`, `shopify-order-location.util.ts`):
+  -- non e' una convenzione nuova, e qui la impone il database.
+  CONSTRAINT "shopify_location_links_gid_forma" CHECK (
+    "shopify_location_gid" ~ '^gid://shopify/Location/[0-9]+$'
+  ),
+
+  -- I cinque CHECK di stato, identici alle due tabelle sorelle e da leggere
+  -- come UN GRUPPO: il secondo non e' ridondante rispetto al terzo e al quarto,
+  -- perche' `IN (...)` su NULL vale NULL e un CHECK fallisce solo su FALSE.
+  CONSTRAINT "shopify_location_links_attivo_pulito" CHECK (
+    "status" <> 'active' OR ("closed_at" IS NULL AND "close_reason" IS NULL)
+  ),
+  CONSTRAINT "shopify_location_links_chiuso_completo" CHECK (
+    "status" = 'active' OR ("closed_at" IS NOT NULL AND "close_reason" IS NOT NULL)
+  ),
+  -- ⭐ Le causali sono le stesse delle sorelle, e coprono i casi decisi:
+  --    §1.13.3 «non esiste piu' su Shopify» -> remote_delete / not_found;
+  --    §1.13.3 «l'utente puo' collegare esplicitamente la sede a un'altra
+  --    location» -> operator; il cambio negozio -> shop_change, deciso dal
+  --    proprietario il 07/09/2026 (§8.5.1 nominava solo prodotto e variante).
+  CONSTRAINT "shopify_location_links_causale_eliminato" CHECK (
+    "status" <> 'remotely_deleted' OR "close_reason" IN ('remote_delete', 'not_found')
+  ),
+  CONSTRAINT "shopify_location_links_causale_scollegato" CHECK (
+    "status" <> 'unlinked' OR "close_reason" IN ('operator', 'shop_change')
+  ),
+  -- ⚠️ Blocca l'auto-riferimento (A verso A). NON blocca un ciclo fra due righe
+  --    (A verso B, B verso A): un CHECK di riga non puo' vedere un'altra riga, e
+  --    la garanzia resta applicativa — la stessa dichiarazione di §8.5.2 per le
+  --    tabelle sorelle. Il successore si scrive in un UPDATE che segue l'INSERT
+  --    del link nuovo, mai in un ordine che permetta due righe di puntarsi a
+  --    vicenda.
+  CONSTRAINT "shopify_location_links_successore_non_se_stesso" CHECK (
+    "superseded_by_link_id" IS NULL OR "superseded_by_link_id" <> "id"
+  )
+);
+
+-- Garanzia 1-2 per le sedi: un GID di location compare UNA VOLTA SOLA, storico
+-- incluso. E' cio' che rende impossibile riusarlo dopo la chiusura, e quindi
+-- verificabile il divieto di riaggancio automatico.
+CREATE UNIQUE INDEX "shopify_location_links_shop_id_shopify_location_gid_key"
+  ON "shopify_location_links" ("shop_id", "shopify_location_gid");
+
+-- ⭐ Ausiliaria della FK di successione. Porta il TENANT e non il negozio: il
+--    proprietario ha deciso il 07/09/2026 che predecessore e successore devono
+--    appartenere allo stesso tenant e alla stessa SEDE. Imporre lo stesso
+--    negozio impedirebbe la sostituzione dopo un cambio negozio, che e'
+--    esattamente uno dei casi in cui il collegamento si sostituisce.
+CREATE UNIQUE INDEX "shopify_location_links_id_location_id_tenant_id_key"
+  ON "shopify_location_links" ("id", "location_id", "tenant_id");
+
+CREATE INDEX "shopify_location_links_tenant_id_shopify_location_gid_idx"
+  ON "shopify_location_links" ("tenant_id", "shopify_location_gid");
+CREATE INDEX "shopify_location_links_tenant_id_location_id_status_idx"
+  ON "shopify_location_links" ("tenant_id", "location_id", "status");
+
+-- ⭐ Garanzia 3-4 per le sedi — UNA SEDE, UN SOLO COLLEGAMENTO VIVO, deciso dal
+--    proprietario il 07/09/2026 fra le due formulazioni scritte che non
+--    coincidevano (§1.13.1 «uno-a-uno dentro lo stesso negozio» contro le
+--    garanzie 3-4 di §8.5.2, che sono per entita' locale). Vince la piu'
+--    stretta, col metodo di §8.5.1: il vincolo si rilassa solo dopo aver
+--    dichiarato per iscritto il caso commerciale che lo giustifica.
+--
+-- ⚠️ Senza `shop_id` NELL'INDICE: una sede non puo' essere collegata a due
+--    negozi insieme. Sincronizzare quantita' verso due negozi richiederebbe una
+--    regola di ripartizione che non esiste e non e' stata chiesta.
+CREATE UNIQUE INDEX "shopify_location_links_location_attivo_key"
+  ON "shopify_location_links" ("location_id")
+  WHERE "status" = 'active';
+
+ALTER TABLE "shopify_location_links"
+  ADD CONSTRAINT "shopify_location_links_tenant_id_fkey" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- FK COMPOSITE: negozio e sede sono dello stesso tenant del collegamento.
+  ADD CONSTRAINT "shopify_location_links_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
+    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT "shopify_location_links_location_id_tenant_id_fkey" FOREIGN KEY ("location_id", "tenant_id")
+    REFERENCES "locations" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- Il successore appartiene allo STESSO tenant e alla STESSA sede.
+  -- ⚠️ `RESTRICT` esplicito: mai SET NULL (perderebbe il legame in silenzio),
+  --    mai CASCADE (propagherebbe una cancellazione lungo la catena).
+  ADD CONSTRAINT "shopify_location_links_superseded_by_fkey"
+    FOREIGN KEY ("superseded_by_link_id", "location_id", "tenant_id")
+    REFERENCES "shopify_location_links" ("id", "location_id", "tenant_id")
+    ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+ALTER TABLE "shopify_location_links" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON "shopify_location_links" FROM PUBLIC, anon, authenticated;
+
+-- ── shopify_connections.shop_id: la connessione punta al negozio ────────────
+--
+-- ⭐ Decisa in §8.5.1: «la connessione punta al negozio, non lo sostituisce».
+--    Senza, non esiste modo — nel database — di dire quale riga di
+--    `shopify_shops` sia quella corrente per un tenant, e il passo 2 della
+--    transazione di cambio negozio non ha dove scrivere. Era l'unica voce di
+--    §8.5.1 decisa senza condizioni e assente da entrambi i file.
+--
+-- ⚠️ NULLABLE, e per la stessa ragione di `shop_gid`: il valore non esiste nei
+--    dati locali e lo acquisisce la fase 2. Una connessione `not_connected` non
+--    ha inoltre alcun negozio a cui puntare, quindi il NOT NULL non sarebbe
+--    corretto nemmeno a regime.
+
+ALTER TABLE "shopify_connections" ADD COLUMN "shop_id" UUID;
+
+CREATE INDEX "shopify_connections_shop_id_idx" ON "shopify_connections" ("shop_id");
+
+ALTER TABLE "shopify_connections"
+  ADD CONSTRAINT "shopify_connections_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
+    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE;

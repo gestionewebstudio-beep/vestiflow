@@ -792,8 +792,47 @@ location**, equivalente a `shopify_product_links` e `shopify_variant_links`
 sono indistinguibili, ed è esattamente la differenza che impedisce il
 riaggancio automatico.
 
-⚠️ Il requisito è registrato — `shopify_location_links` o struttura equivalente —
-e la migration **non è scritta**: vedi `docs/DA-FARE.md`.
+#### ✅ `shopify_location_links` è scritta — 07/09/2026
+
+La tabella è nella migration `20260907000000_shopify_link_history`, insieme alle
+due sorelle. ⚠️ Qui c'era «il requisito è registrato e la migration **non è
+scritta**»: non vale più.
+
+**Quattro decisioni sono state prese dal proprietario prima di scriverla**,
+perché il modello non era interamente derivabile e dedurle sarebbe stato
+inventarle:
+
+| Decisione                                | Scelta                                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------------------------- |
+| **cardinalità**                          | **una sede, un solo collegamento vivo** — `UNIQUE (location_id) WHERE status='active'` |
+| **cambio negozio**                       | chiude **anche** i collegamenti di sede, con causale `shop_change`                     |
+| **`superseded_by_link_id`**              | **sì**, per la sostituzione esplicita dell'operatore                                   |
+| **unicità sull'inventory item** (§8.5.2) | si delibera come **quinta** garanzia                                                   |
+
+⛔ **La cardinalità era ambigua fra due testi entrambi scritti**: questa sezione
+diceva «uno-a-uno all'interno dello stesso negozio», le garanzie 3-4 di §8.5.2
+sono per entità locale a prescindere dal negozio. **Vince la più stretta**, col
+metodo di §8.5.1: il vincolo si rilassa solo dopo aver dichiarato per iscritto
+il caso commerciale che lo giustifica. Una sede non può quindi essere collegata
+a due negozi insieme — sincronizzare quantità verso due negozi richiederebbe una
+regola di ripartizione che non esiste e non è stata chiesta.
+
+⭐ **`superseded_by_link_id` non è la «ripubblicazione» dei prodotti (§11.9)**:
+per una sede è la **sostituzione esplicita** decisa dall'operatore. Resta
+facoltativo — la semplice chiusura lo lascia `NULL` — e la FK impone che
+predecessore e successore condividano **tenant e sede**, non il negozio:
+imporre lo stesso negozio impedirebbe la sostituzione dopo un cambio negozio,
+che è proprio uno dei casi in cui il collegamento si sostituisce.
+
+⚠️ **Nessuna colonna di nome o indirizzo**, ed è la parte che tiene in piedi il
+divieto di riaggancio: un nome in quella tabella sarebbe l'appiglio per il
+riaggancio automatico che la tabella esiste per impedire. E **nessun**
+`last_event_at` / `last_event_triggered_at`, al contrario delle sorelle: quelle
+colonne ordinano eventi webhook, e per le location **non esiste alcun topic
+registrato** (`shopify-webhook-topics.ts`).
+
+⚠️ **La tabella nasce vuota**, come le due sorelle: nessun backfill in questa
+fase (§8.5.8).
 
 #### 1.13.4 Eliminare una sede VestiFlow
 
@@ -1894,8 +1933,11 @@ transazione:
 1. **si crea** (o si ritrova, se già noto) l'identità immutabile del nuovo negozio in
    `shopify_shops`;
 2. **si aggiorna** `ShopifyConnection` a puntare al nuovo `shop_id` e al nuovo `shopDomain`;
-3. **si chiudono** tutti i link `active` del **vecchio** negozio — prodotto e variante — con
-   `close_reason = shop_change` (§8.5.2);
+3. **si chiudono** tutti i link `active` del **vecchio** negozio — prodotto, variante **e
+   sede** — con `close_reason = shop_change` (§8.5.2);
+   ⚠️ **Le famiglie sono TRE, non due** — deciso il 07/09/2026. Qui erano nominate solo
+   prodotto e variante, e le sedi sarebbero rimaste collegate a un negozio che non è più
+   quello connesso;
 4. gli identificativi remoti del vecchio negozio **restano storici**: nessuna riga si cancella,
    nessun id si azzera;
 5. **le colonne-cache** esistenti (`shopifyProductId`, `shopifyVariantId`,
@@ -1988,7 +2030,27 @@ shopify_variant_links
   linked_at · closed_at · last_event_at · last_event_triggered_at
 ```
 
-#### Unicità — quattro garanzie, non tre
+#### Unicità — cinque garanzie, non quattro
+
+⭐ **La quinta è stata deliberata il 07/09/2026**: `UNIQUE (shop_id,
+shopify_inventory_item_gid)` su `shopify_variant_links`. In Shopify il legame
+variante ↔ inventory item è uno-a-uno, quindi un inventory item non può comparire
+su due varianti.
+
+⛔ **Esisteva già nel codice e non in questa sezione**, che si intitolava «quattro
+garanzie, non tre» ed elencava quattro indici: il database imponeva una regola che
+nessun documento sosteneva, e un fallimento di backfill dovuto a quell'indice non
+sarebbe stato rintracciabile in nessuna decisione. È il rovescio esatto di una
+lacuna, e ha lo stesso costo.
+
+⚠️ La colonna è nullable e PostgreSQL non fa collidere i NULL: il vincolo morde
+solo sulle varianti con inventory item noto.
+
+⭐ **E le sedi hanno le proprie**, con la stessa forma: `UNIQUE (shop_id,
+shopify_location_gid)` su tutte le righe e `UNIQUE (location_id) WHERE
+status = 'active'` — vedi §1.13.3 per la decisione sulla cardinalità.
+
+#### Le quattro garanzie originarie
 
 > ✅ **Decisione confermata**: l'unicità solo sulle righe `active` per id remoto è
 > insufficiente, perché renderebbe ambigua la risoluzione di ordini e resi storici (§8.5.4).
@@ -2395,10 +2457,23 @@ stato **incompleto ma coerente**. Con l'atomica lascerebbe uno stato **impossibi
 i lettori di push e pull non sono migrati (§8.5.5). Fino ad allora sono una fonte in
 costruzione, e vanno descritte così anche a chi legge il codice.
 
-**Una sola migration** per la creazione: enum, le tre tabelle, gli indici (compresi i parziali),
-le ausiliarie su `products`/`product_variants`, le FK composite, i `CHECK`, **e nello stesso
-file `ENABLE ROW LEVEL SECURITY` più le `REVOKE`**. ⛔ Non deve esistere una finestra, nemmeno
-di una migration, in cui una tabella applicativa è priva di RLS.
+**Una sola migration** per la creazione: enum, le **quattro** tabelle — `shopify_shops`,
+`shopify_product_links`, `shopify_variant_links` e `shopify_location_links` — gli indici
+(compresi i parziali), le ausiliarie su `products`/`product_variants`/`locations`, la colonna
+`shopify_connections.shop_id`, le FK composite, i `CHECK`, **e nello stesso file `ENABLE ROW
+LEVEL SECURITY` più le `REVOKE`**. ⛔ Non deve esistere una finestra, nemmeno di una migration,
+in cui una tabella applicativa è priva di RLS.
+
+⚠️ **Erano «le tre tabelle», ed erano tre per davvero fino al 07/09/2026**: §1.13 ha aggiunto
+lo storico delle sedi lo stesso giorno, e questa riga era rimasta indietro di una decisione.
+Le tabelle si **nominano** invece di contarle, così la prossima aggiunta non lascia un numero
+a smentire un elenco.
+
+⭐ **`shopify_connections.shop_id` è materia di fase 1** e non era stata scritta: senza, non
+esiste modo — nel database — di sapere quale riga di `shopify_shops` sia la corrente per un
+tenant, e il passo 2 della transazione di cambio negozio non ha dove scrivere. Nasce
+**nullable**, come `shop_gid`, e per una ragione in più: una connessione `not_connected` non
+ha alcun negozio a cui puntare, quindi il `NOT NULL` non sarebbe corretto nemmeno a regime.
 
 **Il backfill è preceduto da controlli bloccanti.** La migration si ferma se una qualunque di
 queste query restituisce righe:
