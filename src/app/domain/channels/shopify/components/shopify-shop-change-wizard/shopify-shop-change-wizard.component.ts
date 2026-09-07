@@ -61,9 +61,24 @@ export class ShopifyShopChangeWizardComponent {
   protected readonly preview = signal<ShopifyShopChangePreviewDto | null>(null);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly purgeCatalog = signal(true);
-  protected readonly purgeCustomers = signal(true);
-  protected readonly purgeOrders = signal(true);
+  /*
+    ⛔ **Nasce SPENTO, e non lo accende più nessuno.** Era `signal(true)`: il
+       wizard proponeva di cancellare il catalogo come impostazione predefinita,
+       e con esso giacenze e movimenti.
+
+    ⚠️ Il segnale resta perché il DTO dell'API lo richiede ancora, e mandarlo a
+       `false` esplicitamente è più chiaro che ometterlo. Il rifiuto vero è
+       sull'API: questa è solo la parte che si vede.
+  */
+  /*
+    ⛔ **Tutte e tre nascono spente e restano spente**: la rimozione dei dati
+       Shopify è sospesa in ogni sua forma (docs/24 §1.14). Il rifiuto vero è
+       sull'API — una casella spenta non ferma una chiamata diretta — e queste
+       restano come stato per non riscrivere il resto del wizard, che le legge.
+  */
+  protected readonly purgeCatalog = signal(false);
+  protected readonly purgeCustomers = signal(false);
+  protected readonly purgeOrders = signal(false);
   protected readonly acknowledgeLoss = signal(false);
 
   protected readonly confirmForm = this.fb.group({
@@ -328,9 +343,9 @@ export class ShopifyShopChangeWizardComponent {
     this.step.set('preview');
     this.preview.set(null);
     this.error.set(null);
-    this.purgeCatalog.set(true);
-    this.purgeCustomers.set(true);
-    this.purgeOrders.set(true);
+    this.purgeCatalog.set(false);
+    this.purgeCustomers.set(false);
+    this.purgeOrders.set(false);
     this.acknowledgeLoss.set(false);
     this.hasCatalogBlockers.set(false);
     this.confirmForm.reset();
