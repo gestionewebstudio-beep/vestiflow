@@ -467,7 +467,11 @@ Usa questa sequenza se: account compromesso, database cancellato, ransomware, pr
 - [ ] Recupera **ultimo dump valido** da storage esterno (non da Supabase se anche quello è compromesso)
 - [ ] Crea **nuovo** progetto Supabase (o restore su progetto pulito)
 - [ ] Esegui restore (§7)
-- [ ] Riapplica migration Prisma se necessario: `npx prisma migrate deploy` in `api/`
+- [ ] Verifica le migration mancanti (sola lettura): `npx prisma migrate status` in `api/`
+- [ ] ⛔ **Applicarle non ha un comando pronto**: dal 07/09/2026 `DIRECT_URL` non sta
+      in `api/.env` e `migrate deploy` fallisce con P1012 prima di connettersi. Su un
+      ripristino serve una procedura preparata per quel caso e autorizzata: è
+      esattamente il momento in cui un comando incollato sbaglia bersaglio.
 - [ ] Verifica RLS: `npm run check:rls`
 
 ### 8.3 Ripristino API (Railway o alternativa)

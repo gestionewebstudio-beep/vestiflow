@@ -1358,8 +1358,9 @@ Da lì discendevano gli altri due difetti, che erano **conseguenze**, non cause:
 
 ### Migration
 
-`20260816190000_ordine_cliente_netto_ivato` — scritta a mano, applicata con
-`npm run prisma:deploy`.
+`20260816190000_ordine_cliente_netto_ivato` — scritta a mano, e applicata quando
+`npm run prisma:deploy` esisteva ancora (⛔ ritirato il 07/09/2026: non esiste un
+comando locale per applicare migration al condiviso).
 
 ```sql
 ALTER TABLE "sales_order_lines" ALTER COLUMN "unit_price_minor" TYPE numeric(16, 6);
