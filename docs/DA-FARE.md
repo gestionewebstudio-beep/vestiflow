@@ -2066,21 +2066,26 @@ anagrafiche **non autorizza** a sommare o sovrascrivere quantità.
 
 #### Che cosa fare sull'importazione CSV, che esiste già
 
-⛔ **Non è da scrivere e non è già conforme: è da verificare e adattare.**
-Misurato il 07/09/2026 — `api/src/products/import/` ha `shopify-csv.parse.ts`,
-`shopify-csv.mapper.ts` e `shopify-csv.serialize.ts`, invocati da
-`ProductsImportService`:
+⛔ **Non è da scrivere e non è già conforme: è da verificare e adattare.** E non
+è nemmeno «solo locale» — l'importazione **innesca già un invio ai canali**.
+Letto il 07/09/2026, i livelli da tenere distinti sono quattro:
 
-- accetta il formato **di Shopify** (handle, tag, prezzi decimali dai mapper
-  Shopify): ⛔ **non** «un CSV qualsiasi»;
-- produce prodotti e varianti **locali**;
-- ⛔ **non registra alcun collegamento remoto**: nel mapper non compare né
-  `shopifyProductId` né un GID.
+| #   | Livello                                | Oggi                                                                                                                                                                                                                                    |
+| --- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **creazione locale dal CSV**           | `shopify-csv.parse.ts` e `shopify-csv.mapper.ts` producono prodotti e varianti locali, nel formato **di Shopify** (handle, tag, prezzi dai mapper Shopify) — ⛔ non «un CSV qualsiasi». Nel mapper non compare alcun GID                |
+| 2   | **invio automatico ai canali**         | `ProductsImportService` chiama `channelSync.enqueueProductPush` dopo ogni creazione; `pushProductToChannels` verifica il canale e delega. Post-commit e **non bloccante**: un fallimento è un `logger.warn` e l'import riesce lo stesso |
+| 3   | **registrazione degli identificativi** | la fa il percorso di **pubblicazione**: `shopify-product-push.service.ts` scrive `shopifyProductId`, `shopifyVariantId`, `shopifyInventoryItemId` nelle **colonne legacy**                                                              |
+| 4   | **nuovo storico dei collegamenti**     | ⛔ **nessun servizio lo adotta ancora**; le tabelle restano vuote                                                                                                                                                                       |
 
-⭐ È il pezzo che serve alla **direzione 2**, e proprio perché non pretende di
-sapere che cosa esista su Shopify: i collegamenti li registrerà la creazione
-remota, non il file. Che cosa cambiare, e se il formato Shopify resti l'unico
-accettato, è fra i dettagli aperti.
+⭐ **L'assenza di GID nel mapper dimostra che il MAPPER non ricostruisce
+collegamenti — non che l'import resti locale.** Su un tenant Shopify un catalogo
+caricato da CSV **viene pubblicato**, e gli identificativi rientrano per la via
+del push.
+
+**Che cosa dovrà considerare l'adattamento**, oltre al formato: se e quando
+l'invio automatico debba scattare durante un primo allineamento, che cosa accade
+alle righe che falliscono in silenzio, e come il percorso di pubblicazione
+registrerà i collegamenti **nel nuovo modello** oltre che nelle colonne legacy.
 
 #### Che cosa NON diventa approvato
 

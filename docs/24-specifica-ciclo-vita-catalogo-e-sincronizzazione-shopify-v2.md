@@ -3355,25 +3355,31 @@ non cambia chi possiede cosa.
 
 #### L'importazione CSV che esiste già
 
-⚠️ **Non è da scrivere: è da verificare e adattare.** Misurato il 07/09/2026:
-`api/src/products/import/` contiene `shopify-csv.parse.ts`,
-`shopify-csv.mapper.ts` e `shopify-csv.serialize.ts`, invocati da
-`ProductsImportService`.
+⚠️ **Non è da scrivere: è da verificare e adattare.** E non è nemmeno «solo
+locale»: l'importazione **innesca già un invio ai canali**. Vanno tenuti distinti
+quattro livelli, perché l'adattamento li tocca tutti.
 
-|                     |                                                                                                                 |
-| ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| formato accettato   | quello **di Shopify** — `handle`, tag e prezzi decimali passano dai mapper Shopify. ⛔ Non è «un CSV qualsiasi» |
-| che cosa produce    | prodotti e varianti **locali**                                                                                  |
-| collegamenti remoti | ⛔ **nessuno**: nel mapper non compare alcun `shopifyProductId` né GID                                          |
+| #   | Livello                                | Che cosa fa oggi (letto il 07/09/2026)                                                                                                                                                                                                                        |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **creazione locale dal CSV**           | `shopify-csv.parse.ts` e `shopify-csv.mapper.ts` producono prodotti e varianti **locali**. Formato accettato: quello **di Shopify** — handle, tag e prezzi decimali passano dai mapper Shopify. ⛔ Non è «un CSV qualsiasi». Nel mapper non compare alcun GID |
+| 2   | **invio automatico ai canali**         | `ProductsImportService` chiama `channelSync.enqueueProductPush` **dopo ogni creazione**. È post-commit e non bloccante: un fallimento diventa un `logger.warn` e l'import riesce lo stesso                                                                    |
+| 3   | **registrazione degli identificativi** | la fa il **percorso di pubblicazione**, non il CSV: `shopify-product-push.service.ts` scrive `shopifyProductId`, `shopifyVariantId` e `shopifyInventoryItemId` **nelle colonne legacy**                                                                       |
+| 4   | **nuovo storico dei collegamenti**     | ⛔ **non ancora adottato da nessun servizio**: le tabelle esistono e restano vuote (§8.5.5)                                                                                                                                                                   |
 
-⭐ **È esattamente il pezzo che serve alla direzione 2**, e il suo limite è
-quello che la rende compatibile: crea il catalogo locale e **non pretende** di
-sapere che cosa esiste su Shopify. I collegamenti li registrerà la creazione
-remota, non il file.
+⭐ **La distinzione è tutta qui**: l'assenza di GID nel mapper dimostra che **il
+mapper** non ricostruisce collegamenti remoti — non che l'importazione resti
+locale. Su un tenant Shopify un catalogo caricato da CSV **viene pubblicato**, e
+gli identificativi tornano indietro per la via del push.
 
-⛔ **Non va descritta come assente, né come già conforme.** Che cosa cambiare —
-e se il formato Shopify resti l'unico accettato — è parte dei dettagli operativi
-ancora aperti.
+⛔ **Non va quindi descritta come assente, né come già conforme al primo
+allineamento.** Il suo adattamento dovrà considerare anche gli **effetti
+successivi al caricamento**: se e quando l'invio automatico debba scattare
+durante un primo allineamento, che cosa accade alle righe che falliscono in
+silenzio, e come il percorso di pubblicazione registrerà i collegamenti **nel
+nuovo modello** oltre che nelle colonne legacy.
+
+⚠️ Che cosa cambiare — e se il formato Shopify resti l'unico accettato — è parte
+dei dettagli operativi ancora aperti.
 
 #### Che cosa NON diventa approvato
 
