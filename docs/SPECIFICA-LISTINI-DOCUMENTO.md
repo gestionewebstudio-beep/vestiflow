@@ -339,7 +339,8 @@ il nome del listino da proporre, non un valore in denaro. Cambiare domani il pre
 listino non tocca il cliente, e non tocca i documenti già emessi.
 
 ⚠️ **Sono due migration su un database CONDIVISO col collega.** Valgono le regole di
-`regole-qualita`: SQL scritto a mano, `npm run prisma:deploy`, mai `migrate dev`. E
+`regole-qualita`: SQL scritto a mano, provato con `npm run prisma:deploy:test`, mai
+`migrate dev` — e ⛔ **per il condiviso non esiste un comando locale** (07/09/2026). E
 schema, migration e deploy si fanno **insieme o per niente**: rigenerare il client con
 una colonna che nel database non c'è manda in errore ogni lettura di quella tabella.
 

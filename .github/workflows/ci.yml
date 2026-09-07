@@ -111,6 +111,19 @@ jobs:
       - name: Test API with coverage
         run: npm run test:coverage --prefix api
 
+      # ⛔ **Le guardie hanno bisogno di essere falsificate, non solo eseguite.**
+      #    `npm run lint` esegue `check:bersaglio-condiviso` e dice se OGGI il
+      #    repository e' a posto. Non dice se la guardia funzionerebbe ancora
+      #    dopo una modifica: una regex svuotata la lascia verde per sempre.
+      #
+      # ⭐ Questo passo la mette alla prova su alberi finti in cartelle
+      #    temporanee: `DIRECT_URL` rimessa in un `.env`, `directUrl` tolta da
+      #    uno schema, il valore che non deve comparire nell'output. Piu' i
+      #    test dei caricatori di ambiente di backup, restore ed export, che
+      #    finora non eseguiva nessuno.
+      - name: Prove delle guardie e dei caricatori di ambiente
+        run: npm run test:guardie
+
       - name: Build frontend (production)
         run: npm run build -- --configuration=production
 

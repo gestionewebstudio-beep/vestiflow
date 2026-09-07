@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Location } from '@prisma/client';
-import { InventoryCountStatus, ShopifySyncStatus } from '@prisma/client';
+import { ShopifySyncStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient, type ShopifyAdminLocation } from './shopify-admin.client';
@@ -98,10 +98,6 @@ export class ShopifyLocationSyncService {
       );
     }
 
-    if (shopifyLocations.length > 0 && (matchedCount > 0 || importedCount > 0)) {
-      await this.removeEmptyOnboardingLocation(tenantId);
-    }
-
     await this.cleanupStaleShopifyLocations(tenantId, shopifyCatalogIds);
     await this.cleanupUnlinkedImportLocations(tenantId);
 
@@ -112,7 +108,12 @@ export class ShopifyLocationSyncService {
     };
   }
 
-  /** Rimuove residui di import Shopify non collegati (es. dopo disconnect incompleto). */
+  /**
+   * Segnala i residui di import Shopify non collegati (es. dopo un disconnect
+   * incompleto). Non ne rimuove nessuno: `docs/24` §1.13.4.
+   *
+   * @returns quante sedi sono state segnalate.
+   */
   async cleanupUnlinkedImportLocations(tenantId: string): Promise<number> {
     const [locations, primaryStore] = await Promise.all([
       this.prisma.location.findMany({
@@ -138,7 +139,8 @@ export class ShopifyLocationSyncService {
     ]);
 
     const primaryStoreName = primaryStore?.name ?? null;
-    let removed = 0;
+    /** Quante sedi sono state SEGNALATE. Nessuna viene piu' rimossa. */
+    let segnalate = 0;
 
     for (const location of locations) {
       if (location.shopifyLocationId) {
@@ -149,76 +151,78 @@ export class ShopifyLocationSyncService {
         continue;
       }
 
-      if (await this.canDeleteLocation(tenantId, location.id)) {
-        await this.prisma.location.delete({ where: { id: location.id } });
-        removed += 1;
-        this.logger.log(
-          `Rimossa location import Shopify non collegata (${tenantId}): ${location.name}`,
-        );
-        continue;
-      }
+      /*
+        ⛔ **Qui c'era un `location.delete` quando la sede risultava vuota.**
+           Nessuna sincronizzazione Shopify elimina una Location, neppure se
+           vuota: l'eliminazione di una sede vuota e non collegata appartiene
+           esclusivamente alla funzione VestiFlow dedicata (`docs/24` §1.13.4).
 
+        ⚠️ «Era vuota» non e' un'autorizzazione. Una sede senza riferimenti oggi
+           puo' averne domani, e chi la elimina qui non sta rispondendo a
+           nessuna richiesta dell'operatore: sta rispondendo a un catalogo
+           remoto che e' cambiato.
+      */
+      /*
+        ⛔ **Anche qui la sede veniva DISATTIVATA**, e senza che nessuno lo
+           chiedesse: bastava che il catalogo remoto non la contenesse.
+           `docs/24` §1.13.4 — una sincronizzazione Shopify non puo' eseguire
+           automaticamente questa disattivazione.
+
+        ⚠️ L'effetto non era una perdita di righe ma una sparizione operativa:
+           la sede usciva dai selettori, dal conteggio delle sedi licenziate, e
+           `setLicensedLocations` rifiutava di riattivarla.
+      */
       await this.prisma.location.update({
         where: { id: location.id },
         data: {
-          isActive: false,
-          shopifySyncStatus: ShopifySyncStatus.not_connected,
-          shopifyLastSyncAt: null,
-          shopifyLastError: null,
+          shopifySyncStatus: ShopifySyncStatus.error,
+          shopifyLastError: 'La location collegata non risulta piu` disponibile su Shopify. Il collegamento non e` verificabile: la sede e i suoi dati restano intatti. Collegala a un`altra location o creane una nuova.',
         },
       });
-      removed += 1;
-      this.logger.log(
-        `Archiviata location import Shopify non collegata (${tenantId}): ${location.name}`,
+      segnalate += 1;
+      this.logger.warn(
+        `Location import Shopify non collegata (${tenantId}): ${location.name} — sede conservata, collegamento non verificabile`,
       );
     }
 
-    return removed;
+    return segnalate;
   }
 
-  /** Rimuove la sede LOC-01 creata in onboarding se vuota e sostituita dalle sedi Shopify. */
-  private async removeEmptyOnboardingLocation(tenantId: string): Promise<void> {
-    const onboardingLocations = await this.prisma.location.findMany({
-      where: {
-        tenantId,
-        code: 'LOC-01',
-        shopifyLocationId: null,
-      },
-    });
+  /*
+    ⛔ **`removeEmptyOnboardingLocation` e' stata RIMOSSA, non svuotata.**
 
-    for (const location of onboardingLocations) {
-      if (!(await this.canDeleteLocation(tenantId, location.id))) {
-        continue;
-      }
+       Cancellava la sede `LOC-01` creata in onboarding quando risultava vuota
+       e le sedi Shopify l'avevano sostituita. Tolto il `delete` — che
+       `docs/24` §1.13.4 vieta a qualunque sincronizzazione — non le restava
+       niente da fare: era un metodo che esisteva soltanto per eliminare.
 
-      await this.prisma.location.delete({ where: { id: location.id } });
-      this.logger.log(
-        `Rimossa sede temporanea di onboarding (${tenantId}): ${location.name}`,
-      );
-    }
-  }
+    ⚠️ **Una funzione svuotata e' peggio di una funzione assente**: chi la trova
+       fra sei mesi non sa se non fa niente per scelta o per un difetto, e la
+       chiamata rimasta in `syncFromShopify` suggerirebbe che qualcosa succeda.
 
-  private async canDeleteLocation(tenantId: string, locationId: string): Promise<boolean> {
-    const [levels, movements, supplierOrders, countSessions] = await Promise.all([
-      this.prisma.inventoryLevel.count({ where: { tenantId, locationId } }),
-      this.prisma.stockMovement.count({
-        where: {
-          tenantId,
-          OR: [{ locationId }, { targetLocationId: locationId }],
-        },
-      }),
-      this.prisma.supplierOrder.count({ where: { tenantId, destinationLocationId: locationId } }),
-      this.prisma.inventoryCountSession.count({
-        where: {
-          tenantId,
-          locationId,
-          status: InventoryCountStatus.in_progress,
-        },
-      }),
-    ]);
+    ⭐ **Che cosa succede ora alla sede di onboarding**: resta. Se l'azienda non
+       la usa, e' l'operatore a eliminarla dalla funzione dedicata — che sa
+       chiedere conferma, e che risponde a lui invece che a un catalogo remoto.
+  */
 
-    return levels === 0 && movements === 0 && supplierOrders === 0 && countSessions === 0;
-  }
+  /*
+    ⛔ **`canDeleteLocation` e' stata RIMOSSA da questo servizio.**
+
+       Era la domanda «posso cancellare questa sede?», e in questo perimetro la
+       risposta e' ora sempre **no**: nessuna sincronizzazione Shopify elimina
+       una Location, neppure se vuota (`docs/24` §1.13.4). Una funzione che
+       risponde sempre allo stesso modo non e' un controllo.
+
+    ⭐ **`verificaSedeCancellabile` e `RIFERIMENTI_SEDE` restano** in
+       `location-delete-safety.util.ts`: sono il contratto della funzione
+       VestiFlow dedicata all'eliminazione, che dovra' interrogare tutte e
+       ventuno le relazioni prima di cancellare qualcosa. Restano verificati da
+       `npm run check:cascate-sede` e dalle ventuno prove generate dall'elenco.
+
+    ⚠️ Sono quindi **senza chiamanti di produzione finche' quella funzione non
+       esiste**, ed e' dichiarato in `docs/DA-FARE.md`: non e' codice
+       dimenticato, e' un contratto in attesa del suo consumatore.
+  */
 
   private async cleanupStaleShopifyLocations(
     tenantId: string,
@@ -235,26 +239,40 @@ export class ShopifyLocationSyncService {
         continue;
       }
 
-      if (await this.canDeleteLocation(tenantId, location.id)) {
-        await this.prisma.location.delete({ where: { id: location.id } });
-        this.logger.log(
-          `Rimossa location Shopify non più presente (${tenantId}): ${location.name}`,
-        );
-        continue;
-      }
+      /*
+        ⛔ **Anche qui c'era un `location.delete`**, e questo era il piu'
+           pericoloso dei tre: si applicava a una sede COLLEGATA, sparita dal
+           catalogo remoto. Una location che non c'e' piu' su Shopify non
+           autorizza a cancellare la sede che le corrispondeva
+           (`docs/24` §1.13.3).
+      */
+      /*
+        ⛔ **Qui la sede veniva DISATTIVATA e SCOLLEGATA.** Entrambe le cose
+           sono vietate: `docs/24` §1.13.3 — una location scomparsa da Shopify
+           non elimina, archivia o disattiva automaticamente la sede VestiFlow.
 
+        ⚠️ **E lo scollegamento era il danno piu' silenzioso dei due.** Finche'
+           non esiste `shopify_location_links`, `shopifyLocationId` e' l'unica
+           traccia del collegamento: azzerandolo, «non e' mai stato collegato» e
+           «il collegamento si e' chiuso» diventano indistinguibili — ed e'
+           esattamente la differenza su cui si regge il divieto di riaggancio
+           automatico. Una location che tornasse con lo stesso nome verrebbe
+           riagganciata come se fosse nuova.
+
+        ⭐ **Il comportamento provvisorio e' CONSERVATIVO**: si preserva tutto e
+           si SEGNALA. Lo stato `error` e il messaggio sono l'unico modo di
+           dirlo senza una tabella di storico — e sono visibili all'operatore,
+           che e' il solo che puo' decidere.
+      */
       await this.prisma.location.update({
         where: { id: location.id },
         data: {
-          isActive: false,
-          shopifyLocationId: null,
-          shopifySyncStatus: ShopifySyncStatus.not_connected,
-          shopifyLastSyncAt: null,
-          shopifyLastError: null,
+          shopifySyncStatus: ShopifySyncStatus.error,
+          shopifyLastError: 'La location collegata non risulta piu` disponibile su Shopify. Il collegamento non e` verificabile: la sede e i suoi dati restano intatti. Collegala a un`altra location o creane una nuova.',
         },
       });
-      this.logger.log(
-        `Scollegata e disattivata location Shopify obsoleta (${tenantId}): ${location.name}`,
+      this.logger.warn(
+        `Location Shopify non piu' disponibile (${tenantId}): ${location.name} — sede e collegamento conservati, sincronizzazione sospesa`,
       );
     }
   }

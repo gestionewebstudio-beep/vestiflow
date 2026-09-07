@@ -1,5 +1,398 @@
 # Cosa resta da fare — VestiFlow
 
+## ⛔ IL RESIDUO DEL BERSAGLIO CONDIVISO — aperto il 07/09/2026
+
+> **`DATABASE_URL` resta in `api/.env` perché serve all’applicazione. Quindi tre
+> percorsi possono ancora raggiungere il database di sviluppo condiviso, e non è
+> una svista: è una conseguenza che si chiude solo spostando il bersaglio.**
+
+⭐ **Quello che è chiuso**: i comandi di migration. `migrate deploy`,
+`db execute --schema` e `migrate resolve` passano da `directUrl`, che non sta più
+nel `.env` — falliscono con **P1012 prima di aprire una connessione**. La guardia
+`npm run check:bersaglio-condiviso` tiene ferme le due condizioni da cui dipende.
+
+⚠️ **Quello che resta aperto**: tutto ciò che passa dal **client** Prisma, che usa
+`url` e legge `api/.env` **per conto proprio** — misurato, non dedotto: con il
+`.env` rimosso il client non si connette, con la porta cambiata nel file contatta
+la nuova porta.
+
+| Percorso                                                      | Cosa può fare                    | Attrito attuale                        |
+| ------------------------------------------------------------- | -------------------------------- | -------------------------------------- |
+| `npm run prisma:seed`                                         | 18 scritture                     | conferma se il bersaglio non è locale  |
+| `npm run prisma:studio`                                       | scrive da interfaccia            | conferma se il bersaglio non è locale  |
+| `node api/scripts/delete-tenant.mjs <id>`                     | **21 `deleteMany` + 1 `delete`** | conferma se il bersaglio non è locale  |
+| `provision-e2e-permission-users.mjs`                          | crea utenti                      | conferma se il bersaglio non è locale  |
+| `backfill-catalog-origin`, `backfill-shopify-order-documents` | scrivono                         | già protetti da `--apply`              |
+| `npm run start:dev`                                           | scrive come applicazione         | ⭐ nessuno, ed è voluto: è lo sviluppo |
+
+⭐ **La conferma scatta SOLO se il bersaglio non è locale**, ed è la parte pensata
+per durare: il giorno in cui `DATABASE_URL` punterà al database di prova duplicato,
+smetterà di comparire da sola. Nessuno dovrà ricordarsi di togliere niente.
+
+⚠️ **L’attrito non è una barriera**, e non va raccontato come tale: chi lancia il
+comando può confermare. Serve a rendere visibile il bersaglio — che prima non lo
+era: `delete-tenant.mjs` cancellava un tenant intero dal condiviso senza nominarlo,
+e il log del backup diceva solo «Connessione: DIRECT_URL».
+
+### Come si chiude davvero
+
+**Quando esisterà l’ambiente di prova duplicato**, `DATABASE_URL` di `api/.env`
+punterà a quello, e le credenziali di produzione staranno fuori dai computer di
+sviluppo. Da quel momento:
+
+- i tre percorsi qui sopra atterrano sul duplicato, e la conferma non compare più;
+- `npm run start:dev` scrive sul duplicato, che è ciò che si vuole;
+- la produzione si raggiunge solo da Railway o da una procedura protetta.
+
+⛔ **Fino ad allora nessuno dei tre va dichiarato «risolto»**: sono attenuati, non
+chiusi, e la differenza conta il giorno in cui il gestionale avrà dati veri.
+
+### ✅ Due cose viste lavorando, e chiuse il 07/09/2026
+
+- ✅ **Il test della guardia gira in CI**, nel job `lint-and-test` di `ci.yml` che ha
+  già le due installazioni: passo «Prove delle guardie e dei caricatori di ambiente».
+  ⭐ **Serviva perché `npm run lint` non basta**: esegue la guardia e dice se OGGI il
+  repository è a posto, non se la guardia funzionerebbe ancora dopo una modifica — una
+  regex svuotata la lascerebbe verde per sempre. Il passo la mette alla prova su alberi
+  finti: `DIRECT_URL` rimessa in un `.env`, `directUrl` tolta da uno schema, il valore
+  che non deve comparire nell’output.
+- ✅ **`scripts/backup/load-env.spec.mjs` non assume più il nome della cartella.**
+  Asseriva `repoRoot` contro `/vestiflow$/i` — cioè contro **dove qualcuno ha messo il
+  repository**, non contro una proprietà del codice: rosso in ogni worktree, in ogni
+  copia per un collaudo, e per chiunque rinomini la cartella dopo il clone. Ora
+  verifica la **relazione**: `repoRoot` è due livelli sopra `scripts/backup/`, e la
+  prova regge ovunque. ⭐ E i test dei caricatori ora girano davvero: prima non li
+  eseguiva nessuno, ed è per questo che il difetto è stato scoperto solo lavorandoci.
+
+---
+
+## ⛔ COLLAUDO DISTRUTTIVO SHOPIFY — quattro lacune di schema, 07/09/2026
+
+> **Misurate contro PostgreSQL vero, non dedotte dallo schema.** Il collaudo
+> (`api/src/test/integration/shopify-distruttivo.integration-spec.ts`, 36 prove)
+> ha trovato quattro divergenze fra ciò che lo schema Prisma dichiara e ciò che
+> il database applica. Nessun test a mock poteva vederle: un mock non ha vincoli
+> di integrità.
+
+### 1 · `shopify_inventory_sync_states.location_id` NON HA CHIAVE ESTERNA
+
+```text
+relazioni verso Location nello schema Prisma   21
+chiavi esterne verso locations nel database    20
+```
+
+⛔ **La colonna esiste, la relazione è dichiarata, il vincolo non c'è.**
+Cancellare una sede lasciava quella riga orfana, puntando a un id che non
+esiste più, e nessun vincolo se ne accorgeva.
+
+⚠️ **Oggi la protezione è solo applicativa**: `RIFERIMENTI_SEDE` include quella
+relazione, quindi `canDeleteLocation` la conta e rifiuta. È una difesa nel
+chiamante, non nel database: un percorso nuovo che chiamasse `location.delete`
+senza passare di lì tornerebbe a creare orfani.
+
+**Da fare**: portare la colonna sotto vincolo. Tranche schema separata — la
+migration è condivisa col ramo del collega, e va misurato prima quante righe
+orfane esistono già.
+
+### 2 · Schema Prisma e database DIVERGONO sull'azione di due FK
+
+| Relazione                             | Prisma dice                           | il database applica |
+| ------------------------------------- | ------------------------------------- | ------------------- |
+| `SalesOrder.locationId`               | `SetNull` (opzionale, non dichiarata) | **RESTRICT**        |
+| `SupplierOrder.destinationLocationId` | `SetNull` (opzionale, non dichiarata) | **RESTRICT**        |
+
+⭐ **Il database è più protettivo dello schema**, quindi non c'è perdita di
+dati. Ma qualunque ragionamento fatto leggendo lo schema Prisma sbaglia su due
+relazioni su ventuno — ed è il motivo per cui `check:cascate-sede` non decide
+più in base all'azione: pretende che ogni relazione sia dichiarata, qualunque
+cosa faccia.
+
+### 3 · `mapPurgeError` nomina una causa che non c'entra
+
+⛔ Ogni violazione di chiave esterna (P2003) durante la purga diventa:
+
+```text
+«…Chiudi gli ordini fornitore aperti e riprova.»
+```
+
+**Misurato con tutti gli ordini fornitore chiusi**: a bloccare era
+`online_sales.sales_order_id`, che è `RESTRICT`. L'operatore chiude gli ordini
+fornitore, riprova, fallisce di nuovo, e non ha modo di sapere perché.
+
+⚠️ **Non è perdita di dati: è il suo opposto.** Il database protegge e la
+transazione non lascia niente a metà. È un difetto di diagnosi.
+
+⏸ **Che cosa debba dire il messaggio è una decisione non presa** — vedi sotto.
+
+### 4 · `stock_reservations.sales_order_id` è `CASCADE`, confermato
+
+Cancellare un ordine Shopify cancella i suoi impegni di magazzino, lasciando
+`inventory_levels.committed` gonfio di impegni che non esistono più. La guardia
+introdotta col commit `e0a837ab` lo impedisce, e il collaudo lo verifica contro
+il database vero (scenario 4).
+
+---
+
+## ⏸ DECISIONI FUNZIONALI APERTE — emerse dal collaudo, non decise
+
+Ognuna è **fotografata da una prova**: il giorno in cui la decisione verrà
+presa e applicata, quella prova diventerà rossa e lo dirà.
+
+| #   | Domanda                                                                                         | Comportamento attuale                 | Prova          |
+| --- | ----------------------------------------------------------------------------------------------- | ------------------------------------- | -------------- |
+| A   | Una sede **realmente vuota** dev'essere eliminata o sempre archiviata?                          | eliminata                             | scenari 10, 11 |
+| B   | Una sede **con dati** può essere disattivata da un sync di canale, senza che nessuno lo chieda? | sì, `isActive: false`                 | scenario 13    |
+| C   | Un **cliente Shopify** importato può essere eliminato fisicamente?                              | oggi la purga fallisce prima          | scenario 14    |
+| D   | Un **ordine Shopify** con vendita online collegata può essere eliminato?                        | no, il database lo impedisce          | scenario 14    |
+| E   | Se un documento perde il cliente, deve conservarne uno **snapshot**?                            | non applicabile finché C non è deciso | —              |
+
+⚠️ **La B è la più insidiosa**: la sede sparisce dai selettori operativi e
+`setLicensedLocations` rifiuta di riattivarla («Riattivale da Shopify Admin»,
+istruzione impossibile per una sede che su Shopify non esiste più).
+
+---
+
+## Matrice distruttiva — Shopify, aggiornata al 07/09/2026 (dopo le correzioni)
+
+⛔ **Qui c'era la matrice del comportamento PRECEDENTE**, scritta prima delle
+correzioni: descriveva `purge()` che cancellava clienti e ordini, e i tre
+percorsi di sincronizzazione che eliminavano o disattivavano sedi. È rimasta
+ferma mentre il codice cambiava sotto — il difetto che questo progetto combatte
+ovunque, in un documento invece che nel codice.
+
+| Operazione                            | Chiamante                                                      | Entità            | Effetto oggi                                                                   | Collaudo           |
+| ------------------------------------- | -------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------ | ------------------ |
+| `disconnect()`                        | `DELETE /shopify/connection` (owner)                           | ShopifyCredential | cancella le **credenziali**; le sedi perdono `shopifyLocationId`; nient'altro  | ✅ scen. 1         |
+| `purge(*)` — ogni combinazione        | `POST /shop-change/purge`                                      | —                 | ⛔ **rifiutata prima di ogni lettura**: nessun record cambia                   | ✅ 7 combinazioni  |
+| `syncFromShopify()` → sede sparita    | `POST /sync/locations` (owner) e **callback OAuth automatico** | Location          | conserva sede, identificativo e dati; segnala `shopifySyncStatus: error`       | ✅ scen. 8, 10, 12 |
+| `cleanupUnlinkedImportLocations()`    | stessa catena                                                  | Location          | conserva e segnala; **non disattiva più**                                      | ✅ scen. 13        |
+| ~~`removeEmptyOnboardingLocation()`~~ | —                                                              | —                 | **rimossa**: esisteva solo per eliminare                                       | —                  |
+| `applyOrderFromShopify()`             | webhook ordini, pull bulk                                      | SalesOrderLine    | riscrive le righe dell'ordine; **payload senza righe → aggiornamento sospeso** | ✅ 6 scenari       |
+
+⭐ **Le uniche cancellazioni rimaste nel perimetro Shopify** sono su entità
+tecniche del canale — stato OAuth, credenziali — e sulle righe figlie di un
+ordine che il canale possiede. Verificate una per una, e sorvegliate da
+`check:shopify-inventario`.
+
+⚠️ **La colonna «log» resta la ragione per cui serve un registro persistente**:
+di un'operazione resta una riga di `logger` sul container, che Railway perde al
+riavvio. Non c'è modo di dire **chi** ha innescato un sync, **quando**, e con
+quale effetto.
+
+---
+
+## ✅ LE REGOLE SEDI, CLIENTI E ORDINI SONO IMPLEMENTATE — 07/09/2026
+
+> **Le otto regole di `docs/24` §§1.13-1.14 sono in codice e sotto collaudo su
+> PostgreSQL reale.** Qui resta ciò che il modello storico non ancora esistente
+> impedisce di fare bene, e i debiti che la correzione ha lasciato dietro.
+
+### Che cosa fa oggi la sincronizzazione delle sedi
+
+| Situazione                        | Prima                        | Ora                                             |
+| --------------------------------- | ---------------------------- | ----------------------------------------------- |
+| sede vuota, non collegata         | **eliminata**                | conservata                                      |
+| sede vuota, sparita da Shopify    | **eliminata**                | conservata, collegata, segnalata                |
+| sede con dati, sparita da Shopify | disattivata e **scollegata** | conservata, operativa, **collegata**, segnalata |
+| residuo di import non collegato   | **disattivato**              | conservato, segnalato                           |
+| sede `LOC-01` di onboarding vuota | **eliminata**                | conservata                                      |
+| purge, ogni combinazione          | eseguita in parte            | **rifiutata** prima di ogni lettura             |
+
+Il segnale è `shopifySyncStatus: error` più un messaggio che dice all'operatore
+che cosa è successo e che cosa può fare.
+
+---
+
+### ⏸ Che cosa NON è implementabile senza `shopify_location_links`
+
+⛔ **Il comportamento definitivo di §1.13.3** — «il collegamento si chiude
+conservandone la storia» — **non è implementabile oggi**, e ciò che c'è al suo
+posto è un ripiego dichiarato.
+
+| Regola                                                             | Perché serve lo storico                                                                                                                                                      |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| «il collegamento **viene chiuso** conservandone la storia»         | non esiste un posto dove scrivere che un collegamento è finito: c'è solo `shopifyLocationId`, che è presente o assente                                                       |
+| «una nuova location con lo stesso nome **non viene riagganciata**» | oggi il riaggancio per nome è impedito solo perché l'identificativo **non viene azzerato**: se una location tornasse con un id nuovo, `findMatch` la riaggancerebbe per nome |
+| «VestiFlow **mostra** che la location non è più disponibile»       | oggi lo dice un messaggio d'errore su un campo che serve anche ad altro; è leggibile, non è uno stato del collegamento                                                       |
+
+⚠️ **Il ripiego ha un costo, ed è giusto conoscerlo**: la sede resta collegata a
+un identificativo Shopify che non esiste più. È deliberato — la traccia vale più
+della coerenza formale — ma significa che una sede può restare in quello stato a
+tempo indefinito, e nessuno la riconcilia se non l'operatore.
+
+⭐ **Lo stesso vale per clienti e ordini**: §1.14 dice «può chiudere o sospendere
+il collegamento», e nemmeno quello esiste. Per questo la purge non è stata
+riscritta come scollegamento: è stata **sospesa**. Scrivere lo scollegamento
+senza il posto dove registrarlo avrebbe prodotto un secondo ripiego, in un
+percorso che l'operatore invoca esplicitamente.
+
+---
+
+### Debiti lasciati dalla correzione
+
+**1 · `verificaSedeCancellabile` e `RIFERIMENTI_SEDE` non hanno consumatori di
+produzione.** Sono il contratto della funzione VestiFlow dedicata
+all'eliminazione (§1.13.4), che non esiste ancora. Restano verificati da
+`check:cascate-sede` e dalle 21 prove generate dall'elenco — non è codice
+dimenticato, è un contratto in attesa del suo consumatore. Quando la funzione
+dedicata verrà scritta, deve usare quello e non riscriverne un altro.
+
+**2 · `mapPurgeError` è stata rimossa col resto della purga**, e con lei il
+difetto che traduceva ogni violazione di chiave esterna in «Chiudi gli ordini
+fornitore aperti». Non è stato corretto: è diventato irraggiungibile. Quando la
+purga tornerà come scollegamento, servirà una traduzione degli errori — e quella
+dovrà nominare il vincolo vero.
+
+**3 · `preview()` conta ancora `removableShopifyLocations`.** Promette una
+capacità che non esiste più: nessuna sede è rimovibile da lì. Non è distruttivo
+— l'anteprima è di sola lettura — ma il numero è una promessa falsa, e il
+frontend lo mostra.
+
+**4 · ✅ `notIn: []` — MISURATO, ERA UN DIFETTO, CORRETTO il 07/09/2026.**
+
+⛔ **Era una deduzione, e la deduzione era giusta.** Misurato contro PostgreSQL
+17.11: `prisma.salesOrderLine.deleteMany` con
+`externalLineId: { notIn: [] }` cancella **tutte** le righe — `count = 2` su
+due righe che avevano entrambe un `externalLineId`.
+
+⚠️ **Che cosa sarebbe successo.** Un ordine con righe e impegni attivi,
+raggiunto da un payload magro — risposta troncata, webhook parziale, errore di
+serializzazione a monte — perdeva TUTTE le righe. Gli impegni venivano poi
+rilasciati dal dominio, perché `emitCanonicalOrderEvents` ricostruisce le righe
+correnti rileggendole dal database: nessuna riga, nessun impegno da tenere. La
+giacenza tornava disponibile per merce già venduta.
+
+⭐ **La correzione è a monte, non sulla query**: un payload senza righe sospende
+l'aggiornamento, conserva righe e impegni, e registra un errore di
+sincronizzazione sulla connessione. Un ordine Shopify senza righe non esiste: se
+il payload non ne porta, è il payload a essere incompleto — non l'ordine.
+
+Sei scenari in `shopify-righe-ordine.integration-spec.ts`, più la misura del
+comportamento di Prisma come contratto dello strumento: se un aggiornamento ne
+cambiasse la semantica, quella prova diventerebbe rossa e lo direbbe.
+
+---
+
+### Collaudi da eseguire quando lo storico esisterà
+
+- collegamento creato, chiuso, e **non riagganciato** al ritorno della location;
+- una location che torna con un **id nuovo** e lo stesso nome: non si riaggancia;
+- scollegamento di un cliente e di un ordine: l'entità resta, il collegamento no;
+- riconnessione allo stesso `shop_gid` dopo uno scollegamento: la storia è leggibile.
+
+---
+
+## ⏸ LE FK VERSO `Location` RESTANO IN CASCATA — tranche schema, aperta il 07/09/2026
+
+> **Il rischio è chiuso nel CODICE, non nello SCHEMA.** `canDeleteLocation` ora
+> rifiuta di cancellare una sede che porterebbe via qualcosa, e la sede viene
+> archiviata invece che eliminata. Ma se domani un percorso nuovo chiamasse
+> `location.delete` senza passare di lì, il database eseguirebbe la cascata
+> senza dire niente.
+
+⛔ **Qui c'era «aperto: `canDeleteLocation` non controlla tutto ciò che la
+cascata porta via», con una tabella di quattro `Cascade`.** Erano quattro su
+**undici**: il censimento completo, fatto il 07/09/2026 leggendo lo schema, ha
+trovato **21 relazioni verso `Location`** —
+
+```text
+ 4  Cascade    l'entità collegata SPARISCE
+ 7  SetNull    l'entità resta, ma perde la sede — in silenzio
+10  Restrict   il database rifiuta il DELETE: si difendono da sole
+```
+
+⚠️ **Le sette `SetNull` erano invisibili perché NON SONO DICHIARATE.** Quindici
+relazioni su ventuno non scrivono `onDelete`, e il default di Prisma dipende
+dall'opzionalità: `Restrict` se la relazione è obbligatoria, `SetNull` se è
+facoltativa. Una lettura che cercasse `onDelete: Cascade` nello schema ne
+perderebbe sette su undici — ed è esattamente quello che era successo.
+
+⭐ **Fra le sette c'è `Document.locationId`**: cancellare una sede scollegava i
+documenti che l'avevano emessa, lasciandoli senza sede di origine.
+
+⚠️ **`DocumentCounter` resta il più insidioso**: è la numerazione dei documenti
+di quella sede. Cancellarla non rompe niente subito — settimane dopo la serie
+riparte da un numero già usato, il vincolo di unicità lo rifiuta, e il guasto si
+manifesta lontano dalla causa.
+
+### Che cosa resta da fare, e perché non ora
+
+**Portare le quattro `Cascade` a `Restrict`** è la difesa che vale anche per il
+codice che non è ancora stato scritto: sposta la protezione dal chiamante al
+database, dove nessun percorso nuovo può scavalcarla.
+
+⛔ **Richiede una tranche schema separata** — decisione del proprietario del
+07/09/2026, presa insieme alla patch di sicurezza. Non è prudenza generica: una
+migration su questo database è condivisa con il ramo del collega, e cambiare una
+FK a `Restrict` fa fallire ogni percorso che oggi si affida alla cascata. Va
+misurato prima quali sono.
+
+⭐ **Nel frattempo la protezione è verificata da due guardie che si tengono a
+vicenda**, ed è il motivo per cui il rinvio è accettabile:
+
+| Guardia                          | Che cosa impedisce                                               |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `npm run check:cascate-sede`     | che l'elenco delle relazioni resti indietro rispetto allo schema |
+| le 11 prove generate dall'elenco | che una voce dichiarata non trattenga davvero la sede            |
+
+⚠️ **La stessa domanda vale per il `canDeleteLocation` gemello** in
+`shopify-shop-change.service.ts`, che sopravvive perché `preview()` lo usa per
+CONTARE le sedi rimovibili: conta come rimovibile una sede che porterebbe via i
+contatori, quindi il numero mostrato all'operatore è ottimista. Non distrugge
+niente — la purga del catalogo è sospesa — ma il numero è sbagliato.
+
+---
+
+## ⛔ UN FIX DI PERDITA DATI È RIMASTO 29 GIORNI FUORI DA `main` — 07/09/2026
+
+> **Il difetto che ha distrutto le giacenze di un tenant era già stato trovato,
+> corretto e coperto da un test. La correzione non è arrivata in produzione, e
+> nessuno se n’è accorto per un mese.**
+
+```text
+c4044d98   06/08/2026 12:33   ultimo commit servito da Railway
+81a9fc45   08/08/2026 16:28   il fix: «disconnettere sospende, non cancella»
+b2b3c8ab   10/08/2026 20:04   il fix entra in develop
+                              ⋮  29 giorni
+03/09/2026 ~18:51 UTC         ⛔ il danno: giacenze e movimenti cancellati
+9b59a14b   06/09/2026 19:44   il fix entra finalmente in main
+```
+
+⭐ **Il test esisteva già** — «disconnect non cancella giacenze, movimenti,
+conteggi né ordini fornitore», introdotto dallo stesso commit del fix. Girava in
+CI su `develop` a ogni PR, ed è sempre stato verde. **Non ha protetto nessuno**,
+perché ciò che gira in produzione non era quel ramo.
+
+⚠️ **Questo NON è un difetto di codice**: il codice era corretto dall’08/08. È un
+difetto del **rilascio**, e va chiuso lì — nella patch di sicurezza non entra.
+
+### ⛔ La guardia sbagliata da NON scrivere
+
+Una guardia «`main` deve contenere `develop`» sarebbe **falsa come regola**: i due
+rami divergono legittimamente, e `develop` contiene lavoro non ancora rilasciabile.
+Fallirebbe quasi sempre, e una guardia che fallisce sempre si impara a ignorare —
+è già scritto in `regole-qualita` a proposito del gate di copertura.
+
+### La politica da definire: cinque punti
+
+|                                         |                                                                                                                                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1 · classificare**                    | un fix che impedisce una perdita di dati porta un’etichetta esplicita — `perdita-dati` sul commit o sulla PR. Oggi `81a9fc45` non si distingue da un `fix` qualunque, e la sua urgenza si legge solo aprendo il registro dei difetti |
+| **2 · promuovere**                      | un fix così classificato non aspetta il prossimo rilascio: va su `main` da solo, con la sua PR                                                                                                                                       |
+| **3 · verificare dopo il deploy**       | che il commit correttivo sia **davvero** nell’immagine in esercizio. `git merge-base --is-ancestor <fix> origin/main` dice solo che è nel ramo, non che Railway lo stia servendo                                                     |
+| **4 · controllare la versione servita** | oggi l’API di produzione non espone il commit che sta eseguendo: `/health` risponde `{"status":"ok","database":"up"}` e basta. Senza quel dato, «è in produzione?» non è una domanda a cui si possa rispondere da fuori              |
+| **5 · registrare l’esito**              | data di rilascio e verifica, accanto al difetto nel registro                                                                                                                                                                         |
+
+⭐ **Il punto 4 è quello che avrebbe rotto il silenzio.** Con il commit servito
+esposto da `/health`, chiunque avrebbe potuto vedere il 09/08 che la produzione
+era ferma al 06/08 — e il difetto è vissuto un altro mese proprio perché quella
+domanda non aveva risposta.
+
+⚠️ **Non è una guardia automatica**: è una politica, e va decisa. Qui è registrata
+come debito, non come lavoro fatto.
+
+---
+
 ## Cassa — correzioni del preflight (aggiornato 06/09/2026)
 
 - Consegna 05/09: corretto l'editing quantità checkout. Il vuoto resta in modifica,
@@ -1290,95 +1683,30 @@ locale usa ancora `invoice_draft`: l'indice `00-DECISIONI.md` distingue ora i fa
 attuali dalla fotografia del 26/08. **`develop → main` richiede il preflight
 dell'intero rilascio**, inclusi i problemi di produzione riportati sotto.
 
-## 🔴 PRODUZIONE — tre cose da controllare (03/09/2026, sera)
+## ✅ PRODUZIONE — le tre voci del 03/09 sono CHIUSE dal rilascio Cassa (06/09/2026)
 
-Emerse tutte e tre mentre si cambiava l'app Shopify. Nessuna è stata toccata: sono
-**da controllare**, e la prima blocca le altre due.
+⛔ **Qui c'erano tre allarmi, e non valgono più.** Restano nominati perché chi li ricorda non
+li cerchi invano, e perché la forma in cui si erano incastrati può tornare.
 
-### 1 · 🔴 La produzione è ferma da 28 giorni: la CI è rossa e Railway salta ogni deploy
+| Diceva                                                                                        | Oggi                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| «la produzione è ferma da 28 giorni: la CI è rossa e Railway salta ogni deploy»               | ✅ Railway serve `main@9b59a14b`, CI verde su `main`                                                                                                         |
+| «dieci disallineamenti fra il database condiviso e il codice in produzione», su 147 migration | ✅ **159/159 migration applicate**, zero pendenti e zero annullate; gli endpoint Shopify girano col codice nuovo                                             |
+| «`purchase_price_minor` fa fallire ogni creazione da webhook, da undici giorni»               | ✅ il codice scrive `?? 0` su ogni percorso di pull; nessun percorso produttivo passa `null`. Il vincolo `NOT NULL DEFAULT 0` resta, ed è corretto che resti |
 
-Misurato nella scheda **Deployments** del servizio `vestiflow` su Railway:
+⭐ **La lezione che vale ancora**, ed è la ragione per cui questa sezione non si cancella del
+tutto: il difetto non era il vincolo del database, era **un codice vecchio servito da un deploy
+che non passava mai**. Un cancello di CI che blocca ogni distribuzione produce un sistema in cui
+ogni correzione sembra fatta e nessuna è in produzione — e nulla lo dichiara in modo evidente.
 
-```text
-ACTIVE      "feat(registri): le pagine-elenco documenti adottano la toolbar-card…"   28 giorni fa
-SKIPPED     stesso commit, 35 minuti fa
-SKIPPED     stesso commit,  8 minuti fa   →  «CI check suite failed»
-```
+⚠️ **Una traccia rimane visibile**: la connessione `test-vestiflow.myshopify.com` porta ancora
+`lastErrorCode: product_webhook_failed` del 03/09 alle 23:40, con il messaggio sul vincolo. È
+storia, non un guasto attuale — ma il pannello la mostra come «ultimo errore» (vedi la sezione
+SHOPIFY più sotto).
 
-Railway è configurato per attendere l'esito della CI di GitHub. La CI è **rossa**, quindi
-ogni distribuzione automatica viene **saltata** e la produzione resta ferma alla versione di
-28 giorni fa. È anche il motivo per cui le modifiche alle variabili d'ambiente non facevano
-effetto: innescavano un deploy che veniva subito scartato, **senza che nulla lo dicesse in
-modo evidente**.
-
-⛔ **Finché resta così, nessuna correzione arriva mai in produzione** — né un merge, né una
-riga di rattoppo. È il primo nodo da sciogliere, prima di qualunque decisione sui due punti
-successivi.
-
-⚠️ **Il rimedio usato stasera non è una soluzione**: il **Redeploy manuale** scavalca il
-cancello della CI e riavvia il servizio con le variabili correnti, ma ricostruisce **lo
-stesso commit di 28 giorni fa**. Serve a far leggere l'ambiente, non a portare codice nuovo.
-
-**Da controllare:** perché la CI è rossa sul commit servito; se l'attesa della CI sia una
-scelta voluta; e da quanto tempo esattamente nessun deploy automatico passa.
-
-### 2 · 🔴 Dieci disallineamenti fra il database condiviso e il codice in produzione
-
-Il database è **condiviso** fra i rami, e le migration di `feature/pagamenti-tesoriera` sono
-**già applicate**. La produzione gira un codice che non le conosce e scrive sullo stesso
-database.
-
-Verificate 29 migration: **9 violate**, più `purchase_price_minor` già accertata a parte.
-**Sei rompono:**
-
-| Migration                                          | Che cosa succede a chi non la conosce                                                                                  |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `20260826003840_rinomina_invoice_draft_in_invoice` | il valore enum `invoice_draft` **non esiste più** nel database, e il codice vecchio lo usa                             |
-| `20260816150000_ritira_consegna_commercialista`    | `DROP` di due colonne di `sales_orders` e della tabella `corrispettivi_deliveries`, ancora lette                       |
-| `20260817000000_ritira_default_prezzo_per_tipo`    | `DROP` di una colonna e di una tabella, ancora lette **e scritte**                                                     |
-| `20260817140000_ritira_corrispettivo_legacy`       | `DROP` di due tabelle e di un enum ancora **scritti**                                                                  |
-| `20260816170000_rimuove_stato_fiscale_ordine`      | `DROP COLUMN` + `DROP TYPE`                                                                                            |
-| `20260815210000_credit_note_numerazione_condivisa` | l'indice unico si allarga: il numero fattura proposto è già occupato, e **viene riproposto identico a ogni tentativo** |
-
-Più tre che **degradano** (allargamenti `INTEGER → NUMERIC(16,6)` su prezzi e costi: si legge
-e si scrive senza saperlo, perdendo precisione in silenzio).
-
-⛔ **Sintomo già visibile**: `purchase_price_minor` è `NOT NULL` dal 23/08 alle 10:55, e il
-codice in produzione passa `null` esplicito — un default Prisma **non** copre un null
-esplicito, copre solo il campo assente. Ogni creazione prodotto da webhook Shopify fallisce
-con «Null constraint violation». Da undici giorni.
-
-⚠️ **Dieci è un limite inferiore**: il confronto è stato fatto con `main` di **oggi**, ma la
-produzione è ferma a 28 giorni fa (punto 1), quindi è ancora più indietro.
-
-**Da controllare:** se il merge sia la strada — chiude tutti e dieci in un colpo — e come
-coordinarlo con gli altri rami. Rattoppare una riga alla volta significa reimplementare tre
-settimane di lavoro, e **ogni migration nuova allarga il divario**.
-
-### 3 · 🟡 La connessione dice «attiva» mentre la sincronizzazione non funziona
-
-Vissuto stasera in due forme diverse:
-
-| Forma                                                                      | Che cosa vede l'operatore                                                |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| credenziali dell'app cambiate → HMAC che non torna → webhook **rifiutati** | **niente**: la connessione continua a dire «Connesso»                    |
-| webhook accettati ma **falliti dentro** (il caso `purchase_price_minor`)   | un avviso: «Un prodotto non è stato aggiornato correttamente da Shopify» |
-
-⭐ Quindi **non è del tutto silenziosa**, e la seconda forma un segnale ce l'ha. Manca però
-la prima, che è la peggiore: lì Shopify manda e VestiFlow scarta, e **niente lo dice**.
-
-⭐ **È anche la più facile da prendere**, ed è la differenza rispetto agli altri difetti
-silenziosi di `docs/02` §1.2: qui l'evento **arriva**. Un rifiuto HMAC è un fatto che l'API
-riceve — contarli e mostrarli coprirebbe ogni caso di credenziali divergenti (cambio app,
-segreto ruotato, deploy a metà).
-
-⚠️ **Ma dipende da `lastWebhookEventAt`**, che secondo `docs/02` (riga 430) **non esiste in
-`main`**: misurato stasera, resta `null` anche su una connessione con otto webhook attivi.
-Finché la produzione non ha quel campo, non c'è su cosa appoggiare l'indicatore — il che
-riporta al punto 1.
-
-**Da controllare:** se il pannello debba distinguere «collegato» da «sta ricevendo eventi»,
-e se il conteggio dei rifiuti HMAC valga la pena come primo indicatore.
+⏸ **Resta aperta una sola domanda delle tre**, ed è quella che il rilascio non poteva chiudere:
+se il pannello debba distinguere «collegato» da «sta ricevendo eventi», e se contare i rifiuti
+HMAC valga come primo indicatore. Vedi la voce «rifiuti HMAC invisibili».
 
 ## ✅ I test dell'API sono type-checked — chiuso il 04/09/2026
 
@@ -1540,45 +1868,250 @@ reale**: `fiscal_receipts` e `cash_sessions` hanno zero righe. Non è una deroga
 
 ---
 
-## ⏸ SHOPIFY — quello che questa tranche lascia aperto (03/09/2026)
+## SHOPIFY — stato al 06/09/2026
 
-Chiuse in `docs/24`: prodotti importati modificabili (§1.8), push GraphQL dei collegati
-(§1.6), «Nome Shopify» (§1.9), spegnimento reversibile (§1.10). Restano:
+⛔ **Qui c'era «⏸ SHOPIFY — quello che questa tranche lascia aperto (03/09/2026)»**, con la
+decisione dei 12 prodotti dichiarata da prendere. **È stata presa il 03/09**: vale il quarto
+criterio di abbinamento — una variante locale libera si collega a una remota libera, e basta uno
+SKU, un barcode, un'opzione vera o più di una candidata per lato perché non si applichi. La
+regola è in `docs/24` §1.8 e nel codice (`shopify-variant-match.util.ts`).
 
-| Cosa                                                           | Perché è aperto                                                                                                                                                                         |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ⛔ **12 prodotti su 18 non si sincronizzano più**              | le loro varianti orfane non hanno SKU, barcode né opzioni, e la remota è la variante di default: nessun criterio ha una chiave, quindi il push si ferma. **Serve una decisione**, sotto |
-| ⏸ un media Shopify in stato `FAILED` prende comunque il suo id | non viene ricaricato e nessuno se ne accorge: l'immagine non arriva sulla vetrina in silenzio. Va deciso se leggere `status` e segnalarlo                                               |
-| ⏸ azione massiva «Copia nome VestiFlow»                        | decisa in §1.9, entra col menu delle azioni massive (§1.8)                                                                                                                              |
-| ⏸ creazione prodotto ancora su REST                            | passa a `productSet` con la Tranche 2; con lei si unifica anche l'abbinamento varianti, oggi a solo SKU (`persistShopifyIds`)                                                           |
-| ⏸ metafield stagione e costo variante ancora su REST           | stesso cutover                                                                                                                                                                          |
-| ✅ `SHOPIFY_API_VERSION=2026-07` negli **altri ambienti**      | fatto su Railway il 03/09/2026 sera. La variabile **non esisteva affatto**: valeva il default `2025-01` di `main`, che Shopify non serve più e faceva cadere in avanti le chiamate      |
+### Comportamento ATTUALE, misurato il 06/09/2026
 
-### ⛔ La decisione che serve: la variante unica non si abbina, e il push si ferma
+|                       |                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| migration             | **159/159 applicate**, zero pendenti, zero annullate                                                                                                          |
+| ambiente «production» | Railway serve `main@9b59a14b`, CI verde, endpoint Shopify eseguiti dal codice nuovo. ⚠️ **Si chiama così, ma non serve attività reale**: nessun utente lo usa |
+| prodotti collegati    | **178**; con almeno una variante senza GID: **18**                                                                                                            |
+| i «12 nudi»           | **esistono ancora come record** (una sola variante, senza SKU, barcode né opzioni)                                                                            |
+| database              | ⚠️ **soli dati di prova**, creati dal proprietario con account diversi, su sei tenant                                                                         |
+| negozio Shopify       | ⚠️ **shop di sviluppo**, non un negozio commerciale                                                                                                           |
 
-Misurato il 03/09/2026 leggendo lo shop di sviluppo, prodotto per prodotto:
+⭐ **Ne discende come si leggono le voci qui sotto**: sono correzioni **strutturali** da fare
+prima che qualcuno usi davvero il gestionale, non emergenze su dati commerciali. Le prove
+mutative sullo shop, quando autorizzate, si eseguono su entità di test con fotografia iniziale
+e ripristino (`docs/24` §8.5.7).
 
-```text
-si abbinano       6   (4 per barcode, 2 per opzioni)
-il push FALLISCE 12   «nessuna variante Shopify corrisponde»
-```
+### ⏸ Aperti — e ognuno dice PERCHÉ
 
-Il contratto di §1.8 chiede una corrispondenza **univoca e deterministica**, e quei 12 casi
-sono: **una** variante locale senza SKU né barcode né opzioni, **una** variante remota
-`Default Title` altrettanto nuda. Nessuno dei tre criteri ha una chiave da confrontare,
-quindi l'esito è «nessuna corrispondenza» e il push si ferma con l'errore.
+| Cosa                                            | Stato                                                                                                                                                                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **i 12 prodotti a variante nuda**               | ⚠️ regola **decisa e implementata**; la voce si chiude **solo dopo la prova sullo shop di sviluppo**, che non è stata fatta. Le prove esistenti sono unitarie                                                                                          |
+| **media Shopify in stato `FAILED`**             | ⏸ aperto e **confermato nel codice**: `MEDIA_SELECTION` legge `media(first: 250) { nodes { id } }` — solo l'id, nessuno `status`. Un media fallito prende il suo id, non viene ricaricato, e l'immagine non arriva in vetrina senza che niente lo dica |
+| **creazione prodotto ancora su REST**           | ⏸ passa a `productSet` con la Tranche 2B; con lei l'abbinamento varianti di `persistShopifyIds`, oggi a solo SKU                                                                                                                                       |
+| **metafield stagione e costo variante su REST** | ⏸ stesso cutover                                                                                                                                                                                                                                       |
+| **azione massiva «Copia nome VestiFlow»**       | ⏸ decisa in `docs/24` §1.9, entra col menu delle azioni massive                                                                                                                                                                                        |
+| **`apiVersion` mostrata nel pannello**          | ⚠️ viene dalla riga di connessione, aggiornata solo a una riconnessione — le chiamate usano invece `SHOPIFY_API_VERSION`. Su un negozio la scheda dice `2025-01` mentre l'API chiama `2026-07`                                                         |
+| **rifiuti HMAC invisibili**                     | ⏸ `verifyHmac` lancia 401 e nulla di più: nessun contatore, nessuna traccia, nessuna degradazione dello stato. ⭐ `lastWebhookEventAt` **esiste ora** ed è timbrato, quindi l'assenza di eventi si vede; il **motivo** no                              |
+| **Location indovinata**                         | ⏸ `shopify-order-location.util.ts:52` ripiega ancora sulla prima sede in ordine alfabetico, e il valore letto non dice se è dichiarato o dedotto                                                                                                       |
 
-⚠️ **Il contratto si comporta come richiesto**: non è un difetto di implementazione. Ma prima
-della tranche quei prodotti si sincronizzavano — male, senza abbinare le varianti — e ora non
-si sincronizzano affatto.
+### ✅ Il modello che manca è ora PROGETTATO — 06/09/2026, non ancora costruito
 
-| La domanda aperta                                                                                  |
-| -------------------------------------------------------------------------------------------------- |
-| un quarto criterio «**una** locale ↔ **una** remota libera» è univoco e deterministico abbastanza? |
-| oppure quei 12 restano fermi finché qualcuno non dà loro uno SKU?                                  |
+⛔ **Qui c'era «il meccanismo di "non ricreare" non esiste»**, come se fosse un buco senza
+forma. Ora ha una forma: `ShopifyShop`, `ShopifyProductLink`, `ShopifyVariantLink` e il
+registro delle consegne webhook, progettati per intero in `docs/24` §8.5.1-§8.5.6. Restano
+**tre lavori di costruzione**, non più tre incognite:
 
-⛔ **Non è stata presa**: la scelta è del proprietario, e cambia il comportamento di 12
-prodotti veri.
+| Direzione                                                | Cosa manca nel codice OGGI                                                                                                                                                                                                                                                                               | Dove il modello lo risolve                                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Shopify elimina → VestiFlow deve saperlo**             | `SHOPIFY_WEBHOOK_TOPICS` **non contiene `products/delete`**: nessuna sottoscrizione, nessun evento in arrivo, mai                                                                                                                                                                                        | `docs/24` §8.5.6, §11.7                                                                                 |
+| **404 su lettura/scrittura → deve significare qualcosa** | `shopify-admin-http.client.ts` intercetta il `404` **solo sulle `DELETE`** (e lo tratta come successo); su GET/PUT diventa un errore generico indistinguibile da un guasto di rete                                                                                                                       | `docs/24` §8.5.4 (classificazione: solo nodo GraphQL nullo o 404 di risorsa autenticata chiude un link) |
+| **VestiFlow elimina → non deve rientrare dal pull**      | 🔴 **CONFERMATO ATTIVO, non solo assente**: `importProductFromWebhook` (`shopify-product-pull.service.ts:175`) cerca il prodotto con `findFirst({ shopifyProductId })`; se `null` **procede a `product.create` (riga 344)**. Un id mai visto e un id di un prodotto eliminato producono lo stesso `null` | `docs/24` §8.5.2 (le due tabelle di collegamento) + §8.5.4 (dove interrogarle nel pull/push)            |
+
+⚠️ **La terza riga non è teorica**: è il comportamento che il codice produce **oggi**, appena
+esisterà un comando di eliminazione definitiva locale (§0-bis voce 2, ancora non decisa). Va
+costruita prima che quel comando lo sia, non dopo.
+
+### ⚠️ PREREQUISITO DI COLLAUDO — cinque webhook su otto non sono registrabili, e non è un bug
+
+Misurato leggendo il codice il 06/09/2026, non dedotto. `registerWebhooks`
+(`shopify-admin.client.ts:212`) **tenta** la registrazione di tutti gli 8 topic — inclusi i
+cinque protetti (`orders/create`, `orders/updated`, `orders/cancelled`, `customers/create`,
+`customers/update`). `SHOPIFY_PROTECTED_WEBHOOK_TOPICS` **non filtra nulla prima** della
+chiamata: viene letto solo **dopo**, in `shopify-oauth.service.ts:460-462`, per classificare un
+fallimento già avvenuto.
+
+**L'evidenza che il fallimento è di Shopify, non un difetto VestiFlow** — tre citazioni:
+
+1. `shopify-webhook-topics.ts:27` — _«Richiedono Protected customer data approval su Shopify
+   Partners.»_
+2. `shopify-oauth.service.ts:467-472`, quando falliscono solo i protetti: _«Webhook giacenze
+   attivo. Ordini e clienti richiedono permesso Protected customer data su Shopify Partners
+   (app VestiFlow): riconnetti dopo averlo abilitato.»_ (`code: webhook_partial_registration`)
+3. `shopify-oauth.service.ts:475-481`, se falliscono anche le giacenze: _«Webhook
+   ordini/clienti non registrati: Shopify richiede Protected customer data sull'app
+   VestiFlow…»_ (`code: webhook_registration_failed`)
+
+⭐ **La UI lo mostra**: `shopify-integration-panel.component.ts:295` legge
+`lastError.code === 'webhook_partial_registration'` — non è un difetto silenzioso, è un
+permesso mancante comunicato all'operatore.
+
+⚠️ **Che cosa comporta, con precisione**: `docs/24` §8.5.4 e §13.1 presuppongono che ordini,
+resi e clienti **arrivino** via webhook per poter risolvere identificativi storici. Senza
+l'approvazione «Protected customer data» non arriva nulla di tutto questo — non in ritardo, non
+parziale. Nessuna riga di codice lo risolve: serve l'approvazione su **Shopify Partners**,
+un'azione esterna al repository.
+
+⛔ **E la riconciliazione non lo copre**: confronta il **catalogo**, quindi trova prodotti e
+varianti mancanti anche senza webhook, ma ordini, resi e clienti sono un'altra materia.
+
+⭐ **Non ferma lo sviluppo del ciclo di vita del catalogo**: è un prerequisito del **collaudo
+completo** e della **futura entrata in esercizio**. I passi 2-6 e 9-12 della sequenza
+(`docs/24` §8.5.7) si costruiscono e si verificano senza di esso.
+
+### ⛔ Superato dal rilascio Cassa — non cercarlo più qui
+
+Le tre voci «la produzione è ferma da 28 giorni», «dieci disallineamenti fra database e codice»
+e «`purchase_price_minor` fa fallire ogni creazione da webhook» **non valgono più**. Restano
+nominate solo perché chi le ricorda non le cerchi invano: il rilascio le ha chiuse tutte e tre.
+
+⚠️ Ne resta **una traccia visibile e ingannevole**: la riga di connessione di
+`test-vestiflow.myshopify.com` porta ancora `lastErrorCode: product_webhook_failed` del
+03/09 alle 23:40, col messaggio sul vincolo `purchase_price_minor`. È un errore **storico** che
+il pannello mostra come ultimo errore.
+
+---
+
+## CICLO DI VITA DI ARTICOLI E VARIANTI — debito, attuale, richiesto (06/09/2026)
+
+Le decisioni funzionali stanno in `docs/24` §1.11 e §1.12. Qui c'è solo lo scarto fra quelle
+decisioni e il codice di oggi, diviso per quello che è: **debito**, **comportamento attuale**,
+**comportamento richiesto**.
+
+### 🔴 Debito tecnico — deciso da tempo, mai chiuso
+
+| #   | Debito                                                                                                                                                                                                                                                                                                                                                                                 | Evidenza                                                                                                                         | Regola violata        |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| 1   | **VestiFlow cancella prodotti su Shopify.** `DELETE /admin/api/…/products/{id}.json` parte da due pulsanti dell'interfaccia                                                                                                                                                                                                                                                            | `shopify-admin.client.ts:281` ← `shopify-product-push.service.ts:350` ← `channel-sync.facade.ts:198` ← `products.service.ts:960` | `docs/24` §11.1       |
+| 2   | **82 prodotti di prova sono oggi eliminabili** anche da Shopify: origine VestiFlow, collegati, senza movimenti. ⚠️ **Dati di prova su shop di sviluppo**, non catalogo commerciale: è una correzione strutturale, non un'emergenza                                                                                                                                                     | misurato sul database il 06/09                                                                                                   | idem                  |
+| 3   | **La guardia anti-cancellazione guarda dalla parte sbagliata**: le prove leggono il sorgente del **client GraphQL**, dove la cancellazione non c'è. Il client REST, dove c'è, non è sorvegliato                                                                                                                                                                                        | `shopify-graphql.client.spec.ts:561-564`                                                                                         | —                     |
+| 4   | **Una variante che sparisce dal payload viene cancellata dal database**, con le sue giacenze, se non ha movimenti                                                                                                                                                                                                                                                                      | `products.service.ts:1176-1179`                                                                                                  | `docs/24` §14.3       |
+| 5   | **Gli avvisi di eliminazione non nominano Shopify**: né nell'elenco né nel dettaglio. Chi preme non sa che il prodotto sparisce anche dalla vetrina                                                                                                                                                                                                                                    | `product-detail.component.html:97` · `product-list.component.ts:583`                                                             | `docs/24` §7.3        |
+| 6   | **`lifecycleStatus` della variante esiste e non lo cambia nessuno**: nessun comando, nessun endpoint, nessuna azione                                                                                                                                                                                                                                                                   | modello `VariantLifecycleStatus`; nessun chiamante                                                                               | `docs/24` §7.1        |
+| 7   | **«Sincronizza con Shopify» governa DUE assi**: spegnerlo ferma lo scambio dati **e** archivia il prodotto su Shopify in una sola operazione (`archiveOnSyncDisabled`). Il modello a tre assi separati li vuole indipendenti — ⚠️ **non si assume che l'archiviazione remota debba restare legata allo spegnimento della sincronizzazione**: è debito, non comportamento da conservare | `products.service.ts:929` → `shopify-product-push.service.ts:365-420`                                                            | `docs/24` §1.11, §3.1 |
+
+⚠️ **Il debito #7 non ha ancora una correzione scritta**: la FORMA della separazione — che cosa
+protegge lo stock mentre la sincronizzazione è spenta, se non l'archiviazione automatica — è un
+punto aperto (`docs/24` §0-bis, voce 6), non una scelta implicita di questa riga.
+
+### 👁 Comportamento attuale — vero, e non necessariamente sbagliato
+
+- **Il push GraphQL non cancella varianti remote**: aggiorna solo quelle abbinate. Ne discende
+  che una variante cancellata in VestiFlow **resta in vendita su Shopify**, orfana.
+- **`mismatchDetected` esiste e non arriva all'operatore**: lo accende la riconciliazione, lo
+  legge il republish, nessuna schermata lo mostra.
+- **L'eliminazione locale è bloccata se manca `write_products`**: una regola remota impedisce
+  un'operazione locale.
+- ⭐ **Ordini, resi e inventario GIÀ rispettano la regola «non fermare gli eventi di
+  sicurezza», verificato il 06/09/2026**: `applyOrderFromShopify` e
+  `applyInventoryLevelFromShopify` (`shopify-sync.service.ts`) non leggono
+  `Product.shopifySyncEnabled` — solo `products/create`/`products/update` lo controllano. Un
+  ordine per un prodotto con la sincronizzazione spenta viene acquisito lo stesso, oggi, senza
+  bisogno di nessuna correzione (`docs/24` §13.1).
+- ⛔ **Ma non c'è niente da far passare per «cancellazioni remote»**: nessun webhook
+  `products/delete` è sottoscritto, quindi quella categoria di evento non arriva mai, a
+  sincronizzazione accesa o spenta che sia. Vedi la sezione Shopify qui sopra.
+
+### 🎯 Comportamento richiesto
+
+1. la cancellazione remota **non esiste più**: al suo posto ritiro dalla vendita o bozza;
+2. la guardia automatica copre **entrambi** i client, REST compreso;
+3. ⛔ **una variante salvata NON si cancella e NON si disattiva per assenza dal payload**: il
+   suo stato cambia solo con un comando esplicito e verificabile («Disattiva» su quella
+   variante). Una riga non ancora salvata si toglie dal form senza creare alcun record;
+4. gli avvisi dicono che cosa accade **al negozio online**;
+5. i comandi si chiamano **Disattiva**, **Riattiva**, **Ritira da Shopify**, **Rimetti in
+   vendita su Shopify**;
+6. la gestione massiva vive nel **registro Prodotti**, viste Articoli e Varianti, con riepilogo
+   d'impatto prima e risultato con «riprova i falliti» dopo;
+7. ⭐ **risolto il 06/09/2026 per «Disattiva»**: se il ritiro remoto fallisce, la
+   disattivazione locale **non si annulla e non elimina nulla**; lo stato diventa **«Ritiro
+   Shopify non riuscito»**, con retry automatico e manuale, e gli ordini nel frattempo
+   continuano a essere acquisiti (`docs/24` §1.11). ⚠️ **Non si estende al comando esistente**
+   «Sincronizza con Shopify» (§1.10), che oggi annulla lo spegnimento su fallimento: sono due
+   comandi diversi, risolti in momenti diversi;
+8. la riattivazione si ramifica sulla **presenza** dell'entità (`docs/24` §10.3): «Rimetti in
+   vendita» se è ancora Collegata, «Pubblica nuovamente su Shopify» — comando diverso, nuova
+   entità — se è stata Eliminata su Shopify;
+9. un'eliminazione fatta **su Shopify** produce automaticamente lo stato «Eliminato su
+   Shopify», ferma il push per quell'entità, e non ricrea nulla; la stessa regola vale per un
+   `404` su lettura o scrittura (`docs/24` §11.7). ⛔ **Nessuno dei due meccanismi che
+   dovrebbero innescarla esiste oggi** — vedi la sezione Shopify qui sopra;
+10. una Bozza Shopify porta una **causale** (assenza di varianti vendibili, o ritiro manuale):
+    solo la prima permette al prodotto di tornare attivo da sé quando si rimette in vendita
+    una variante (`docs/24` §3.4). La struttura per questa causale non esiste ancora.
+
+⚠️ **Nessuna riga qui sopra autorizza a toccare l'eliminazione locale del prodotto.** Se il
+ritiro remoto debba bloccare o no il salvataggio della disattivazione locale resta un punto
+aperto per il comando «Elimina» (`docs/24` §0-bis voce 2): il modello privilegia la
+disattivazione reversibile e la conservazione del collegamento Shopify, non la cancellazione.
+
+⛔ **Sette punti restano NON decisi** e non vanno dedotti: `docs/24` §0-bis, voci 1-2 e 5-7 del
+06/09/2026 (la 3 e parte della 4 sono state chiuse dalle decisioni di oggi, sopra).
+
+⭐ **L'ordine dei lavori è fissato in `docs/24` §8.5.7**, dodici passi dalla patch di sicurezza
+alla rimozione delle colonne-cache, col **gate di collaudo mutativo** (passo 7) che precede
+ogni comando di ritiro. Non si ripete qui: una sequenza scritta in due posti diverge al primo
+cambiamento.
+
+### 📝 Testo pronto per la guida utente — requisito preparato, pubblicazione differita
+
+⭐ **Confermato dal proprietario il 06/09/2026**: la documentazione delle guide resta un
+**requisito preparato**; le guide operative definitive si pubblicano **quando le funzioni
+esisteranno davvero**.
+
+I dieci casi sono quindi scritti qui, pronti, e **non** in `GUIDA-UTENTE-VESTIFLOW.md`: è la
+stessa regola che questo documento applica altrove (vedi «Prima sincronizzazione Shopify», più
+sotto) — _«scrivere in guida una funzione che non c'è è peggio che non scriverla»_. Nessuno dei
+dieci casi esiste nel prodotto oggi: sono decisioni funzionali consolidate, non funzioni
+costruite.
+
+**Le due sedi corrette esistono già**, e non vanno duplicate:
+
+| Sede                                                                                                            | Perché è quella giusta                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GUIDA-UTENTE-VESTIFLOW.md` §6, **«La casella Sincronizza con Shopify»** (riga 517)                             | è già dove il toggle sync/vendita è documentato: i comandi Disattiva/Riattiva/Ritira/Rimetti-in-vendita sostituiranno e amplieranno questo paragrafo, non ne apriranno uno nuovo                                                  |
+| `GUIDA-UTENTE-VESTIFLOW.md` §14 troubleshooting, **«Ho eliminato un prodotto ma resta su Shopify»** (riga 1449) | descrive oggi correttamente il comportamento attuale (l'eliminazione locale cancella anche su Shopify) — diventerà falsa non appena la Tranche A-sicurezza sostituisce quella chiamata, e va riscritta in quel momento, non prima |
+
+**Il testo, pronto da incollare quando le funzioni esisteranno** (voce per voce, nell'ordine
+chiesto, con riferimento alla decisione che lo autorizza):
+
+1. **Disattivare una variante** — «Disattiva» la rende non selezionabile nei nuovi documenti;
+   se è in vendita su Shopify, VestiFlow te lo dice e la ritira anche online. Il collegamento
+   resta: non stai eliminando niente (`docs/24` §1.11).
+2. **Ritirarla solo da Shopify** — «Ritira da Shopify» toglie la variante dalla vendita online
+   e la lascia attiva in VestiFlow: puoi continuare a venderla in negozio (`docs/24` §1.11,
+   §10.2).
+3. **Ultima variante vendibile** — se ritiri l'ultima variante in vendita di un prodotto, il
+   prodotto su Shopify passa in Bozza: resta lì, non viene cancellato (`docs/24` §3.4).
+4. **Riattivazione locale** — «Riattiva» rimette la variante fra quelle selezionabili in
+   VestiFlow, ma **non** la rimette in vendita su Shopify da sola: sono due comandi diversi
+   (`docs/24` §10.3).
+5. **Rimessa in vendita Shopify** — «Rimetti in vendita su Shopify» usa le pubblicazioni che
+   aveva prima del ritiro. Se nel frattempo il prodotto era stato rimosso dal titolare
+   direttamente su Shopify, il comando disponibile diventa «Pubblica nuovamente su Shopify»
+   (`docs/24` §10.3, §11.9).
+6. **Eliminazione fatta nel pannello Shopify** — se elimini un prodotto o una variante
+   dall'amministrazione Shopify, in VestiFlow non sparisce nulla: resta tutto, con lo stato
+   «Eliminato su Shopify» (`docs/24` §11.7).
+7. **Stato «Eliminato su Shopify»** — significa che l'entità non esiste più sul canale, ma
+   VestiFlow conserva record, storico e identificativo per lo storico. Non prova a
+   ricrearla da sé (`docs/24` §11.7, §11.8).
+8. **Pubblicazione successiva** — «Pubblica nuovamente su Shopify» crea un prodotto nuovo, con
+   un nuovo collegamento: non rianima quello vecchio. Se VestiFlow sospetta che qualcuno lo
+   abbia già ricreato a mano su Shopify, te lo chiede prima di procedere (`docs/24` §11.9).
+9. **Spegnimento della sincronizzazione** — ferma l'aggiornamento automatico di catalogo e
+   giacenze verso Shopify. Non tocca da sola se il prodotto è in vendita o no: sono due cose
+   separate (`docs/24` §1.11, §13.1). ⚠️ **Questo caso descrive il comportamento RICHIESTO, non
+   quello attuale**: oggi spegnerla archivia anche il prodotto — vedi il debito #7 qui sopra.
+   Non va scritto finché il codice non corrisponde.
+10. **Operazioni massime e fallimenti** — dal registro Prodotti puoi disattivare, ritirare o
+    rimettere in vendita più articoli insieme. Prima di partire, VestiFlow ti mostra quanti
+    cambieranno davvero; alla fine, quanti sono riusciti e quanti no, con un pulsante per
+    ritentare solo questi ultimi (`docs/24` §1.12).
+
+⚠️ **Il caso 9 è l'unico dove il testo descrive un comportamento diverso da quello vivo oggi**:
+va inserito per ultimo, e solo insieme alla correzione del debito #7.
 
 ## ⏸ IN SOSPESO DAL 02/09/2026 — la colonna prezzo, e cosa è saltato fuori indagandola
 
@@ -3997,15 +4530,15 @@ mai dentro il titolo. Contiene i **soli valori** (`M / Rosso`), memorizzati come
 composto** — non dati grezzi da ricomporre: un documento emesso deve continuare a dire
 quello che diceva.
 
-|                                       | Stato                                                                                                                                                                                                                                                                                   |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T0** funzione unica di composizione | ✅ `87369c2d`                                                                                                                                                                                                                                                                           |
-| **T1** schema + migration             | 🔵 **prossimo**. `variantLabel TEXT NOT NULL DEFAULT ''` su `document_lines`, `supplier_order_lines`, `sales_order_lines`, `online_sale_lines`, `inventory_count_lines`. Migration **a mano**, fine riga LF, poi `npm run prisma:deploy` + `prisma:generate` + **avvio reale dell'API** |
-| **T2** la scrittura                   | ⛔ **insieme** alla rimozione della concatenazione del banco (`store-sales.service` scrive `productName — optionSummary` dentro `description`). Separarle produce «Maglietta — M / Rosso — M / Rosso»                                                                                   |
-| **T3** colonna desktop                | ⛔ id **`variantLabel`**, MAI `variant`: `normalizeGoodsReceiptColumnId` rimappa `variant` su `product`, e la colonna sarebbe irraggiungibile in Arrivo merce, in silenzio                                                                                                              |
-| **T4** card mobile                    | `variantLabel` **esiste già** su `document-line-card`, con stile: la riempie 1 maschera su 7                                                                                                                                                                                            |
-| **T5** PDF e stampe                   | tre PDF: documento, ordine fornitore, ordine cliente. Le frazioni di larghezza devono sommare a 1.00                                                                                                                                                                                    |
-| **T6** XML fattura elettronica        | ⛔ lì la colonna separata **non esiste**: un solo `<Descrizione>` per riga. Si ricompone in **un punto solo** (`document-xml.service`), non nella util. ⏸ **Da verificare sulla fonte ufficiale** cardinalità e lunghezza                                                               |
+|                                       | Stato                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T0** funzione unica di composizione | ✅ `87369c2d`                                                                                                                                                                                                                                                                                |
+| **T1** schema + migration             | 🔵 **prossimo**. `variantLabel TEXT NOT NULL DEFAULT ''` su `document_lines`, `supplier_order_lines`, `sales_order_lines`, `online_sale_lines`, `inventory_count_lines`. Migration **a mano**, fine riga LF, poi `npm run prisma:deploy:test` + `prisma:generate` + **avvio reale dell'API** |
+| **T2** la scrittura                   | ⛔ **insieme** alla rimozione della concatenazione del banco (`store-sales.service` scrive `productName — optionSummary` dentro `description`). Separarle produce «Maglietta — M / Rosso — M / Rosso»                                                                                        |
+| **T3** colonna desktop                | ⛔ id **`variantLabel`**, MAI `variant`: `normalizeGoodsReceiptColumnId` rimappa `variant` su `product`, e la colonna sarebbe irraggiungibile in Arrivo merce, in silenzio                                                                                                                   |
+| **T4** card mobile                    | `variantLabel` **esiste già** su `document-line-card`, con stile: la riempie 1 maschera su 7                                                                                                                                                                                                 |
+| **T5** PDF e stampe                   | tre PDF: documento, ordine fornitore, ordine cliente. Le frazioni di larghezza devono sommare a 1.00                                                                                                                                                                                         |
+| **T6** XML fattura elettronica        | ⛔ lì la colonna separata **non esiste**: un solo `<Descrizione>` per riga. Si ricompone in **un punto solo** (`document-xml.service`), non nella util. ⏸ **Da verificare sulla fonte ufficiale** cardinalità e lunghezza                                                                    |
 
 ⭐ **Guadagno adiacente visto e non fatto**: lo SKU oggi il PDF lo stampa e l'XML lo perde.
 `CodiceArticolo` è lo slot fatto apposta ed è vuoto.
@@ -4377,7 +4910,7 @@ Quella che si perde più facilmente è la differenza fra le prime due: un'analis
 
 ### 3. Il database è condiviso col collega
 
-Solo `npm run prisma:deploy`, mai `migrate dev` né `db push`. Migration scritte a mano. Ogni tabella nuova porta RLS e `REVOKE` nella stessa migration.
+Migration scritte a mano, provate con `npm run prisma:deploy:test`; mai `migrate dev` né `db push`. Al database di Railway ci pensa il deploy, e ⛔ **per il condiviso non esiste un comando locale** (07/09/2026). Ogni tabella nuova porta RLS e `REVOKE` nella stessa migration.
 
 ---
 

@@ -98,6 +98,40 @@ Tolte dalla tabella perché **decise**, non perché attraversate. Restano elenca
 
 ---
 
+### ⏸ Voci APERTE dal 06/09/2026 — ciclo di vita e stato Shopify
+
+Emerse consolidando §1.11 e §1.12. ⛔ **Non sono state decise, e non vanno dedotte dal
+comportamento attuale del codice**: nessuna tranche può darle per acquisite.
+
+| #     | Punto aperto                                                                                           | Dove         | Perché non si può dedurre                                                                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | **rappresentazione tecnica di una singola variante ritirata ma conservata**                            | §10.1, §11.2 | `publishableUnpublish` sulla variante è una via, non l'unica: vanno pesate contro la reversibilità e contro ciò che il cliente vede                                                                         |
+| 2     | **si può eliminare definitivamente un articolo VestiFlow già salvato?**                                | §4.2, §7.1   | il cestino e l'eliminazione definitiva sono descritti, ma **se** un articolo salvato debba poter sparire del tutto è una scelta di prodotto                                                                 |
+| ~~3~~ | ~~che cosa si ripristina alla riattivazione~~ — **RISOLTO il 06/09/2026**                              | §10.3        | «Riattiva» agisce solo sul locale; «Rimetti in vendita» usa le pubblicazioni conservate se l'entità è Collegata, «Pubblica nuovamente» se è Eliminata su Shopify                                            |
+| 4     | **comportamento atomico quando il ritiro Shopify fallisce SUL COMANDO «Sincronizza con Shopify»**      | §1.10, §11.5 | risolto per «Disattiva» (§1.11: non annulla, stato «Ritiro Shopify non riuscito», retry auto+manuale) — **resta aperto per il comando esistente**, che oggi annulla lo spegnimento                          |
+| 5     | **operazioni massive molto numerose: sincrone o processo tracciato?**                                  | §1.12        | cambia l'API, la resa a schermo e il significato di «riprova i falliti». Non si sceglie implementando                                                                                                       |
+| 6     | **come scollegare l'archiviazione remota dallo spegnimento della sincronizzazione**                    | §1.11        | oggi le due cose sono UN'operazione sola (`archiveOnSyncDisabled`); il modello a cinque assi le vuole indipendenti, ma la forma della separazione — che cosa protegge lo stock nel frattempo — non è scelta |
+| 7     | **quali segnali contano come «possibile corrispondenza manuale»** per «Pubblica nuovamente su Shopify» | §11.9        | stesso SKU? stesso titolo? stesso handle? la regola dice che la conferma serve, non su cosa si basa                                                                                                         |
+
+⚠️ **Non è un punto aperto, è un prerequisito di collaudo**: cinque webhook su otto (ordini,
+resi, clienti) non sono registrabili sullo shop di sviluppo per mancata approvazione Shopify
+«Protected customer data» — misurato il 06/09/2026, dettaglio in §8.5.6. Nessuna correzione di
+codice lo risolve, e **non ferma lo sviluppo del ciclo di vita del catalogo**: va chiuso prima
+del collaudo completo e della futura entrata in esercizio.
+
+⚠️ **E una decisione tecnica che NON va consolidata adesso**: `DRAFT` più
+`publishableUnpublish` su tutti i canali sembra la forma ovvia del ritiro, ma Shopify dichiara
+che `DRAFT` è **già** indisponibile ai clienti — le due azioni insieme potrebbero essere
+ridondanti, e la seconda ha un costo di reversibilità (per ripubblicare bisogna sapere **dove**
+era pubblicato prima). ⚠️ **`DRAFT` è uno stato di `ProductStatus`: la VARIANTE non ne ha uno
+proprio.** Per il prodotto la domanda è «`DRAFT`, `publishableUnpublish`, o entrambi»; per la
+variante — che non può andare in bozza — la domanda è solo l'effetto di `publishableUnpublish`
+sul suo GID, sulla sua visibilità per canale e sulla ripubblicazione. Sono **due verifiche
+distinte**, non una sola declinata su due entità. Nessuna delle due si fa leggendo la
+documentazione Shopify: è un **collaudo mutativo** su un'entità di prova, con fotografia dello
+stato prima, una variazione alla volta, verifica dal punto di vista del cliente e ripristino —
+mai eseguito finora. Va fatto prima di scrivere la forma qui come requisito.
+
 ## 1. Fondamenti — decisioni confermate e proposte
 
 ⛔ Il capitolo si intitolava **«Decisioni non negoziabili»**, e non tutte lo erano: due delle sette sottosezioni sono proposte tecniche di chi ha scritto il documento. Il titolo dava a tutte lo stesso peso.
@@ -447,6 +481,207 @@ di nessuna**, perché fa credere che il prodotto sia protetto.
 `normalizeWebhookProduct` non lo valida, e un titolo assente farebbe lanciare la lettura →
 il catch scriverebbe `shopifySyncStatus: error` sul prodotto che la guardia doveva proteggere.
 
+### 1.11 Disattivare, riattivare, ritirare: tre assi che non si confondono — deciso il 06/09/2026
+
+> ✅ **Decisione confermata dal proprietario.**
+
+#### Le parole, e sono queste
+
+| Comando                                                   | Che cosa fa                                | Asse (§3.1)          |
+| --------------------------------------------------------- | ------------------------------------------ | -------------------- |
+| **Disattiva** / **Riattiva**                              | l'entità è usabile o no **nel gestionale** | ciclo di vita locale |
+| **Ritira da Shopify** / **Rimetti in vendita su Shopify** | l'entità è acquistabile o no **online**    | pubblicazione        |
+| **Attiva / Disattiva sincronizzazione**                   | i dati viaggiano o no fra i due sistemi    | sincronizzazione     |
+
+⭐ **«Disattiva» significa REVERSIBILE, e la parola va presa alla lettera**: l'entità resta nel
+database con la propria storia, i propri identificativi Shopify e i propri collegamenti. Non è
+il cestino (§1.1) e non è l'eliminazione definitiva (§4.2).
+
+⚠️ **Sono tre interruttori diversi, non tre nomi dello stesso interruttore.** La
+sincronizzazione governa lo **scambio dei dati**; il ritiro governa la **vendita online**; la
+disattivazione governa l'**utilizzabilità in VestiFlow**. Chi ne usa uno per ottenere l'effetto
+di un altro costruisce un'interfaccia che mente senza sbagliare un dato — è §3.7, applicata ai
+comandi invece che agli stati.
+
+#### ⛔ Oggi «Sincronizza con Shopify» ne governa DUE, ed è una divergenza misurata
+
+Verificato nel codice il 06/09/2026, non dedotto:
+
+```text
+shopifySyncEnabled = false   ferma il push prodotto      shopify-product-push.service.ts:176
+                             ferma il push giacenze      shopify-inventory-push.service.ts:83
+                             ferma pull e webhook        shopify-product-pull.service.ts:462
+                             E ARCHIVIA su Shopify       products.service.ts:929
+                                                         → archiveOnSyncDisabled → ARCHIVED
+```
+
+L'ultima riga è l'asse **vendita**, non l'asse **sincronizzazione**: spegnere lo scambio dati
+oggi toglie anche il prodotto dalla vendita. ⛔ **È un accoppiamento fra due assi che questa
+stessa sezione dichiara indipendenti, e va registrato come DEBITO — non come comportamento da
+conservare.** §1.10 lo aveva introdotto deliberatamente, per impedire che un prodotto restasse
+in vendita con lo stock congelato: era una risposta ragionevole finché il modello non
+distingueva i tre assi. Il modello ora li distingue, e questa sezione **non presume** che
+l'archiviazione remota debba restare legata allo spegnimento della sincronizzazione — è
+l'opposto di ciò che §3.1 e la matrice qui sotto chiedono.
+
+⏸ **La FORMA della separazione NON è decisa** (§0-bis, voce 6): se spegnere la sincronizzazione
+debba lasciare il prodotto esattamente dov'era, o debba comunque proteggere lo stock con un
+meccanismo diverso dall'archiviazione automatica. È un punto aperto, non una proposta implicita
+di questo paragrafo. **Il codice non si tocca finché la forma non è decisa**: qui si registra il
+debito, non si autorizza un intervento.
+
+#### La matrice di validità
+
+| Stato VestiFlow | Vendita Shopify | Validità                                       |
+| --------------- | --------------- | ---------------------------------------------- |
+| **Attivo**      | In vendita      | ✅ valida                                      |
+| **Attivo**      | Ritirato        | ✅ valida — vendibile internamente, non online |
+| **Disattivato** | Ritirato        | ✅ valida                                      |
+| **Disattivato** | In vendita      | ⛔ **non valida, e va impedita**               |
+
+Ne discendono, come conseguenze della matrice e non come regole nuove:
+
+- **disattivare in VestiFlow comporta necessariamente il ritiro da Shopify**: è l'unico modo di
+  non finire nella quarta riga;
+- ⭐ **l'interfaccia INFORMA della conseguenza, non la CHIEDE.** «Verrà ritirato anche dalla
+  vendita online» è un avviso; «Vuoi ritirarlo anche da Shopify?» è una domanda che offre uno
+  stato vietato come se fosse una scelta;
+- **ritirare solo da Shopify lascia l'entità attiva in VestiFlow** — è la seconda riga, uno
+  stato legittimo che si raggiunge di proposito;
+- ⛔ **la riattivazione in VestiFlow non rimette in vendita da sola**: la matrice ammette
+  «Attivo + Ritirato», quindi tornare attivi non implica tornare in vetrina. Serve una regola
+  esplicita, e non c'è ancora (§0-bis);
+- **ritirando l'ultima variante vendibile, il prodotto Shopify passa in Bozza** e non viene
+  cancellato (§11.3);
+- **una riattivazione futura deve restare possibile**: collegamenti e informazioni necessarie si
+  conservano, sempre.
+
+#### Una variante si elimina solo finché non è mai stata salvata — e non si disattiva da sola
+
+> **Prima del primo salvataggio una riga si toglie dal form: non è mai esistita, e togliendola
+> non si crea alcun record. Dopo il primo salvataggio, l'ASSENZA dal payload non produce alcun
+> effetto sullo stato della variante — né cancellazione, né disattivazione implicita.**
+
+È §7.1 detta dalla parte della variante, ed è la stessa distinzione: togliere una riga dal form
+non è un'eliminazione anagrafica.
+
+⛔ **Assente dal payload non è un comando.** Un payload che non menziona una variante può
+significare «questa riga è stata tolta dal form», ma anche un invio parziale, una pagina che non
+ha caricato tutte le varianti, un client con un difetto. Dedurre uno stato da questo silenzio —
+cancellata, o anche solo disattivata — lascia che un'assenza involontaria produca un effetto
+voluto. **Lo stato di una variante salvata cambia SOLO tramite un comando esplicito e
+verificabile**: «Disattiva» su quella variante precisa, mai come effetto collaterale del
+salvataggio del prodotto.
+
+⛔ **Il codice oggi fa il peggio dei due errori**, misurato il 06/09/2026:
+`products.service.ts:1176-1179` **cancella dal database** ogni variante che non compare nel
+payload, con le sue giacenze, purché non abbia movimenti. È già vietato da §14.3 —
+«`UpdateProductDto.variants` aggiorna o crea ciò che contiene, non elimina ciò che manca» —
+quindi non è una decisione nuova: è **debito tecnico da chiudere**, registrato in `DA-FARE.md`.
+⚠️ **E la correzione non è «disattivarla invece di cancellarla»**: sarebbe lo stesso errore
+spostato di un gradino — un'omissione dal payload continuerebbe a decidere lo stato della
+variante, solo con un esito meno distruttivo.
+
+#### Due cose che non si fanno, e non sono opinioni
+
+⛔ **VestiFlow non cancella prodotti o varianti da Shopify. Mai, e nemmeno come evoluzione
+futura.** La cancellazione GraphQL non va descritta come possibile: §11.1 lo dice già, e questa
+sezione lo ribadisce perché il percorso REST che la esegue **esiste ancora** (`DA-FARE.md`).
+
+⛔ **Nessun «Nome online» generico.** `Product.name` è il nome interno VestiFlow; `shopifyTitle`
+è il dato **specifico di Shopify** (§1.9, §9.3). Una piattaforma futura porterà i **propri** dati
+di canale, non riuserà questo campo: è l'isolamento che rende possibile una sincronizzazione
+bidirezionale indipendente fra piattaforme diverse. Fondere i due campi in un nome generico
+sembra una semplificazione e chiude quella strada.
+
+⛔ **Per questa fase, nessun comando di cancellazione remota**: non solo VestiFlow non cancella
+mai da sé, ma non offre nemmeno all'operatore un comando che lo chieda. La pulizia definitiva
+di un'entità su Shopify è un'azione che si fa **nel pannello Shopify**, dall'utente.
+
+#### La disattivazione, passo per passo — deciso il 06/09/2026
+
+Quando l'utente disattiva un articolo o una variante **vendibile su Shopify**:
+
+1. la disattivazione locale **ha effetto immediato**: non aspetta l'esito remoto;
+2. viene **richiesto il ritiro remoto** (§10.2, §11.2) come conseguenza — non come domanda:
+   l'interfaccia informa che l'entità verrà ritirata anche dalla vendita online, non chiede se
+   farlo (matrice di validità qui sopra);
+3. il collegamento Shopify **si conserva** in ogni caso;
+4. **se il ritiro fallisce, la disattivazione locale NON si annulla e non si elimina nulla**:
+   l'operatore ha comunque ottenuto l'effetto locale che ha chiesto;
+5. lo stato diventa **«Ritiro Shopify non riuscito»** — un valore tecnico dell'asse
+   Sincronizzazione (§3.1), non una bugia sullo stato di Vendita: l'entità resta quello che
+   era su Shopify finché il ritiro non riesce davvero;
+6. esistono **retry automatico e retry manuale** su quello stato;
+7. **eventuali ordini Shopify ricevuti nel frattempo continuano a essere acquisiti e
+   collegati** (§13.1): un ritiro pendente non è un motivo per smettere di registrare la
+   realtà commerciale.
+
+⚠️ **Punto 4 e 5 chiudono, per QUESTO comando, parte della voce aperta di §0-bis** («comportamento
+atomico quando il ritiro Shopify fallisce»): «Disattiva» non annulla mai. ⛔ **Non si estende da
+sé al comando esistente «Sincronizza con Shopify»**, il cui fallimento oggi annulla lo
+spegnimento (§1.10) — sono due comandi diversi, e solo il primo ha qui una risposta.
+
+### 1.12 La gestione massiva vive nel registro Prodotti — deciso il 06/09/2026
+
+> ✅ **Decisione confermata dal proprietario.**
+
+⛔ **Non si costruisce una pagina parallela nelle impostazioni Shopify.** Le operazioni di stato
+su molti articoli sono lavoro di catalogo, e il posto del catalogo è il **registro Prodotti**.
+Una seconda schermata che elenca gli stessi prodotti con altri filtri è un secondo elenco da
+tenere allineato al primo.
+
+⭐ **Riusa il sistema condiviso, non lo riscrive**: ricerca, filtri, ordinamento, selezione,
+configurazione delle colonne, virtualizzazione e azioni massive sono già del motore comune.
+
+**Due granularità nello stesso registro**, non due pagine: vista **Articoli** e vista
+**Varianti**. La seconda serve perché ritiro e disattivazione sono per variante (§11.2), e da un
+elenco di articoli quelle operazioni non si esprimono.
+
+⛔ **Nessun editor a foglio elettronico** in stile Shopify per queste operazioni di stato.
+
+**Le colonne di stato sono TRE**, separate, per i tenant con Shopify attivo:
+
+```text
+Stato VestiFlow      attivo / disattivato
+Vendita Shopify      in vendita / ritirato / bozza
+Sincronizzazione     attiva / spenta / in attesa / errore / allineata
+```
+
+⛔ **Per un tenant senza il modulo Shopify non compare NULLA di Shopify**: né colonne, né filtri,
+né azioni, né messaggi, né indicatori. È la regola già in vigore nel resto dell'applicazione
+(`showShopifyIntegration`), e qui vale per intero.
+
+**Azioni massive previste:** Disattiva / Riattiva in VestiFlow · Ritira / Rimetti in vendita su
+Shopify · Attiva / Disattiva sincronizzazione · Sincronizza adesso · Riprova gli errori.
+
+**La selezione distingue tre cose**, e la distinzione non è cosmetica:
+
+|                                   |                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------ |
+| righe **selezionate manualmente** | quelle che l'operatore ha spuntato                                       |
+| **tutte le righe visibili**       | quelle a schermo adesso                                                  |
+| **tutti i risultati dei filtri**  | anche quelli non caricati — è selezione per QUERY, non per insieme di id |
+
+⚠️ **La terza non esiste oggi**: `createListSelection` tiene un insieme di id e `isAllSelected`
+guarda le righe visibili. Senza impaginazione la differenza fra la seconda e la terza si
+assottiglia ma non sparisce — con la virtualizzazione «visibile» non significa «caricato». Va
+progettata, non dedotta.
+
+**Prima di eseguire, un riepilogo dell'impatto**: la **quantità corrispondente ai filtri**
+attivi, elementi che cambiano, elementi **già conformi** allo stato richiesto, elementi **non
+collegati** a Shopify, prodotti che passerebbero in **Bozza**, e gli eventuali **blocchi**. È
+lo stesso principio del preflight di eliminazione (§7.2): si conferma su ciò che accadrà, non
+su ciò che si spera.
+
+**Durante l'esecuzione, un avanzamento**: un'operazione massiva Shopify è tracciata, non è un
+comando che parte e risponde solo alla fine — su una selezione ampia l'operatore deve poter
+vedere che sta procedendo, non solo che è partita.
+
+**Dopo l'esecuzione, un risultato**: riusciti, ignorati, falliti — e la possibilità di
+**riprovare solo i falliti**. ⚠️ Oggi nessun elenco lo fa: l'eliminazione multipla dei prodotti
+dice «N prodotti non sono stati eliminati» e non offre nessun modo di ritentare quelli.
+
 ## 2. Situazione osservata nel codice al 2 settembre 2026
 
 Questa sezione descrive il presente. Non è il comportamento da conservare.
@@ -586,16 +821,30 @@ Il vecchio percorso **non esiste più**. Sono spariti:
 
 ## 3. Modello funzionale degli stati
 
-### 3.1 Quattro assi indipendenti
+### 3.1 Cinque assi indipendenti
 
-> ✅ **Decisione confermata**
+> ✅ **Decisione confermata** — rivista il 06/09/2026
 
-| Asse                  | Esempi                                                     | Domanda a cui risponde                                          |
-| --------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
-| Ciclo di vita locale  | attivo, non attivo, nel cestino, eliminato definitivamente | l'anagrafica è utilizzabile o ancora recuperabile in VestiFlow? |
-| Pubblicazione Shopify | pubblicato/non pubblicato per canale                       | il cliente può vederla in quel canale?                          |
-| Inventario            | giacenza, impegnata, disponibile                           | quanta merce fisica o assegnata esiste?                         |
-| Sincronizzazione      | allineato, in attesa, errore                               | l'ultima intenzione locale è stata applicata al canale?         |
+⛔ **Qui c'erano QUATTRO assi, e «Pubblicazione Shopify» ne confondeva due.** Un'entità
+Shopify **esiste ancora** e un'entità Shopify **è in vendita** sono due fatti diversi — una
+variante può esistere e non essere in vendita, e può essere in vendita senza che nulla dica se
+esiste ancora finché non lo si verifica. Confonderli è quello che rendeva ambiguo lo stato
+«Non presente su Shopify» di §3.7 vecchia, che nominava «pubblicazione» per un fatto di
+presenza.
+
+| Asse                 | Valori                                                     | Domanda a cui risponde                                          |
+| -------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| Ciclo di vita locale | attivo, non attivo, nel cestino, eliminato definitivamente | l'anagrafica è utilizzabile o ancora recuperabile in VestiFlow? |
+| **Presenza Shopify** | **Mai pubblicato / Collegato / Eliminato su Shopify**      | **l'entità esiste ancora sul negozio online?**                  |
+| **Vendita Shopify**  | **In vendita / Ritirato / Bozza**                          | **il cliente può acquistarla ORA, ammesso che esista?**         |
+| Inventario           | giacenza, impegnata, disponibile                           | quanta merce fisica o assegnata esiste?                         |
+| Sincronizzazione     | Attiva / Spenta / In corso / Errore                        | l'ultima intenzione locale è stata applicata al canale?         |
+
+⭐ **Presenza e Vendita sono ORTOGONALI, e le quattro combinazioni sono tutte significative**:
+Collegato+In vendita è il caso comune; Collegato+Ritirato è un ritiro deciso in VestiFlow;
+Collegato+Bozza è l'ultima variante venduta (§3.4); Eliminato+qualunque-valore-di-vendita è lo
+stato dopo una cancellazione fatta nel pannello Shopify (§11.7) — lì il valore di vendita
+diventa senza oggetto, ma non si azzera: resta quello dell'ultima osservazione, per lo storico.
 
 È vietato usare:
 
@@ -603,7 +852,10 @@ Il vecchio percorso **non esiste più**. Sono spariti:
 - `inventoryPolicy = DENY` per rappresentare lo stato non attivo;
 - `ProductStatus.archived` per nascondere la realtà inventariale;
 - errore di sincronizzazione per cambiare lo stato locale;
-- assenza dal payload per rappresentare eliminazione.
+- assenza dal payload per rappresentare eliminazione;
+- **la Vendita Shopify per dedurre la Presenza Shopify, o viceversa**: «Ritirato» non
+  implica «esiste ancora», e «Collegato» non implica «in vendita». Nessuno dei cinque assi
+  si deduce da un altro (regola esplicita del proprietario, 06/09/2026).
 
 ### 3.2 Stato prodotto
 
@@ -673,9 +925,30 @@ Quando tutte le varianti sono Non attive o nel cestino:
 - l'interruttore «Sincronizza con Shopify» resta acceso;
 - l'interfaccia mostra lo stato derivato **«Nessuna variante attiva»**;
 - il prodotto Shopify passa in **Bozza** e non è acquistabile;
-- non viene eliminato né archiviato definitivamente;
-- riattivare una variante non ripubblica automaticamente il prodotto: la pubblicazione resta
-  un'azione esplicita.
+- non viene eliminato né archiviato definitivamente.
+
+#### ⭐ La Bozza porta una CAUSALE, e governa se la riattivazione si propaga — deciso il 06/09/2026
+
+⛔ **Qui c'era «riattivare una variante non ripubblica MAI automaticamente il prodotto»**,
+senza eccezioni. Non basta più: bisogna distinguere **perché** il prodotto è in Bozza.
+
+> **Una Bozza Shopify ha SEMPRE una causale, memorizzata: «assenza di varianti vendibili»
+> oppure «ritiro manuale». Rimettere in vendita una variante può far tornare il prodotto
+> attivo automaticamente SOLO nel primo caso. Nel secondo, mai.**
+
+| Perché il prodotto è in Bozza                           | Rimettere in vendita una variante           |
+| ------------------------------------------------------- | ------------------------------------------- |
+| **automatica**, per assenza di varianti vendibili (qui) | ⭐ può far tornare il prodotto attivo da sé |
+| **manuale**, l'operatore ha premuto «Ritira da Shopify» | ⛔ resta in Bozza: il ritiro era una scelta |
+
+⭐ **La ragione è che altrimenti un ritiro deciso dall'operatore si annullerebbe da solo** alla
+prima variante rimessa in vendita — un comportamento che nessuno ha chiesto e che contraddice
+proprio l'atto di ritirare.
+
+⚠️ **La struttura per questa causale non esiste**: misurato il 06/09/2026, né `Product` né
+`ShopifySyncStatus` portano un campo che distingua le due Bozze — un `ProductStatus.draft` letto
+da Shopify oggi non dice da dove viene. È lavoro di schema per la tranche che introduce il
+comando «Ritira da Shopify», non una conseguenza automatica di questa decisione.
 
 ### 3.5 Articolo semplice e variante base
 
@@ -728,31 +1001,41 @@ Lo stato vive nella tabella delle operazioni/outbox, non nell'enum di ciclo di v
 
 ### 3.7 Stati da NON confondere
 
-> ✅ **Decisione confermata** (03/09/2026)
+> ✅ **Decisione confermata** (03/09/2026, tabella rifatta il 06/09/2026 sul modello a 5 assi)
 
-Questi otto stati appartengono ad **assi differenti** e **non sono sinonimi**. Usarne uno al
+Questi stati appartengono ad **assi differenti** (§3.1) e **non sono sinonimi**. Usarne uno al
 posto di un altro è il modo in cui un'interfaccia mente senza sbagliare un dato.
+
+⛔ **Qui la tabella aveva otto righe e infilava «pubblicazione» come un asse solo.** Dopo la
+separazione di §3.1 la stessa informazione si scrive su due assi, «Non presente su Shopify»
+cambia nome in «Eliminato su Shopify» (Presenza), e compaiono i due valori che prima non
+avevano una riga propria: «Mai pubblicato» e «Bozza».
 
 | Stato                                      | Asse (§3.1)          | Che cosa afferma                                                                                         |
 | ------------------------------------------ | -------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Attiva in VestiFlow**                    | ciclo di vita locale | si può selezionare in un nuovo documento                                                                 |
 | **Non attiva in VestiFlow**                | ciclo di vita locale | non selezionabile, ma esistente e reversibile                                                            |
-| **Pubblicata su Shopify**                  | pubblicazione        | il cliente la vede sul canale                                                                            |
-| **Non pubblicata su Shopify**              | pubblicazione        | esiste su Shopify, ma non è acquistabile                                                                 |
-| **Non presente su Shopify**                | pubblicazione        | su Shopify non esiste più: eliminata di là (§11.7)                                                       |
 | **Nel cestino VestiFlow**                  | ciclo di vita locale | ritirata, ripristinabile, storia intatta                                                                 |
 | **Eliminata definitivamente da VestiFlow** | ciclo di vita locale | non ripristinabile; dipendenze operative eliminate, righe documento leggibili dai propri snapshot (§1.1) |
-| **Prodotto Shopify archiviato**            | pubblicazione        | il prodotto esiste su Shopify e non è acquistabile                                                       |
+| **Mai pubblicato**                         | presenza Shopify     | non è mai esistito sul canale: non c'è nulla da ritirare né da perdere                                   |
+| **Collegato**                              | presenza Shopify     | esiste su Shopify con un id valido, quale che sia il suo stato di vendita                                |
+| **Eliminato su Shopify**                   | presenza Shopify     | su Shopify non esiste più: cancellato di là (§11.7). Sostituisce «Non presente su Shopify»               |
+| **In vendita**                             | vendita Shopify      | il cliente la vede e la acquista sul canale                                                              |
+| **Ritirato**                               | vendita Shopify      | collegato, ma non acquistabile: l'operatore l'ha tolto dalla vendita (§10.2, §11.2)                      |
+| **Bozza**                                  | vendita Shopify      | il prodotto esiste, non è acquistabile; causale distinta manuale/per-assenza (§3.4)                      |
 
-⚠️ **Le tre confusioni che costano di più:**
+⚠️ **Le confusioni che costano di più:**
 
-- **«Non pubblicata» ≠ «Non presente»**: la prima si annulla ripubblicando, la seconda no —
-  la variante remota non c'è più, e va ricreata o lasciata locale (§11.7);
+- **«Ritirato» ≠ «Eliminato su Shopify»**: la prima è una decisione di vendita reversibile con
+  «Rimetti in vendita su Shopify»; la seconda è un fatto di presenza, e la riattivazione
+  possibile è «Pubblica nuovamente su Shopify» — un comando diverso, che crea un'entità nuova
+  (§11.9);
 - **«Nel cestino» ≠ «Eliminata definitivamente»**: dal cestino si torna indietro, e §11.5
   dice che finché Shopify non conferma l'elemento **resta** nel cestino;
-- **«Prodotto Shopify archiviato» ≠ «Eliminato da Shopify»**: archiviato significa presente
-  e non acquistabile, ed è **l'unico esito** che un'azione di VestiFlow produce (§11.1). È
-  anche il motivo per cui serve §11.8: archiviato, il prodotto è ancora là da ripescare.
+- **«Bozza» non è un valore unico**: la stessa etichetta copre due cause opposte per la
+  riattivazione automatica del prodotto — vedi la tabella di §3.4;
+- **nessuno di questi stati implica un altro**: «Ritirato» non dice se è ancora «Collegato» o
+  già «Eliminato su Shopify» — sono due assi, e vanno letti entrambi (§3.1).
 
 ---
 
@@ -1031,6 +1314,15 @@ Le etichette funzionali sono **«Sposta nel cestino»**, **«Ripristina»** ed *
 definitivamente»**. Il comando «Riprova sincronizzazione» e la forma dettagliata del confronto
 fra combinazioni restano proposte tecniche/UI, non prerequisiti per applicare le regole sopra.
 
+⭐ **E le etichette dei DUE comandi reversibili sono state fissate il 06/09/2026** (§1.11):
+**«Disattiva»** e **«Riattiva»** per lo stato locale, **«Ritira da Shopify»** e **«Rimetti in
+vendita su Shopify»** per la vendita online.
+
+⚠️ **Non sostituiscono le tre qui sopra: appartengono a un altro asse.** «Sposta nel cestino» e
+«Disattiva» non sono sinonimi — dal cestino un record esce solo con «Ripristina», mentre un
+record disattivato è **presente e usabile in lettura**, con storia, identificativi Shopify e
+collegamenti intatti. Confonderli è la prima delle confusioni elencate in §3.7.
+
 ### 7.2 Preflight di eliminazione
 
 > 🔧 **Proposta tecnica da verificare**
@@ -1260,15 +1552,497 @@ Per rendere stabile il matching, valutare un metafield app-owned con UUID VestiF
 - titolo opzioni;
 - ordine di risposta.
 
-La tabella di mapping del connettore deve inoltre distinguere almeno:
-
-- mapping attivo;
-- mapping ritirato ma conservato per audit;
-- variante standalone/default;
-- variante con opzioni esplicite;
-- anomalia remota non ancora riconciliata.
+⛔ **Qui c'era «la tabella di mapping del connettore deve inoltre distinguere almeno: mapping
+attivo, mapping ritirato ma conservato per audit, …»** — quattro righe che dicevano _che cosa_
+serviva senza dire _come_. Il modello è stato progettato per intero il 06/09/2026, con stati,
+vincoli e registro delle consegne: **§8.5.1-§8.5.5**. La distinzione «standalone/default» resta
+qui perché riguarda il **ruolo Shopify** della variante (§3.5), non il suo collegamento.
 
 `standalone/default` descrive il ruolo della variante nel modello Shopify. Non significa `tecnica da ignorare`: per un articolo semplice deve essere collegata alla variante base reale di VestiFlow.
+
+### 8.5.1 Identità del negozio
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+Misurato sullo shop di sviluppo il 06/09/2026: `Shop.id` GraphQL è **`gid://shopify/Shop/{numero}`**,
+permanente per il negozio. `myshopifyDomain` è di fatto stabile ma è una stringa, non
+un'identità: il cambio negozio riscrive `ShopifyConnection.shopDomain`, quindi non basta a
+risalire al negozio precedente.
+
+**Nuova entità `ShopifyShop`**, separata dalla connessione corrente:
+
+```text
+shopify_shops
+  id (uuid) · tenant_id (FK tenants)
+  shop_gid              gid://shopify/Shop/99462054183   — identità immutabile
+  myshopify_domain      fotografia al momento del collegamento
+  first_seen_at · last_seen_at
+
+  UNIQUE (tenant_id, shop_gid)
+  UNIQUE (shop_gid)                  ← vedi sotto
+  UNIQUE (id, tenant_id)             ausiliaria per le FK composite di §8.5.2-8.5.3
+```
+
+⭐ **`shop_gid` è univoco GLOBALMENTE, non solo per tenant** — deciso il 06/09/2026: **lo stesso
+negozio Shopify non può appartenere contemporaneamente a due tenant VestiFlow.** Un negozio
+online è un'entità fisica di un solo commerciante; due tenant che lo collegano insieme
+significherebbe due gestionali che si contendono lo stesso catalogo e gli stessi ordini.
+
+⚠️ **Salvo un caso commerciale contrario, che oggi non è documentato.** Se un giorno esistesse
+un motivo di prodotto per cui più tenant devono poter leggere lo stesso negozio — un gruppo con
+un unico negozio online e più sedi gestite come tenant separati, per esempio — quel caso va
+dichiarato esplicitamente qui, con le sue regole di conflitto, prima di rilassare il vincolo.
+Finché non esiste, il vincolo resta globale e il database lo impone da solo.
+
+⭐ **La connessione punta al negozio, non lo sostituisce**: `ShopifyConnection.shopId` (FK
+verso `ShopifyShop`) si aggiunge alla connessione esistente. `ShopifyConnection` resta
+`tenantId @unique` — una sola connessione corrente per tenant — ma può aver puntato a negozi
+diversi nel tempo, e ognuno lascia una riga propria qui.
+
+#### La transazione di cambio negozio
+
+Riconfigurare la connessione su un negozio diverso è **un'operazione sola**, nella stessa
+transazione:
+
+1. **si crea** (o si ritrova, se già noto) l'identità immutabile del nuovo negozio in
+   `shopify_shops`;
+2. **si aggiorna** `ShopifyConnection` a puntare al nuovo `shop_id` e al nuovo `shopDomain`;
+3. **si chiudono** tutti i link `active` del **vecchio** negozio — prodotto e variante — con
+   `close_reason = shop_change` (§8.5.2);
+4. gli identificativi remoti del vecchio negozio **restano storici**: nessuna riga si cancella,
+   nessun id si azzera;
+5. **le colonne-cache** esistenti (`shopifyProductId`, `shopifyVariantId`,
+   `shopifyInventoryItemId` su `Product`/`ProductVariant`) si aggiornano **nella stessa
+   transazione** — coerentemente con §8.5.5: dopo il cambio negozio non devono restare a
+   puntare a un id che appartiene ormai a un negozio diverso.
+
+⛔ **Nessuno di questi passi è nuovo per il progetto**: il purge da cambio negozio esiste già
+(`shopify-shop-change.service.ts`) e oggi **cancella** prodotti e clienti collegati invece di
+chiudere i link. Il comportamento richiesto qui è diverso da quello attuale, e va registrato
+come lavoro di tranche, non come correzione immediata.
+
+### 8.5.2 Storico dei collegamenti Shopify — modello
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+**Due tabelle sorelle**, `ShopifyProductLink` e `ShopifyVariantLink`, con FK reali verso
+`Product`/`ProductVariant` e verso `ShopifyShop`. Sono la fonte canonica di collegamento
+(§8.5.5); le colonne-cache esistenti restano un puntatore rapido aggiornato insieme.
+
+```text
+shopify_product_links
+  id · tenant_id · shop_id · product_id
+  shopify_product_id
+  status            active | remotely_deleted | unlinked
+  close_reason      null | remote_delete | not_found | operator | shop_change
+  superseded_by_link_id   FK a se stessa, nullable
+  linked_at · closed_at
+  last_event_at · last_event_triggered_at
+
+shopify_variant_links
+  id · tenant_id · shop_id · product_id · variant_id · product_link_id
+  shopify_variant_id · shopify_inventory_item_id
+  status · close_reason · superseded_by_link_id
+  linked_at · closed_at · last_event_at · last_event_triggered_at
+```
+
+#### Unicità — quattro garanzie, non tre
+
+> ✅ **Decisione confermata**: l'unicità solo sulle righe `active` per id remoto è
+> insufficiente, perché renderebbe ambigua la risoluzione di ordini e resi storici (§8.5.4).
+
+| #   | Garanzia                                                       | Indice                                                                        |
+| --- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1   | un solo record, **storico o corrente**, per `shopifyProductId` | `UNIQUE (shop_id, shopify_product_id)` — su TUTTE le righe, non solo `active` |
+| 2   | un solo record, **storico o corrente**, per `shopifyVariantId` | `UNIQUE (shop_id, shopify_variant_id)` — idem                                 |
+| 3   | un solo collegamento `active` per prodotto locale              | `UNIQUE (product_id) WHERE status = 'active'` — indice **parziale**           |
+| 4   | un solo collegamento `active` per variante locale              | `UNIQUE (variant_id) WHERE status = 'active'` — idem                          |
+
+⭐ **Le garanzie 1-2 sono quelle che rendono impossibile riusare un id remoto dopo la
+chiusura** (la tua regola d'apertura): un id remoto compare **una volta sola** nella tabella,
+per sempre. Le garanzie 3-4 impediscono invece che un'entità locale abbia due collegamenti
+vivi insieme — sono la stessa regola di §3.1 (un solo asse alla volta), applicata al database.
+
+⭐ **Un indice unico parziale è già un pattern del progetto**: usato da
+`cash_sessions_open_per_location` e `vat_codes_tenant_default_key`. Non introduce una tecnica
+nuova.
+
+⚠️ **Sull'indice parziale, nessuna race condition**: è l'indice a decidere, non un controllo
+applicativo — due inserimenti concorrenti che superano entrambi un controllo a livello di
+servizio non sono un problema, perché il secondo si blocca sul conflitto finché il primo non
+fa commit, poi fallisce con un errore di vincolo che il chiamante traduce in un conflitto di
+dominio leggibile. Vale già sotto l'isolamento di default di PostgreSQL, senza bisogno di
+`SERIALIZABLE` né di lock espliciti.
+
+#### Stati — tre, non quattro
+
+> ⛔ **Corretto il 06/09/2026: `superseded` NON è uno stato.**
+
+Rappresenta solo l'esistenza di un successore, e usarlo come stato **cancella la causa vera**:
+un link chiuso perché il prodotto è stato eliminato su Shopify, dopo una ripubblicazione,
+diventerebbe genericamente «sostituito» — e nessuno saprebbe più che era stato cancellato.
+
+| Colonna                 | Che cosa dice                                                            | Quando cambia                                                         |
+| ----------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `status`                | dov'è il collegamento adesso: `active` · `remotely_deleted` · `unlinked` | una volta, alla chiusura — mai più                                    |
+| `close_reason`          | **perché** si è chiuso                                                   | fissata alla chiusura, non cambia mai                                 |
+| `superseded_by_link_id` | **se** esiste un successore, e quale                                     | può essere impostata **dopo** la chiusura, quando nasce il nuovo link |
+
+⭐ **Ripubblicazione, corretta**: il vecchio link resta `remotely_deleted` con la sua
+`close_reason` originale (`remote_delete` o `not_found`) — **non la perde mai**. Riceve solo il
+puntatore al successore. Nasce un link **nuovo**, `active`. Nessuna riapertura, nessuna
+riscrittura della causale.
+
+#### I CHECK — cinque, e vanno letti come un gruppo
+
+```sql
+-- 1-2: bidirezionale. Attivo ⇒ nessuna chiusura; chiuso ⇒ chiusura completa.
+CHECK (status <> 'active' OR (closed_at IS NULL AND close_reason IS NULL))
+CHECK (status = 'active'  OR (closed_at IS NOT NULL AND close_reason IS NOT NULL))
+
+-- 3-4: la causale ammessa dipende dallo stato.
+CHECK (status <> 'remotely_deleted' OR close_reason IN ('remote_delete', 'not_found'))
+CHECK (status <> 'unlinked'         OR close_reason IN ('operator', 'shop_change'))
+
+-- 5: un link non punta a se stesso.
+CHECK (superseded_by_link_id IS NULL OR superseded_by_link_id <> id)
+```
+
+⚠️ **I CHECK 3 e 4 non reggono da soli**: `close_reason IN (...)` su `NULL` vale `NULL`, e un
+CHECK fallisce solo su `FALSE` — un `close_reason` lasciato vuoto su un link `remotely_deleted`
+supererebbe 3-4 in silenzio. È il **CHECK 2** a chiudere il varco, imponendo `close_reason NOT
+NULL` per ogni stato diverso da `active`. **I cinque vanno scritti e letti insieme**: un giorno
+il 2 può sembrare ridondante rispetto a 3-4 e venire tolto per pulizia — non lo è.
+
+⛔ **Il CHECK 5 non basta contro un ciclo fra due righe** (A punta a B, B punta ad A): un
+vincolo di riga non può vedere un'altra riga. La garanzia «nessun ciclo» resta **applicativa**
+(si scrive il successore solo in un `UPDATE` che segue l'`INSERT` del nuovo link, mai in un
+ordine che permetta due righe di puntarsi a vicenda), non del database.
+
+#### Le FK — verificate, con due correzioni
+
+```text
+FK (product_id, tenant_id)  → products(id, tenant_id)
+FK (shop_id, tenant_id)     → shopify_shops(id, tenant_id)
+FK (superseded_by_link_id, product_id, shop_id)
+     → shopify_product_links(id, product_id, shop_id)     ON DELETE RESTRICT
+
+-- variante, in più:
+FK (variant_id, product_id) → product_variants(id, product_id)   ← la variante È di quel prodotto
+FK (product_link_id, product_id, shop_id)
+     → shopify_product_links(id, product_id, shop_id)             ON DELETE RESTRICT
+```
+
+⚠️ **`ON DELETE RESTRICT`, esplicito, su entrambe le FK auto-referenziali e gerarchiche —
+correzione tecnica del 06/09/2026.** Mai `SET NULL` (perderebbe il legame con il predecessore o
+col prodotto senza che nessuno se ne accorga) e mai `CASCADE` (su una catena di ripubblicazioni
+propagherebbe una cancellazione lungo tutta la storia). Un link non si cancella mai comunque
+(§8.5.5): `RESTRICT` è la forma che lo dichiara.
+
+⭐ **Precedente già nel progetto**: `FiscalReceipt.originalReceiptId` è già una FK
+auto-referenziale nello schema attuale — la forma non è nuova per questo database.
+
+⭐ **Ordine di scrittura, verificato**: prima si crea (`INSERT`) il link nuovo `active`, poi si
+aggiorna (`UPDATE`) il vecchio con `superseded_by_link_id`. Nella stessa transazione, senza
+bisogno di vincoli `DEFERRABLE`.
+
+**Ausiliarie sulle tabelle esistenti**, additive:
+
+```text
+products          UNIQUE (id, tenant_id)
+product_variants  UNIQUE (id, tenant_id) · UNIQUE (id, product_id)
+```
+
+#### ⚠️ Il Client Prisma non conosce l'indice parziale né i CHECK — mitigazione obbligatoria
+
+Verificato: Prisma legge e scrive la tabella normalmente, ma non valida questi vincoli — una
+violazione arriva come errore PostgreSQL grezzo (`23505`, `23514`), non come `P2002` con
+`meta.target` leggibile, e va tradotta a mano nel servizio applicativo.
+
+⭐ **La mitigazione è già una convenzione del progetto**: un commento `///` sul campo dello
+`schema.prisma` che dichiara dove vive il vincolo che Prisma non può esprimere — usata su
+`PaymentOption`, `CashSession`, `CashSessionDeviceChange`. Va applicata identica qui: ogni
+colonna coinvolta in un CHECK o nell'indice parziale porta il commento che rimanda alla
+migration che lo scrive.
+
+### 8.5.3 Registro delle consegne webhook — un INBOX, non solo una deduplica
+
+> ✅ **Decisione confermata** (06/09/2026) — corretta rispetto alla proposta del 06/09 mattina
+
+⛔ **Una sola colonna `last_event_dedupe_key` sul link non basta**: perdeva ogni consegna
+precedente, e non distingueva «mai arrivato» da «arrivato e mai elaborato» da «arrivato e
+fallito». Il registro deve essere un **inbox affidabile**, con la consegna come entità propria.
+
+```text
+shopify_webhook_deliveries
+  id · tenant_id · shop_id (FK shopify_shops)
+  webhook_id         X-Shopify-Webhook-Id      — identità della consegna, per la deduplica
+  event_id           X-Shopify-Event-Id        nullable — per correlare consegne della STESSA azione
+  topic · api_version
+  triggered_at       X-Shopify-Triggered-At    — l'istante di ORIGINE dell'evento, per l'ordine
+  received_at
+  processing_started_at · processed_at
+  status             received | processing | processed | failed
+  attempt_count      Int, default 0
+  last_error         nullable
+
+  UNIQUE (shop_id, webhook_id)
+  INDEX  (tenant_id, topic, triggered_at DESC)
+  INDEX  (status, processing_started_at)        ← per trovare le righe scadute o bloccate
+```
+
+⭐ **`X-Shopify-Webhook-Id` deduplica, `X-Shopify-Triggered-At` ordina, `X-Shopify-Event-Id`
+correla** — tre header, tre usi distinti. Più consegne della stessa azione commerciale (un
+prodotto e le sue varianti aggiornati nello stesso salvataggio su Shopify) possono condividere
+lo stesso `event_id`: utile per capire che due `products/update` ravvicinati sono la stessa
+causa, non due modifiche indipendenti.
+
+#### Il ciclo di vita di una consegna
+
+1. **HMAC verificato PRIMA di ogni altra cosa** — se non torna, la richiesta si rifiuta e non
+   si scrive nulla nel registro: un evento non autenticato non è una consegna, è rumore;
+2. `INSERT … ON CONFLICT (shop_id, webhook_id) DO NOTHING` con `status = 'received'` —
+   **nella stessa transazione** che verifica l'HMAC;
+3. se l'`INSERT` non inserisce nulla (conflitto): è un duplicato. Si risponde `200`
+   **senza ripetere alcun effetto**, e senza toccare lo stato della riga esistente — se
+   quella riga è ancora `received` o `processing`, il duplicato **non la fa apparire
+   conclusa**;
+4. se l'`INSERT` inserisce: un worker (o lo stesso processo, con un `UPDATE … WHERE status =
+'received' RETURNING …`) marca `processing`, con `processing_started_at`;
+5. **l'acquisizione è per riga**: `UPDATE shopify_webhook_deliveries SET status = 'processing',
+processing_started_at = now() WHERE id = $1 AND status = 'received' RETURNING id` — se due
+   worker tentano la stessa riga, solo uno la trova ancora `received` e la acquisisce; l'altro
+   riceve zero righe e si ritira. Nessun lock esplicito necessario: la `WHERE` sullo stato
+   basta;
+6. si applicano gli effetti (§8.5.4);
+7. **successo** → `processed`, `processed_at`; **fallimento** → `failed`, `last_error`,
+   `attempt_count += 1`.
+
+#### Recupero — tre casi, tre codici diversi
+
+| Riga trovata                             | Significa                                                  | Azione                                                                                                                                  |
+| ---------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `received` da più del timeout previsto   | mai stata presa in carico: crash fra INSERT e acquisizione | si riacquisisce come una riga nuova                                                                                                     |
+| `processing` da più del timeout previsto | il worker che l'aveva presa è morto a metà                 | si riacquisisce: **gli effetti applicati devono essere idempotenti** (§8.5.2 già lo richiede: chiudere un link già chiuso non fa nulla) |
+| `failed`                                 | elaborata e fallita                                        | riprovabile, manuale o a soglia di `attempt_count`                                                                                      |
+
+⚠️ **Il timeout non è deciso qui**: è un parametro tecnico, non funzionale. La regola
+funzionale è che una riga scaduta **si riprende**, non che si abbandona.
+
+### 8.5.4 Risoluzione: entità mancante, eventi fuori ordine, riconciliazione
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+#### Import e push: dove serve interrogare i link — censito il 06/09/2026
+
+| Punto oggi                                                        | Comportamento                       | Con il modello                                                                                                                                  |
+| ----------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shopify-product-pull.service.ts:344` — prodotto, primo import    | `findFirst → null → create`         | prima si interroga `shopify_product_links` per `(shop_id, shopify_product_id)`: **presente e chiuso** → si scarta; **assente** → import normale |
+| `:366`, `:439` — variante                                         | idem                                | idem su `shopify_variant_links`                                                                                                                 |
+| `persistShopifyIds` (push, `:1003-1018`) — ricollegamento per SKU | collega senza verificare lo storico | **rifiuta** se lo SKU risolve a un id remoto con link chiuso: è un'ambiguità, si segnala per riconciliazione, non si collega                    |
+| `shopify-variant-match.util.ts` — SKU → barcode → opzioni         | idem                                | idem                                                                                                                                            |
+
+⛔ **Nessun punto oggi azzera `shopifyProductId`/`shopifyVariantId`** (verificato): il rischio
+di «errore remoto → creazione Shopify» non esiste nel codice attuale. Con il modello, comunque,
+la creazione va condizionata all'**assenza di un link non chiuso**, non alla sola assenza della
+colonna-cache — perché è il link, non la colonna, la fonte (§8.5.5).
+
+#### Assenza remota: che cosa la dichiara — e che cosa NON deve poterla dichiarare
+
+Chiude un collegamento **solo**:
+
+- un nodo GraphQL che risolve a **`null`**, con `errors` assente e `userErrors` vuoto;
+- un `404` REST **di risorsa**, con corpo nel formato d'errore Shopify, su una versione API
+  valida e un token accettato.
+
+**Non chiude mai**: `401` · `403` · `429` · `5xx` · timeout · errori di rete · `errors` GraphQL
+di schema/versione/campo · `userErrors` · un `404` che in realtà è di **endpoint o versione**
+(una versione API scaduta risponde `404` a qualunque path, indistinguibile a occhio da un
+prodotto assente).
+
+#### Come si rileva una variante eliminata — la sequenza, per intero
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+Shopify **non ha un topic di cancellazione variante** (verificato sullo shop di sviluppo il
+06/09: gli unici topic con `VARIANT` nel nome sono `VARIANTS_IN_STOCK` e
+`VARIANTS_OUT_OF_STOCK`, che riguardano lo stock). La rilevazione è quindi una sequenza, e
+va scritta per esteso perché ogni passo saltato produce una chiusura sbagliata:
+
+1. **arriva un `products/update`** per il prodotto;
+2. **si rilegge l'elenco remoto COMPLETO** delle varianti di quel prodotto — non ci si ferma al
+   payload, che è parziale per contratto (§13.1);
+3. **si confrontano** gli id remoti letti con i collegamenti **attivi** di quel prodotto
+   (`shopify_variant_links`, `status = 'active'`);
+4. **si chiudono soltanto le varianti realmente assenti** dall'elenco completo, con
+   `close_reason = remote_delete`.
+
+⛔ **Il passo 2 non è un'ottimizzazione da saltare quando il payload sembra completo**: un
+payload che non nomina una variante non è la prova che non esista più, ed è la differenza fra
+chiudere un collegamento e perderne uno per una lettura affrettata.
+
+#### `INVENTORY_ITEMS_DELETE` — un segnale aggiuntivo da verificare, non la prova
+
+> 🔧 **Proposta tecnica, non decisione** — corretto il 06/09/2026
+
+Eliminando una variante, Shopify elimina anche il suo inventory item — osservato sullo shop di
+sviluppo come topic disponibile (§8.5, ricognizione del 06/09). VestiFlow conserva già
+`shopifyInventoryItemId` sulla variante, quindi l'evento sarebbe risolvibile senza rileggere
+nulla.
+
+⛔ **Ma è solo un innesco per una verifica mirata, non una prova di cancellazione.** Un
+inventory item può sparire per altre ragioni che il contratto non garantisce essere assenti
+(riorganizzazioni interne Shopify, per esempio). La cancellazione di una **variante** si
+conferma **rileggendo l'elenco remoto completo del prodotto**, normalmente in risposta a un
+`products/update` — mai da un payload parziale, e mai dal solo `INVENTORY_ITEMS_DELETE`. Quel
+topic, se sottoscritto, serve solo ad **accelerare** la verifica, non a sostituirla.
+
+#### Fuori ordine — tre categorie
+
+| Categoria                                      | Esempio                              | Regola                                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **terminale su un id preciso**                 | `products/delete`                    | si applica **sempre** al link di quell'id remoto: la cancellazione non si «supera» con un aggiornamento successivo                        |
+| **aggiornamento sullo stesso id**              | `products/update`                    | si applica **solo se** `triggered_at` dell'evento è più recente di `last_event_triggered_at` del link; altrimenti si scarta come obsoleto |
+| **evento sul vecchio id dopo ripubblicazione** | `products/delete` del GID sostituito | risolve al vecchio link, già chiuso: nessun effetto, il nuovo link — id remoto diverso — non viene toccato                                |
+
+⭐ **La chiave di risoluzione è sempre l'id remoto**, mai l'entità locale: è ciò che rende la
+terza riga vera per costruzione.
+
+#### Riconciliazione — obbligatoria, non sostituibile dai webhook
+
+Periodica e su richiesta: confronta l'elenco remoto completo con i link `active` e apre una
+voce per ogni divergenza. **Necessaria**, non opzionale: misurato il 06/09/2026, **cinque
+webhook su otto non sono nemmeno sottoscrivibili su questo negozio** (§8.5.6) — un sistema che
+si fidasse solo dei webhook non si accorgerebbe mai di una cancellazione ordini, perché gli
+ordini non arrivano affatto via webhook qui.
+
+#### Ordini e resi risolvono id storici, sempre
+
+`applyOrderFromShopify` e i suoi analoghi **non devono filtrare per `status` del link**: la
+risoluzione è «trova il link per id remoto, qualunque sia il suo stato, e prendi l'entità
+locale». È l'unica lettura che ignora `status` di proposito — coerente con §13.1.
+
+### 8.5.5 Fonte di verità
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+> **Le tabelle di collegamento sono la fonte canonica. `shopifyProductId`, `shopifyVariantId` e
+> `shopifyInventoryItemId` restano come cache, aggiornate nella STESSA transazione del link.**
+
+| Tranche            | Stato della duplicazione                                                             |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| 1 (questo modello) | link canonici + colonne-cache scritte insieme; ogni lettura **nuova** passa dai link |
+| 2-6                | i lettori esistenti migrano ai link uno alla volta                                   |
+| 7                  | ⭐ **le colonne-cache si rimuovono**, con una guardia che ne impedisca il ritorno    |
+
+⛔ **La rimozione non è un'intenzione: è la tranche 7 già fissata nella sequenza.** Due fonti
+autorevoli a tempo indeterminato sono il difetto che questo modello esiste per chiudere — non
+si dichiara qui una data, ma non si dichiara nemmeno un «per sempre» implicito.
+
+### 8.5.6 Cinque webhook su otto non sono registrabili: prerequisito di collaudo
+
+> ⚠️ **Prerequisito per il collaudo completo e per la futura entrata in esercizio — misurato il
+> 06/09/2026.** ⛔ **Non è un blocco allo sviluppo del ciclo di vita del catalogo**: prodotti e
+> varianti si progettano e si costruiscono senza aspettare questa approvazione.
+
+Verificato nel codice, non dedotto: `registerWebhooks` (`shopify-admin.client.ts:212`) **tenta
+la registrazione di tutti gli 8 topic**, inclusi i cinque protetti
+(`orders/create`, `orders/updated`, `orders/cancelled`, `customers/create`,
+`customers/update`). `SHOPIFY_PROTECTED_WEBHOOK_TOPICS` non filtra nulla **prima** della
+chiamata: viene letto solo **dopo**, in `shopify-oauth.service.ts:460-462`, per classificare un
+fallimento già avvenuto.
+
+**L'evidenza che il fallimento è di Shopify, non di VestiFlow** — tre citazioni dal codice:
+
+1. `shopify-webhook-topics.ts:27` — _«Richiedono Protected customer data approval su Shopify
+   Partners.»_
+2. `shopify-oauth.service.ts:467-472` — messaggio salvato quando i topic protetti falliscono:
+   _«Webhook giacenze attivo. Ordini e clienti richiedono permesso Protected customer data su
+   Shopify Partners (app VestiFlow): riconnetti dopo averlo abilitato.»_
+   (`code: webhook_partial_registration`)
+3. `shopify-oauth.service.ts:475-481` — se falliscono anche le giacenze: _«Webhook
+   ordini/clienti non registrati: Shopify richiede Protected customer data sull'app VestiFlow…»_
+   (`code: webhook_registration_failed`)
+
+⭐ **La limitazione arriva in UI**: `shopify-integration-panel.component.ts:295` legge
+`lastError.code === 'webhook_partial_registration'` per mostrare l'esito parziale
+all'operatore — non è silenziosa.
+
+**Che cosa comporta, con precisione**: §8.5.4 (risoluzione ordini/resi su id storici) e §13.1
+presuppongono che gli eventi commerciali **arrivino**. Senza l'approvazione «Protected customer
+data», ordini e clienti non arrivano via webhook in nessuna forma — non in ritardo, non
+parziali: mai. Nessuna correzione di codice lo risolve: serve l'approvazione su Shopify
+Partners, un'azione **esterna al repository**.
+
+⛔ **E la riconciliazione NON lo sostituisce.** §8.5.4 confronta il **catalogo** remoto con i
+link attivi, quindi trova prodotti e varianti mancanti anche senza webhook. Ordini, resi e
+clienti sono un'altra materia: nessun confronto di catalogo li ricostruisce. Chi legge la
+riconciliazione come rete di sicurezza generale sbaglia il perimetro.
+
+**Quando conta**: è un prerequisito del **collaudo completo** e della **futura entrata in
+esercizio**, non una condizione per costruire il ciclo di vita del catalogo. Registrato in
+`DA-FARE.md` come prerequisito, con la stessa distinzione.
+
+### 8.5.7 Sequenza di lavoro e gate di collaudo
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+⭐ **L'ordine non è un'opinione organizzativa**: ogni passo esiste perché il successivo, senza
+di lui, dovrebbe indovinare qualcosa.
+
+| #   | Passo                                                                                                      | Perché sta qui                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 1   | **patch di sicurezza contro la cancellazione remota**                                                      | indipendente da tutto il resto: toglie una capacità, non ne aggiunge                 |
+| 2   | **identità immutabile del negozio e collegamenti storici** (§8.5.1-§8.5.2)                                 | tutto il resto ha bisogno di dove scrivere lo stato di un collegamento               |
+| 3   | **backfill verificato** (§8.5.8)                                                                           | i link devono esistere per i dati già collegati, o ogni lettura nuova trova il vuoto |
+| 4   | **inbox affidabile delle consegne webhook** (§8.5.3)                                                       | prima di sottoscrivere un evento nuovo serve dove registrarlo senza perderlo         |
+| 5   | **`products/delete`, classificazione dell'assenza remota, blocco della ricreazione** (§8.5.4, §11.7-§11.8) | il primo consumatore vero dell'inbox e dei link                                      |
+| 6   | **riconciliazione prodotti e varianti, risoluzione degli id storici** (§8.5.4)                             | la rete che non dipende dai webhook                                                  |
+| 7   | 🔬 **collaudo mutativo sullo shop di sviluppo**                                                            | ⭐ **gate operativo, non necessariamente un commit** — vedi sotto                    |
+| 8   | **decisione tecnica sulla forma del ritiro** (§0-bis voce 1)                                               | si decide **dopo** il collaudo, con i fatti in mano                                  |
+| 9   | **comandi Disattiva / Riattiva / Ritira / Rimetti in vendita** (§1.11)                                     | il primo passo che cambia ciò che l'operatore vede                                   |
+| 10  | **gestione massiva** (§1.12)                                                                               | gli stessi comandi, in blocco                                                        |
+| 11  | **inventario GraphQL**                                                                                     | indipendente dal ciclo di vita, ma dopo di esso                                      |
+| 12  | **rimozione delle colonne-cache** (§8.5.5)                                                                 | ⛔ solo **dopo** che tutti i lettori sono migrati ai link                            |
+
+#### Il gate di collaudo (passo 7) — che cosa deve produrre
+
+⛔ **Nessun comando di ritiro si implementa prima di questo gate**, perché §0-bis voce 1 — la
+forma tecnica del ritiro di una singola variante — non è decidibile leggendo la documentazione
+Shopify: va osservata.
+
+È un **collaudo mutativo su entità di prova**, con fotografia iniziale, una variazione alla
+volta, verifica dal punto di vista del cliente e ripristino dello stato iniziale. Due prove
+distinte, perché una variante non ha uno stato `DRAFT` proprio:
+
+| Entità       | Che cosa si prova                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **prodotto** | `DRAFT` · unpublish · **ripristino** — quale forma rende non acquistabile, e che cosa serve sapere per tornare esattamente allo stato di prima |
+| **variante** | ritiro per **pubblicazione** · visibilità effettiva per il cliente · **ripristino**                                                            |
+
+⚠️ **Il ripristino fa parte della prova, non è il riordino dopo**: la domanda del gate è quanto
+fedelmente si torna indietro, e senza provarlo non la si è misurata.
+
+### 8.5.8 Migration e backfill
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+**Una sola migration** per la creazione: enum, le tre tabelle, gli indici (compresi i parziali),
+le ausiliarie su `products`/`product_variants`, le FK composite, i `CHECK`, **e nello stesso
+file `ENABLE ROW LEVEL SECURITY` più le `REVOKE`**. ⛔ Non deve esistere una finestra, nemmeno
+di una migration, in cui una tabella applicativa è priva di RLS.
+
+**Il backfill è preceduto da controlli bloccanti.** La migration si ferma se una qualunque di
+queste query restituisce righe:
+
+1. `shopify_product_id` duplicato fra prodotti dello stesso tenant;
+2. `shopify_variant_id` o `shopify_inventory_item_id` duplicato;
+3. varianti collegate il cui prodotto ha un `shopifyProductId` di un altro tenant, o nullo;
+4. `product_variants.tenant_id` diverso dal `tenant_id` del prodotto padre.
+
+⛔ **Nessuna deduplica automatica, nessuna scelta euristica.** Se un duplicato esiste, lo
+risolve una persona prima che la migration riparta: decidere da soli quale collegamento «vince»
+è esattamente la decisione silenziosa che questo modello esiste per impedire.
 
 ### 8.6 Operazioni GraphQL ammesse
 
@@ -1616,15 +2390,28 @@ Non imposta la giacenza a zero. Non usa `inventoryPolicy = DENY` come sostituto.
 
 ### 10.3 Riattivazione
 
-> ✅ **Decisione confermata**
+> ✅ **Decisione confermata** — precisata il 06/09/2026 sulla presenza Shopify (§3.1)
 
-Rimettere in uso:
+⭐ **«Riattiva in VestiFlow» agisce SOLO sullo stato locale.** Non ripubblica automaticamente
+su Shopify: rimettere in vendita è un comando separato, «Rimetti in vendita su Shopify», con
+il proprio esito ed i propri errori.
 
-1. rende la variante di nuovo selezionabile localmente;
-2. non la pubblica automaticamente su tutti i canali;
-3. ripristina, su conferma, le publication precedentemente gestite o quelle selezionate ora;
-4. pubblica la quantità calcolata da VestiFlow;
-5. verifica l'esito per canale.
+Rimettere in uso localmente:
+
+1. rende la variante di nuovo selezionabile in un nuovo documento;
+2. non tocca in nessun modo lo stato di vendita Shopify;
+3. non pubblica su nessun canale.
+
+**«Rimetti in vendita su Shopify» si ramifica sulla PRESENZA (§3.1), non è un comando unico:**
+
+| Presenza Shopify dell'entità              | Azione disponibile                                   | Comportamento                                                                                                      |
+| ----------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Collegato** (esiste ancora)             | **«Rimetti in vendita su Shopify»**                  | usa le publication conservate dal ritiro; pubblica la quantità calcolata da VestiFlow; verifica l'esito per canale |
+| **Eliminato su Shopify** (non esiste più) | **«Pubblica nuovamente su Shopify»**, non «Riattiva» | crea un'entità nuova, con nuovi identificativi (§11.9): non c'è nulla da «rimettere»                               |
+
+⛔ **Offrire «Rimetti in vendita» su un'entità Eliminata su Shopify sarebbe un comando che
+promette un effetto che non può produrre**: non esiste un id remoto da ripubblicare. L'unica
+azione onesta in quello stato è quella che dichiara di creare qualcosa di nuovo.
 
 ### 10.4 Inventory policy
 
@@ -1659,6 +2446,26 @@ quantità inviata a Shopify = max(0, disponibile VestiFlow)
 ⭐ **La disponibilità negativa resta visibile in VestiFlow**, ed è un fatto che l'operatore deve vedere. Non viene trasformata in un movimento, in una rettifica o in un azzeramento: verso il canale si pubblica zero, in casa si legge il numero vero.
 
 Se la variante è non attiva o eliminata, la quantità **non** è il modo di nasconderla: governa soltanto l'inventario. La rimozione dalle publication è l'atto commerciale.
+
+#### ⭐ La sincronizzazione inventario non deve rimettere in vendita — deciso il 06/09/2026
+
+> **Lo stato di Vendita Shopify (§3.1) PREVALE sulla quantità locale. Aggiornare la quantità di
+> una variante Ritirata non la rimette in vendita, e non deve farlo nemmeno per effetto
+> indiretto. Solo «Rimetti in vendita su Shopify» cambia lo stato di vendita.**
+
+⛔ **È il caso che questa sezione descriveva a metà**: diceva che la quantità «governa soltanto
+l'inventario», ma non diceva esplicitamente che il ciclo periodico di sincronizzazione
+inventario **non deve interpretare** un aggiornamento di quantità come un segnale per
+ripubblicare. I due fatti sono indipendenti per costruzione (§3.1), ma un ciclo di
+riconciliazione che scrivesse quantità e, distrattamente, anche stato di pubblicazione
+violerebbe la separazione degli assi silenziosamente.
+
+⚠️ **Nel codice oggi non esiste il concetto da proteggere**: misurato il 06/09/2026,
+`shopify-inventory-push.service.ts` non legge `lifecycleStatus` né alcuno stato di
+pubblicazione prima di scrivere la quantità — perché oggi **non esiste ancora un ritiro** da
+proteggere (nessun comando lo produce). Non è un difetto da correggere ora: è un vincolo da
+rispettare quando il ritiro esisterà, registrato qui perché non si scopra per tentativi il
+giorno in cui la prima variante ritirata riceve un aggiornamento di giacenza.
 
 ⚠️ `inventoryPolicy` è una **decisione separata** — se si possa vendere senza disponibilità — e sta in §10.4. Non rappresenta lo stato della variante.
 
@@ -1833,32 +2640,71 @@ Durante una cancellazione pendente:
 
 ### 11.7 Eliminazioni eseguite direttamente su Shopify
 
-> ✅ **Decisione confermata** (03/09/2026)
+> ✅ **Decisione confermata** (03/09/2026, protocollo reso prescrittivo il 06/09/2026)
 
 > **La cancellazione eseguita su Shopify non cancella mai automaticamente il prodotto o la
-> variante da VestiFlow.**
+> variante da VestiFlow. Shopify può essere modificato direttamente dal titolare del negozio:
+> VestiFlow deve recepire il fatto, conservare la corrispondenza storica, e non ricreare
+> automaticamente ciò che è stato eliminato volontariamente.**
 
 ⭐ È il verso opposto di §11.1, e la simmetria è voluta: nessuna delle due piattaforme
 distrugge dati nell'altra. Un negozio online non decide che cosa esiste in magazzino.
 
-Quando una **variante collegata** viene eliminata su Shopify:
+⛔ **Qui l'operatore sceglieva fra quattro opzioni** — ricreare, lasciare locale, rendere non
+attiva, spostare nel cestino — **ed è stato sostituito**: la reazione a un'eliminazione remota
+non è più una scelta al momento, è una transizione automatica e una sola via di ritorno.
 
-- variante, storico, giacenza, impegni e movimenti VestiFlow **restano invariati**;
-- lo stato del canale diventa **«Non presente su Shopify»** (§3.7);
-- il collegamento remoto **non viene riutilizzato** come se fosse ancora valido;
-- la variante **non viene ricreata automaticamente** dal normale push;
-- l'operatore **riceve un avviso**;
-- l'operatore sceglie fra: **ricreare** la variante su Shopify · lasciarla **soltanto locale**
-  · renderla **non attiva** · spostarla nel **cestino**.
+Quando un **prodotto o una variante collegati** vengono eliminati su Shopify, per entrambi:
 
-La stessa regola vale per un **prodotto** eliminato direttamente su Shopify: il prodotto
-VestiFlow non viene eliminato e non viene ricreato automaticamente.
+1. si riceve l'evento Shopify pertinente (o si verifica lo stato remoto, vedi sotto);
+2. il record locale **si conserva integralmente**: variante o prodotto, storico, giacenza,
+   impegni e movimenti VestiFlow restano invariati;
+3. l'identificativo remoto **si conserva nello storico**, non si cancella e non si riusa come
+   se fosse ancora valido;
+4. lo stato di Presenza (§3.1) diventa **«Eliminato su Shopify»**;
+5. il push automatico ordinario **si ferma per quella entità**: non tenta di aggiornare un id
+   che non esiste più;
+6. **nessuna ricreazione automatica** su Shopify;
+7. resta possibile collegare ordini, resi ed eventi storici già legati a quell'identificativo:
+   la storia commerciale non dipende dal fatto che l'entità esista ancora sul canale;
+8. l'unica via per tornare in vendita è un comando esplicito, **«Pubblica nuovamente su
+   Shopify»** (§11.9) — non «Riattiva», che agisce solo sullo stato locale (§10.3).
+
+⛔ **La stessa regola vale per un 404.** Quando una lettura o una scrittura verso Shopify
+riceve `404`, l'entità remota mancante **non equivale mai a un'entità da creare**: si applica
+la stessa transizione del punto 4, non un tentativo di ricrearla per farla tornare a posto.
 
 ⛔ **Un webhook di modifica prodotto NON basta a dichiarare eliminata una variante.** Prima
 della decisione VestiFlow deve **verificare lo stato remoto completo** interrogando Shopify:
 un payload parziale che non nomina una variante non è la prova che non esista più — è la
 regola già scritta in §13.1 («non considerare il payload parziale come fotografia completa»),
 qui applicata al caso in cui sbagliarsi costa una riga di magazzino.
+
+#### ⛔ Il meccanismo che dovrebbe innescare questa sezione NON esiste — misurato il 06/09/2026
+
+Questa sezione descrive **come reagire**, non **quando**. Verificato nel codice:
+
+- `SHOPIFY_WEBHOOK_TOPICS` (`shopify-webhook-topics.ts`) **non contiene `products/delete`**:
+  nessuna sottoscrizione, nessuna registrazione, nessun evento in arrivo. Se il titolare
+  cancella un prodotto su Shopify oggi, **VestiFlow non lo saprà mai** finché qualcosa non
+  tenta di aggiornarlo e fallisce;
+- Shopify **non ha un webhook di cancellazione variante**: l'unico segnale possibile è
+  l'assenza da un `products/update` (già coperto sopra) o una verifica esplicita — nessuna
+  delle due è oggi implementata come innesco di questa sezione;
+- il trattamento del `404` (punto ⛔ sopra) **non esiste nel codice**: `shopify-admin-http.
+client.ts` intercetta il `404` solo per le `DELETE` in uscita (e lo tratta come successo,
+  perché quella chiamata sta per essere rimossa — vedi debito in `DA-FARE.md`); su una lettura
+  o un aggiornamento un `404` diventa oggi un errore generico indistinguibile da qualunque
+  altro fallimento di rete.
+
+⚠️ **Questa sezione descrive quindi un bersaglio senza grilletto**: il protocollo è deciso, ma
+oggi nessun evento e nessun controllo lo attiva. È lavoro di tranche, non debito da correggere
+in una riga.
+
+⭐ **Il modello che dà a questa sezione dove scrivere il proprio esito è progettato**, non più
+solo evocato: `ShopifyProductLink`/`ShopifyVariantLink` (§8.5.2), con gli stati `active` /
+`remotely_deleted` / `unlinked` che sostituiscono ogni interpretazione ad hoc di «eliminato».
+Resta lavoro di tranche **costruirlo**: la progettazione non è implementazione.
 
 ### 11.8 Prevenzione della reimportazione
 
@@ -1881,6 +2727,58 @@ nuovo, senza storia e senza giacenza. L'operatore lo eliminerebbe di nuovo, e di
 
 ⛔ **La struttura tecnica non si decide qui.** Tabella, forma e collocazione del riferimento
 appartengono a chi implementa: questa sezione dichiara il **risultato**, non il come.
+
+#### ⛔ La sua assenza è già sfruttabile OGGI — confermato leggendo il codice il 06/09/2026
+
+Non è solo «non ancora costruita»: è una lacuna **attiva**. `importProductFromWebhook`
+(`shopify-product-pull.service.ts:175`) cerca il prodotto locale con
+
+```ts
+const existing = await this.prisma.product.findFirst({ where: { tenantId, shopifyProductId } });
+```
+
+e se `existing` è `null` **procede a `product.create`** (riga 344). Un `shopifyProductId` mai
+visto e un `shopifyProductId` **eliminato definitivamente in VestiFlow** producono lo stesso
+`null`: il codice non li distingue, perché non esiste alcuna tabella di esclusione da
+interrogare. Il controllo di sincronizzazione spenta (`syncSpentaPerRemoto`) non aiuta: su un
+prodotto mai trovato restituisce `false` (nessuna riga da cui leggere il flag), quindi non
+salta l'importazione.
+
+⚠️ **Conseguenza pratica**: se oggi esistesse già l'eliminazione definitiva (non esiste, §0-bis
+voce 2), il primo `products/update` o `products/create` in arrivo per quello stesso
+`shopifyProductId` **lo ricreerebbe**, esattamente lo scenario che questa sezione esiste per
+impedire. Non è ipotetico: è il comportamento che il codice produce oggi, verificato leggendo
+la funzione.
+
+⭐ **Il «riferimento tecnico minimo» che questa sezione chiedeva è progettato**: è
+`ShopifyProductLink`/`ShopifyVariantLink` con `status = 'remotely_deleted'` o `unlinked`
+(§8.5.2) — la stessa tabella che serve §11.7, non una seconda. `findFirst` dovrà interrogare
+i link prima di concludere «mai visto» (§8.5.4).
+
+### 11.9 Pubblicazione successiva
+
+> ✅ **Decisione confermata** (06/09/2026)
+
+«Pubblica nuovamente su Shopify» è il comando che segue un'entità **Eliminata su Shopify**
+(§3.1, §3.7) o **Mai pubblicato**. Non è un sinonimo di «Rimetti in vendita»: quel comando
+presuppone che l'entità esista ancora (§10.3); questo presuppone che non esista, e deve
+crearla.
+
+1. **crea una nuova entità su Shopify**, con **nuovi identificativi**: non esiste un vecchio
+   GID da far rivivere;
+2. gli identificativi **precedenti restano nello storico** (§11.8): non si cancellano, non si
+   riassegnano, restano un fatto del passato;
+3. pubblica **soltanto le varianti locali Attive e abilitate per Shopify** — una variante Non
+   attiva o nel cestino non risale sul canale come effetto collaterale di questo comando;
+4. **non riusa silenziosamente il vecchio collegamento**: anche se un id remoto storico
+   sembrasse ancora valido, questo comando non tenta di riagganciarlo — crea, non ripara;
+5. **richiede conferma esplicita** se esistono possibili corrispondenze create manualmente su
+   Shopify nel frattempo: un titolare che ha già ricreato a mano il prodotto durante l'assenza
+   di VestiFlow non deve trovarsi con un duplicato silenzioso.
+
+⛔ **La forma tecnica del punto 5 non è decisa qui**: quali segnali contano come «possibile
+corrispondenza» (stesso SKU? stesso titolo? stesso handle?) è un lavoro di tranche, non una
+regola funzionale già scritta.
 
 ---
 
@@ -2107,6 +3005,34 @@ Ogni webhook:
 - non considera il payload parziale come fotografia completa;
 - accoda una lettura GraphQL quando serve arricchimento;
 - applica soltanto la allowlist del campo/topic.
+
+⭐ **«Salva identificatore evento» e «è idempotente» sono ora il registro delle consegne
+di §8.5.3**, non una frase generica: `X-Shopify-Webhook-Id` deduplica, `X-Shopify-Triggered-At`
+ordina, `X-Shopify-Event-Id` correla. Un duplicato risponde `200` senza ripetere effetti **e
+senza far apparire conclusa** una consegna mai elaborata (§8.5.3).
+
+#### ⭐ Spegnere la sincronizzazione NON deve fermare tutto — deciso il 06/09/2026
+
+> **«Disattiva sincronizzazione» ferma l'allineamento automatico di catalogo e inventario, e
+> mostra che Shopify non sarà più mantenuto da VestiFlow. Non deve impedire l'elaborazione
+> degli eventi necessari alla sicurezza e allo storico: cancellazioni remote, ordini,
+> pagamenti e resi continuano a essere acquisiti e collegati.**
+
+⭐ **Verificato il 06/09/2026: per ordini e inventario è già così.** `applyOrderFromShopify` e
+`applyInventoryLevelFromShopify` (`shopify-sync.service.ts`) **non leggono
+`Product.shopifySyncEnabled`**: solo `products/create` e `products/update` lo controllano,
+tramite `shopify-product-pull.service.ts`. Un ordine o un reso legati a un prodotto con la
+sincronizzazione spenta vengono acquisiti lo stesso.
+
+⛔ **Ma «cancellazioni remote» non può ancora rientrare in questa regola**: non c'è un evento
+da lasciar passare, perché non esiste (§11.7, il paragrafo sul meccanismo mancante). Il vincolo
+è corretto e va rispettato quando quell'evento sarà costruito; oggi non c'è nulla da eccettuare.
+
+⛔ **Registrato come debito, non come questa regola**: lo spegnimento della sincronizzazione
+**per prodotto** archivia oggi anche il prodotto remoto (`archiveOnSyncDisabled`), che è un
+fatto di **Vendita**, non di scambio dati — vedi §1.11 e `DA-FARE.md`. Questa sezione non lo
+risolve: dice solo che gli eventi di sicurezza/storico non vanno bloccati, non tocca
+l'accoppiamento sync↔archiviazione.
 
 ### 13.2 Eventi in uscita
 

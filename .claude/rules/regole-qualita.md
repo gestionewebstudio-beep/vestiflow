@@ -26,11 +26,28 @@ Con le storie divergenti:
 
 Al loro posto, sempre e solo:
 
-| Devi…                           | Comando                     |
-| ------------------------------- | --------------------------- |
-| applicare le migration mancanti | `npm run prisma:deploy`     |
-| rigenerare il client            | `npm run prisma:generate`   |
-| vedere cosa manca               | `npx prisma migrate status` |
+| Devi…                             | Comando                      |
+| --------------------------------- | ---------------------------- |
+| provare le migration in locale    | `npm run prisma:deploy:test` |
+| rigenerare il client              | `npm run prisma:generate`    |
+| vedere cosa manca                 | `npx prisma migrate status`  |
+| applicarle al database di Railway | **lo fa il deploy**, da sé   |
+| applicarle a mano al condiviso    | ⛔ **non esiste un comando** |
+
+⛔ **L’ultima riga è una decisione del 07/09/2026, non una lacuna.** Qui c’era
+«applicare le migration mancanti → `npm run prisma:deploy`», e quel comando
+applicava al database **condiviso** senza dirlo: la CLI Prisma carica `api/.env`
+da sé, e `migrate deploy` non usa `url` ma `directUrl`. Una migration ci è finita
+per errore, con un comando che sembrava puntare altrove.
+
+`DIRECT_URL` non sta più in `api/.env`, quindi `migrate deploy`, `db execute
+--schema` e `migrate resolve` falliscono con **P1012 prima di aprire una
+connessione**. `npm run prisma:deploy` è ora una guardia che spiega.
+
+⚠️ **E non si rimette in circolazione passando le variabili a mano.** Finché non
+esisterà la procedura test → produzione, un intervento manuale eccezionale
+richiede una nuova autorizzazione e una procedura preparata per quel caso — non
+una riga da incollare da una tabella.
 
 ⛔ **Mai** `prisma migrate diff --from-schema-datasource` per generare una migration
 nuova: su questo database condiviso propone di cancellare le tabelle degli altri
@@ -39,7 +56,9 @@ rami. Vedi sotto.
 Una **migration nuova** si scrive **a mano**, davvero a mano: si modifica
 `prisma/schema.prisma`, si scrive l'SQL in
 `prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento che dica
-perché**, e lo si applica con `npm run prisma:deploy`.
+perché**, e la si prova con `npm run prisma:deploy:test` — sul database di prova,
+e su una copia con dati veri se tocca tabelle popolate. Al database di Railway ci
+pensa il deploy.
 
 ### ⛔ Un quarto comando vietato: `prisma migrate diff --from-schema-datasource`
 
@@ -72,7 +91,7 @@ migration con lo schema, quindi ciò che vive nel database non entra mai nel
 confronto. Richiede però un **database ombra** (`--shadow-database-url`), che qui
 non è configurato: finché non lo sarà, l'SQL si scrive a mano.
 
-**`npm run prisma:deploy` non ha mai avuto questo rischio**: applica i file e
+**Applicare le migration non ha mai avuto questo rischio**: `migrate deploy` applica i file e
 basta, non confronta niente. Il pericolo stava nel _generare_ il file.
 
 `.claude/settings.json` blocca quei comandi via permessi, e `npm run prisma:migrate` è
@@ -93,7 +112,7 @@ niente, perché `include` prende tutti gli scalari.
 prudenza, il database è condiviso», `generate` lanciato — e l'elenco ordini è andato giù.
 La prudenza ha prodotto lo stato peggiore dei due.
 
-Quindi: **o tutti e tre insieme — schema, migration, `npm run prisma:deploy` — oppure
+Quindi: **o tutti e tre insieme — schema, migration, applicazione — oppure
 nessuno dei tre.** Non esiste una via di mezzo sicura. Se applicare non si può in quel
 momento, non si tocca nemmeno lo schema.
 
@@ -705,10 +724,10 @@ Una pipeline CI deve eseguire (in ordine, fail-fast):
 lint al secondo posto.** Non descrivevano `ci.yml`, e la divergenza non era innocua:
 seguita alla lettera, la pipeline non parte proprio.
 
-|                                                            |                                                                                                                                                                                                                                          |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Le installazioni sono DUE**                              | `npm run lint` di root include `lint:api`: senza `npm ci --prefix api` il terzo passo fallisce per dipendenze mancanti, non per un difetto del codice                                                                                    |
-| **`prisma:generate` viene PRIMA di lint e type-check**     | il lint API e la build API compilano contro i tipi **generati** da Prisma. Misurato il 03/09/2026 su una macchina pulita: 1107 errori `TS2305`/`TS2694`/`TS2339`, tutti della stessa causa. `npm ci` non lo genera, e in locale non si vede |
+|                                                        |                                                                                                                                                                                                                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Le installazioni sono DUE**                          | `npm run lint` di root include `lint:api`: senza `npm ci --prefix api` il terzo passo fallisce per dipendenze mancanti, non per un difetto del codice                                                                                       |
+| **`prisma:generate` viene PRIMA di lint e type-check** | il lint API e la build API compilano contro i tipi **generati** da Prisma. Misurato il 03/09/2026 su una macchina pulita: 1107 errori `TS2305`/`TS2694`/`TS2339`, tutti della stessa causa. `npm ci` non lo genera, e in locale non si vede |
 
 ⭐ **E i test vengono DOPO i controlli statici**, non prima: un errore di
 compilazione deve fallire dicendo che cos'è, non tramite un test che esplode per

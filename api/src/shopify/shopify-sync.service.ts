@@ -178,6 +178,39 @@ export class ShopifySyncService {
 
     const lines = (order.line_items as Record<string, unknown>[] | undefined) ?? [];
 
+    /*
+      ⛔ **Un payload SENZA righe non è un ordine diventato vuoto.**
+
+         `deleteMany` con `externalLineId: { notIn: [...] }` toglie le righe che
+         il payload non nomina più. Con `line_items` vuoto o assente quell'elenco
+         è `[]` — e **`notIn: []` in Prisma è una condizione SEMPRE VERA**.
+
+      ⭐ **Misurato il 07/09/2026 contro PostgreSQL vero**, non dedotto: due righe
+         su due cancellate, `count = 2`. La prova è in
+         `shopify-righe-ordine.integration-spec.ts`, scenario 0.
+
+      ⚠️ **Che cosa sarebbe successo.** Un ordine con righe e impegni attivi,
+         raggiunto da un payload magro — una risposta troncata, un webhook
+         parziale, un errore di serializzazione a monte — perdeva TUTTE le righe.
+         Gli impegni venivano poi rilasciati dal dominio, perché
+         `emitCanonicalOrderEvents` ricostruisce le righe correnti rileggendole
+         dal database: nessuna riga, nessun impegno da tenere. La giacenza
+         tornava disponibile per merce già venduta.
+
+      ⭐ **Non si deduce, non si inventa, non si applica**: l'aggiornamento si
+         sospende, l'ordine resta com'è, e l'errore si registra sulla connessione
+         perché qualcuno lo veda. Un ordine Shopify senza righe non esiste: se il
+         payload non ne porta, è il payload a essere incompleto — non l'ordine.
+    */
+    if (lines.length === 0) {
+      const messaggio =
+        `Ordine ${shopifyOrderId}: payload senza righe (line_items vuoto o assente). ` +
+        'Aggiornamento sospeso: righe e impegni sono stati conservati.';
+      this.logger.warn(`[${tenantId}] ${messaggio}`);
+      await this.shopifyConnection.recordError(tenantId, messaggio, 'order_payload_senza_righe');
+      return 'skipped';
+    }
+
     let savedOrderId: string | null = null;
 
     await this.prisma.$transaction(async (tx) => {

@@ -38,12 +38,26 @@ describe('ShopifyOAuthService', () => {
       },
       location: {
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        // Scollegare una sede e` un `update`. Cancellarla non lo e`.
+        delete: vi.fn(),
+        deleteMany: vi.fn(),
       },
-      // Spie sul magazzino: la disconnessione non deve toccarle mai.
+      /*
+        Spie su TUTTO cio` che la disconnessione non deve toccare. Erano quattro:
+        il 07/09/2026 sono diventate dieci, perche` quattro coprivano solo le
+        entita` che il difetto 1.3 aveva cancellato — non quelle che un difetto
+        analogo potrebbe cancellare domani.
+      */
       inventoryLevel: { deleteMany: vi.fn() },
       stockMovement: { deleteMany: vi.fn() },
       inventoryCountSession: { deleteMany: vi.fn() },
+      inventoryCountLine: { deleteMany: vi.fn() },
       supplierOrder: { deleteMany: vi.fn() },
+      supplierOrderLine: { deleteMany: vi.fn() },
+      product: { deleteMany: vi.fn(), delete: vi.fn() },
+      productVariant: { deleteMany: vi.fn(), delete: vi.fn() },
+      document: { deleteMany: vi.fn(), delete: vi.fn() },
+      documentLine: { deleteMany: vi.fn() },
       $transaction: vi.fn().mockImplementation((ops: unknown) => Promise.resolve(ops)),
     };
 
@@ -152,6 +166,38 @@ describe('ShopifyOAuthService', () => {
     expect(shopifyConnection.clearSetupStatus).toHaveBeenCalledWith('tenant-1');
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.shopifyCredential.deleteMany).toHaveBeenCalled();
+    expect(prisma.location.updateMany).toHaveBeenCalled();
+  });
+
+  /*
+    ⭐ **Il test qui sopra copriva quattro entita`; queste sono le altre sei.**
+       Quattro erano quelle che il difetto 1.3 aveva effettivamente cancellato:
+       coprire solo quelle significa proteggersi dal difetto gia` accaduto, non
+       dalla sua forma.
+
+    ⚠️ Le SEDI sono nell'elenco per una ragione precisa: la vecchia pulizia le
+       cancellava, o le archiviava quando non poteva — e l'archiviazione veniva
+       poi coperta dalla riconnessione successiva, che le ri-agganciava per nome.
+       Fu cosi` che l'unica traccia visibile del danno spari`.
+  */
+  it('disconnect non cancella prodotti, varianti, documenti né sedi', async () => {
+    const { service, prisma } = createService();
+
+    await service.disconnect('tenant-1');
+
+    expect(prisma.product.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.product.delete).not.toHaveBeenCalled();
+    expect(prisma.productVariant.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.productVariant.delete).not.toHaveBeenCalled();
+    expect(prisma.document.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.document.delete).not.toHaveBeenCalled();
+    expect(prisma.documentLine.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.inventoryCountLine.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.supplierOrderLine.deleteMany).not.toHaveBeenCalled();
+
+    // La sede si SCOLLEGA (update), non si cancella.
+    expect(prisma.location.delete).not.toHaveBeenCalled();
+    expect(prisma.location.deleteMany).not.toHaveBeenCalled();
     expect(prisma.location.updateMany).toHaveBeenCalled();
   });
 

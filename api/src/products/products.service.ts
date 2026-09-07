@@ -50,6 +50,7 @@ import {
 } from './article-code.util';
 import {
   assertShopifyCatalogDeleteAllowed,
+  assertShopifyLinkedDeleteAllowed,
 } from './catalog-origin.util';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import {
@@ -943,6 +944,10 @@ export class ProductsService {
       throw new NotFoundException('Prodotto non trovato');
     }
     assertShopifyCatalogDeleteAllowed(product.catalogOrigin);
+    // ⛔ Collegato a Shopify: si rifiuta PRIMA di qualunque altra verifica, e
+    //    senza toccare il canale. Qui partiva una DELETE remota (docs/24 §11.1);
+    //    ora non parte piu' niente verso Shopify da questo percorso.
+    assertShopifyLinkedDeleteAllowed(product.shopifyProductId);
 
     const movementCount = await this.prisma.stockMovement.count({
       where: { tenantId, variant: { productId: id } },
@@ -951,31 +956,6 @@ export class ProductsService {
       throw new ConflictException(
         'Il prodotto ha movimenti di magazzino registrati: archivialo invece di eliminarlo.',
       );
-    }
-
-    if (product.shopifyProductId) {
-      this.logger.log(
-        `Eliminazione prodotto ${id}: sync Shopify id=${product.shopifyProductId} (${tenantId})`,
-      );
-      const shopifyDelete = await this.channelSync.deleteProduct(
-        tenantId,
-        product.shopifyProductId,
-      );
-      if (shopifyDelete.reason === 'not_connected') {
-        throw new UnprocessableEntityException(
-          'Shopify non è connesso: il prodotto non può essere eliminato dal negozio online. Ricollega Shopify e riprova.',
-        );
-      }
-      if (shopifyDelete.reason === 'missing_write_products_scope') {
-        throw new UnprocessableEntityException(
-          'Impossibile eliminare su Shopify: manca il permesso di scrittura catalogo. Ricollega il negozio e riprova.',
-        );
-      }
-      if (shopifyDelete.reason === 'shopify_error') {
-        throw new UnprocessableEntityException(
-          'Eliminazione su Shopify non riuscita. Il prodotto non è stato rimosso dal gestionale: riprova tra qualche minuto.',
-        );
-      }
     }
 
     await this.prisma.product.delete({ where: { id } });

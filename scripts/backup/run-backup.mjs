@@ -4,7 +4,9 @@
  * - database Postgres (pg_dump cifrato)
  * - file Supabase Storage (immagini, allegati)
  *
- * Prerequisiti: pg_dump nel PATH, api/.env con DIRECT_URL e segreti Supabase.
+ * Prerequisiti: pg_dump nel PATH, segreti Supabase in api/.env, e un BERSAGLIO
+ * indicato esplicitamente (--database-url, --env-file, o BACKUP_DATABASE_URL
+ * esportata nell’ambiente).
  *
  * Uso:
  *   npm run backup:full
@@ -17,7 +19,7 @@ import { join } from 'node:path';
 import { backupDatabase } from './backup-database.mjs';
 import { assertBackupDatabaseUrl, resolveBackupDatabaseUrl } from './backup-url.mjs';
 import { backupStorage, resolveBuckets } from './backup-storage.mjs';
-import { loadApiEnv, repoRoot } from './load-env.mjs';
+import { leggiFileAmbiente, loadApiEnv, repoRoot } from './load-env.mjs';
 
 function formatTimestamp(date = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -28,7 +30,13 @@ function formatTimestamp(date = new Date()) {
 }
 
 function parseArgs(argv) {
-  const args = { dbOnly: false, storageOnly: false, outputDir: null };
+  const args = {
+    dbOnly: false,
+    storageOnly: false,
+    outputDir: null,
+    databaseUrl: null,
+    envFile: null,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--db-only') {
@@ -37,6 +45,12 @@ function parseArgs(argv) {
       args.storageOnly = true;
     } else if (arg === '--output-dir') {
       args.outputDir = argv[i + 1] ?? null;
+      i += 1;
+    } else if (arg === '--database-url') {
+      args.databaseUrl = argv[i + 1] ?? null;
+      i += 1;
+    } else if (arg === '--env-file') {
+      args.envFile = argv[i + 1] ?? null;
       i += 1;
     } else if (arg === '--help' || arg === '-h') {
       args.help = true;
@@ -56,12 +70,18 @@ Comandi:
 
 Opzioni:
   --output-dir <path>   cartella di destinazione (default: ./backups/vestiflow-YYYYMMDD-HHmmss)
+  --database-url <uri>  BERSAGLIO del dump, indicato a mano
+  --env-file <path>     file di ambiente da cui leggerlo (BACKUP_DATABASE_URL o DIRECT_URL)
   --db-only             solo database
   --storage-only        solo storage
 
-Variabili (api/.env o ambiente):
-  BACKUP_DATABASE_URL             session pooler :5432 (consigliato backup su Windows)
-  DIRECT_URL                      fallback se BACKUP_DATABASE_URL assente
+Bersaglio del database (in ordine di precedenza, MAI da api/.env):
+  --database-url <uri>            indicato a mano
+  --env-file <path>               un file di ambiente che indichi tu
+  BACKUP_DATABASE_URL             esportata nell’ambiente di QUESTO comando
+  DIRECT_URL                      idem, se BACKUP_DATABASE_URL non c’è
+
+Segreti Supabase (api/.env o ambiente):
   SUPABASE_URL                    URL progetto Supabase
   SUPABASE_SERVICE_ROLE_KEY       chiave service role (solo backup storage)
   BACKUP_ENCRYPTION_PASSPHRASE    passphrase cifratura dump (min 16 caratteri)
@@ -85,10 +105,34 @@ async function main() {
     args.outputDir?.trim() ||
     join(repoRoot, 'backups', `vestiflow-${timestamp}`);
 
-  mkdirSync(backupDir, { recursive: true });
-
   const includeDb = !args.storageOnly;
   const includeStorage = !args.dbOnly;
+
+  // ⛔ Prima il bersaglio, poi il disco: un backup senza destinazione non deve
+  //    lasciare dietro di sé una cartella vuota col timestamp del tentativo.
+  /*
+    ⛔ **Il bersaglio non si deduce da `api/.env`.** Fino al 07/09/2026
+       questa riga era `resolveBackupDatabaseUrl(env)`, dove `env` veniva da
+       `loadApiEnv()`: bastava `npm run backup` per puntare al database
+       condiviso senza averlo nominato, e il log diceva solo «Connessione:
+       DIRECT_URL» — il nome della variabile, non da dove veniva.
+
+    ⭐ Le tre fonti sono tutte dichiarazioni di chi esegue. La terza tiene in
+       piedi il backup automatico in CI, che le variabili le inietta nell’
+       ambiente del passo: il suo workflow non va toccato.
+  */
+  const daFile = args.envFile && includeDb ? leggiFileAmbiente(args.envFile) : {};
+  const { url: databaseUrl, origine } = resolveBackupDatabaseUrl({
+    urlEsplicita: args.databaseUrl,
+    daFileIndicato: daFile.BACKUP_DATABASE_URL ?? daFile.DIRECT_URL,
+    daAmbiente: process.env.BACKUP_DATABASE_URL ?? process.env.DIRECT_URL,
+  });
+  assertBackupDatabaseUrl(databaseUrl);
+  // ⛔ Si stampa l’ORIGINE, mai l’URL: dentro c’è host, utente e password.
+  console.log(`[backup] Bersaglio indicato da: ${origine}.`);
+
+  mkdirSync(backupDir, { recursive: true });
+
 
   const manifest = {
     version: 1,
@@ -104,13 +148,6 @@ async function main() {
     console.log('[backup] Database Postgres…');
     const dbPath = join(backupDir, 'database.dump.enc');
     const passphrase = env.BACKUP_ENCRYPTION_PASSPHRASE?.trim();
-    const databaseUrl = resolveBackupDatabaseUrl(env);
-    assertBackupDatabaseUrl(databaseUrl);
-    if (env.BACKUP_DATABASE_URL?.trim()) {
-      console.log('[backup] Connessione: BACKUP_DATABASE_URL (session pooler).');
-    } else {
-      console.log('[backup] Connessione: DIRECT_URL.');
-    }
     await backupDatabase({
       directUrl: databaseUrl,
       passphrase: passphrase ?? '',

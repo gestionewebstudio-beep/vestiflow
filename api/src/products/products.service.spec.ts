@@ -90,7 +90,8 @@ describe('ProductsService', () => {
     const channelSync = {
       enqueueProductPush: vi.fn(),
       pushProductNow: vi.fn(),
-      deleteProduct: vi.fn(),
+      // ⛔ `deleteProduct` NON si rimette qui: il facade non lo espone piu'
+      //    (docs/24 §11.1), e le prove sotto verificano proprio la sua assenza.
       archiveProductOnSyncDisabled: vi.fn().mockResolvedValue({ pushed: true }),
     };
 
@@ -638,50 +639,77 @@ describe('ProductsService', () => {
     );
   });
 
-  it('delete rifiuta se Shopify non connesso su prodotto sincronizzato', async () => {
+  /*
+    ⛔ Qui c'erano TRE prove sulla cancellazione remota — «rifiuta se Shopify non
+       connesso», «rimuove dopo delete su Shopify», «rifiuta se l'API fallisce»:
+       tutte davano per buono che eliminare in VestiFlow cancellasse anche sul
+       negozio. Quel percorso non esiste piu' (docs/24 §11.1), e con lui le sue
+       prove. Al loro posto, il comportamento nuovo.
+  */
+
+  it('delete rifiuta un prodotto COLLEGATO a Shopify, senza toccare il canale', async () => {
     const { service, prisma, channelSync } = createService();
     prisma.product.findFirst.mockResolvedValue({
       id: 'prod-1',
       shopifyProductId: 'gid://shopify/Product/1',
+      catalogOrigin: 'vestiflow',
     });
-    prisma.stockMovement.count.mockResolvedValue(0);
-    channelSync.deleteProduct.mockResolvedValue({ reason: 'not_connected' });
 
-    await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(ConflictException);
+
+    // ⭐ Le tre cose che questa patch garantisce, in una prova sola.
     expect(prisma.product.delete).not.toHaveBeenCalled();
+    expect((channelSync as Record<string, unknown>).deleteProduct).toBeUndefined();
+    expect(prisma.stockMovement.count).not.toHaveBeenCalled();
   });
 
-  it('delete rimuove prodotto sincronizzato dopo delete su Shopify', async () => {
-    const { service, prisma, channelSync } = createService();
+  it('delete di un prodotto collegato porta il messaggio concordato', async () => {
+    const { service, prisma } = createService();
     prisma.product.findFirst.mockResolvedValue({
       id: 'prod-1',
       shopifyProductId: 'gid://shopify/Product/1',
+      catalogOrigin: 'vestiflow',
+    });
+
+    // ⚠️ Il testo e' deciso: non nomina «Disattiva», che non esiste ancora.
+    await expect(service.delete(tenantId, 'prod-1')).rejects.toThrow(
+      'Non è possibile eliminare un prodotto collegato a Shopify.',
+    );
+  });
+
+  it('il canale non espone piu’ nessun modo di cancellare un prodotto', () => {
+    const { channelSync } = createService();
+
+    // ⭐ Non e' una verifica di chiamata: e' una verifica di ASSENZA di
+    //    capacita'. Il facade non espone piu' un modo per cancellare sul canale.
+    expect((channelSync as Record<string, unknown>).deleteProduct).toBeUndefined();
+  });
+
+  it('selezione MISTA: il collegato si rifiuta, il non collegato si elimina', async () => {
+    const { service, prisma } = createService();
+
+    // Collegato → rifiutato, e non arriva nemmeno a contare i movimenti.
+    prisma.product.findFirst.mockResolvedValueOnce({
+      id: 'collegato',
+      shopifyProductId: 'gid://shopify/Product/1',
+      catalogOrigin: 'vestiflow',
+    });
+    await expect(service.delete(tenantId, 'collegato')).rejects.toBeInstanceOf(ConflictException);
+
+    // Non collegato → segue il comportamento di sempre.
+    prisma.product.findFirst.mockResolvedValueOnce({
+      id: 'libero',
+      shopifyProductId: null,
+      catalogOrigin: 'vestiflow',
     });
     prisma.stockMovement.count.mockResolvedValue(0);
-    channelSync.deleteProduct.mockResolvedValue({ deleted: true });
     prisma.product.delete.mockResolvedValue({});
+    await service.delete(tenantId, 'libero');
 
-    await service.delete(tenantId, 'prod-1');
-
-    expect(channelSync.deleteProduct).toHaveBeenCalledWith(tenantId, 'gid://shopify/Product/1');
-    expect(prisma.product.delete).toHaveBeenCalledWith({ where: { id: 'prod-1' } });
-  });
-
-  it('delete rifiuta se Shopify API fallisce su prodotto sincronizzato', async () => {
-    const { service, prisma, channelSync } = createService();
-    prisma.product.findFirst.mockResolvedValue({
-      id: 'prod-1',
-      shopifyProductId: 'gid://shopify/Product/1',
-    });
-    prisma.stockMovement.count.mockResolvedValue(0);
-    channelSync.deleteProduct.mockResolvedValue({ reason: 'shopify_error' });
-
-    await expect(service.delete(tenantId, 'prod-1')).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
-    expect(prisma.product.delete).not.toHaveBeenCalled();
+    // ⭐ L'esito della massiva si costruisce da qui: uno solo dei due e' stato
+    //    eliminato, e l'altro ha prodotto un rifiuto che il chiamante conta.
+    expect(prisma.product.delete).toHaveBeenCalledTimes(1);
+    expect(prisma.product.delete).toHaveBeenCalledWith({ where: { id: 'libero' } });
   });
 
   it('create rifiuta SKU già presenti a catalogo', async () => {

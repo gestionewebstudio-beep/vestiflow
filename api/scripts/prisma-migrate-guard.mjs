@@ -22,23 +22,29 @@ ${ROSSO}${GRASSETTO}  Fermo: su questo progetto «prisma migrate dev» non si la
   di questo ramo. Con le storie divergenti Prisma propone di AZZERARE il
   database: si perderebbe il lavoro di chi sta su un altro ramo, e i dati.
 
-  ${GRASSETTO}Per applicare le migration che mancano:${FINE}
-    npm run prisma:deploy
+  ${GRASSETTO}Per applicare le migration che mancano (database di PROVA):${FINE}
+    npm run prisma:deploy:test
 
   ${GRASSETTO}Per scrivere una migration nuova:${FINE}
     1. modifica prisma/schema.prisma
-    2. genera l'SQL senza toccare il database:
-       npx prisma migrate diff \\
-         --from-schema-datasource prisma/schema.prisma \\
-         --to-schema-datamodel prisma/schema.prisma --script
-    3. metti l'SQL in prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql
+    2. scrivi l'SQL A MANO in
+       prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql,
        con un commento che dica PERCHÉ
-    4. npm run prisma:deploy
+    3. npm run prisma:deploy:test   (e verifica su una copia con dati veri)
+
+  ${ROSSO}${GRASSETTO}⛔ NON generare l’SQL con «prisma migrate diff
+     --from-schema-datasource»${FINE}: su un database CONDIVISO quel comando
+     chiede «quale SQL rende il database identico a questo file?», e tutto ciò
+     che sta nel database senza stare nello schema — cioè le tabelle degli
+     altri rami — per definizione dello strumento è roba da togliere.
+     L'11/08/2026 ha proposto quaranta istruzioni, DROP di cash_sessions,
+     fiscal_receipts e pos_terminals comprese.
 
   ${GRASSETTO}Anche «prisma db push» è vietato:${FINE} allinea il database allo schema
   locale, quindi cancella le tabelle che questo ramo non conosce.
 
-  Vedi README.md → «Database e migration».
+  ⛔ E «npm run prisma:deploy» non esiste più: applicava le migration al
+     database CONDIVISO senza dirlo. Vedi README.md → «Database e migration».
 `);
 
 process.exit(1);

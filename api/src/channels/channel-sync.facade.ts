@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
 import {
   ShopifyProductPushService,
-  type ShopifyProductDeleteResult,
   type ShopifyProductPushResult,
 } from '../shopify/shopify-product-push.service';
 import { TikTokInventoryPushService } from '../tiktok/tiktok-inventory-push.service';
@@ -184,17 +183,9 @@ export class ChannelSyncFacade {
     return this.shopifyProductPush.archiveOnSyncDisabled(tenantId, productId);
   }
 
-  /**
-   * Eliminazione prodotto sul canale: bloccante, perché l'eliminazione locale
-   * non deve avvenire se il canale non ha confermato.
-   */
-  async deleteProduct(
-    tenantId: string,
-    shopifyProductId: string | null,
-  ): Promise<ShopifyProductDeleteResult> {
-    if (!(await this.isShopifyTenant(tenantId))) {
-      return { deleted: false, reason: 'not_connected' };
-    }
-    return this.shopifyProductPush.deleteProduct(tenantId, shopifyProductId);
-  }
+  // ⛔ Qui c'era `deleteProduct`, che inoltrava al canale una cancellazione di
+  //    prodotto. VestiFlow non cancella su Shopify (docs/24 §11.1): il metodo e'
+  //    stato rimosso, e con lui l'unico modo di esprimere quell'intenzione
+  //    attraverso il facade dei canali. L'eliminazione locale di un prodotto
+  //    collegato si rifiuta a monte, in `products.service`.
 }
