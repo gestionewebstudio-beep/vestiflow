@@ -61,6 +61,23 @@ const VIETATE = new Set([
   'documentLine',
   'supplierOrder',
   'supplierOrderLine',
+  /*
+    ⛔ **`location` aggiunta il 07/09/2026.** Non e' un'entita' di inventario:
+       e' il contenitore che gli da' un luogo. Cancellarla porta via in cascata
+       contatori di numerazione, dispositivi fiscali, terminali POS e
+       assegnazioni degli utenti, e scollega documenti, ordini e vendite online.
+
+    ⭐ **Nessuna sincronizzazione Shopify elimina una Location, neppure se
+       vuota**: l'eliminazione di una sede vuota e non collegata appartiene
+       esclusivamente alla funzione VestiFlow dedicata (`docs/24` §1.13.4).
+
+    ⚠️ Erano TRE i `location.delete` nel perimetro — in
+       `cleanupUnlinkedImportLocations`, `removeEmptyOnboardingLocation` e
+       `cleanupStaleShopifyLocations` — e ognuno si difendeva con «ma prima
+       controllo che sia vuota». Il controllo non e' il punto: la decisione non
+       spetta a un sync di canale.
+  */
+  'location',
 ]);
 
 /**

@@ -246,7 +246,7 @@ describe('ShopifyLocationSyncService', () => {
     expect(locationCreate).toHaveBeenCalled();
   });
 
-  it('rimuove LOC-01 onboarding vuota dopo sync riuscito', async () => {
+  it('NON rimuove LOC-01 onboarding, nemmeno vuota', async () => {
     const { service, locationDelete } = createService({
       tenantLocations: [
         {
@@ -266,10 +266,11 @@ describe('ShopifyLocationSyncService', () => {
 
     await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
-    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-onboarding' } });
+    // ⛔ docs/24 §1.13.4: nessuna sincronizzazione elimina una sede, neppure vuota.
+    expect(locationDelete).not.toHaveBeenCalled();
   });
 
-    it('elimina residui import non collegati dopo il sync', async () => {
+    it('NON elimina i residui import non collegati: li archivia', async () => {
       const { service, locationDelete } = createService({
         tenantLocations: [
           {
@@ -292,10 +293,11 @@ describe('ShopifyLocationSyncService', () => {
 
       await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
-      expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-residual' } });
+      // ⛔ docs/24 §1.13.4: nessuna sincronizzazione elimina una sede, neppure vuota.
+      expect(locationDelete).not.toHaveBeenCalled();
     });
 
-    it('elimina location Shopify stale senza dati operativi', async () => {
+    it('NON elimina una location Shopify stale, nemmeno senza dati operativi', async () => {
     const { service, locationDelete } = createService({
       shopifyLocations: [{ id: '1001', name: 'Negozio attivo', active: true }],
       tenantLocations: [
@@ -310,7 +312,8 @@ describe('ShopifyLocationSyncService', () => {
 
     await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
-    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-stale' } });
+    // ⛔ docs/24 §1.13.4: nessuna sincronizzazione elimina una sede, neppure vuota.
+    expect(locationDelete).not.toHaveBeenCalled();
   });
 
   it('scollega location Shopify stale ancora in uso', async () => {
@@ -343,7 +346,7 @@ describe('ShopifyLocationSyncService', () => {
     );
   });
 
-  it('elimina tutte le location collegate quando Shopify non ne restituisce nessuna', async () => {
+  it('NON elimina le location collegate quando Shopify non ne restituisce nessuna', async () => {
     const { service, locationDelete } = createService({
       shopifyLocations: [],
       tenantLocations: [
@@ -358,11 +361,12 @@ describe('ShopifyLocationSyncService', () => {
 
     await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
-    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-stale' } });
+    // ⛔ docs/24 §1.13.4: nessuna sincronizzazione elimina una sede, neppure vuota.
+    expect(locationDelete).not.toHaveBeenCalled();
   });
 
-  it('normalizza GID Shopify nel confronto stale', async () => {
-    const { service, locationDelete } = createService({
+  it('normalizza GID Shopify nel confronto stale, e non elimina', async () => {
+    const { service, locationDelete, locationUpdate } = createService({
       shopifyLocations: [{ id: 1001, name: 'Negozio attivo', active: true }],
       tenantLocations: [
         {
@@ -376,7 +380,12 @@ describe('ShopifyLocationSyncService', () => {
 
     await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
-    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-stale' } });
+    // Il confronto per GID normalizzato riconosce la sede come stale…
+    expect(locationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'loc-stale' } }),
+    );
+    // ⛔ docs/24 §1.13.4: nessuna sincronizzazione elimina una sede, neppure vuota.
+    expect(locationDelete).not.toHaveBeenCalled();
   });
 
   it('disattiva location VF quando Shopify la segna come non attiva', async () => {
@@ -502,8 +511,19 @@ describe('ShopifyLocationSyncService', () => {
        fallisse insieme a loro, il mock impedirebbe la cancellazione sempre, e
        quelle undici non proverebbero piu' niente.
   */
-  it('cancella la sede solo quando non ha davvero nessun riferimento', async () => {
-    const { service, locationDelete, prisma, delegatiRiferimento } = createService({
+  /*
+    ⛔ **Questa prova asseriva l'ELIMINAZIONE di una sede senza riferimenti**, e
+       fotografava una decisione allora aperta. Ora e' presa: l'eliminazione di
+       una sede vuota e non collegata appartiene esclusivamente alla funzione
+       VestiFlow dedicata (`docs/24` §1.13.4), e una sincronizzazione di canale
+       non e' quella funzione.
+
+    ⭐ **Il contratto delle ventuno relazioni resta verificato**, dalle prove
+       generate qui sopra: quelle esercitano `RIFERIMENTI_SEDE` una voce per
+       volta, ed e' li' che l'elenco deve dimostrarsi completo.
+  */
+  it('NON cancella una sede priva di riferimenti: la archivia e la scollega', async () => {
+    const { service, locationDelete, locationUpdate } = createService({
       shopifyLocations: [{ id: 1001, name: 'Negozio attivo', active: true }],
       tenantLocations: [
         {
@@ -518,25 +538,9 @@ describe('ShopifyLocationSyncService', () => {
 
     await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
-    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-mai-usata' } });
-
-    // Le quattro protezioni preesistenti sull'inventario sono state interrogate.
-    expect(prisma.inventoryLevel.count).toHaveBeenCalled();
-    expect(prisma.inventoryCountSession.count).toHaveBeenCalled();
-
-    // E tutte e undici le relazioni dell'elenco, senza eccezioni.
-    for (const riferimento of RIFERIMENTI_SEDE) {
-      const delegato = delegatiRiferimento[riferimento.modello];
-      if (!delegato) {
-        throw new Error(
-          `il mock non espone «${riferimento.modello}»: creaDelegatiRiferimento non lo genera piu'.`,
-        );
-      }
-      expect(delegato.count).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ [riferimento.campo]: 'loc-mai-usata' }),
-        }),
-      );
-    }
+    expect(locationDelete).not.toHaveBeenCalled();
+    expect(locationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'loc-mai-usata' } }),
+    );
   });
 });

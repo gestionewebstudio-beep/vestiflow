@@ -361,11 +361,15 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
          contatori, dispositivi e terminali: è ciò che il collaudo deve
          garantire.
 
-      ⏸ Le sedi VUOTE spariscono: è la decisione funzionale aperta dello
-         scenario 11, che qui si manifesta durante un cambio negozio.
+      ⛔ E nemmeno le sedi VUOTE spariscono: docs/24 §1.13.4 non fa eccezione
+         per «era vuota».
     */
-    expect(await prisma.location.findUnique({ where: { id: P.sedePiena } })).not.toBeNull();
-    expect(await prisma.location.findUnique({ where: { id: P.sedeLocale } })).not.toBeNull();
+    for (const id of [P.sedePiena, P.sedeLocale, P.sedeVuota, P.sedeCavia]) {
+      expect(
+        await prisma.location.findUnique({ where: { id } }),
+        `la sede ${id} e stata eliminata da un cambio negozio`,
+      ).not.toBeNull();
+    }
     expect(dopo.contatori).toBe(prima.contatori);
     expect(dopo.dispositiviFiscali).toBe(prima.dispositiviFiscali);
     expect(dopo.terminaliPos).toBe(prima.terminaliPos);
@@ -444,16 +448,20 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
          11): oggi una sede priva di ogni riferimento viene cancellata, e
          cambiando negozio sparisce. La prova lo fotografa senza giudicarlo.
     */
+    /*
+      ⛔ **Nemmeno le sedi VUOTE spariscono**: docs/24 §1.13.4 non fa eccezione
+         per «era vuota». Una riconnessione a un altro negozio non e' il posto
+         dove si decide la sorte di una sede.
+    */
     for (const id of [P.sedeVuota, P.sedeCavia]) {
-      const senzaRiferimenti = await prisma.location.findUnique({ where: { id } });
       expect(
-        senzaRiferimenti === null || senzaRiferimenti.isActive === false,
-        'una sede priva di riferimenti deve essere cancellata (comportamento attuale) o archiviata',
-      ).toBe(true);
+        await prisma.location.findUnique({ where: { id } }),
+        `la sede ${id}, priva di riferimenti, e stata eliminata da una riconnessione`,
+      ).not.toBeNull();
     }
   });
 
-  it('scenario 11 · una sede REALMENTE vuota resta eliminabile, e si sa', async () => {
+  it('scenario 11 · una sede REALMENTE vuota NON viene eliminata dalla sincronizzazione', async () => {
     const prima = await fotografa(prisma);
 
     // SEDE_VUOTA (9002) sparisce dal catalogo remoto.
@@ -466,22 +474,18 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
     const dopo = await fotografa(prisma);
 
     /*
-      ⏸ **DECISIONE FUNZIONALE APERTA — dichiarata, non decisa qui.**
+      ⛔ **La sede vuota NON si elimina** — docs/24 §1.13.4: l'eliminazione di
+         una sede vuota e non collegata appartiene esclusivamente alla funzione
+         VestiFlow dedicata. Una sincronizzazione di canale non e' quella
+         funzione, e «era vuota» non e' un'autorizzazione.
 
-         Oggi una sede priva di ogni riferimento viene CANCELLATA. E' il
-         comportamento attuale e questa prova lo fotografa senza giudicarlo:
-         se domani si decidera' «sempre archiviata, mai eliminata», sara' questa
-         riga a diventare rossa e a dire che la decisione e' stata applicata.
-
-         Cio' che NON e' aperto, e che la prova impone comunque: qualunque sia
-         la sorte della sede vuota, nulla di catalogo, inventario e documenti
-         deve muoversi.
+      ⚠️ Qui la prova ammetteva l'eliminazione come esito legittimo, perche'
+         fotografava una decisione allora aperta. La decisione e' stata presa.
     */
+    expect(vuota, 'la sincronizzazione ha ELIMINATO una sede vuota').not.toBeNull();
+
     attendiIntatti(prima, dopo, [...CATALOGO, ...INVENTARIO, ...DOCUMENTI, ...SCOLLEGAMENTI]);
-    expect(
-      vuota === null || vuota.isActive === false,
-      'la sede vuota deve essere cancellata (comportamento attuale) oppure archiviata',
-    ).toBe(true);
+    expect(dopo.sedi, 'nessuna sede deve sparire per effetto di un sync').toBe(prima.sedi);
   });
 
   /*

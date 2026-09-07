@@ -3,7 +3,6 @@ import type { Location } from '@prisma/client';
 import { ShopifySyncStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { verificaSedeCancellabile } from './location-delete-safety.util';
 import { ShopifyAdminClient, type ShopifyAdminLocation } from './shopify-admin.client';
 import { isSameShopifyLocationId, normalizeShopifyLocationId } from './shopify-location-id.util';
 import { isShopifyManagedImportLocation } from './shopify-location-import.util';
@@ -99,10 +98,6 @@ export class ShopifyLocationSyncService {
       );
     }
 
-    if (shopifyLocations.length > 0 && (matchedCount > 0 || importedCount > 0)) {
-      await this.removeEmptyOnboardingLocation(tenantId);
-    }
-
     await this.cleanupStaleShopifyLocations(tenantId, shopifyCatalogIds);
     await this.cleanupUnlinkedImportLocations(tenantId);
 
@@ -150,15 +145,17 @@ export class ShopifyLocationSyncService {
         continue;
       }
 
-      if (await this.canDeleteLocation(tenantId, location.id)) {
-        await this.prisma.location.delete({ where: { id: location.id } });
-        removed += 1;
-        this.logger.log(
-          `Rimossa location import Shopify non collegata (${tenantId}): ${location.name}`,
-        );
-        continue;
-      }
+      /*
+        ⛔ **Qui c'era un `location.delete` quando la sede risultava vuota.**
+           Nessuna sincronizzazione Shopify elimina una Location, neppure se
+           vuota: l'eliminazione di una sede vuota e non collegata appartiene
+           esclusivamente alla funzione VestiFlow dedicata (`docs/24` §1.13.4).
 
+        ⚠️ «Era vuota» non e' un'autorizzazione. Una sede senza riferimenti oggi
+           puo' averne domani, e chi la elimina qui non sta rispondendo a
+           nessuna richiesta dell'operatore: sta rispondendo a un catalogo
+           remoto che e' cambiato.
+      */
       await this.prisma.location.update({
         where: { id: location.id },
         data: {
@@ -177,57 +174,41 @@ export class ShopifyLocationSyncService {
     return removed;
   }
 
-  /** Rimuove la sede LOC-01 creata in onboarding se vuota e sostituita dalle sedi Shopify. */
-  private async removeEmptyOnboardingLocation(tenantId: string): Promise<void> {
-    const onboardingLocations = await this.prisma.location.findMany({
-      where: {
-        tenantId,
-        code: 'LOC-01',
-        shopifyLocationId: null,
-      },
-    });
+  /*
+    ⛔ **`removeEmptyOnboardingLocation` e' stata RIMOSSA, non svuotata.**
 
-    for (const location of onboardingLocations) {
-      if (!(await this.canDeleteLocation(tenantId, location.id))) {
-        continue;
-      }
+       Cancellava la sede `LOC-01` creata in onboarding quando risultava vuota
+       e le sedi Shopify l'avevano sostituita. Tolto il `delete` — che
+       `docs/24` §1.13.4 vieta a qualunque sincronizzazione — non le restava
+       niente da fare: era un metodo che esisteva soltanto per eliminare.
 
-      await this.prisma.location.delete({ where: { id: location.id } });
-      this.logger.log(
-        `Rimossa sede temporanea di onboarding (${tenantId}): ${location.name}`,
-      );
-    }
-  }
+    ⚠️ **Una funzione svuotata e' peggio di una funzione assente**: chi la trova
+       fra sei mesi non sa se non fa niente per scelta o per un difetto, e la
+       chiamata rimasta in `syncFromShopify` suggerirebbe che qualcosa succeda.
+
+    ⭐ **Che cosa succede ora alla sede di onboarding**: resta. Se l'azienda non
+       la usa, e' l'operatore a eliminarla dalla funzione dedicata — che sa
+       chiedere conferma, e che risponde a lui invece che a un catalogo remoto.
+  */
 
   /*
-    ⛔ **Guardava quattro relazioni su ventuno**, e i quattro `count` scritti
-       qui erano anche più permissivi dell'elenco: contavano le sole sessioni di
-       conteggio `in_progress`, mentre la chiave esterna è `RESTRICT` per TUTTE.
-       Una sessione chiusa faceva quindi passare il controllo e poi esplodere il
-       `DELETE`.
+    ⛔ **`canDeleteLocation` e' stata RIMOSSA da questo servizio.**
 
-    ⭐ **Ora la domanda si fa in un posto solo**: `RIFERIMENTI_SEDE` dichiara
-       tutte e ventuno le relazioni, ed è verificato contro lo schema da
-       `npm run check:cascate-sede`. I quattro `count` che stavano qui erano un
-       sottoinsieme di quell'elenco: tenerli sarebbe stato dire due volte la
-       stessa cosa, in due modi che possono divergere.
+       Era la domanda «posso cancellare questa sede?», e in questo perimetro la
+       risposta e' ora sempre **no**: nessuna sincronizzazione Shopify elimina
+       una Location, neppure se vuota (`docs/24` §1.13.4). Una funzione che
+       risponde sempre allo stesso modo non e' un controllo.
 
-    ⚠️ **Chi riceve `false` ARCHIVIA, non forza.** È il contratto: la sede si
-       scollega dal canale e sparisce dal selettore, ma resta leggibile per i
-       documenti che la nominano.
+    ⭐ **`verificaSedeCancellabile` e `RIFERIMENTI_SEDE` restano** in
+       `location-delete-safety.util.ts`: sono il contratto della funzione
+       VestiFlow dedicata all'eliminazione, che dovra' interrogare tutte e
+       ventuno le relazioni prima di cancellare qualcosa. Restano verificati da
+       `npm run check:cascate-sede` e dalle ventuno prove generate dall'elenco.
+
+    ⚠️ Sono quindi **senza chiamanti di produzione finche' quella funzione non
+       esiste**, ed e' dichiarato in `docs/DA-FARE.md`: non e' codice
+       dimenticato, e' un contratto in attesa del suo consumatore.
   */
-  private async canDeleteLocation(tenantId: string, locationId: string): Promise<boolean> {
-    const sicurezza = await verificaSedeCancellabile(this.prisma, tenantId, locationId);
-
-    if (!sicurezza.puoEssereCancellata) {
-      this.logger.warn(
-        `Sede ${locationId} conservata invece che eliminata: ${sicurezza.trattenutaDa.join(' · ')}`,
-      );
-      return false;
-    }
-
-    return true;
-  }
 
   private async cleanupStaleShopifyLocations(
     tenantId: string,
@@ -244,14 +225,13 @@ export class ShopifyLocationSyncService {
         continue;
       }
 
-      if (await this.canDeleteLocation(tenantId, location.id)) {
-        await this.prisma.location.delete({ where: { id: location.id } });
-        this.logger.log(
-          `Rimossa location Shopify non più presente (${tenantId}): ${location.name}`,
-        );
-        continue;
-      }
-
+      /*
+        ⛔ **Anche qui c'era un `location.delete`**, e questo era il piu'
+           pericoloso dei tre: si applicava a una sede COLLEGATA, sparita dal
+           catalogo remoto. Una location che non c'e' piu' su Shopify non
+           autorizza a cancellare la sede che le corrispondeva
+           (`docs/24` §1.13.3).
+      */
       await this.prisma.location.update({
         where: { id: location.id },
         data: {
