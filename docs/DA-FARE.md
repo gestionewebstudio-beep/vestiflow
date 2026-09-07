@@ -152,22 +152,32 @@ istruzione impossibile per una sede che su Shopify non esiste più).
 
 ---
 
-## Matrice distruttiva — Shopify, aggiornata al 07/09/2026
+## Matrice distruttiva — Shopify, aggiornata al 07/09/2026 (dopo le correzioni)
 
-| Operazione                         | Chiamante                                                      | Entità            | Effetto diretto                                 | Cascade                                                                                 | SetNull                                                 | Collaudo                  | Log oggi                        | Cosa manca per attribuire |
-| ---------------------------------- | -------------------------------------------------------------- | ----------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------- | ------------------------------- | ------------------------- |
-| `disconnect()`                     | `DELETE /shopify/connection` (owner)                           | ShopifyCredential | `deleteMany` credenziali                        | —                                                                                       | sedi: `shopifyLocationId → null`                        | ✅ scen. 1                | `logger.warn` solo sulla revoca | chi, quando, da quale IP  |
-| `purge(purgeCatalog)`              | `POST /shop-change/purge`                                      | —                 | **rifiutata come prima istruzione**             | —                                                                                       | —                                                       | ✅ scen. 2, 6             | nessuno                         | —                         |
-| `purge(purgeCustomers)`            | idem                                                           | Customer          | `deleteMany`                                    | —                                                                                       | `documents.customer_id`, `sales_orders`, `online_sales` | ✅ scen. 3, 14            | nessuno                         | chi, quando, quante righe |
-| `purge(purgeOrders)`               | idem                                                           | SalesOrder        | `deleteMany`                                    | `sales_order_lines`, `stock_reservations`, `online_order_events`, `sales_order_refunds` | —                                                       | ✅ scen. 4, 4-bis, 5      | nessuno                         | idem                      |
-| `syncFromShopify()` → sede sparita | `POST /sync/locations` (owner) e **callback OAuth automatico** | Location          | `delete` se vuota, altrimenti archivia          | contatori, dispositivi, POS, assegnazioni                                               | documenti, ordini, vendite online, utenti               | ✅ scen. 8, 10, 12        | `logger.log` / `logger.warn`    | chi ha innescato il sync  |
-| `cleanupUnlinkedImportLocations()` | stessa catena                                                  | Location          | `delete` se vuota, `isActive: false` altrimenti | idem                                                                                    | idem                                                    | ✅ scen. 13               | `logger.log`                    | idem                      |
-| `removeEmptyOnboardingLocation()`  | stessa catena                                                  | Location (LOC-01) | `delete` se vuota                               | idem                                                                                    | idem                                                    | ⚠️ coperto indirettamente | `logger.log`                    | idem                      |
+⛔ **Qui c'era la matrice del comportamento PRECEDENTE**, scritta prima delle
+correzioni: descriveva `purge()` che cancellava clienti e ordini, e i tre
+percorsi di sincronizzazione che eliminavano o disattivavano sedi. È rimasta
+ferma mentre il codice cambiava sotto — il difetto che questo progetto combatte
+ovunque, in un documento invece che nel codice.
 
-⚠️ **La colonna «log oggi» è la ragione per cui serve un registro persistente**:
-tutto ciò che resta di una cancellazione è una riga di `logger` sul container,
-che Railway perde al riavvio. Non c'è modo di dire **chi** ha innescato un sync,
-**quando**, e **quante righe** ha portato via.
+| Operazione                            | Chiamante                                                      | Entità            | Effetto oggi                                                                   | Collaudo           |
+| ------------------------------------- | -------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------ | ------------------ |
+| `disconnect()`                        | `DELETE /shopify/connection` (owner)                           | ShopifyCredential | cancella le **credenziali**; le sedi perdono `shopifyLocationId`; nient'altro  | ✅ scen. 1         |
+| `purge(*)` — ogni combinazione        | `POST /shop-change/purge`                                      | —                 | ⛔ **rifiutata prima di ogni lettura**: nessun record cambia                   | ✅ 7 combinazioni  |
+| `syncFromShopify()` → sede sparita    | `POST /sync/locations` (owner) e **callback OAuth automatico** | Location          | conserva sede, identificativo e dati; segnala `shopifySyncStatus: error`       | ✅ scen. 8, 10, 12 |
+| `cleanupUnlinkedImportLocations()`    | stessa catena                                                  | Location          | conserva e segnala; **non disattiva più**                                      | ✅ scen. 13        |
+| ~~`removeEmptyOnboardingLocation()`~~ | —                                                              | —                 | **rimossa**: esisteva solo per eliminare                                       | —                  |
+| `applyOrderFromShopify()`             | webhook ordini, pull bulk                                      | SalesOrderLine    | riscrive le righe dell'ordine; **payload senza righe → aggiornamento sospeso** | ✅ 6 scenari       |
+
+⭐ **Le uniche cancellazioni rimaste nel perimetro Shopify** sono su entità
+tecniche del canale — stato OAuth, credenziali — e sulle righe figlie di un
+ordine che il canale possiede. Verificate una per una, e sorvegliate da
+`check:shopify-inventario`.
+
+⚠️ **La colonna «log» resta la ragione per cui serve un registro persistente**:
+di un'operazione resta una riga di `logger` sul container, che Railway perde al
+riavvio. Non c'è modo di dire **chi** ha innescato un sync, **quando**, e con
+quale effetto.
 
 ---
 
@@ -238,13 +248,28 @@ capacità che non esiste più: nessuna sede è rimovibile da lì. Non è distrut
 — l'anteprima è di sola lettura — ma il numero è una promessa falsa, e il
 frontend lo mostra.
 
-**4 · ⚠️ `notIn: []` in `shopify-sync.service.ts:266` — DA VERIFICARE, non
-misurato.** Se un payload arrivasse con `line_items` assente o vuoto, il ramo
-`externalLineId: { notIn: [] }` potrebbe non filtrare nulla e cancellare TUTTE
-le righe di quell'ordine, rilasciandone gli impegni. Non c'è guardia sul payload
-vuoto, e `shopify-sync.service.spec.ts` non copre affatto le righe. **La
-semantica di `notIn: []` è dedotta, non misurata**: va provata contro il
-database prima di decidere se è un difetto.
+**4 · ✅ `notIn: []` — MISURATO, ERA UN DIFETTO, CORRETTO il 07/09/2026.**
+
+⛔ **Era una deduzione, e la deduzione era giusta.** Misurato contro PostgreSQL
+17.11: `prisma.salesOrderLine.deleteMany` con
+`externalLineId: { notIn: [] }` cancella **tutte** le righe — `count = 2` su
+due righe che avevano entrambe un `externalLineId`.
+
+⚠️ **Che cosa sarebbe successo.** Un ordine con righe e impegni attivi,
+raggiunto da un payload magro — risposta troncata, webhook parziale, errore di
+serializzazione a monte — perdeva TUTTE le righe. Gli impegni venivano poi
+rilasciati dal dominio, perché `emitCanonicalOrderEvents` ricostruisce le righe
+correnti rileggendole dal database: nessuna riga, nessun impegno da tenere. La
+giacenza tornava disponibile per merce già venduta.
+
+⭐ **La correzione è a monte, non sulla query**: un payload senza righe sospende
+l'aggiornamento, conserva righe e impegni, e registra un errore di
+sincronizzazione sulla connessione. Un ordine Shopify senza righe non esiste: se
+il payload non ne porta, è il payload a essere incompleto — non l'ordine.
+
+Sei scenari in `shopify-righe-ordine.integration-spec.ts`, più la misura del
+comportamento di Prisma come contratto dello strumento: se un aggiornamento ne
+cambiasse la semantica, quella prova diventerebbe rossa e lo direbbe.
 
 ---
 
