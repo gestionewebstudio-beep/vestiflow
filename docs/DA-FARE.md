@@ -171,6 +171,92 @@ che Railway perde al riavvio. Non c'è modo di dire **chi** ha innescato un sync
 
 ---
 
+## ✅ LE REGOLE SEDI, CLIENTI E ORDINI SONO IMPLEMENTATE — 07/09/2026
+
+> **Le otto regole di `docs/24` §§1.13-1.14 sono in codice e sotto collaudo su
+> PostgreSQL reale.** Qui resta ciò che il modello storico non ancora esistente
+> impedisce di fare bene, e i debiti che la correzione ha lasciato dietro.
+
+### Che cosa fa oggi la sincronizzazione delle sedi
+
+| Situazione                        | Prima                        | Ora                                             |
+| --------------------------------- | ---------------------------- | ----------------------------------------------- |
+| sede vuota, non collegata         | **eliminata**                | conservata                                      |
+| sede vuota, sparita da Shopify    | **eliminata**                | conservata, collegata, segnalata                |
+| sede con dati, sparita da Shopify | disattivata e **scollegata** | conservata, operativa, **collegata**, segnalata |
+| residuo di import non collegato   | **disattivato**              | conservato, segnalato                           |
+| sede `LOC-01` di onboarding vuota | **eliminata**                | conservata                                      |
+| purge, ogni combinazione          | eseguita in parte            | **rifiutata** prima di ogni lettura             |
+
+Il segnale è `shopifySyncStatus: error` più un messaggio che dice all'operatore
+che cosa è successo e che cosa può fare.
+
+---
+
+### ⏸ Che cosa NON è implementabile senza `shopify_location_links`
+
+⛔ **Il comportamento definitivo di §1.13.3** — «il collegamento si chiude
+conservandone la storia» — **non è implementabile oggi**, e ciò che c'è al suo
+posto è un ripiego dichiarato.
+
+| Regola                                                             | Perché serve lo storico                                                                                                                                                      |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| «il collegamento **viene chiuso** conservandone la storia»         | non esiste un posto dove scrivere che un collegamento è finito: c'è solo `shopifyLocationId`, che è presente o assente                                                       |
+| «una nuova location con lo stesso nome **non viene riagganciata**» | oggi il riaggancio per nome è impedito solo perché l'identificativo **non viene azzerato**: se una location tornasse con un id nuovo, `findMatch` la riaggancerebbe per nome |
+| «VestiFlow **mostra** che la location non è più disponibile»       | oggi lo dice un messaggio d'errore su un campo che serve anche ad altro; è leggibile, non è uno stato del collegamento                                                       |
+
+⚠️ **Il ripiego ha un costo, ed è giusto conoscerlo**: la sede resta collegata a
+un identificativo Shopify che non esiste più. È deliberato — la traccia vale più
+della coerenza formale — ma significa che una sede può restare in quello stato a
+tempo indefinito, e nessuno la riconcilia se non l'operatore.
+
+⭐ **Lo stesso vale per clienti e ordini**: §1.14 dice «può chiudere o sospendere
+il collegamento», e nemmeno quello esiste. Per questo la purge non è stata
+riscritta come scollegamento: è stata **sospesa**. Scrivere lo scollegamento
+senza il posto dove registrarlo avrebbe prodotto un secondo ripiego, in un
+percorso che l'operatore invoca esplicitamente.
+
+---
+
+### Debiti lasciati dalla correzione
+
+**1 · `verificaSedeCancellabile` e `RIFERIMENTI_SEDE` non hanno consumatori di
+produzione.** Sono il contratto della funzione VestiFlow dedicata
+all'eliminazione (§1.13.4), che non esiste ancora. Restano verificati da
+`check:cascate-sede` e dalle 21 prove generate dall'elenco — non è codice
+dimenticato, è un contratto in attesa del suo consumatore. Quando la funzione
+dedicata verrà scritta, deve usare quello e non riscriverne un altro.
+
+**2 · `mapPurgeError` è stata rimossa col resto della purga**, e con lei il
+difetto che traduceva ogni violazione di chiave esterna in «Chiudi gli ordini
+fornitore aperti». Non è stato corretto: è diventato irraggiungibile. Quando la
+purga tornerà come scollegamento, servirà una traduzione degli errori — e quella
+dovrà nominare il vincolo vero.
+
+**3 · `preview()` conta ancora `removableShopifyLocations`.** Promette una
+capacità che non esiste più: nessuna sede è rimovibile da lì. Non è distruttivo
+— l'anteprima è di sola lettura — ma il numero è una promessa falsa, e il
+frontend lo mostra.
+
+**4 · ⚠️ `notIn: []` in `shopify-sync.service.ts:266` — DA VERIFICARE, non
+misurato.** Se un payload arrivasse con `line_items` assente o vuoto, il ramo
+`externalLineId: { notIn: [] }` potrebbe non filtrare nulla e cancellare TUTTE
+le righe di quell'ordine, rilasciandone gli impegni. Non c'è guardia sul payload
+vuoto, e `shopify-sync.service.spec.ts` non copre affatto le righe. **La
+semantica di `notIn: []` è dedotta, non misurata**: va provata contro il
+database prima di decidere se è un difetto.
+
+---
+
+### Collaudi da eseguire quando lo storico esisterà
+
+- collegamento creato, chiuso, e **non riagganciato** al ritorno della location;
+- una location che torna con un **id nuovo** e lo stesso nome: non si riaggancia;
+- scollegamento di un cliente e di un ordine: l'entità resta, il collegamento no;
+- riconnessione allo stesso `shop_gid` dopo uno scollegamento: la storia è leggibile.
+
+---
+
 ## ⏸ LE FK VERSO `Location` RESTANO IN CASCATA — tranche schema, aperta il 07/09/2026
 
 > **Il rischio è chiuso nel CODICE, non nello SCHEMA.** `canDeleteLocation` ora
