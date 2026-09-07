@@ -2087,6 +2087,38 @@ l'invio automatico debba scattare durante un primo allineamento, che cosa accade
 alle righe che falliscono in silenzio, e come il percorso di pubblicazione
 registrerà i collegamenti **nel nuovo modello** oltre che nelle colonne legacy.
 
+#### ⏸ Il CSV ESTESO VestiFlow — requisito registrato, da NON implementare ora
+
+⚠️ **Due formati, e non vanno confusi**: quello **di Shopify** che l'import
+odierno accetta — e che ⛔ **non porta identificativi remoti**, quindi da un file
+così nessuna corrispondenza è dimostrabile — e un **formato esteso VestiFlow**
+che non esiste ancora.
+
+Il requisito completo è in `docs/24` §12.0. In sintesi, il CSV esteso dovrà:
+
+- avere **due colonne opzionali distinte**, ID prodotto Shopify e ID variante
+  Shopify;
+- **verificare** il negozio di provenienza e che la variante appartenga davvero
+  al prodotto indicato, **prima** di scrivere;
+- conservare i riferimenti nel **nuovo modello dei collegamenti**, non nelle sole
+  colonne legacy;
+- ⛔ non riassegnare identità già associate ad altri articoli, e non riaprire
+  automaticamente collegamenti chiusi;
+- ⛔ non creare copie su Shopify quando gli identificativi sono validi: l'articolo
+  remoto esiste già;
+- ⛔ **segnalare** identificativi errati o incoerenti, senza ripiegare sulla
+  creazione di nuovi prodotti;
+- essere **idempotente**: ripetere l'importazione non duplica prodotti, varianti
+  né collegamenti.
+
+⛔ **E due cose che un identificativo non autorizza**: un CSV senza quelle colonne
+non dimostra alcuna corrispondenza remota; e nemmeno un ID valido, da solo,
+autorizza a **fondere due articoli locali** preesistenti.
+
+⚠️ **Poggia sul modello a identità e periodi**, che oggi è schema e nessun
+servizio adotta: non si implementa prima. Giacenze iniziali, matrice §9.2 e piano
+tecnico corrente **restano invariati**.
+
 #### Che cosa NON diventa approvato
 
 ⛔ Il **wizard a nove passi** di `docs/24` §12 e le **schermate di

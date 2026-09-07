@@ -3381,6 +3381,70 @@ nuovo modello** oltre che nelle colonne legacy.
 ⚠️ Che cosa cambiare — e se il formato Shopify resti l'unico accettato — è parte
 dei dettagli operativi ancora aperti.
 
+#### ⏸ Il futuro CSV ESTESO VestiFlow — requisito registrato, da non implementare ora
+
+⚠️ **Due formati, e non vanno confusi**:
+
+|                          |                                                                                                                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CSV di Shopify**       | quello che l'export di Shopify produce e che l'import odierno accetta. ⛔ **Non porta identificativi remoti**: handle, titolo, opzioni, prezzi. Da un file così **nessuna corrispondenza remota è dimostrabile** |
+| **CSV esteso VestiFlow** | non esiste ancora. Aggiunge **colonne opzionali** che dichiarano l'identità remota, e solo grazie a quelle un caricamento può registrare collegamenti                                                            |
+
+##### Che cosa dovrà fare, quando si farà
+
+**Le colonne sono DUE e distinte** — l'ID prodotto Shopify e l'ID variante
+Shopify — perché rispondono a due domande diverse e possono essere presenti una
+senza l'altra.
+
+**Prima di scrivere qualunque cosa, si verifica:**
+
+- il **negozio di provenienza**: un identificativo di un altro negozio non vale
+  per questo;
+- che la **variante appartenga davvero al prodotto indicato**, e non a un altro.
+
+⭐ **Solo dopo le verifiche** i riferimenti si conservano nel **nuovo modello dei
+collegamenti** — identità remote e periodi (§8.5.2) — non nelle sole colonne
+legacy.
+
+**Che cosa non deve poter accadere:**
+
+- ⛔ **riassegnare un'identità già associata a un altro articolo**: è la
+  condizione che il modello impone per costruzione, e il CSV non fa eccezione;
+- ⛔ **riaprire automaticamente un collegamento chiuso**: un collegamento si
+  chiude per una ragione, e un file caricato non è quella ragione;
+- ⛔ **creare copie su Shopify quando gli identificativi sono validi**: l'articolo
+  remoto **esiste già**, e ricrearlo è il duplicato che tutto questo impianto
+  serve a evitare;
+- ⛔ **ripiegare sulla creazione quando gli identificativi sono errati o
+  incoerenti**: si **segnala il problema** e ci si ferma su quella riga. Il
+  ripiego silenzioso su «allora lo creo» è il modo in cui un errore di battitura
+  diventa un catalogo doppio.
+
+**E ripetere l'importazione non deve duplicare nulla** — né prodotti, né
+varianti, né collegamenti. L'idempotenza è un requisito, non una proprietà
+sperata: un file ricaricato per sbaglio è il caso normale, non l'eccezione.
+
+##### ⛔ Due cose che un identificativo NON autorizza
+
+**Un CSV senza queste colonne non dimostra alcuna corrispondenza remota.**
+Resta un caricamento di anagrafiche locali, e ricade nella direzione 2.
+
+**E nemmeno un ID valido, da solo, autorizza a fondere due articoli locali
+preesistenti.** Sapere che il prodotto remoto X corrisponde all'articolo locale A
+non dice nulla su che cosa fare dell'articolo locale B che gli somiglia: la
+fusione di due anagrafiche locali è un'altra decisione, che nessun file può
+prendere.
+
+##### Dipendenze e perimetro
+
+⚠️ **Questo requisito poggia sul modello a identità e periodi**, che oggi esiste
+come schema ma **non è adottato da alcun servizio** (§8.5.5). Non si implementa
+prima che quel modello sia adottato e collaudato.
+
+⛔ **Restano invariati**: le giacenze iniziali (aperte, §12.9), la matrice dei
+campi (§9.2) e il piano tecnico corrente. Questo requisito riguarda **come nasce
+un collegamento da un file**, non chi possiede cosa né quante unità ci sono.
+
 #### Che cosa NON diventa approvato
 
 ⛔ **Il wizard a nove passi di questo capitolo resta una proposta**, e le
