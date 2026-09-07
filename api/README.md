@@ -15,20 +15,34 @@ npm install
 cp .env.example .env   # poi compila i valori reali
 ```
 
-In `.env` servono le due connection string di Supabase (Project Settings → Database):
+In `.env` serve **una sola** connection string di Supabase (Project Settings → Database):
 
-| Variabile      | Uso                                                |
-| -------------- | -------------------------------------------------- |
-| `DATABASE_URL` | Connection **pooler** (porta 6543) per l'app       |
-| `DIRECT_URL`   | Connessione diretta (porta 5432) per le migrazioni |
+| Variabile           | Uso                                        | Dove sta        |
+| ------------------- | ------------------------------------------ | --------------- |
+| `DATABASE_URL`      | pooler (6543), la usa l'applicazione       | `.env`          |
+| `DATABASE_URL_TEST` | database di prova locale                   | `.env`          |
+| `DIRECT_URL_TEST`   | database di prova locale, per le migration | `.env`          |
+| `DIRECT_URL`        | ⛔ diretta (5432) del **condiviso**        | `.env.rilascio` |
+
+⛔ **`DIRECT_URL` non va in `.env`.** La CLI Prisma carica quel file da sé, e
+`migrate deploy` usa `directUrl`, non `url`: finché la variabile sta lì, ogni comando
+Prisma digitato in questa cartella parte già connesso al database condiviso. Il
+07/09/2026 una migration ci è finita così. Tienila in `api/.env.rilascio`, ignorato da
+Git e caricato da nessuno — vedi README.md radice.
 
 ## Database
 
 ```bash
-npm run prisma:deploy     # applica le migrazioni (prisma/migrations)
-npm run prisma:generate   # rigenera il client dopo modifiche allo schema
-npm run prisma:seed       # dati sandbox (tenant, location, prodotti, giacenze)
+npm run db:test:up         # avvia il PostgreSQL di prova (container)
+npm run prisma:deploy:test # applica le migrazioni al database di PROVA
+npm run prisma:generate    # rigenera il client dopo modifiche allo schema
+npm run prisma:seed        # dati sandbox — ⚠️ chiede conferma: scrive sul bersaglio
+                           #   di DATABASE_URL, che in locale è il condiviso
 ```
+
+⚠️ **`npm run prisma:deploy` non esiste più come comando locale**: applicava le
+migrazioni al condiviso senza dirlo. Ora rifiuta e spiega. Per il condiviso le
+variabili si passano a mano, dopo aver provato la migration su una copia.
 
 Per evolvere lo schema in sviluppo: `npm run prisma:migrate -- --name nome_migrazione`.
 
