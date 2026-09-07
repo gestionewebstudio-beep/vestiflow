@@ -439,6 +439,9 @@ model Tenant {
   shopifyCredential                        ShopifyCredential?
   shopifyOAuthStates                       ShopifyOAuthState[]
   shopifyInventorySyncStates               ShopifyInventorySyncState[]
+  shopifyShops                             ShopifyShop[]
+  shopifyProductLinks                      ShopifyProductLink[]
+  shopifyVariantLinks                      ShopifyVariantLink[]
   tiktokConnection                         TikTokConnection?
   tiktokCredential                         TikTokCredential?
   tiktokOAuthStates                        TikTokOAuthState[]
@@ -836,6 +839,8 @@ model Product {
   images         ProductImage[]
   defaultVatCode VatCode?         @relation(fields: [defaultVatCodeId], references: [id], onDelete: SetNull)
 
+  shopifyProductLinks ShopifyProductLink[]
+
   @@unique([tenantId, articleCode])
   @@index([tenantId, status])
   // Cestino per tenant: l'anagrafica ordinaria filtrerà `deletedAt IS NULL`.
@@ -844,6 +849,10 @@ model Product {
   @@index([tenantId, importHandle])
   @@index([tenantId, shopifyProductId])
   @@index([tenantId, tiktokProductId])
+  /// Ausiliaria per le FK composite di `shopify_product_links`: e' cio' che
+  /// permette al DATABASE di rifiutare un link il cui prodotto appartiene a un
+  /// altro tenant, invece di affidarlo al servizio applicativo.
+  @@unique([id, tenantId])
   @@map("products")
 }
 
@@ -942,6 +951,7 @@ model ProductVariant {
   stockReservations          StockReservation[]
   onlineSaleLines            OnlineSaleLine[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
+  shopifyVariantLinks        ShopifyVariantLink[]
 
   @@unique([tenantId, sku])
   @@unique([tenantId, barcode])
@@ -954,6 +964,11 @@ model ProductVariant {
   // Stato locale e cestino per tenant (docs/24 §3.4: selezionabilità).
   @@index([tenantId, lifecycleStatus])
   @@index([tenantId, deletedAt])
+  /// Ausiliarie per le FK composite di `shopify_variant_links`: la prima lega
+  /// il link al tenant giusto, la seconda garantisce che la variante sia
+  /// davvero figlia del prodotto dichiarato nel link (docs/24 §8.5.2).
+  @@unique([id, tenantId])
+  @@unique([id, productId])
   @@map("product_variants")
 }
 
@@ -3652,4 +3667,208 @@ model PosTerminal {
   @@unique([tenantId, terminalId])
   @@index([tenantId])
   @@map("pos_terminals")
+}
+
+/// Stato di un collegamento verso Shopify (docs/24 §8.5.2).
+///
+/// ⛔ Tre valori, non quattro: `superseded` NON e' uno stato. L'esistenza di un
+/// successore e' una RELAZIONE (`supersededByLinkId`) e la causa della chiusura
+/// e' una CAUSALE (`closeReason`) — usarlo come stato cancellerebbe la causa
+/// vera, e un link chiuso perche' eliminato su Shopify diventerebbe
+/// genericamente «sostituito».
+enum ShopifyLinkStatus {
+  active
+  remotely_deleted
+  unlinked
+}
+
+/// Perche' un collegamento si e' chiuso. Fissata alla chiusura, non cambia piu'.
+///
+/// ⚠️ La causale ammessa dipende dallo stato, e il vincolo e' un `CHECK` nella
+/// migration `20260907000000_shopify_link_history`: `remotely_deleted` accetta
+/// solo `remote_delete`/`not_found`, `unlinked` solo `operator`/`shop_change`.
+enum ShopifyLinkCloseReason {
+  remote_delete
+  not_found
+  operator
+  shop_change
+}
+
+/// Identita' IMMUTABILE di un negozio Shopify, separata dalla connessione
+/// corrente (docs/24 §8.5.1).
+///
+/// ⭐ Esiste perche' `ShopifyConnection` ha `tenantId @unique` e il cambio
+/// negozio RIUSA la stessa riga sovrascrivendo `shopDomain`: senza questa
+/// tabella, dopo un cambio non si puo' piu' risalire al negozio precedente, e
+/// gli identificativi storici diventano ambigui.
+///
+/// ⚠️ `shopGid` nasce NULLABLE ed e' voluto: il valore non esiste nei dati
+/// locali e una migration non puo' interrogare Shopify. Si acquisisce con un
+/// passo esplicito e verificato (fase 2), e solo dopo diventa `NOT NULL`
+/// (docs/24 §8.5.8).
+model ShopifyShop {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// `gid://shopify/Shop/{id}` — identita' permanente del negozio.
+  /// ⚠️ Il formato e' imposto da un `CHECK` nella migration, che Prisma non sa
+  /// esprimere: un GID di tipo sbagliato viene rifiutato dal database.
+  shopGid String? @map("shop_gid")
+
+  /// Fotografia del dominio al collegamento: serve a riconoscere il negozio,
+  /// non a identificarlo (il dominio e' mutabile, il GID no).
+  myshopifyDomain String? @map("myshopify_domain")
+
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime? @map("last_seen_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  productLinks ShopifyProductLink[]
+  variantLinks ShopifyVariantLink[]
+
+  /// ⭐ Univoco GLOBALMENTE, non per tenant: lo stesso negozio Shopify non puo'
+  /// appartenere a due tenant VestiFlow insieme (docs/24 §8.5.1). Con `NULL`
+  /// PostgreSQL non collide, quindi le connessioni non ancora acquisite
+  /// convivono.
+  @@unique([shopGid])
+  @@unique([tenantId, shopGid])
+  /// Ausiliaria per le FK composite dei link: garantisce che negozio e link
+  /// appartengano allo stesso tenant.
+  @@unique([id, tenantId])
+  @@map("shopify_shops")
+}
+
+/// Storico dei collegamenti PRODOTTO verso Shopify (docs/24 §8.5.2).
+///
+/// ⛔ Un identificativo remoto compare UNA SOLA VOLTA in questa tabella, per
+/// sempre: e' cio' che impedisce di riusarlo dopo la chiusura e che tiene
+/// risolvibili ordini e resi storici.
+model ShopifyProductLink {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  shopId    String @map("shop_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+
+  /// `gid://shopify/Product/{id}` — GID completo, mai il numerico.
+  /// ⚠️ Il tipo e' imposto da un `CHECK`: un GID di variante qui viene
+  /// rifiutato dal database, non da una convenzione.
+  shopifyProductGid String @map("shopify_product_gid")
+
+  /// ⚠️ Prisma non valida i CHECK: una violazione arriva come errore
+  ///    PostgreSQL grezzo (23514), non come errore Prisma leggibile, e va
+  ///    tradotta nel servizio. I cinque CHECK stanno nella migration
+  ///    `20260907000000_shopify_link_history` e si leggono come UN GRUPPO:
+  ///    attivo ⇒ nessuna chiusura · chiuso ⇒ chiusura completa · la causale
+  ///    ammessa dipende dallo stato · il successore non e’ se stesso.
+  ///
+  /// ⚠️ Su questa colonna poggia anche un indice unico PARZIALE che Prisma
+  ///    non sa esprimere: un solo collegamento `active` per entita’ locale
+  ///    (docs/24 §8.5.2, garanzie 3-4). Una violazione arriva come 23505.
+  status      ShopifyLinkStatus       @default(active)
+
+  /// ⚠️ Fissata alla chiusura, non cambia mai. La causale ammessa dipende
+  ///    dallo stato, e il vincolo e’ un CHECK nella stessa migration:
+  ///    `remotely_deleted` accetta solo `remote_delete`/`not_found`,
+  ///    `unlinked` solo `operator`/`shop_change`.
+  closeReason ShopifyLinkCloseReason? @map("close_reason")
+
+  /// Il successore, quando esiste. E' una relazione, non uno stato.
+  supersededByLinkId String? @map("superseded_by_link_id") @db.Uuid
+
+  linkedAt             DateTime  @default(now()) @map("linked_at")
+  closedAt             DateTime? @map("closed_at")
+  lastEventAt          DateTime? @map("last_event_at")
+  lastEventTriggeredAt DateTime? @map("last_event_triggered_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id])
+  shop    ShopifyShop @relation(fields: [shopId, tenantId], references: [id, tenantId])
+  product Product     @relation(fields: [productId, tenantId], references: [id, tenantId])
+
+  supersededBy ShopifyProductLink?  @relation("ProductLinkSuccessione", fields: [supersededByLinkId, productId, shopId], references: [id, productId, shopId], onDelete: Restrict, onUpdate: Restrict)
+  supersede    ShopifyProductLink[] @relation("ProductLinkSuccessione")
+  variantLinks ShopifyVariantLink[]
+
+  /// Un id remoto una volta sola, storico incluso (docs/24 §8.5.2, garanzia 1).
+  @@unique([shopId, shopifyProductGid])
+  /// ⛔ **Garanzia 3 — NON dichiarabile qui.** Un solo collegamento `active`
+  ///    per prodotto locale e’ un indice unico PARZIALE, che Prisma non sa
+  ///    esprimere: vive in `20260907000000_shopify_link_history` come
+  ///    `shopify_product_links_product_attivo_key`. Toglierlo di la’ non fa
+  ///    fallire niente qui, ed e’ il motivo per cui questo commento esiste.
+  /// Ausiliaria: successore e figli devono condividere prodotto e negozio.
+  @@unique([id, productId, shopId])
+  @@index([tenantId, shopifyProductGid])
+  @@index([tenantId, productId, status])
+  @@map("shopify_product_links")
+}
+
+/// Storico dei collegamenti VARIANTE verso Shopify (docs/24 §8.5.2).
+model ShopifyVariantLink {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  shopId    String @map("shop_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  variantId String @map("variant_id") @db.Uuid
+
+  /// Il link del prodotto padre: rende la chiusura a cascata (docs/24 §8.5.2,
+  /// regola 8) una UPDATE sola e verificabile, non una ricerca per somiglianza.
+  productLinkId String @map("product_link_id") @db.Uuid
+
+  /// `gid://shopify/ProductVariant/{id}`
+  shopifyVariantGid String @map("shopify_variant_gid")
+
+  /// `gid://shopify/InventoryItem/{id}` — la variante porta DUE identificativi
+  /// remoti, ed e' la ragione per cui prodotto e variante hanno tabelle
+  /// distinte invece di una polimorfica.
+  shopifyInventoryItemGid String? @map("shopify_inventory_item_gid")
+
+  /// ⚠️ Prisma non valida i CHECK: una violazione arriva come errore
+  ///    PostgreSQL grezzo (23514), non come errore Prisma leggibile, e va
+  ///    tradotta nel servizio. I cinque CHECK stanno nella migration
+  ///    `20260907000000_shopify_link_history` e si leggono come UN GRUPPO:
+  ///    attivo ⇒ nessuna chiusura · chiuso ⇒ chiusura completa · la causale
+  ///    ammessa dipende dallo stato · il successore non e’ se stesso.
+  ///
+  /// ⚠️ Su questa colonna poggia anche un indice unico PARZIALE che Prisma
+  ///    non sa esprimere: un solo collegamento `active` per entita’ locale
+  ///    (docs/24 §8.5.2, garanzie 3-4). Una violazione arriva come 23505.
+  status      ShopifyLinkStatus       @default(active)
+
+  /// ⚠️ Fissata alla chiusura, non cambia mai. La causale ammessa dipende
+  ///    dallo stato, e il vincolo e’ un CHECK nella stessa migration:
+  ///    `remotely_deleted` accetta solo `remote_delete`/`not_found`,
+  ///    `unlinked` solo `operator`/`shop_change`.
+  closeReason ShopifyLinkCloseReason? @map("close_reason")
+
+  supersededByLinkId String? @map("superseded_by_link_id") @db.Uuid
+
+  linkedAt             DateTime  @default(now()) @map("linked_at")
+  closedAt             DateTime? @map("closed_at")
+  lastEventAt          DateTime? @map("last_event_at")
+  lastEventTriggeredAt DateTime? @map("last_event_triggered_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  shop        ShopifyShop        @relation(fields: [shopId, tenantId], references: [id, tenantId])
+  variant     ProductVariant     @relation(fields: [variantId, tenantId], references: [id, tenantId])
+  productLink ShopifyProductLink @relation(fields: [productLinkId, productId, shopId], references: [id, productId, shopId], onDelete: Restrict, onUpdate: Restrict)
+
+  supersededBy ShopifyVariantLink?  @relation("VariantLinkSuccessione", fields: [supersededByLinkId, variantId, shopId], references: [id, variantId, shopId], onDelete: Restrict, onUpdate: Restrict)
+  supersede    ShopifyVariantLink[] @relation("VariantLinkSuccessione")
+
+  /// Un id remoto una volta sola, storico incluso (docs/24 §8.5.2, garanzia 2).
+  @@unique([shopId, shopifyVariantGid])
+  /// ⛔ **Garanzia 4 — NON dichiarabile qui**, come la 3 sul prodotto:
+  ///    `shopify_variant_links_variant_attivo_key`, indice parziale nella
+  ///    stessa migration.
+  @@unique([shopId, shopifyInventoryItemGid])
+  @@unique([id, variantId, shopId])
+  @@index([tenantId, shopifyVariantGid])
+  @@index([tenantId, variantId, status])
+  @@map("shopify_variant_links")
 }
