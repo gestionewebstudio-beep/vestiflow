@@ -3,8 +3,9 @@
 -- ⛔ STORIA DI QUESTO FILE, e va letta prima di applicarlo.
 --    Una versione PRECEDENTE di questa migration e' stata applicata per
 --    ERRORE al database condiviso, e successivamente rimossa. La versione
---    attuale — con `shopify_location_links`, `shopify_connections.shop_id` e
---    l'ausiliaria su `locations` — e' stata collaudata SOLTANTO IN LOCALE.
+--    attuale — con `shopify_location_pairs`, `shopify_location_links`,
+--    `shopify_connections.shop_id` e l'ausiliaria su `locations` — e' stata
+--    collaudata SOLTANTO IN LOCALE.
 --
 -- ⚠️ Non e' un dettaglio di cronaca: se «rimossa» ha riguardato solo la riga di
 --    `_prisma_migrations` e non gli oggetti, il condiviso porta ancora enum e
@@ -286,39 +287,112 @@ ALTER TABLE "shopify_variant_links"
 ALTER TABLE "shopify_variant_links" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON "shopify_variant_links" FROM PUBLIC, anon, authenticated;
 
--- ── shopify_location_links: storico dei collegamenti di sede ────────────────
+-- ── LA COPPIA E I SUOI PERIODI — due tabelle, non una ──────────────────────
 --
--- ⭐ Sede VestiFlow e location Shopify sono DUE ENTITA' AUTONOME (docs/24 §1.13):
---    la sincronizzazione avviene solo dove esiste un collegamento esplicito, e
---    quel collegamento lo dichiara una persona. Senza collegamento non succede
---    niente, in nessuna direzione.
+-- ⭐ Deciso dal proprietario il 07/09/2026 (docs/24 §1.13.6): una sede
+--    VestiFlow e una location Shopify, una volta abbinate e usate, NON si
+--    riassegnano ad altre controparti. Si puo' interrompere e ripristinare LA
+--    STESSA coppia; se serve un abbinamento diverso, si crea una nuova sede.
 --
--- ⛔ Questa tabella esiste per rendere distinguibili «il collegamento e' stato
---    chiuso» e «il collegamento non e' mai esistito» (§1.13.3). Senza, il
---    divieto di riaggancio automatico per nome o indirizzo e' sorretto solo da
---    un effetto collaterale — l'identificativo non viene azzerato — e una
---    location che tornasse con un id nuovo verrebbe riagganciata per nome.
+-- ⛔ **Un solo indice sui collegamenti attivi NON basta**, ed e' la ragione per
+--    cui le tabelle sono due. Con `UNIQUE (location_id) WHERE status='active'`
+--    la sede resterebbe libera di legarsi a un'altra location non appena il
+--    collegamento e' chiuso: la riassegnazione passerebbe, e sarebbe proprio
+--    cio' che la decisione esclude.
 --
--- ⚠️ Nessuna colonna di NOME o INDIRIZZO, ed e' deliberato: le anagrafiche non
---    si sincronizzano (§1.13.2), e un nome in questa tabella sarebbe l'appiglio
---    per il riaggancio automatico che la tabella esiste per impedire.
+-- ⭐ La COPPIA e' stabile e porta i due vincoli TOTALI che vietano la
+--    riassegnazione; i PERIODI dicono quando quella coppia e' stata attiva, e
+--    sono molti nel tempo. La distinzione fra le due cose e' il modello.
+--
+-- ⛔ `superseded_by_link_id` NON esiste piu' su questa famiglia. Era stato
+--    deciso il 07/09/2026 per la «sostituzione esplicita», e la decisione dello
+--    stesso giorno l'ha superata: senza procedure di sostituzione non esiste un
+--    successore da indicare. I periodi di una coppia si susseguono nel tempo, e
+--    si leggono ordinati per `linked_at`.
+
+-- ── shopify_location_pairs: la coppia, stabile ──────────────────────────────
+--
+-- ⚠️ Nessuna colonna di NOME o INDIRIZZO, ed e' deliberato due volte: le
+--    anagrafiche non si sincronizzano (§1.13.2), e «cambiare soltanto nome o
+--    indirizzo non cambia l'identita' della coppia» (§1.13.6). Un nome qui
+--    sarebbe anche l'appiglio per il riaggancio automatico che il modello
+--    esiste per impedire.
+
+CREATE TABLE "shopify_location_pairs" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "tenant_id" UUID NOT NULL,
+  "shop_id" UUID NOT NULL,
+  "location_id" UUID NOT NULL,
+  "shopify_location_gid" TEXT NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
+
+  CONSTRAINT "shopify_location_pairs_pkey" PRIMARY KEY ("id"),
+
+  -- Solo un GID di LOCATION. La forma e' gia' quella usata dal codice di
+  -- produzione (`shopify-location-id.util.ts`): qui la impone il database.
+  CONSTRAINT "shopify_location_pairs_gid_forma" CHECK (
+    "shopify_location_gid" ~ '^gid://shopify/Location/[0-9]+$'
+  )
+);
+
+-- ⛔ I DUE VINCOLI CHE VIETANO LA RIASSEGNAZIONE, e sono TOTALI — non parziali
+--    su `active`, o non vieterebbero niente.
+--
+--    Il primo: una sede appartiene a UNA sola coppia, per sempre. Se il nuovo
+--    negozio richiede una location diversa, si usa una nuova sede (§1.13.6).
+CREATE UNIQUE INDEX "shopify_location_pairs_location_id_key"
+  ON "shopify_location_pairs" ("location_id");
+
+--    Il secondo: una location appartiene a UNA sola coppia, per sempre. E' cio'
+--    che impedisce di aggirare il divieto creando una sede nuova e collegandola
+--    a una location gia' appartenuta a un'altra sede — il caso che la decisione
+--    nomina esplicitamente.
+CREATE UNIQUE INDEX "shopify_location_pairs_shop_id_shopify_location_gid_key"
+  ON "shopify_location_pairs" ("shop_id", "shopify_location_gid");
+
+-- Ausiliaria per la FK composita dei periodi.
+CREATE UNIQUE INDEX "shopify_location_pairs_id_tenant_id_key"
+  ON "shopify_location_pairs" ("id", "tenant_id");
+
+CREATE INDEX "shopify_location_pairs_tenant_id_shopify_location_gid_idx"
+  ON "shopify_location_pairs" ("tenant_id", "shopify_location_gid");
+
+ALTER TABLE "shopify_location_pairs"
+  ADD CONSTRAINT "shopify_location_pairs_tenant_id_fkey" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- FK COMPOSITE: negozio e sede sono dello stesso tenant della coppia.
+  ADD CONSTRAINT "shopify_location_pairs_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
+    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT "shopify_location_pairs_location_id_tenant_id_fkey" FOREIGN KEY ("location_id", "tenant_id")
+    REFERENCES "locations" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "shopify_location_pairs" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON "shopify_location_pairs" FROM PUBLIC, anon, authenticated;
+
+-- ── shopify_location_links: i periodi di collegamento della coppia ──────────
+--
+-- ⭐ «E' consentito interrompere e ripristinare la stessa coppia, conservando
+--    la storia» (§1.13.6): ogni ripristino apre un periodo NUOVO sulla stessa
+--    coppia. La storia e' l'elenco dei periodi.
+--
+-- ⭐ E l'INTERVALLO NON SINCRONIZZATO, che il ripristino deve recuperare, si
+--    legge da qui: e' il tempo fra il `closed_at` del periodo precedente e il
+--    `linked_at` di quello nuovo. Senza periodi distinti quell'intervallo non
+--    esisterebbe come dato.
 --
 -- ⛔ Nessun `last_event_at` / `last_event_triggered_at`, al contrario delle due
---    tabelle sorelle. Quelle colonne servono a scartare eventi webhook fuori
---    ordine (§8.5.4), e per le location NON ESISTE alcun topic: gli otto
---    registrati sono inventory_levels, orders, customers e products
+--    tabelle sorelle: quelle colonne scartano eventi webhook fuori ordine
+--    (§8.5.4), e per le location NON ESISTE alcun topic registrato
 --    (`shopify-webhook-topics.ts`). Copiarle sarebbe inventare l'ordinamento di
 --    eventi che non arrivano.
 
 CREATE TABLE "shopify_location_links" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "tenant_id" UUID NOT NULL,
-  "shop_id" UUID NOT NULL,
-  "location_id" UUID NOT NULL,
-  "shopify_location_gid" TEXT NOT NULL,
+  "pair_id" UUID NOT NULL,
   "status" "ShopifyLinkStatus" NOT NULL DEFAULT 'active',
   "close_reason" "ShopifyLinkCloseReason",
-  "superseded_by_link_id" UUID,
   "linked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "closed_at" TIMESTAMP(3),
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -326,95 +400,57 @@ CREATE TABLE "shopify_location_links" (
 
   CONSTRAINT "shopify_location_links_pkey" PRIMARY KEY ("id"),
 
-  -- Solo un GID di LOCATION. La forma e' gia' quella usata dal codice di
-  -- produzione (`shopify-location-id.util.ts`, `shopify-order-location.util.ts`):
-  -- non e' una convenzione nuova, e qui la impone il database.
-  CONSTRAINT "shopify_location_links_gid_forma" CHECK (
-    "shopify_location_gid" ~ '^gid://shopify/Location/[0-9]+$'
-  ),
-
-  -- I cinque CHECK di stato, identici alle due tabelle sorelle e da leggere
-  -- come UN GRUPPO: il secondo non e' ridondante rispetto al terzo e al quarto,
-  -- perche' `IN (...)` su NULL vale NULL e un CHECK fallisce solo su FALSE.
+  -- I CHECK di stato, da leggere come UN GRUPPO: il secondo non e' ridondante
+  -- rispetto al terzo e al quarto, perche' `IN (...)` su NULL vale NULL e un
+  -- CHECK fallisce solo su FALSE.
   CONSTRAINT "shopify_location_links_attivo_pulito" CHECK (
     "status" <> 'active' OR ("closed_at" IS NULL AND "close_reason" IS NULL)
   ),
   CONSTRAINT "shopify_location_links_chiuso_completo" CHECK (
     "status" = 'active' OR ("closed_at" IS NOT NULL AND "close_reason" IS NOT NULL)
   ),
-  -- ⭐ Le causali sono le stesse delle sorelle, e coprono i casi decisi:
-  --    §1.13.3 «non esiste piu' su Shopify» -> remote_delete / not_found;
-  --    §1.13.3 «l'utente puo' collegare esplicitamente la sede a un'altra
-  --    location» -> operator; il cambio negozio -> shop_change, deciso dal
-  --    proprietario il 07/09/2026 (§8.5.1 nominava solo prodotto e variante).
+  -- ⭐ Le causali coprono i casi decisi: §1.13.3 «non esiste piu' su Shopify»
+  --    -> remote_delete / not_found; l'interruzione voluta -> operator; il
+  --    cambio negozio -> shop_change.
   CONSTRAINT "shopify_location_links_causale_eliminato" CHECK (
     "status" <> 'remotely_deleted' OR "close_reason" IN ('remote_delete', 'not_found')
   ),
   CONSTRAINT "shopify_location_links_causale_scollegato" CHECK (
     "status" <> 'unlinked' OR "close_reason" IN ('operator', 'shop_change')
   ),
-  -- ⚠️ Blocca l'auto-riferimento (A verso A). NON blocca un ciclo fra due righe
-  --    (A verso B, B verso A): un CHECK di riga non puo' vedere un'altra riga, e
-  --    la garanzia resta applicativa — la stessa dichiarazione di §8.5.2 per le
-  --    tabelle sorelle. Il successore si scrive in un UPDATE che segue l'INSERT
-  --    del link nuovo, mai in un ordine che permetta due righe di puntarsi a
-  --    vicenda.
-  CONSTRAINT "shopify_location_links_successore_non_se_stesso" CHECK (
-    "superseded_by_link_id" IS NULL OR "superseded_by_link_id" <> "id"
+  -- Un periodo chiuso non puo' finire prima di cominciare.
+  CONSTRAINT "shopify_location_links_periodo_coerente" CHECK (
+    "closed_at" IS NULL OR "closed_at" >= "linked_at"
   )
 );
 
--- Garanzia 1-2 per le sedi: un GID di location compare UNA VOLTA SOLA, storico
--- incluso. E' cio' che rende impossibile riusarlo dopo la chiusura, e quindi
--- verificabile il divieto di riaggancio automatico.
-CREATE UNIQUE INDEX "shopify_location_links_shop_id_shopify_location_gid_key"
-  ON "shopify_location_links" ("shop_id", "shopify_location_gid");
-
--- ⭐ Ausiliaria della FK di successione. Porta il TENANT e non il negozio: il
---    proprietario ha deciso il 07/09/2026 che predecessore e successore devono
---    appartenere allo stesso tenant e alla stessa SEDE. Imporre lo stesso
---    negozio impedirebbe la sostituzione dopo un cambio negozio, che e'
---    esattamente uno dei casi in cui il collegamento si sostituisce.
-CREATE UNIQUE INDEX "shopify_location_links_id_location_id_tenant_id_key"
-  ON "shopify_location_links" ("id", "location_id", "tenant_id");
-
-CREATE INDEX "shopify_location_links_tenant_id_shopify_location_gid_idx"
-  ON "shopify_location_links" ("tenant_id", "shopify_location_gid");
-CREATE INDEX "shopify_location_links_tenant_id_location_id_status_idx"
-  ON "shopify_location_links" ("tenant_id", "location_id", "status");
-
--- ⭐ Garanzia 3-4 per le sedi — UNA SEDE, UN SOLO COLLEGAMENTO VIVO, deciso dal
---    proprietario il 07/09/2026 fra le due formulazioni scritte che non
---    coincidevano (§1.13.1 «uno-a-uno dentro lo stesso negozio» contro le
---    garanzie 3-4 di §8.5.2, che sono per entita' locale). Vince la piu'
---    stretta, col metodo di §8.5.1: il vincolo si rilassa solo dopo aver
---    dichiarato per iscritto il caso commerciale che lo giustifica.
---
--- ⚠️ Senza `shop_id` NELL'INDICE: una sede non puo' essere collegata a due
---    negozi insieme. Sincronizzare quantita' verso due negozi richiederebbe una
---    regola di ripartizione che non esiste e non e' stata chiesta.
-CREATE UNIQUE INDEX "shopify_location_links_location_attivo_key"
-  ON "shopify_location_links" ("location_id")
+-- ⭐ Un solo periodo VIVO per coppia. E' l'unico indice parziale della
+--    famiglia, e qui basta davvero: la riassegnazione la vietano gia' i due
+--    vincoli totali sulla coppia, non questo.
+CREATE UNIQUE INDEX "shopify_location_links_pair_attivo_key"
+  ON "shopify_location_links" ("pair_id")
   WHERE "status" = 'active';
+
+-- La storia di una coppia si legge in ordine di tempo, ed e' cosi' che si
+-- ricava l'intervallo non sincronizzato fra due periodi.
+CREATE INDEX "shopify_location_links_pair_id_linked_at_idx"
+  ON "shopify_location_links" ("pair_id", "linked_at");
+CREATE INDEX "shopify_location_links_tenant_id_status_idx"
+  ON "shopify_location_links" ("tenant_id", "status");
 
 ALTER TABLE "shopify_location_links"
   ADD CONSTRAINT "shopify_location_links_tenant_id_fkey" FOREIGN KEY ("tenant_id")
     REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  -- FK COMPOSITE: negozio e sede sono dello stesso tenant del collegamento.
-  ADD CONSTRAINT "shopify_location_links_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
-    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  ADD CONSTRAINT "shopify_location_links_location_id_tenant_id_fkey" FOREIGN KEY ("location_id", "tenant_id")
-    REFERENCES "locations" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  -- Il successore appartiene allo STESSO tenant e alla STESSA sede.
-  -- ⚠️ `RESTRICT` esplicito: mai SET NULL (perderebbe il legame in silenzio),
-  --    mai CASCADE (propagherebbe una cancellazione lungo la catena).
-  ADD CONSTRAINT "shopify_location_links_superseded_by_fkey"
-    FOREIGN KEY ("superseded_by_link_id", "location_id", "tenant_id")
-    REFERENCES "shopify_location_links" ("id", "location_id", "tenant_id")
-    ON DELETE RESTRICT ON UPDATE RESTRICT;
+  -- ⚠️ `RESTRICT`, mai CASCADE: un abbinamento iniziale errato si corregge solo
+  --    se non ha ancora prodotto effetti (§1.13.6), e in quel caso i periodi si
+  --    rimuovono PRIMA della coppia, in un percorso esplicito che li ha
+  --    verificati. Una cascata li porterebbe via senza che nessuno guardi.
+  ADD CONSTRAINT "shopify_location_links_pair_id_tenant_id_fkey" FOREIGN KEY ("pair_id", "tenant_id")
+    REFERENCES "shopify_location_pairs" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "shopify_location_links" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON "shopify_location_links" FROM PUBLIC, anon, authenticated;
+
 
 -- ── shopify_connections.shop_id: la connessione punta al negozio ────────────
 --

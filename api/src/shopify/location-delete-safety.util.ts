@@ -217,16 +217,21 @@ export const RIFERIMENTI_SEDE: readonly RiferimentoSede[] = [
     effetto: 'scollegata',
     etichetta: 'utenti che hanno questa sede come predefinita',
   },
-  // ⭐ Lo STORICO dei collegamenti Shopify (docs/24 §1.13.3). Blocca la
-  //    cancellazione, ed e' voluto: e' la traccia che rende distinguibili «il
-  //    collegamento e' stato chiuso» e «non e' mai esistito». Una sede che ha
-  //    una storia con Shopify non si elimina fisicamente — si rende non
-  //    operativa (§1.13.4).
+  // ⭐ La COPPIA con una location Shopify (docs/24 §1.13.6). Blocca la
+  //    cancellazione, ed e' voluto due volte: e' la traccia che rende
+  //    distinguibili «il collegamento e' stato chiuso» e «non e' mai esistito»,
+  //    ed e' il vincolo che impedisce di riassegnare la location a un'altra
+  //    sede. Una sede che ha una storia con Shopify non si elimina fisicamente
+  //    — si rende non operativa (§1.13.4).
+  //
+  // ⚠️ I PERIODI (`shopifyLocationLink`) non compaiono qui: puntano alla coppia,
+  //    non alla sede. A trattenere la sede e' la coppia, e i periodi trattengono
+  //    la coppia.
   {
-    modello: 'shopifyLocationLink',
+    modello: 'shopifyLocationPair',
     campo: 'locationId',
     effetto: 'bloccata',
-    etichetta: 'storico dei collegamenti Shopify',
+    etichetta: 'coppia con una location Shopify',
   },
 ];
 

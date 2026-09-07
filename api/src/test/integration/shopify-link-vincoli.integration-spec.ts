@@ -28,8 +28,6 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
 
   const SHOP_A = 'c0000000-0000-4000-8000-00000000000a';
   const SHOP_B = 'c0000000-0000-4000-8000-00000000000b';
-  const GID_SHOP_A = 'gid://shopify/Shop/9101';
-  const GID_SHOP_B = 'gid://shopify/Shop/9102';
 
   beforeAll(() => {
     ambienteIntegrazione();
@@ -44,45 +42,69 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
     await creaDataset(prisma);
     await prisma.$executeRawUnsafe(
       `INSERT INTO shopify_shops (id, tenant_id, shop_gid, updated_at) VALUES
-         ($1::uuid, $2::uuid, $3, now()),
-         ($4::uuid, $5::uuid, $6, now())`,
+         ($1::uuid, $2::uuid, 'gid://shopify/Shop/9101', now()),
+         ($3::uuid, $4::uuid, 'gid://shopify/Shop/9102', now())`,
       SHOP_A,
       IDS.tenantA,
-      GID_SHOP_A,
       SHOP_B,
       IDS.tenantB,
-      GID_SHOP_B,
     );
   });
 
-  /** Inserisce un collegamento di sede e restituisce l'errore, se c'e'. */
-  async function collega(valori: {
+  /** Crea una COPPIA sede ↔ location e restituisce l'errore, se c'e'. */
+  async function abbina(valori: {
     id?: string;
     tenant?: string;
     shop?: string;
     sede?: string;
     gid: string;
+  }): Promise<string | null> {
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO shopify_location_pairs
+           (id, tenant_id, shop_id, location_id, shopify_location_gid, updated_at)
+         VALUES (coalesce($1, gen_random_uuid()::text)::uuid, $2::uuid, $3::uuid, $4::uuid, $5, now())`,
+        valori.id ?? null,
+        valori.tenant ?? IDS.tenantA,
+        valori.shop ?? SHOP_A,
+        valori.sede ?? IDS.locA1,
+        valori.gid,
+      );
+      return null;
+    } catch (errore) {
+      return errore instanceof Error ? errore.message : String(errore);
+    }
+  }
+
+  /** Apre un PERIODO di collegamento su una coppia. */
+  async function apriPeriodo(valori: {
+    id?: string;
+    tenant?: string;
+    coppia: string;
     stato?: string;
     causale?: string | null;
     chiusoIl?: boolean;
+    chiusuraPrimaDellApertura?: boolean;
   }): Promise<string | null> {
     const stato = valori.stato ?? 'active';
     const chiuso = valori.chiusoIl ?? stato !== 'active';
     try {
       await prisma.$executeRawUnsafe(
         `INSERT INTO shopify_location_links
-           (id, tenant_id, shop_id, location_id, shopify_location_gid, status, close_reason, closed_at, updated_at)
-         VALUES (coalesce($1, gen_random_uuid()::text)::uuid, $2::uuid, $3::uuid, $4::uuid, $5,
-                 $6::"ShopifyLinkStatus", $7::"ShopifyLinkCloseReason",
-                 CASE WHEN $8::boolean THEN now() ELSE NULL END, now())`,
+           (id, tenant_id, pair_id, status, close_reason, linked_at, closed_at, updated_at)
+         VALUES (coalesce($1, gen_random_uuid()::text)::uuid, $2::uuid, $3::uuid,
+                 $4::"ShopifyLinkStatus", $5::"ShopifyLinkCloseReason",
+                 now(),
+                 CASE WHEN $7::boolean THEN now() - interval '1 day'
+                      WHEN $6::boolean THEN now() ELSE NULL END,
+                 now())`,
         valori.id ?? null,
         valori.tenant ?? IDS.tenantA,
-        valori.shop ?? SHOP_A,
-        valori.sede ?? IDS.locA1,
-        valori.gid,
+        valori.coppia,
         stato,
         valori.causale ?? null,
         chiuso,
+        valori.chiusuraPrimaDellApertura ?? false,
       );
       return null;
     } catch (errore) {
@@ -103,7 +125,7 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
    */
   function vincoloViolato(messaggio: string | null): string | null {
     if (messaggio === null) return null;
-    const perNome = messaggio.match(/"(shopify_location_links_[a-z_]+)"/);
+    const perNome = messaggio.match(/"(shopify_location_(?:links|pairs)_[a-z_]+)"/);
     if (perNome) return perNome[1]!;
     const perChiave = messaggio.match(/Code: `23505`[\s\S]*?Key \(([^)]*)\)=/);
     if (perChiave) return `unico:${perChiave[1]!.replace(/\s/g, '')}`;
@@ -111,76 +133,124 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
   }
 
   describe('il caso valido, che rende significativi tutti i rifiuti', () => {
-    it('accetta un collegamento ben formato', async () => {
-      expect(await collega({ gid: 'gid://shopify/Location/1' })).toBeNull();
+    it('accetta una coppia ben formata e il suo primo periodo', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000001';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/1' })).toBeNull();
+      expect(await apriPeriodo({ coppia })).toBeNull();
       const righe = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
         'SELECT count(*) AS n FROM shopify_location_links',
       );
       expect(Number(righe[0]!.n)).toBe(1);
     });
 
-    it('accetta lo storico: piu` collegamenti CHIUSI sulla stessa sede', async () => {
-      expect(await collega({ gid: 'gid://shopify/Location/1' })).toBeNull();
+    it('ACCETTA di interrompere e RIPRISTINARE la stessa coppia', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000002';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/2' })).toBeNull();
+      // primo periodo, poi chiuso dall'operatore
       expect(
-        await collega({
-          gid: 'gid://shopify/Location/2',
-          stato: 'remotely_deleted',
-          causale: 'not_found',
-        }),
+        await apriPeriodo({ coppia, stato: 'unlinked', causale: 'operator' }),
       ).toBeNull();
-      expect(
-        await collega({
-          gid: 'gid://shopify/Location/3',
-          stato: 'unlinked',
-          causale: 'operator',
-        }),
-      ).toBeNull();
+      // ⭐ il ripristino apre un periodo NUOVO sulla stessa coppia
+      expect(await apriPeriodo({ coppia })).toBeNull();
+      const periodi = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+        'SELECT count(*) AS n FROM shopify_location_links WHERE pair_id = $1::uuid',
+        coppia,
+      );
+      expect(Number(periodi[0]!.n)).toBe(2);
     });
 
-    it('accetta `shop_change` su una sede — deciso il 07/09/2026', async () => {
+    it('ACCETTA il ritorno al negozio A dopo A -> B, sulla stessa coppia', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000003';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/3' })).toBeNull();
       expect(
-        await collega({
-          gid: 'gid://shopify/Location/4',
-          stato: 'unlinked',
-          causale: 'shop_change',
-        }),
+        await apriPeriodo({ coppia, stato: 'unlinked', causale: 'shop_change' }),
       ).toBeNull();
+      expect(await apriPeriodo({ coppia })).toBeNull();
+    });
+
+    it('ACCETTA il ripristino dopo che la location era sparita da Shopify', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000004';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/4' })).toBeNull();
+      expect(
+        await apriPeriodo({ coppia, stato: 'remotely_deleted', causale: 'not_found' }),
+      ).toBeNull();
+      expect(await apriPeriodo({ coppia })).toBeNull();
+    });
+  });
+
+  describe('il divieto di riassegnazione, che e` la decisione del 07/09/2026', () => {
+    it('rifiuta di abbinare la stessa SEDE a una seconda location', async () => {
+      expect(await abbina({ gid: 'gid://shopify/Location/10' })).toBeNull();
+      expect(vincoloViolato(await abbina({ gid: 'gid://shopify/Location/11' }))).toBe(
+        'unico:location_id',
+      );
+    });
+
+    it('rifiuta di abbinare la stessa LOCATION a una seconda sede', async () => {
+      expect(await abbina({ gid: 'gid://shopify/Location/12' })).toBeNull();
+      expect(
+        vincoloViolato(await abbina({ sede: IDS.locA2, gid: 'gid://shopify/Location/12' })),
+      ).toBe('unico:shop_id,shopify_location_gid');
+    });
+
+    it('rifiuta anche con una SEDE NUOVA: e` il modo per aggirare il divieto', async () => {
+      expect(await abbina({ gid: 'gid://shopify/Location/13' })).toBeNull();
+      // La sede A2 e` "nuova" rispetto alla coppia, ma la location e` gia` impegnata.
+      expect(
+        vincoloViolato(await abbina({ sede: IDS.locA2, gid: 'gid://shopify/Location/13' })),
+      ).toBe('unico:shop_id,shopify_location_gid');
+    });
+
+    it('rifiuta la riassegnazione ANCHE dopo che tutti i periodi sono chiusi', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000020';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/14' })).toBeNull();
+      expect(
+        await apriPeriodo({ coppia, stato: 'unlinked', causale: 'operator' }),
+      ).toBeNull();
+      // ⛔ E' il punto per cui le tabelle sono DUE: con un indice parziale sui
+      //    soli collegamenti attivi, qui la sede sarebbe tornata libera.
+      expect(vincoloViolato(await abbina({ gid: 'gid://shopify/Location/15' }))).toBe(
+        'unico:location_id',
+      );
     });
   });
 
   describe('la forma del GID', () => {
     it('rifiuta un GID di PRODOTTO in una colonna di location', async () => {
-      expect(vincoloViolato(await collega({ gid: 'gid://shopify/Product/1' }))).toBe(
-        'shopify_location_links_gid_forma',
+      expect(vincoloViolato(await abbina({ gid: 'gid://shopify/Product/1' }))).toBe(
+        'shopify_location_pairs_gid_forma',
       );
     });
 
     it('rifiuta l identificativo NUMERICO nudo, cioe` il formato legacy', async () => {
-      expect(vincoloViolato(await collega({ gid: '12345' }))).toBe(
-        'shopify_location_links_gid_forma',
+      expect(vincoloViolato(await abbina({ gid: '12345' }))).toBe(
+        'shopify_location_pairs_gid_forma',
       );
     });
 
     it('rifiuta un GID di negozio', async () => {
-      expect(vincoloViolato(await collega({ gid: 'gid://shopify/Shop/1' }))).toBe(
-        'shopify_location_links_gid_forma',
+      expect(vincoloViolato(await abbina({ gid: 'gid://shopify/Shop/1' }))).toBe(
+        'shopify_location_pairs_gid_forma',
       );
     });
   });
 
-  describe('i cinque CHECK di stato, che si leggono come un gruppo', () => {
-    it('rifiuta un collegamento ATTIVO con la data di chiusura', async () => {
+  describe('i CHECK di stato del periodo, che si leggono come un gruppo', () => {
+    const COPPIA = 'e0000000-0000-4000-8000-000000000030';
+    beforeEach(async () => {
+      expect(await abbina({ id: COPPIA, gid: 'gid://shopify/Location/30' })).toBeNull();
+    });
+
+    it('rifiuta un periodo ATTIVO con la data di chiusura', async () => {
       expect(
-        vincoloViolato(
-          await collega({ gid: 'gid://shopify/Location/5', stato: 'active', chiusoIl: true }),
-        ),
+        vincoloViolato(await apriPeriodo({ coppia: COPPIA, stato: 'active', chiusoIl: true })),
       ).toBe('shopify_location_links_attivo_pulito');
     });
 
-    it('rifiuta un collegamento CHIUSO senza causale — il varco che il CHECK 2 chiude', async () => {
+    it('rifiuta un periodo CHIUSO senza causale — il varco che il CHECK 2 chiude', async () => {
       expect(
         vincoloViolato(
-          await collega({ gid: 'gid://shopify/Location/6', stato: 'unlinked', causale: null }),
+          await apriPeriodo({ coppia: COPPIA, stato: 'unlinked', causale: null }),
         ),
       ).toBe('shopify_location_links_chiuso_completo');
     });
@@ -188,8 +258,8 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
     it('rifiuta `remotely_deleted` con una causale da scollegamento', async () => {
       expect(
         vincoloViolato(
-          await collega({
-            gid: 'gid://shopify/Location/7',
+          await apriPeriodo({
+            coppia: COPPIA,
             stato: 'remotely_deleted',
             causale: 'operator',
           }),
@@ -200,8 +270,8 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
     it('rifiuta `unlinked` con una causale da eliminazione remota', async () => {
       expect(
         vincoloViolato(
-          await collega({
-            gid: 'gid://shopify/Location/8',
+          await apriPeriodo({
+            coppia: COPPIA,
             stato: 'unlinked',
             causale: 'remote_delete',
           }),
@@ -209,150 +279,135 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
       ).toBe('shopify_location_links_causale_scollegato');
     });
 
-    it('rifiuta un collegamento che dichiara se stesso come successore', async () => {
-      const id = 'd0000000-0000-4000-8000-000000000001';
-      expect(await collega({ id, gid: 'gid://shopify/Location/9' })).toBeNull();
-      let messaggio: string | null = null;
-      try {
-        await prisma.$executeRawUnsafe(
-          'UPDATE shopify_location_links SET superseded_by_link_id = id WHERE id = $1::uuid',
-          id,
-        );
-      } catch (errore) {
-        messaggio = errore instanceof Error ? errore.message : String(errore);
-      }
-      expect(vincoloViolato(messaggio)).toBe('shopify_location_links_successore_non_se_stesso');
+    it('rifiuta un periodo che si chiude PRIMA di cominciare', async () => {
+      expect(
+        vincoloViolato(
+          await apriPeriodo({
+            coppia: COPPIA,
+            stato: 'unlinked',
+            causale: 'operator',
+            chiusuraPrimaDellApertura: true,
+          }),
+        ),
+      ).toBe('shopify_location_links_periodo_coerente');
+    });
+
+    it('accetta `shop_change` — deciso il 07/09/2026', async () => {
+      expect(
+        await apriPeriodo({ coppia: COPPIA, stato: 'unlinked', causale: 'shop_change' }),
+      ).toBeNull();
     });
   });
 
-  describe('unicita`: una sede, un solo collegamento vivo', () => {
-    it('rifiuta due collegamenti ATTIVI sulla stessa sede', async () => {
-      expect(await collega({ gid: 'gid://shopify/Location/10' })).toBeNull();
-      expect(vincoloViolato(await collega({ gid: 'gid://shopify/Location/11' }))).toBe(
-        'unico:location_id',
-      );
+  describe('un solo periodo vivo per coppia', () => {
+    it('rifiuta due periodi ATTIVI sulla stessa coppia', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000040';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/40' })).toBeNull();
+      expect(await apriPeriodo({ coppia })).toBeNull();
+      expect(vincoloViolato(await apriPeriodo({ coppia }))).toBe('unico:pair_id');
     });
 
-    it('rifiuta lo stesso GID due volte nello stesso negozio, anche se il primo e` chiuso', async () => {
-      expect(
-        await collega({
-          gid: 'gid://shopify/Location/12',
-          stato: 'unlinked',
-          causale: 'operator',
-        }),
-      ).toBeNull();
-      expect(
-        vincoloViolato(await collega({ sede: IDS.locA2, gid: 'gid://shopify/Location/12' })),
-      ).toBe('unico:shop_id,shopify_location_gid');
+    it('accetta molti periodi CHIUSI sulla stessa coppia: e` la storia', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000041';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/41' })).toBeNull();
+      for (const causale of ['operator', 'shop_change', 'operator'] as const) {
+        expect(await apriPeriodo({ coppia, stato: 'unlinked', causale })).toBeNull();
+      }
+      expect(await apriPeriodo({ coppia })).toBeNull();
     });
   });
 
   describe('isolamento fra tenant, imposto dal database', () => {
-    it('rifiuta un collegamento verso la sede di un altro tenant', async () => {
+    it('rifiuta una coppia verso la sede di un altro tenant', async () => {
       expect(
-        vincoloViolato(await collega({ sede: IDS.locB1, gid: 'gid://shopify/Location/13' })),
-      ).toBe('shopify_location_links_location_id_tenant_id_fkey');
+        vincoloViolato(await abbina({ sede: IDS.locB1, gid: 'gid://shopify/Location/50' })),
+      ).toBe('shopify_location_pairs_location_id_tenant_id_fkey');
     });
 
-    it('rifiuta un collegamento verso il negozio di un altro tenant', async () => {
+    it('rifiuta una coppia verso il negozio di un altro tenant', async () => {
       expect(
-        vincoloViolato(await collega({ shop: SHOP_B, gid: 'gid://shopify/Location/14' })),
-      ).toBe('shopify_location_links_shop_id_tenant_id_fkey');
+        vincoloViolato(await abbina({ shop: SHOP_B, gid: 'gid://shopify/Location/51' })),
+      ).toBe('shopify_location_pairs_shop_id_tenant_id_fkey');
+    });
+
+    it('rifiuta un periodo che dichiara un tenant diverso da quello della coppia', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000052';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/52' })).toBeNull();
+      expect(vincoloViolato(await apriPeriodo({ coppia, tenant: IDS.tenantB }))).toBe(
+        'shopify_location_links_pair_id_tenant_id_fkey',
+      );
     });
   });
 
-  describe('la successione, e la sede che non si puo` cancellare', () => {
-    const PRIMO = 'd0000000-0000-4000-8000-000000000010';
-    const SECONDO = 'd0000000-0000-4000-8000-000000000011';
-
-    async function preparaCatena(): Promise<void> {
-      expect(
-        await collega({
-          id: PRIMO,
-          gid: 'gid://shopify/Location/20',
-          stato: 'unlinked',
-          causale: 'operator',
-        }),
-      ).toBeNull();
-      expect(await collega({ id: SECONDO, gid: 'gid://shopify/Location/21' })).toBeNull();
-    }
-
-    async function indicaSuccessore(su: string, successore: string): Promise<string | null> {
-      try {
-        await prisma.$executeRawUnsafe(
-          'UPDATE shopify_location_links SET superseded_by_link_id = $2::uuid WHERE id = $1::uuid',
-          su,
-          successore,
-        );
-        return null;
-      } catch (errore) {
-        return errore instanceof Error ? errore.message : String(errore);
-      }
-    }
-
-    it('accetta un successore sulla STESSA sede', async () => {
-      await preparaCatena();
-      expect(await indicaSuccessore(PRIMO, SECONDO)).toBeNull();
-    });
-
-    it('rifiuta un successore che appartiene a un ALTRA sede', async () => {
-      await preparaCatena();
-      const altrove = 'd0000000-0000-4000-8000-000000000012';
-      expect(
-        await collega({ id: altrove, sede: IDS.locA2, gid: 'gid://shopify/Location/22' }),
-      ).toBeNull();
-      expect(vincoloViolato(await indicaSuccessore(PRIMO, altrove))).toBe(
-        'shopify_location_links_superseded_by_fkey',
-      );
-    });
-
-    it('rifiuta la cancellazione di un collegamento che ha un successore', async () => {
-      await preparaCatena();
-      expect(await indicaSuccessore(PRIMO, SECONDO)).toBeNull();
-      let messaggio: string | null = null;
-      try {
-        await prisma.$executeRawUnsafe(
-          'DELETE FROM shopify_location_links WHERE id = $1::uuid',
-          SECONDO,
-        );
-      } catch (errore) {
-        messaggio = errore instanceof Error ? errore.message : String(errore);
-      }
-      expect(vincoloViolato(messaggio)).toBe('shopify_location_links_superseded_by_fkey');
-    });
-
-    it('rifiuta la cancellazione di una sede che ha collegamenti', async () => {
-      expect(await collega({ gid: 'gid://shopify/Location/23' })).toBeNull();
+  describe('cio` che non si puo` cancellare', () => {
+    it('rifiuta la cancellazione di una sede che ha una coppia', async () => {
+      expect(await abbina({ gid: 'gid://shopify/Location/60' })).toBeNull();
       let messaggio: string | null = null;
       try {
         await prisma.$executeRawUnsafe('DELETE FROM locations WHERE id = $1::uuid', IDS.locA1);
       } catch (errore) {
         messaggio = errore instanceof Error ? errore.message : String(errore);
       }
-      expect(vincoloViolato(messaggio)).toBe('shopify_location_links_location_id_tenant_id_fkey');
+      expect(vincoloViolato(messaggio)).toBe('shopify_location_pairs_location_id_tenant_id_fkey');
+    });
+
+    it('rifiuta la cancellazione di una coppia che ha periodi', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000061';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/61' })).toBeNull();
+      expect(await apriPeriodo({ coppia })).toBeNull();
+      let messaggio: string | null = null;
+      try {
+        await prisma.$executeRawUnsafe(
+          'DELETE FROM shopify_location_pairs WHERE id = $1::uuid',
+          coppia,
+        );
+      } catch (errore) {
+        messaggio = errore instanceof Error ? errore.message : String(errore);
+      }
+      expect(vincoloViolato(messaggio)).toBe('shopify_location_links_pair_id_tenant_id_fkey');
+    });
+
+    it('accetta la correzione di un abbinamento SENZA periodi: prima i periodi, poi la coppia', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000062';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/62' })).toBeNull();
+      await prisma.$executeRawUnsafe(
+        'DELETE FROM shopify_location_pairs WHERE id = $1::uuid',
+        coppia,
+      );
+      // ⭐ Liberata la coppia, la sede torna abbinabile: e` la correzione di un
+      //    abbinamento iniziale errato che non ha ancora prodotto effetti.
+      expect(await abbina({ gid: 'gid://shopify/Location/63' })).toBeNull();
     });
   });
 
-  describe('le protezioni della tabella', () => {
-    it('ha la RLS abilitata, come le tre sorelle', async () => {
+  describe('le protezioni delle tabelle', () => {
+    const TABELLE = [
+      'shopify_shops',
+      'shopify_product_links',
+      'shopify_variant_links',
+      'shopify_location_pairs',
+      'shopify_location_links',
+    ];
+
+    it('hanno tutte la RLS abilitata', async () => {
       const righe = await prisma.$queryRawUnsafe<{ relname: string; relrowsecurity: boolean }[]>(
         `SELECT c.relname, c.relrowsecurity FROM pg_class c
            JOIN pg_namespace n ON n.oid = c.relnamespace
-          WHERE n.nspname = 'public' AND c.relname IN
-            ('shopify_shops','shopify_product_links','shopify_variant_links','shopify_location_links')
+          WHERE n.nspname = 'public' AND c.relname = ANY($1::text[])
           ORDER BY c.relname`,
+        TABELLE,
       );
-      expect(righe).toHaveLength(4);
+      expect(righe).toHaveLength(TABELLE.length);
       for (const riga of righe) expect(riga.relrowsecurity, riga.relname).toBe(true);
     });
 
-    it('non concede alcun privilegio a PUBLIC', async () => {
+    it('non concedono alcun privilegio a PUBLIC', async () => {
       const righe = await prisma.$queryRawUnsafe<{ relname: string }[]>(
         `SELECT c.relname FROM pg_class c
            JOIN pg_namespace n ON n.oid = c.relnamespace,
            aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
-          WHERE n.nspname = 'public' AND a.grantee = 0 AND c.relname IN
-            ('shopify_shops','shopify_product_links','shopify_variant_links','shopify_location_links')`,
+          WHERE n.nspname = 'public' AND a.grantee = 0 AND c.relname = ANY($1::text[])`,
+        TABELLE,
       );
       expect(righe).toEqual([]);
     });

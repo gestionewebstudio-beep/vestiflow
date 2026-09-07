@@ -33,6 +33,7 @@ describe('Storico collegamenti Shopify — la migration e` atomica', () => {
     'shopify_shops',
     'shopify_product_links',
     'shopify_variant_links',
+    'shopify_location_pairs',
     'shopify_location_links',
   ];
 

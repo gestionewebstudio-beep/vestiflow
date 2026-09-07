@@ -792,7 +792,65 @@ location**, equivalente a `shopify_product_links` e `shopify_variant_links`
 sono indistinguibili, ed è esattamente la differenza che impedisce il
 riaggancio automatico.
 
-#### ✅ `shopify_location_links` è scritta — 07/09/2026
+#### 1.13.6 La coppia è STABILE: niente riassegnazioni — deciso il 07/09/2026
+
+> **Una sede VestiFlow e una location Shopify già collegate e utilizzate non
+> possono essere riassegnate ad altre controparti.**
+
+| Cosa                                                                         | Si può?                                                                              |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **interrompere e ripristinare la stessa coppia**                             | ✅ conservando la storia, e recuperando gli eventi mancanti prima del riallineamento |
+| **correggere un abbinamento iniziale errato**                                | ✅ soltanto se non ha ancora prodotto effetti, **verificandolo**                     |
+| riassegnare la sede a un'altra location                                      | ⛔                                                                                   |
+| riassegnare la location a un'altra sede                                      | ⛔                                                                                   |
+| creare una sede nuova e collegarla a una location già appartenuta a un'altra | ⛔ è il modo per aggirare il divieto, ed è vietato per nome                          |
+
+**Se la location Shopify viene eliminata e ricreata, o il nuovo negozio ne
+richiede una diversa, si usa una NUOVA SEDE VestiFlow e si forma una nuova
+coppia.** ⛔ Non esistono procedure di sostituzione o migrazione dei
+collegamenti, e non si realizzano ora.
+
+⭐ **Cambiare soltanto nome o indirizzo non cambia l'identità della coppia.** È
+la stessa ragione per cui il modello non contiene né l'uno né l'altro.
+
+##### ⚠️ La conseguenza da rendere chiara: la nuova sede NON eredita le giacenze
+
+La vecchia sede **conserva documenti, movimenti e giacenze**. Nessuna
+disattivazione, nessuna cancellazione, nessuna movimentazione automatica.
+
+⛔ **La merce non passa da sola alla sede nuova.** Se deve passare, lo fa
+l'operatore con la **normale funzione di trasferimento di magazzino** — quella
+che esiste già, con il suo movimento tracciabile. Documenti e movimenti
+precedenti restano dove sono stati registrati, sulla vecchia sede: è la stessa
+disciplina della fotografia documentale (`regole-gestionale`).
+
+##### ⛔ Perché le tabelle sono DUE
+
+**Un indice unico sui soli collegamenti attivi non basta**, e questa è la
+ragione tecnica della forma:
+
+```text
+UNIQUE (location_id) WHERE status = 'active'
+  → appena il collegamento è chiuso, la sede torna libera
+  → la riassegnazione passa, ed è ciò che la decisione esclude
+```
+
+Servono quindi **due cose distinte**, e il modello le tiene distinte:
+
+|                                          |                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **`shopify_location_pairs`** — la coppia | stabile. Porta i due `UNIQUE` **totali**: una sede una sola coppia, una location una sola coppia |
+| **`shopify_location_links`** — i periodi | molti nel tempo. Un solo periodo `active` per coppia; la storia è il loro elenco                 |
+
+⭐ **E l'intervallo non sincronizzato da recuperare al ripristino nasce da qui**:
+è il tempo fra il `closed_at` del periodo precedente e il `linked_at` di quello
+nuovo. Senza periodi distinti quel dato non esisterebbe.
+
+⛔ **`superseded_by_link_id` è stato tolto.** Era stato deciso lo stesso giorno
+per la «sostituzione esplicita»: senza procedure di sostituzione non esiste un
+successore da indicare, e i periodi di una coppia si susseguono nel tempo.
+
+#### ✅ Le tabelle sono scritte — 07/09/2026
 
 La tabella è nella migration `20260907000000_shopify_link_history`, insieme alle
 due sorelle. ⚠️ Qui c'era «il requisito è registrato e la migration **non è
@@ -802,12 +860,18 @@ scritta**»: non vale più.
 perché il modello non era interamente derivabile e dedurle sarebbe stato
 inventarle:
 
-| Decisione                                | Scelta                                                                                 |
-| ---------------------------------------- | -------------------------------------------------------------------------------------- |
-| **cardinalità**                          | **una sede, un solo collegamento vivo** — `UNIQUE (location_id) WHERE status='active'` |
-| **cambio negozio**                       | chiude **anche** i collegamenti di sede, con causale `shop_change`                     |
-| **`superseded_by_link_id`**              | **sì**, per la sostituzione esplicita dell'operatore                                   |
-| **unicità sull'inventory item** (§8.5.2) | si delibera come **quinta** garanzia                                                   |
+| Decisione                                | Scelta                                                                       |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| **cardinalità**                          | **coppia stabile**: `UNIQUE (location_id)` e `UNIQUE (shop_id, gid)`, TOTALI |
+| **cambio negozio**                       | chiude **anche** i collegamenti di sede, con causale `shop_change`           |
+| **`superseded_by_link_id`**              | ⛔ **ritirato** da §1.13.6: senza sostituzione non c'e' un successore        |
+| **unicità sull'inventory item** (§8.5.2) | si delibera come **quinta** garanzia                                         |
+
+⚠️ **Le prime due voci sono state superate poche ore dopo, dallo stesso
+proprietario** (§1.13.6): «una sede, un solo collegamento vivo» era un indice
+PARZIALE, e un indice parziale lascia la sede libera appena il collegamento è
+chiuso — cioè consente proprio le riassegnazioni che la decisione esclude.
+Restano scritte perché il passaggio spieghi la forma attuale.
 
 ⛔ **La cardinalità era ambigua fra due testi entrambi scritti**: questa sezione
 diceva «uno-a-uno all'interno dello stesso negozio», le garanzie 3-4 di §8.5.2
@@ -2457,8 +2521,9 @@ stato **incompleto ma coerente**. Con l'atomica lascerebbe uno stato **impossibi
 i lettori di push e pull non sono migrati (§8.5.5). Fino ad allora sono una fonte in
 costruzione, e vanno descritte così anche a chi legge il codice.
 
-**Una sola migration** per la creazione: enum, le **quattro** tabelle — `shopify_shops`,
-`shopify_product_links`, `shopify_variant_links` e `shopify_location_links` — gli indici
+**Una sola migration** per la creazione: enum, le **cinque** tabelle — `shopify_shops`,
+`shopify_product_links`, `shopify_variant_links`, `shopify_location_pairs` e
+`shopify_location_links` — gli indici
 (compresi i parziali), le ausiliarie su `products`/`product_variants`/`locations`, la colonna
 `shopify_connections.shop_id`, le FK composite, i `CHECK`, **e nello stesso file `ENABLE ROW
 LEVEL SECURITY` più le `REVOKE`**. ⛔ Non deve esistere una finestra, nemmeno di una migration,

@@ -442,6 +442,7 @@ model Tenant {
   shopifyShops                             ShopifyShop[]
   shopifyProductLinks                      ShopifyProductLink[]
   shopifyVariantLinks                      ShopifyVariantLink[]
+  shopifyLocationPairs                     ShopifyLocationPair[]
   shopifyLocationLinks                     ShopifyLocationLink[]
   tiktokConnection                         TikTokConnection?
   tiktokCredential                         TikTokCredential?
@@ -700,10 +701,14 @@ model Location {
   cashSessionDeviceChanges   CashSessionDeviceChange[]
   posTerminals               PosTerminal[]
 
-  /// Storico dei collegamenti verso le location Shopify (docs/24 §1.13.3).
+  /// La coppia con una location Shopify (docs/24 §1.13.6).
+  /// ⛔ Il database ne ammette **al massimo una, per sempre**: `@@unique
+  /// ([locationId])` su `ShopifyLocationPair`. E' dichiarata come lista solo
+  /// perche' Prisma non deduce la cardinalita' da un unico dichiarato
+  /// sull'altra tabella.
   /// ⚠️ NON sostituisce `shopifyLocationId` qui sopra, che resta la cache di
   /// compatibilita' finche' i lettori non sono migrati (§8.5.5).
-  shopifyLocationLinks ShopifyLocationLink[]
+  shopifyLocationPairs ShopifyLocationPair[]
 
   /// Ausiliaria per la FK composita del collegamento di sede: garantisce che
   /// sede e collegamento appartengano allo stesso tenant. Ridondante rispetto
@@ -3522,11 +3527,10 @@ model FiscalDevice {
   /// una marca nuova senza toccare il dominio.
   ///
   /// ⛔ Non e' il selettore dell'adapter: quello e' `adapterKey`.
-  brand           FiscalDeviceBrand
+  brand FiscalDeviceBrand
   /// Modello dichiarato dal dispositivo (testo: i cataloghi dei produttori
   /// non sono enumerabili a priori).
-  model           String?
-
+  model String?
 
   /// ⭐ Chiave dell'adapter che parla con questo dispositivo, APERTA e
   /// VERSIONABILE: `<fornitore>.<protocollo>.<versione>`.
@@ -3750,7 +3754,7 @@ model ShopifyShop {
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   productLinks  ShopifyProductLink[]
   variantLinks  ShopifyVariantLink[]
-  locationLinks ShopifyLocationLink[]
+  locationPairs ShopifyLocationPair[]
   connections   ShopifyConnection[]
 
   /// ⭐ Univoco GLOBALMENTE, non per tenant: lo stesso negozio Shopify non puo'
@@ -3912,28 +3916,23 @@ model ShopifyVariantLink {
   @@map("shopify_variant_links")
 }
 
-/// Storico dei collegamenti SEDE ↔ location Shopify (docs/24 §1.13).
+/// La COPPIA sede VestiFlow ↔ location Shopify: stabile, e non riassegnabile
+/// (docs/24 §1.13.6, deciso il 07/09/2026).
 ///
-/// ⭐ Sede VestiFlow e location Shopify sono DUE ENTITA' AUTONOME: si
-/// sincronizza soltanto dove esiste un collegamento esplicito, e quel
-/// collegamento lo dichiara una persona. Senza collegamento non succede nulla,
-/// in nessuna direzione.
+/// ⭐ Sede e location sono due entita' autonome, e si sincronizza soltanto dove
+/// esiste un collegamento esplicito che una persona ha dichiarato. Una volta
+/// abbinate e usate, pero', le due controparti restano legate: se serve un
+/// abbinamento diverso — la location eliminata e ricreata, o un negozio nuovo
+/// che ne richiede un'altra — si crea una NUOVA SEDE e una nuova coppia.
 ///
-/// ⛔ La tabella esiste per rendere distinguibili «il collegamento e' stato
-/// chiuso» e «il collegamento non e' mai esistito» (§1.13.3). Senza, il divieto
-/// di riaggancio automatico per nome o indirizzo e' sorretto solo da un effetto
-/// collaterale — l'identificativo non viene azzerato — e una location che
-/// tornasse con un id nuovo verrebbe riagganciata per nome.
+/// ⛔ **Le due tabelle sono due perche' un indice sui soli collegamenti attivi
+/// non basterebbe**: con `UNIQUE (location_id) WHERE status = 'active'` la sede
+/// tornerebbe libera appena il collegamento e' chiuso, e la riassegnazione
+/// passerebbe. I due `@@unique` qui sotto sono TOTALI, ed e' quello il divieto.
 ///
-/// ⚠️ Nessuna colonna di NOME o INDIRIZZO, ed e' deliberato: le anagrafiche non
-/// si sincronizzano (§1.13.2), e un nome qui sarebbe l'appiglio per il
-/// riaggancio automatico che questa tabella esiste per impedire.
-///
-/// ⛔ Nessun `lastEventAt` / `lastEventTriggeredAt`, al contrario delle due
-/// sorelle: servono a scartare eventi webhook fuori ordine (§8.5.4), e per le
-/// location non esiste alcun topic registrato. Copiarle sarebbe inventare
-/// l'ordinamento di eventi che non arrivano.
-model ShopifyLocationLink {
+/// ⚠️ Nessun nome, nessun indirizzo: le anagrafiche non si sincronizzano
+/// (§1.13.2) e cambiarli non cambia l'identita' della coppia (§1.13.6).
+model ShopifyLocationPair {
   id         String @id @default(uuid()) @db.Uuid
   tenantId   String @map("tenant_id") @db.Uuid
   shopId     String @map("shop_id") @db.Uuid
@@ -3945,59 +3944,82 @@ model ShopifyLocationLink {
   /// dal codice di produzione (`shopify-location-id.util.ts`).
   shopifyLocationGid String @map("shopify_location_gid")
 
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  shop     ShopifyShop @relation(fields: [shopId, tenantId], references: [id, tenantId])
+  location Location    @relation(fields: [locationId, tenantId], references: [id, tenantId])
+
+  /// I periodi in cui questa coppia e' stata collegata. Molti nel tempo: la
+  /// storia e' il loro elenco, ordinato per `linkedAt`.
+  periodi ShopifyLocationLink[]
+
+  /// ⛔ Una sede appartiene a UNA sola coppia, per sempre.
+  @@unique([locationId])
+  /// ⛔ Una location appartiene a UNA sola coppia, per sempre. E' cio' che
+  ///    impedisce di aggirare il divieto creando una sede nuova e collegandola
+  ///    a una location gia' appartenuta a un'altra sede.
+  @@unique([shopId, shopifyLocationGid])
+  /// Ausiliaria per la FK composita dei periodi.
+  @@unique([id, tenantId])
+  @@index([tenantId, shopifyLocationGid])
+  @@map("shopify_location_pairs")
+}
+
+/// Un PERIODO di collegamento della coppia (docs/24 §1.13.6).
+///
+/// ⭐ Interrompere e ripristinare la stessa coppia e' consentito: ogni
+/// ripristino apre un periodo NUOVO. L'intervallo non sincronizzato da
+/// recuperare e' il tempo fra il `closedAt` del periodo precedente e il
+/// `linkedAt` di quello nuovo — senza periodi distinti quel dato non
+/// esisterebbe.
+///
+/// ⛔ Nessun `supersededByLinkId`: era stato deciso il 07/09/2026 per la
+/// «sostituzione esplicita», e la decisione dello stesso giorno l'ha superata.
+/// Senza procedure di sostituzione non esiste un successore da indicare, e i
+/// periodi di una coppia si susseguono nel tempo.
+///
+/// ⛔ Nessun `lastEventAt` / `lastEventTriggeredAt`, al contrario delle due
+/// tabelle sorelle: scartano eventi webhook fuori ordine (§8.5.4), e per le
+/// location non esiste alcun topic registrato.
+model ShopifyLocationLink {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  pairId   String @map("pair_id") @db.Uuid
+
   /// ⚠️ Prisma non valida i CHECK: una violazione arriva come errore
   ///    PostgreSQL grezzo (23514), non come errore Prisma leggibile, e va
-  ///    tradotta nel servizio. I cinque CHECK stanno nella migration
+  ///    tradotta nel servizio. I CHECK stanno nella migration
   ///    `20260907000000_shopify_link_history` e si leggono come UN GRUPPO:
   ///    attivo ⇒ nessuna chiusura · chiuso ⇒ chiusura completa · la causale
-  ///    ammessa dipende dallo stato · il successore non e’ se stesso.
+  ///    ammessa dipende dallo stato · un periodo non finisce prima di iniziare.
   ///
-  /// ⚠️ Su questa colonna poggia anche un indice unico PARZIALE che Prisma
-  ///    non sa esprimere: UNA SEDE, UN SOLO COLLEGAMENTO VIVO. Una violazione
-  ///    arriva come 23505.
+  /// ⚠️ Su questa colonna poggia anche un indice unico PARZIALE che Prisma non
+  ///    sa esprimere: un solo periodo `active` per coppia. Arriva come 23505.
   status ShopifyLinkStatus @default(active)
 
   /// ⚠️ Fissata alla chiusura, non cambia mai. Le causali coprono i casi
   ///    decisi: la location sparita da Shopify (`remote_delete`/`not_found`),
-  ///    la sostituzione esplicita dell'operatore (`operator`) e il cambio
-  ///    negozio (`shop_change`, deciso il 07/09/2026).
+  ///    l'interruzione voluta (`operator`) e il cambio negozio (`shop_change`).
   closeReason ShopifyLinkCloseReason? @map("close_reason")
-
-  /// Il collegamento che ha SOSTITUITO questo. Facoltativo, e si valorizza solo
-  /// durante una sostituzione esplicita: la semplice chiusura lo lascia NULL.
-  /// ⚠️ Non e' la «ripubblicazione» dei prodotti (§11.9): per una sede e'
-  /// l'operatore che collega la stessa sede a un'altra location.
-  supersededByLinkId String? @map("superseded_by_link_id") @db.Uuid
 
   linkedAt  DateTime  @default(now()) @map("linked_at")
   closedAt  DateTime? @map("closed_at")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  tenant   Tenant      @relation(fields: [tenantId], references: [id])
-  shop     ShopifyShop @relation(fields: [shopId, tenantId], references: [id, tenantId])
-  location Location    @relation(fields: [locationId, tenantId], references: [id, tenantId])
+  tenant Tenant              @relation(fields: [tenantId], references: [id])
+  /// ⚠️ `Restrict`, mai `Cascade`: un abbinamento errato si corregge solo se non
+  /// ha ancora prodotto effetti, e in quel caso i periodi si rimuovono PRIMA
+  /// della coppia, in un percorso esplicito che li ha verificati.
+  pair   ShopifyLocationPair @relation(fields: [pairId, tenantId], references: [id, tenantId], onDelete: Restrict, onUpdate: Cascade)
 
-  /// ⭐ Predecessore e successore condividono TENANT e SEDE, non il negozio:
-  /// imporre lo stesso negozio impedirebbe la sostituzione dopo un cambio
-  /// negozio, che e' proprio uno dei casi in cui il collegamento si sostituisce.
-  supersededBy ShopifyLocationLink?  @relation("LocationLinkSuccessione", fields: [supersededByLinkId, locationId, tenantId], references: [id, locationId, tenantId], onDelete: Restrict, onUpdate: Restrict)
-  supersede    ShopifyLocationLink[] @relation("LocationLinkSuccessione")
-
-  /// Un GID di location una volta sola, storico incluso: e' cio' che rende
-  /// impossibile riusarlo dopo la chiusura, e quindi verificabile il divieto di
-  /// riaggancio automatico.
-  ///
-  /// ⛔ **UNA SEDE, UN SOLO COLLEGAMENTO VIVO — NON dichiarabile qui.** E' un
-  ///    indice unico PARZIALE (`shopify_location_links_location_attivo_key`),
-  ///    che Prisma non sa esprimere. Deciso dal proprietario il 07/09/2026 fra
-  ///    le due formulazioni scritte che non coincidevano: vince la piu' stretta
-  ///    — senza `shopId` — quindi una sede non puo' essere collegata a due
-  ///    negozi insieme.
-  @@unique([shopId, shopifyLocationGid])
-  /// Ausiliaria della successione: porta il tenant, non il negozio.
-  @@unique([id, locationId, tenantId])
-  @@index([tenantId, shopifyLocationGid])
-  @@index([tenantId, locationId, status])
+  /// ⛔ **Un solo periodo VIVO per coppia — NON dichiarabile qui.** E' un indice
+  ///    unico PARZIALE (`shopify_location_links_pair_attivo_key`) nella stessa
+  ///    migration. Qui basta davvero: la riassegnazione la vietano i due
+  ///    `@@unique` totali su `ShopifyLocationPair`, non questo.
+  @@index([pairId, linkedAt])
+  @@index([tenantId, status])
   @@map("shopify_location_links")
 }
