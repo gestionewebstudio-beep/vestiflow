@@ -367,6 +367,43 @@ ALTER TABLE "shopify_location_pairs"
   ADD CONSTRAINT "shopify_location_pairs_location_id_tenant_id_fkey" FOREIGN KEY ("location_id", "tenant_id")
     REFERENCES "locations" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
+-- ⛔ I DUE `UNIQUE` NON BASTANO, ed e' stato MISURATO il 07/09/2026: impediscono
+--    di INSERIRE una seconda coppia, non di MODIFICARE quella che c'e'. Un
+--    `UPDATE` del GID o della sede riassegnava la coppia senza che nessun
+--    vincolo se ne accorgesse — due `UPDATE 1` di fila, sulla stessa riga.
+--
+-- ⭐ Le colonne identitarie sono quindi IMMUTABILI, e a imporlo e' un trigger:
+--    e' l'unico modo dichiarativo che PostgreSQL offre per «questa colonna non
+--    si cambia». Un CHECK non vede il valore precedente, e una revoca di
+--    privilegio non morde perche' l'API si connette come owner.
+--
+-- ⚠️ E' il PRIMO trigger di questo database: fino a oggi le regole di questo
+--    tipo vivevano in guardie statiche sul codice (`check:cassa-append-only`),
+--    che pero' proteggono la superficie esposta, non il dato. Qui la decisione
+--    e' «la coppia non si riassegna MAI», e una regola che vale sempre va dove
+--    non si puo' aggirare.
+--
+-- ⭐ `updated_at` resta libera: si vieta l'identita', non la manutenzione.
+
+CREATE OR REPLACE FUNCTION "shopify_location_pairs_vieta_riassegnazione"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."tenant_id" IS DISTINCT FROM OLD."tenant_id"
+     OR NEW."shop_id" IS DISTINCT FROM OLD."shop_id"
+     OR NEW."location_id" IS DISTINCT FROM OLD."location_id"
+     OR NEW."shopify_location_gid" IS DISTINCT FROM OLD."shopify_location_gid" THEN
+    RAISE EXCEPTION
+      'shopify_location_pairs_immutabile: la coppia sede-location non si riassegna (docs/24 §1.13.6). Per un abbinamento diverso si crea una nuova sede.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "shopify_location_pairs_immutabile"
+  BEFORE UPDATE ON "shopify_location_pairs"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_location_pairs_vieta_riassegnazione"();
+
 ALTER TABLE "shopify_location_pairs" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON "shopify_location_pairs" FROM PUBLIC, anon, authenticated;
 
@@ -376,10 +413,16 @@ REVOKE ALL ON "shopify_location_pairs" FROM PUBLIC, anon, authenticated;
 --    la storia» (§1.13.6): ogni ripristino apre un periodo NUOVO sulla stessa
 --    coppia. La storia e' l'elenco dei periodi.
 --
--- ⭐ E l'INTERVALLO NON SINCRONIZZATO, che il ripristino deve recuperare, si
---    legge da qui: e' il tempo fra il `closed_at` del periodo precedente e il
---    `linked_at` di quello nuovo. Senza periodi distinti quell'intervallo non
---    esisterebbe come dato.
+-- ⛔ I PERIODI NON SONO IL CHECKPOINT, e non lo sostituiscono. Il recupero
+--    degli ordini riparte dall'ULTIMO CHECKPOINT RIUSCITO (docs/24 §1.15.2-3),
+--    che e' un'altra cosa: dice fin dove si e' letto con successo, non quando
+--    il collegamento era acceso. Un ordine puo' essere arrivato mentre il
+--    collegamento era vivo e non essere stato acquisito.
+--
+-- ⭐ Cio' che i periodi danno e' il CONTESTO: quando il collegamento e' stato
+--    interrotto e perche'. Serve a spiegare all'operatore che cosa e' successo
+--    e a delimitare la finestra da ispezionare, non a decidere da dove
+--    ripartire.
 --
 -- ⛔ Nessun `last_event_at` / `last_event_triggered_at`, al contrario delle due
 --    tabelle sorelle: quelle colonne scartano eventi webhook fuori ordine
@@ -432,7 +475,9 @@ CREATE UNIQUE INDEX "shopify_location_links_pair_attivo_key"
   WHERE "status" = 'active';
 
 -- La storia di una coppia si legge in ordine di tempo, ed e' cosi' che si
--- ricava l'intervallo non sincronizzato fra due periodi.
+-- delimita la finestra da ispezionare quando un collegamento e' stato interrotto.
+-- ⚠️ Non e' da qui che riparte il recupero degli ordini: quello parte
+--    dall'ultimo checkpoint riuscito (docs/24 §1.15.2).
 CREATE INDEX "shopify_location_links_pair_id_linked_at_idx"
   ON "shopify_location_links" ("pair_id", "linked_at");
 CREATE INDEX "shopify_location_links_tenant_id_status_idx"

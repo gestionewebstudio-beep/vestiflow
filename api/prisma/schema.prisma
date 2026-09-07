@@ -3970,10 +3970,14 @@ model ShopifyLocationPair {
 /// Un PERIODO di collegamento della coppia (docs/24 §1.13.6).
 ///
 /// ⭐ Interrompere e ripristinare la stessa coppia e' consentito: ogni
-/// ripristino apre un periodo NUOVO. L'intervallo non sincronizzato da
-/// recuperare e' il tempo fra il `closedAt` del periodo precedente e il
-/// `linkedAt` di quello nuovo — senza periodi distinti quel dato non
-/// esisterebbe.
+/// ripristino apre un periodo NUOVO.
+///
+/// ⛔ I periodi NON sono il checkpoint e non lo sostituiscono: il recupero degli
+/// ordini riparte dall'ultimo checkpoint riuscito (§1.15.2-3), che dice fin dove
+/// si e' letto con successo — non quando il collegamento era acceso. Un ordine
+/// puo' essere arrivato a collegamento vivo e non essere stato acquisito.
+/// I periodi danno il CONTESTO: quando e perche' il collegamento si e'
+/// interrotto, e quale finestra ispezionare.
 ///
 /// ⛔ Nessun `supersededByLinkId`: era stato deciso il 07/09/2026 per la
 /// «sostituzione esplicita», e la decisione dello stesso giorno l'ha superata.

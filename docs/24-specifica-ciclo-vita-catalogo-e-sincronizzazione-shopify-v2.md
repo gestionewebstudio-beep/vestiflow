@@ -842,9 +842,26 @@ Servono quindi **due cose distinte**, e il modello le tiene distinte:
 | **`shopify_location_pairs`** — la coppia | stabile. Porta i due `UNIQUE` **totali**: una sede una sola coppia, una location una sola coppia |
 | **`shopify_location_links`** — i periodi | molti nel tempo. Un solo periodo `active` per coppia; la storia è il loro elenco                 |
 
-⭐ **E l'intervallo non sincronizzato da recuperare al ripristino nasce da qui**:
-è il tempo fra il `closed_at` del periodo precedente e il `linked_at` di quello
-nuovo. Senza periodi distinti quel dato non esisterebbe.
+⛔ **I periodi NON sono il checkpoint, e non lo sostituiscono.** Il recupero
+degli ordini riparte dall'**ultimo checkpoint riuscito** (§1.15.2-3), che dice
+fin dove si è letto con successo — non quando il collegamento era acceso. Un
+ordine può essere arrivato a collegamento vivo e non essere stato acquisito:
+prenderli come equivalenti farebbe saltare proprio quelli.
+
+⭐ Ciò che i periodi danno è il **contesto**: quando il collegamento si è
+interrotto e perché. Serve a spiegare all'operatore che cosa è successo e a
+delimitare la finestra da ispezionare, non a decidere da dove ripartire.
+
+⭐ **Il trigger di immutabilità è la terza gamba**, e serviva: i due `UNIQUE`
+impediscono di _inserire_ una seconda coppia, non di _modificare_ quella
+esistente. Misurato il 07/09/2026 — un `UPDATE` del GID e uno della sede sono
+passati entrambi, sulla stessa riga, senza che nessun vincolo se ne accorgesse.
+Le colonne identitarie sono ora immutabili, e `updated_at` resta libera.
+
+⚠️ **È il primo trigger di questo database**: le regole di questo tipo vivevano
+in guardie statiche sul codice (`check:cassa-append-only`), che però proteggono
+la superficie esposta, non il dato. Qui la decisione è «la coppia non si
+riassegna mai», e una regola che vale sempre va dove non si può aggirare.
 
 ⛔ **`superseded_by_link_id` è stato tolto.** Era stato deciso lo stesso giorno
 per la «sostituzione esplicita»: senza procedure di sostituzione non esiste un

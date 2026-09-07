@@ -148,6 +148,17 @@ describe('Storico collegamenti Shopify — la migration e` atomica', () => {
         SELECT count(*) AS n FROM information_schema.columns
          WHERE table_name = 'shopify_connections' AND column_name = 'shop_id'`;
       expect(Number(colonna[0]!.n), 'la colonna non deve esistere').toBe(0);
+
+      // ⭐ Anche il trigger e la sua funzione: sono DDL come il resto, e se
+      //    sopravvivessero al rollback la migration non sarebbe riapplicabile.
+      const trigger = await prisma.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*) AS n FROM pg_trigger
+         WHERE tgname = 'shopify_location_pairs_immutabile' AND NOT tgisinternal`;
+      expect(Number(trigger[0]!.n), 'il trigger non deve esistere').toBe(0);
+      const funzione = await prisma.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*) AS n FROM pg_proc
+         WHERE proname = 'shopify_location_pairs_vieta_riassegnazione'`;
+      expect(Number(funzione[0]!.n), 'la funzione non deve esistere').toBe(0);
     },
     600_000,
   );

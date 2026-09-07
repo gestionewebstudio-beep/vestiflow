@@ -213,6 +213,68 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
         'unico:location_id',
       );
     });
+
+    /**
+     * ⛔ **I due `UNIQUE` da soli NON rendono immutabili i valori**, ed e' stato
+     *    misurato prima di scrivere il trigger: impediscono di INSERIRE una
+     *    seconda coppia, non di MODIFICARE quella che c'e'. Senza queste due
+     *    prove la riassegnazione passava con un `UPDATE`, e i vincoli sembravano
+     *    reggere.
+     */
+    describe('e la riassegnazione per UPDATE, che gli UNIQUE non vedono', () => {
+      const COPPIA = 'e0000000-0000-4000-8000-000000000021';
+      beforeEach(async () => {
+        expect(await abbina({ id: COPPIA, gid: 'gid://shopify/Location/16' })).toBeNull();
+      });
+
+      async function modifica(assegnazione: string, valore: string): Promise<string | null> {
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE shopify_location_pairs SET ${assegnazione} WHERE id = $2::uuid`,
+            valore,
+            COPPIA,
+          );
+          return null;
+        } catch (errore) {
+          return errore instanceof Error ? errore.message : String(errore);
+        }
+      }
+
+      function immutabile(messaggio: string | null): boolean {
+        return messaggio !== null && messaggio.includes('shopify_location_pairs_immutabile');
+      }
+
+      it('rifiuta di spostare la coppia su un altra LOCATION', async () => {
+        expect(immutabile(await modifica('shopify_location_gid = $1', 'gid://shopify/Location/17'))).toBe(
+          true,
+        );
+      });
+
+      it('rifiuta di spostare la coppia su un altra SEDE', async () => {
+        expect(immutabile(await modifica('location_id = $1::uuid', IDS.locA2))).toBe(true);
+      });
+
+      it('rifiuta di spostare la coppia su un altro NEGOZIO', async () => {
+        expect(immutabile(await modifica('shop_id = $1::uuid', SHOP_B))).toBe(true);
+      });
+
+      it('rifiuta di spostare la coppia su un altro TENANT', async () => {
+        expect(immutabile(await modifica('tenant_id = $1::uuid', IDS.tenantB))).toBe(true);
+      });
+
+      it('CONSENTE pero` la manutenzione: si vieta l identita`, non updated_at', async () => {
+        let messaggio: string | null = null;
+        try {
+          await prisma.$executeRawUnsafe(
+            'UPDATE shopify_location_pairs SET updated_at = now() WHERE id = $1::uuid',
+            COPPIA,
+          );
+        } catch (errore) {
+          messaggio = errore instanceof Error ? errore.message : String(errore);
+        }
+        expect(messaggio).toBeNull();
+      });
+    });
   });
 
   describe('la forma del GID', () => {
@@ -367,16 +429,46 @@ describe('Storico collegamenti Shopify — i vincoli del modello', () => {
       expect(vincoloViolato(messaggio)).toBe('shopify_location_links_pair_id_tenant_id_fkey');
     });
 
-    it('accetta la correzione di un abbinamento SENZA periodi: prima i periodi, poi la coppia', async () => {
+    /**
+     * ⚠️ **«Nessun periodo» NON e' «nessun effetto», e i due non vanno
+     *    confusi.** La correzione di un abbinamento iniziale errato richiede la
+     *    SECONDA condizione (§1.13.6), e il database non la conosce: sa dire
+     *    che non esistono periodi, non che nulla e' stato sincronizzato,
+     *    ricevuto o spinto verso il canale.
+     *
+     * ⭐ Quello che il database garantisce e' quindi solo il PRIMO gradino —
+     *    con periodi presenti la coppia non si smonta — e il secondo resta una
+     *    verifica del comando applicativo, che guardera' giacenze pubblicate,
+     *    ordini ricevuti e riferimenti al canale. Queste prove fissano la
+     *    divisione, invece di lasciar credere che il vincolo basti.
+     */
+    it('il database garantisce solo «nessun periodo»: con periodi, la coppia non si smonta', async () => {
       const coppia = 'e0000000-0000-4000-8000-000000000062';
       expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/62' })).toBeNull();
+      expect(await apriPeriodo({ coppia, stato: 'unlinked', causale: 'operator' })).toBeNull();
+      let messaggio: string | null = null;
+      try {
+        await prisma.$executeRawUnsafe(
+          'DELETE FROM shopify_location_pairs WHERE id = $1::uuid',
+          coppia,
+        );
+      } catch (errore) {
+        messaggio = errore instanceof Error ? errore.message : String(errore);
+      }
+      expect(vincoloViolato(messaggio)).toBe('shopify_location_links_pair_id_tenant_id_fkey');
+    });
+
+    it('senza periodi la coppia si smonta — ma «senza effetti» lo deve verificare il comando', async () => {
+      const coppia = 'e0000000-0000-4000-8000-000000000063';
+      expect(await abbina({ id: coppia, gid: 'gid://shopify/Location/63' })).toBeNull();
       await prisma.$executeRawUnsafe(
         'DELETE FROM shopify_location_pairs WHERE id = $1::uuid',
         coppia,
       );
-      // ⭐ Liberata la coppia, la sede torna abbinabile: e` la correzione di un
-      //    abbinamento iniziale errato che non ha ancora prodotto effetti.
-      expect(await abbina({ gid: 'gid://shopify/Location/63' })).toBeNull();
+      // ⛔ Il database ha lasciato passare perche' non c'erano periodi. NON ha
+      //    verificato che l'abbinamento non abbia prodotto effetti: quella
+      //    condizione non e' esprimibile qui, e resta del comando applicativo.
+      expect(await abbina({ gid: 'gid://shopify/Location/64' })).toBeNull();
     });
   });
 
