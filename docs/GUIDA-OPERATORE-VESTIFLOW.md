@@ -299,7 +299,7 @@ In **Modifica cliente**, pannello **Zona pericolosa → Elimina cliente**: rimuo
 
 Body create include `role` (`owner` | `admin` | `manager` | `clerk`), `channelProfile` (`gestionale` | `shopify` | `tiktok_shop`) e `licensedLocationCount` (default `1`, max `10`).
 
-Migration DB: `0018_support_sessions` — tabella `support_sessions`; `0021_tenant_location_licensing` — `licensed_location_count`, `licensed_in_vf`; `0022_location_selection_lock` — blocco selezione + concessione admin. In produzione: `npm run prisma:deploy` (o equivalente Railway) prima di usare licensing sedi e assistenza.
+Migration DB: `0018_support_sessions` — tabella `support_sessions`; `0021_tenant_location_licensing` — `licensed_location_count`, `licensed_in_vf`; `0022_location_selection_lock` — blocco selezione + concessione admin. In produzione le applica **il deploy Railway**, all’avvio dell’immagine: nessun comando da lanciare a mano (07/09/2026).
 
 ---
 
@@ -1113,24 +1113,24 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 ## 19. Troubleshooting tecnico
 
-| Problema                                            | Azione                                                                                               |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `isPlatformAdmin` false in UI                       | Verifica email in `PLATFORM_ADMIN_EMAILS`, ri-login                                                  |
-| 403 su `/admin/tenants`                             | Stesso controllo email lato API                                                                      |
-| CORS error                                          | Aggiungi origin frontend a `CORS_ORIGINS`                                                            |
-| JWT invalid                                         | Allinea `SUPABASE_JWT_SECRET` con dashboard Supabase                                                 |
-| Webhook non arrivano                                | URL tunnel/prod raggiungibile; HTTPS; webhook registrati                                             |
-| Import catalogo 429 / throttling Shopify            | Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env `SHOPIFY_API_*`    |
-| API VestiFlow 429 (troppi click)                    | Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop                               |
-| Immagini prodotto 404                               | Bucket `product-media` esiste ed è public                                                            |
-| Avatar 404 / upload fallito                         | Bucket `user-avatars` esiste ed è public; env `SUPABASE_USER_AVATARS_BUCKET`                         |
-| TikTok OAuth fallisce                               | Verifica `TIKTOK_*` env, callback URL pubblico HTTPS, app Partner Center attiva                      |
-| Anon key legge dati                                 | **Critico** — RLS mancante, fix migration immediato                                                  |
-| 500 su `POST .../support-session`                   | Migration `0018_support_sessions` non applicata — `npm run prisma:deploy` in `api/`                  |
-| 401 «Sessione assistenza non valida»                | Sessione scaduta (>2 h) o chiusa; riavvia da Clienti. Verifica header inviato dall'interceptor       |
-| 403 assistenza su tenant                            | Tenant contiene utente platform admin, oppure email operatore non in `PLATFORM_ADMIN_EMAILS`         |
-| 403 «Selezione sedi bloccata» su PUT licensed       | Concedi cambio sede da admin o verifica `locationSelectionLocked` / `locationSelectionChangeGranted` |
-| Cliente vede tutte le location Shopify in magazzino | Non ha salvato **Sedi attive** o piano > sedi selezionate; verifica `licensedInVf`                   |
+| Problema                                            | Azione                                                                                                                |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `isPlatformAdmin` false in UI                       | Verifica email in `PLATFORM_ADMIN_EMAILS`, ri-login                                                                   |
+| 403 su `/admin/tenants`                             | Stesso controllo email lato API                                                                                       |
+| CORS error                                          | Aggiungi origin frontend a `CORS_ORIGINS`                                                                             |
+| JWT invalid                                         | Allinea `SUPABASE_JWT_SECRET` con dashboard Supabase                                                                  |
+| Webhook non arrivano                                | URL tunnel/prod raggiungibile; HTTPS; webhook registrati                                                              |
+| Import catalogo 429 / throttling Shopify            | Attendi 1–2 min; non parallelizzare import; vedi §9 limiti Shopify; controlla env `SHOPIFY_API_*`                     |
+| API VestiFlow 429 (troppi click)                    | Limite 300 req/min/IP; chiedi al tenant di non ripetere azioni in loop                                                |
+| Immagini prodotto 404                               | Bucket `product-media` esiste ed è public                                                                             |
+| Avatar 404 / upload fallito                         | Bucket `user-avatars` esiste ed è public; env `SUPABASE_USER_AVATARS_BUCKET`                                          |
+| TikTok OAuth fallisce                               | Verifica `TIKTOK_*` env, callback URL pubblico HTTPS, app Partner Center attiva                                       |
+| Anon key legge dati                                 | **Critico** — RLS mancante, fix migration immediato                                                                   |
+| 500 su `POST .../support-session`                   | Migration `0018_support_sessions` non applicata — verifica con `npx prisma migrate status`; ad applicarle è il deploy |
+| 401 «Sessione assistenza non valida»                | Sessione scaduta (>2 h) o chiusa; riavvia da Clienti. Verifica header inviato dall'interceptor                        |
+| 403 assistenza su tenant                            | Tenant contiene utente platform admin, oppure email operatore non in `PLATFORM_ADMIN_EMAILS`                          |
+| 403 «Selezione sedi bloccata» su PUT licensed       | Concedi cambio sede da admin o verifica `locationSelectionLocked` / `locationSelectionChangeGranted`                  |
+| Cliente vede tutte le location Shopify in magazzino | Non ha salvato **Sedi attive** o piano > sedi selezionate; verifica `licensedInVf`                                    |
 
 ---
 

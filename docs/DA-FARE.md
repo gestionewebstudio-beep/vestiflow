@@ -47,16 +47,22 @@ sviluppo. Da quel momento:
 ⛔ **Fino ad allora nessuno dei tre va dichiarato «risolto»**: sono attenuati, non
 chiusi, e la differenza conta il giorno in cui il gestionale avrà dati veri.
 
-### Due cose viste lavorando, e non fatte
+### ✅ Due cose viste lavorando, e chiuse il 07/09/2026
 
-- ⚠️ **Il test di `check:bersaglio-condiviso` non gira in CI.** Sta in
-  `npm run test:guardie`, agganciato a `test:everything` (hook `pre-push`).
-  Metterlo in `.github/workflows/security.yml` accanto a `check-rls.test.mjs` era
-  fuori dal perimetro concordato — CI e workflow non andavano toccati.
-- ⚠️ **`scripts/backup/load-env.spec.mjs` fallisce in un worktree**: verifica che la
-  cartella del repository si chiami `vestiflow`, e in un worktree si chiama
-  altrimenti. Preesistente, e nessuno se n’era accorto perché quei test non li
-  eseguiva nessuno.
+- ✅ **Il test della guardia gira in CI**, nel job `lint-and-test` di `ci.yml` che ha
+  già le due installazioni: passo «Prove delle guardie e dei caricatori di ambiente».
+  ⭐ **Serviva perché `npm run lint` non basta**: esegue la guardia e dice se OGGI il
+  repository è a posto, non se la guardia funzionerebbe ancora dopo una modifica — una
+  regex svuotata la lascerebbe verde per sempre. Il passo la mette alla prova su alberi
+  finti: `DIRECT_URL` rimessa in un `.env`, `directUrl` tolta da uno schema, il valore
+  che non deve comparire nell’output.
+- ✅ **`scripts/backup/load-env.spec.mjs` non assume più il nome della cartella.**
+  Asseriva `repoRoot` contro `/vestiflow$/i` — cioè contro **dove qualcuno ha messo il
+  repository**, non contro una proprietà del codice: rosso in ogni worktree, in ogni
+  copia per un collaudo, e per chiunque rinomini la cartella dopo il clone. Ora
+  verifica la **relazione**: `repoRoot` è due livelli sopra `scripts/backup/`, e la
+  prova regge ovunque. ⭐ E i test dei caricatori ora girano davvero: prima non li
+  eseguiva nessuno, ed è per questo che il difetto è stato scoperto solo lavorandoci.
 
 ---
 
@@ -4197,15 +4203,15 @@ mai dentro il titolo. Contiene i **soli valori** (`M / Rosso`), memorizzati come
 composto** — non dati grezzi da ricomporre: un documento emesso deve continuare a dire
 quello che diceva.
 
-|                                       | Stato                                                                                                                                                                                                                                                                                   |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T0** funzione unica di composizione | ✅ `87369c2d`                                                                                                                                                                                                                                                                           |
-| **T1** schema + migration             | 🔵 **prossimo**. `variantLabel TEXT NOT NULL DEFAULT ''` su `document_lines`, `supplier_order_lines`, `sales_order_lines`, `online_sale_lines`, `inventory_count_lines`. Migration **a mano**, fine riga LF, poi `npm run prisma:deploy` + `prisma:generate` + **avvio reale dell'API** |
-| **T2** la scrittura                   | ⛔ **insieme** alla rimozione della concatenazione del banco (`store-sales.service` scrive `productName — optionSummary` dentro `description`). Separarle produce «Maglietta — M / Rosso — M / Rosso»                                                                                   |
-| **T3** colonna desktop                | ⛔ id **`variantLabel`**, MAI `variant`: `normalizeGoodsReceiptColumnId` rimappa `variant` su `product`, e la colonna sarebbe irraggiungibile in Arrivo merce, in silenzio                                                                                                              |
-| **T4** card mobile                    | `variantLabel` **esiste già** su `document-line-card`, con stile: la riempie 1 maschera su 7                                                                                                                                                                                            |
-| **T5** PDF e stampe                   | tre PDF: documento, ordine fornitore, ordine cliente. Le frazioni di larghezza devono sommare a 1.00                                                                                                                                                                                    |
-| **T6** XML fattura elettronica        | ⛔ lì la colonna separata **non esiste**: un solo `<Descrizione>` per riga. Si ricompone in **un punto solo** (`document-xml.service`), non nella util. ⏸ **Da verificare sulla fonte ufficiale** cardinalità e lunghezza                                                               |
+|                                       | Stato                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T0** funzione unica di composizione | ✅ `87369c2d`                                                                                                                                                                                                                                                                                |
+| **T1** schema + migration             | 🔵 **prossimo**. `variantLabel TEXT NOT NULL DEFAULT ''` su `document_lines`, `supplier_order_lines`, `sales_order_lines`, `online_sale_lines`, `inventory_count_lines`. Migration **a mano**, fine riga LF, poi `npm run prisma:deploy:test` + `prisma:generate` + **avvio reale dell'API** |
+| **T2** la scrittura                   | ⛔ **insieme** alla rimozione della concatenazione del banco (`store-sales.service` scrive `productName — optionSummary` dentro `description`). Separarle produce «Maglietta — M / Rosso — M / Rosso»                                                                                        |
+| **T3** colonna desktop                | ⛔ id **`variantLabel`**, MAI `variant`: `normalizeGoodsReceiptColumnId` rimappa `variant` su `product`, e la colonna sarebbe irraggiungibile in Arrivo merce, in silenzio                                                                                                                   |
+| **T4** card mobile                    | `variantLabel` **esiste già** su `document-line-card`, con stile: la riempie 1 maschera su 7                                                                                                                                                                                                 |
+| **T5** PDF e stampe                   | tre PDF: documento, ordine fornitore, ordine cliente. Le frazioni di larghezza devono sommare a 1.00                                                                                                                                                                                         |
+| **T6** XML fattura elettronica        | ⛔ lì la colonna separata **non esiste**: un solo `<Descrizione>` per riga. Si ricompone in **un punto solo** (`document-xml.service`), non nella util. ⏸ **Da verificare sulla fonte ufficiale** cardinalità e lunghezza                                                                    |
 
 ⭐ **Guadagno adiacente visto e non fatto**: lo SKU oggi il PDF lo stampa e l'XML lo perde.
 `CodiceArticolo` è lo slot fatto apposta ed è vuoto.
@@ -4577,7 +4583,7 @@ Quella che si perde più facilmente è la differenza fra le prime due: un'analis
 
 ### 3. Il database è condiviso col collega
 
-Solo `npm run prisma:deploy`, mai `migrate dev` né `db push`. Migration scritte a mano. Ogni tabella nuova porta RLS e `REVOKE` nella stessa migration.
+Migration scritte a mano, provate con `npm run prisma:deploy:test`; mai `migrate dev` né `db push`. Al database di Railway ci pensa il deploy, e ⛔ **per il condiviso non esiste un comando locale** (07/09/2026). Ogni tabella nuova porta RLS e `REVOKE` nella stessa migration.
 
 ---
 

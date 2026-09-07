@@ -41,8 +41,13 @@ npm run prisma:seed        # dati sandbox — ⚠️ chiede conferma: scrive sul
 ```
 
 ⚠️ **`npm run prisma:deploy` non esiste più come comando locale**: applicava le
-migrazioni al condiviso senza dirlo. Ora rifiuta e spiega. Per il condiviso le
-variabili si passano a mano, dopo aver provato la migration su una copia.
+migrazioni al condiviso senza dirlo. Ora rifiuta e spiega.
+
+⛔ **E non c’è un comando che lo sostituisca.** Le migration si provano con
+`npm run prisma:deploy:test` sul database di prova; sul database di Railway le
+applica **il deploy stesso**, all’avvio dell’immagine. Un intervento manuale sul
+condiviso richiede una nuova autorizzazione e una procedura preparata per quel
+caso — non un comando da tenere pronto qui.
 
 Per evolvere lo schema in sviluppo: `npm run prisma:migrate -- --name nome_migrazione`.
 

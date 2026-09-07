@@ -21,7 +21,7 @@
     "test:cassa:real": "ng build --configuration=integration && npm --prefix api run test:browser:cassa",
     "provision:e2e-users": "npm run provision:e2e-users --prefix api",
     "test:everything": "npm run test:coverage && npm run test:components && npm run test:api && npm run test:guardie",
-    "test:guardie": "node --test scripts/check-bersaglio-condiviso.test.mjs && npx vitest run scripts/backup/backup-url.spec.mjs",
+    "test:guardie": "node --test scripts/check-bersaglio-condiviso.test.mjs scripts/export-schema.test.mjs && npx vitest run scripts/backup/",
     "test:all": "npm run test:everything",
     "test:coverage:all": "npm run test:coverage && npm run test:components && npm run test:coverage --prefix api",
     "test:coverage:check": "npm run test:coverage:all",

@@ -31,13 +31,15 @@ ${ROSSO}${GRASSETTO}  Fermo: «npm run prisma:deploy» non esiste più come coma
   ${GRASSETTO}Per applicare le migration in locale (database di prova):${FINE}
     npm run prisma:deploy:test
 
-  ${GRASSETTO}Per il database condiviso:${FINE} è un'operazione eccezionale, e le
-  variabili vanno passate a mano — non stanno più in api/.env:
+  ${GRASSETTO}Per il database condiviso: non esiste un comando.${FINE}
 
-    DATABASE_URL=... DIRECT_URL=... npx prisma migrate deploy
+  Non e' una dimenticanza di questo messaggio. Sul database di Railway le
+  migration le applica il DEPLOY, all’avvio dell’immagine. Sul condiviso di
+  sviluppo non c’e’ un percorso locale supportato: finche’ non esistera’ la
+  procedura test → produzione, un intervento manuale eccezionale richiede una
+  nuova autorizzazione e una procedura preparata per quel caso.
 
-  Prima, però, la migration va provata su una copia: vedi README.md →
-  «Database e migration».
+  Vedi README.md → «Database e migration».
 `);
 
 process.exit(1);

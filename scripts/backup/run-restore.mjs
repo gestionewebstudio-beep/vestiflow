@@ -221,7 +221,16 @@ async function main() {
   await restoreDone;
 
   console.log('[restore] Database ripristinato.');
-  console.log('[restore] Esegui in api/: npx prisma migrate deploy && npm run check:rls');
+  /*
+    ⛔ **Qui c'era «Esegui in api/: npx prisma migrate deploy».** Su un database
+       ripristinato puo’ mancare qualche migration, ma il rimedio non e’ un
+       comando da incollare: e’ lo stesso percorso diretto che il 07/09/2026 ha
+       scritto sul condiviso, suggerito nel momento in cui si ha in mano un
+       terminale e una URL appena usata.
+  */
+  console.log('[restore] Database ripristinato. Verifica le migration con:');
+  console.log('[restore]   npx prisma migrate status   (sola lettura)');
+  console.log('[restore] e i privilegi con: npm run check:rls');
 }
 
 main().catch((error) => {

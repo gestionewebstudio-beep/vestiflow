@@ -59,14 +59,52 @@
 > migrate resolve      P1012 · idem
 > ```
 >
-> Per il condiviso le due variabili si passano **a mano**, ed è voluto che costi un gesto:
+> ### ⛔ Non esiste un comando locale per applicare migration al condiviso
+>
+> ⚠️ **Qui c’era `DATABASE_URL=… DIRECT_URL=… npx prisma migrate deploy`**, presentato
+> come «l’operazione eccezionale». Era la stessa scorciatoia che ha causato l’incidente,
+> riscritta in una riga da incollare: una protezione che si aggira copiando la riga sotto
+> non è una protezione, è un promemoria.
+>
+> | Devi…                             | Come                                                |
+> | --------------------------------- | --------------------------------------------------- |
+> | provare una migration             | `npm run prisma:deploy:test`, sul database di prova |
+> | applicarla al database di Railway | **lo fa il deploy**, da sé, all’avvio dell’immagine |
+> | intervenire a mano sul condiviso  | ⛔ **non c’è un modo supportato**                   |
+>
+> L’ultima riga è deliberata, e vale finché non esisterà la procedura test → produzione:
+> un intervento manuale eccezionale richiede **una nuova autorizzazione e una procedura
+> preparata per quel caso**, non un comando pronto in un README.
+>
+> `api/.env.rilascio` (ignorato da Git, caricato da nessuno) esiste per le credenziali
+> che servono agli strumenti di backup e restore quando qualcuno le indica loro
+> esplicitamente — non per rimettere in circolazione il deploy diretto.
+>
+> ### Spostare `DIRECT_URL`: si fa una volta, con un editor
+>
+> ⚠️ **A mano, non con un comando.** Una riga che riscrive `api/.env` con una
+> pipeline può troncarlo se qualcosa va storto a metà, e quel file contiene ogni
+> credenziale del progetto. Aprilo, sposta la riga, salva.
+>
+> 1. crea `api/.env.rilascio` — è già in `.gitignore`, non finirà mai in un commit;
+> 2. **taglia** da `api/.env` la sola riga che comincia con `DIRECT_URL=` e incollala lì;
+> 3. lascia `DATABASE_URL` dov’è: serve all’applicazione.
+>
+> ⚠️ **`DIRECT_URL_TEST` non si tocca**: è il database di prova in container, e resta
+> in `api/.env` insieme a `DATABASE_URL_TEST`.
+>
+> Poi verifica, senza aprire i valori:
 >
 > ```bash
-> DATABASE_URL=... DIRECT_URL=... npx prisma migrate deploy
+> grep -c "^DATABASE_URL=" api/.env        # deve dire 1
+> grep -c "^DIRECT_URL="   api/.env        # deve dire 0
+> grep -c "^DIRECT_URL="   api/.env.rilascio   # deve dire 1
+> npm run check:bersaglio-condiviso
 > ```
 >
-> Tienile in un file locale ignorato da Git (`api/.env.rilascio`), che **nessuno carica
-> automaticamente**: né la CLI, né l’applicazione, né gli strumenti di backup.
+> ⭐ `grep -c` conta le righe e **non ne stampa nessuna**: i valori non compaiono a
+> schermo né nella cronologia del terminale. L’ancora `^` e l’`=` finale escludono
+> `DIRECT_URL_TEST`.
 >
 > Tre protezioni sono in piedi, ma **nessuna ferma un terminale**:
 > `npm run check:bersaglio-condiviso` (dentro `npm run lint`) verifica che `DIRECT_URL`

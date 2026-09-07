@@ -236,15 +236,31 @@ supabase: {
 Dalla cartella `api/`:
 
 ```bash
-npm run prisma:deploy    # crea tutte le tabelle applicando le migrazioni
-npm run prisma:seed      # dati di esempio: tenant "Sandbox locale", negozio,
-                         # magazzino, prodotti con varianti, giacenze
+npm run db:test:up          # PostgreSQL di prova in un container, sul tuo PC
+npm run prisma:deploy:test  # crea tutte le tabelle applicando le migrazioni
+npm run prisma:seed         # dati di esempio: tenant "Sandbox locale", negozio,
+                            # magazzino, prodotti con varianti, giacenze
 ```
 
-> ⛔ **Mai `npm run prisma:migrate`** (cioè `prisma migrate dev`) su un database
-> che non sia il tuo, usa e getta: ricostruisce lo schema da zero cancellando i
-> dati. Serve solo a chi sta modificando lo schema, sul proprio DB di sviluppo.
-> Per applicare migrazioni esistenti si usa sempre `prisma:deploy`.
+> ⛔ **Mai `npm run prisma:migrate`** (cioè `prisma migrate dev`): ricostruisce lo
+> schema da zero cancellando i dati.
+
+### ⏸ Il setup su un progetto Supabase PROPRIO è una decisione aperta (07/09/2026)
+
+⚠️ **Questa sezione diceva `npm run prisma:deploy`, e quel comando non esiste più.**
+Applicava le migration al bersaglio di `DIRECT_URL` letta da `api/.env` — che la CLI
+Prisma carica da sé — e il 07/09/2026 una migration è finita così sul database di
+sviluppo **condiviso**, con un comando che sembrava puntare altrove. `DIRECT_URL` non
+sta più in `api/.env`, e i comandi di migration falliscono con P1012 prima di
+connettersi.
+
+⭐ **La strada supportata oggi è il container di prova**, qui sopra: nasce vuoto, è
+sul tuo PC, e `prisma:deploy:test` verifica host, porta e nome del database prima di
+scrivere.
+
+⛔ **Per un progetto Supabase tuo, invece, non c’è una procedura**: non è una
+dimenticanza, è che va decisa insieme all’ambiente di prova duplicato. Fino ad allora
+chiedi prima di procedere — il rischio non è il tuo database, è sbagliare bersaglio.
 
 ---
 
@@ -343,6 +359,6 @@ a mano il tuo utente Auth a quel tenant — da `npx prisma studio` nella cartell
 - [ ] `npm install` eseguito **due volte**: root e `api/`
 - [ ] `api/.env` compilato con un progetto Supabase **di sviluppo**, non quello di produzione
 - [ ] `environment.ts` allineato allo stesso progetto Supabase
-- [ ] `npm run prisma:deploy` e `npm run prisma:seed` eseguiti
+- [ ] `npm run prisma:deploy:test` e `npm run prisma:seed` eseguiti
 - [ ] `http://localhost:3000/api/v1/health` risponde
 - [ ] Accesso completato su `http://localhost:4200`
