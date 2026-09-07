@@ -108,7 +108,12 @@ export class ShopifyLocationSyncService {
     };
   }
 
-  /** Rimuove residui di import Shopify non collegati (es. dopo disconnect incompleto). */
+  /**
+   * Segnala i residui di import Shopify non collegati (es. dopo un disconnect
+   * incompleto). Non ne rimuove nessuno: `docs/24` §1.13.4.
+   *
+   * @returns quante sedi sono state segnalate.
+   */
   async cleanupUnlinkedImportLocations(tenantId: string): Promise<number> {
     const [locations, primaryStore] = await Promise.all([
       this.prisma.location.findMany({
@@ -134,7 +139,8 @@ export class ShopifyLocationSyncService {
     ]);
 
     const primaryStoreName = primaryStore?.name ?? null;
-    let removed = 0;
+    /** Quante sedi sono state SEGNALATE. Nessuna viene piu' rimossa. */
+    let segnalate = 0;
 
     for (const location of locations) {
       if (location.shopifyLocationId) {
@@ -156,22 +162,30 @@ export class ShopifyLocationSyncService {
            nessuna richiesta dell'operatore: sta rispondendo a un catalogo
            remoto che e' cambiato.
       */
+      /*
+        ⛔ **Anche qui la sede veniva DISATTIVATA**, e senza che nessuno lo
+           chiedesse: bastava che il catalogo remoto non la contenesse.
+           `docs/24` §1.13.4 — una sincronizzazione Shopify non puo' eseguire
+           automaticamente questa disattivazione.
+
+        ⚠️ L'effetto non era una perdita di righe ma una sparizione operativa:
+           la sede usciva dai selettori, dal conteggio delle sedi licenziate, e
+           `setLicensedLocations` rifiutava di riattivarla.
+      */
       await this.prisma.location.update({
         where: { id: location.id },
         data: {
-          isActive: false,
-          shopifySyncStatus: ShopifySyncStatus.not_connected,
-          shopifyLastSyncAt: null,
-          shopifyLastError: null,
+          shopifySyncStatus: ShopifySyncStatus.error,
+          shopifyLastError: 'La location collegata non risulta piu` disponibile su Shopify. Il collegamento non e` verificabile: la sede e i suoi dati restano intatti. Collegala a un`altra location o creane una nuova.',
         },
       });
-      removed += 1;
-      this.logger.log(
-        `Archiviata location import Shopify non collegata (${tenantId}): ${location.name}`,
+      segnalate += 1;
+      this.logger.warn(
+        `Location import Shopify non collegata (${tenantId}): ${location.name} — sede conservata, collegamento non verificabile`,
       );
     }
 
-    return removed;
+    return segnalate;
   }
 
   /*
@@ -232,18 +246,33 @@ export class ShopifyLocationSyncService {
            autorizza a cancellare la sede che le corrispondeva
            (`docs/24` §1.13.3).
       */
+      /*
+        ⛔ **Qui la sede veniva DISATTIVATA e SCOLLEGATA.** Entrambe le cose
+           sono vietate: `docs/24` §1.13.3 — una location scomparsa da Shopify
+           non elimina, archivia o disattiva automaticamente la sede VestiFlow.
+
+        ⚠️ **E lo scollegamento era il danno piu' silenzioso dei due.** Finche'
+           non esiste `shopify_location_links`, `shopifyLocationId` e' l'unica
+           traccia del collegamento: azzerandolo, «non e' mai stato collegato» e
+           «il collegamento si e' chiuso» diventano indistinguibili — ed e'
+           esattamente la differenza su cui si regge il divieto di riaggancio
+           automatico. Una location che tornasse con lo stesso nome verrebbe
+           riagganciata come se fosse nuova.
+
+        ⭐ **Il comportamento provvisorio e' CONSERVATIVO**: si preserva tutto e
+           si SEGNALA. Lo stato `error` e il messaggio sono l'unico modo di
+           dirlo senza una tabella di storico — e sono visibili all'operatore,
+           che e' il solo che puo' decidere.
+      */
       await this.prisma.location.update({
         where: { id: location.id },
         data: {
-          isActive: false,
-          shopifyLocationId: null,
-          shopifySyncStatus: ShopifySyncStatus.not_connected,
-          shopifyLastSyncAt: null,
-          shopifyLastError: null,
+          shopifySyncStatus: ShopifySyncStatus.error,
+          shopifyLastError: 'La location collegata non risulta piu` disponibile su Shopify. Il collegamento non e` verificabile: la sede e i suoi dati restano intatti. Collegala a un`altra location o creane una nuova.',
         },
       });
-      this.logger.log(
-        `Scollegata e disattivata location Shopify obsoleta (${tenantId}): ${location.name}`,
+      this.logger.warn(
+        `Location Shopify non piu' disponibile (${tenantId}): ${location.name} — sede e collegamento conservati, sincronizzazione sospesa`,
       );
     }
   }

@@ -316,7 +316,7 @@ describe('ShopifyLocationSyncService', () => {
     expect(locationDelete).not.toHaveBeenCalled();
   });
 
-  it('scollega location Shopify stale ancora in uso', async () => {
+  it('NON scollega ne disattiva una location stale ancora in uso: segnala', async () => {
     const { service, locationUpdate, locationDelete, prisma } = createService({
       shopifyLocations: [{ id: '1001', name: 'Negozio attivo', active: true }],
       tenantLocations: [
@@ -333,17 +333,24 @@ describe('ShopifyLocationSyncService', () => {
 
     await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
+    /*
+      ⛔ **Il titolo diceva «scollega», ed e' proprio cio' che non deve fare.**
+         Una sede ancora in uso, sparita dal catalogo remoto, conserva
+         identificativo e operativita': cambia solo lo STATO del collegamento,
+         che diventa un segnale per l'operatore (docs/24 §1.13.3).
+    */
     expect(locationDelete).not.toHaveBeenCalled();
     expect(locationUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'loc-busy' },
-        data: expect.objectContaining({
-          isActive: false,
-          shopifyLocationId: null,
-          shopifySyncStatus: ShopifySyncStatus.not_connected,
-        }),
+        data: expect.objectContaining({ shopifySyncStatus: ShopifySyncStatus.error }),
       }),
     );
+    const scritte = locationUpdate.mock.calls.flatMap((c) =>
+      Object.keys((c[0] as { data?: Record<string, unknown> }).data ?? {}),
+    );
+    expect(scritte, 'la sede e stata disattivata').not.toContain('isActive');
+    expect(scritte, 'il collegamento e stato azzerato').not.toContain('shopifyLocationId');
   });
 
   it('NON elimina le location collegate quando Shopify non ne restituisce nessuna', async () => {
@@ -479,13 +486,26 @@ describe('ShopifyLocationSyncService', () => {
         // 1 · la sede non si cancella
         expect(locationDelete).not.toHaveBeenCalled();
 
-        // 2 · viene archiviata e scollegata, non persa
+        /*
+          2 · resta operativa e collegata, e il collegamento non verificabile
+              viene SEGNALATO — docs/24 §1.13.3.
+        
+          ⛔ Qui si asseriva `isActive: false, shopifyLocationId: null`. Entrambi
+             sono ora vietati: la sincronizzazione non disattiva, e azzerare
+             l'identificativo cancella l'unica traccia del collegamento finche'
+             `shopify_location_links` non esiste.
+        */
         expect(locationUpdate).toHaveBeenCalledWith(
           expect.objectContaining({
             where: { id: 'loc-stale' },
-            data: expect.objectContaining({ isActive: false, shopifyLocationId: null }),
+            data: expect.objectContaining({ shopifySyncStatus: 'error' }),
           }),
         );
+        const scritte = locationUpdate.mock.calls.flatMap((c) =>
+          Object.keys((c[0] as { data?: Record<string, unknown> }).data ?? {}),
+        );
+        expect(scritte, 'la sede e stata disattivata').not.toContain('isActive');
+        expect(scritte, 'il collegamento e stato azzerato').not.toContain('shopifyLocationId');
 
         // 3 · l'entita collegata resta intatta
         const delegato = delegatiRiferimento[modello];

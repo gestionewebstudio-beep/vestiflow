@@ -388,11 +388,29 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
     const dopo = await fotografa(prisma);
     attendiIntatti(prima, dopo, [...CATALOGO, ...INVENTARIO, ...DOCUMENTI, ...SCOLLEGAMENTI]);
 
-    // SEDE_PIENA e' referenziata: si archivia e si scollega, non sparisce.
+    /*
+      ⛔ **La sede resta OPERATIVA e COLLEGATA.** docs/24 §1.13.3: una location
+         scomparsa da Shopify non elimina, archivia o disattiva automaticamente
+         la sede VestiFlow.
+
+      ⚠️ **E non si scollega nemmeno.** Finche' non esiste
+         `shopify_location_links`, azzerare `shopifyLocationId` cancella
+         l'unica traccia del collegamento: «non e' mai stato collegato» e «il
+         collegamento si e' chiuso» diventerebbero indistinguibili — ed e'
+         esattamente la differenza su cui si regge il divieto di riaggancio
+         automatico. Il comportamento provvisorio e' conservativo.
+    */
     const piena = await prisma.location.findUnique({ where: { id: P.sedePiena } });
     expect(piena, 'SEDE_PIENA non deve essere cancellata').not.toBeNull();
-    expect(piena?.isActive).toBe(false);
-    expect(piena?.shopifyLocationId).toBeNull();
+    expect(piena?.isActive, 'la sede e stata DISATTIVATA da un sync').toBe(true);
+    expect(
+      piena?.shopifyLocationId,
+      'l identificativo di collegamento e stato azzerato: la storia e persa',
+    ).toBe('9001');
+
+    // E il collegamento non verificabile viene SEGNALATO, non nascosto.
+    expect(piena?.shopifySyncStatus).toBe('error');
+    expect(piena?.shopifyLastError).toMatch(/non .* disponibile su Shopify/i);
 
     // I suoi contatori, dispositivi e terminali sono ancora li'.
     expect(dopo.contatori).toBe(prima.contatori);
@@ -503,7 +521,7 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
        sede con dati non può essere disattivata automaticamente, sarà questa
        riga a dire che la decisione è stata applicata.
   */
-  it('scenario 13 · una sede CON dati non viene mai cancellata, ma oggi viene disattivata', async () => {
+  it('scenario 13 · una sede CON dati non viene ne cancellata ne disattivata', async () => {
     // ⚠️ Serve una sede con codice diverso da LOC-01: `isShopifyManagedImportLocation`
     //    tratta LOC-01 come la sede di onboarding e la esclude. La cavia è LOC-04.
     await prisma.inventoryLevel.create({
@@ -527,8 +545,8 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
     // ⏸ Ciò che accade oggi, ed è la decisione aperta.
     expect(
       cavia?.isActive,
-      'comportamento attuale: il sync disattiva la sede senza chiederlo a nessuno',
-    ).toBe(false);
+      'una sincronizzazione ha disattivato una sede con giacenze',
+    ).toBe(true);
   });
 
   /*
@@ -641,9 +659,9 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
         // 1 · la sede non e' stata cancellata
         expect(cavia, `la sede e' stata CANCELLATA nonostante ${relazione.nome}`).not.toBeNull();
 
-        // 2 · e' stata archiviata e scollegata
-        expect(cavia?.isActive).toBe(false);
-        expect(cavia?.shopifyLocationId).toBeNull();
+        // 2 · resta operativa e collegata
+        expect(cavia?.isActive, 'la sede e stata disattivata da un sync').toBe(true);
+        expect(cavia?.shopifyLocationId, 'il collegamento e stato azzerato').toBe('9004');
 
         // 3 · il riferimento punta ancora alla sede: niente Cascade, niente SetNull
         expect(
