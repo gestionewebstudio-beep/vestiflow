@@ -79,24 +79,24 @@
 
             <fieldset class="shop-change-wizard__options">
               <legend class="shop-change-wizard__options-title">Cosa rimuovere</legend>
-              <label
-                class="shop-change-wizard__option"
-                [class.shop-change-wizard__option--disabled]="catalogPurgeBlocked()"
-              >
+              <!--
+                La rimozione del catalogo è sospesa: cancellava prodotti collegati,
+                giacenze e movimenti locali. La casella resta VISIBILE e spenta —
+                toglierla del tutto farebbe sembrare che non sia mai esistita, e chi
+                la cercasse non troverebbe la ragione per cui non c'è.
+
+                ⚠️ Questo è il livello AGGIUNTIVO: il rifiuto vero è sull'API,
+                perché una casella disabilitata non ferma una chiamata diretta.
+              -->
+              <label class="shop-change-wizard__option shop-change-wizard__option--disabled">
                 <span class="shop-change-wizard__option-row">
-                  <input
-                    type="checkbox"
-                    [checked]="purgeCatalog()"
-                    [disabled]="catalogPurgeBlocked()"
-                    (change)="purgeCatalog.set($any($event.target).checked)"
-                  />
+                  <input type="checkbox" [checked]="false" disabled />
                   Catalogo importato da Shopify (prodotti, varianti, giacenze e movimenti collegati)
                 </span>
-                @if (catalogPurgeBlocked()) {
-                  <span class="shop-change-wizard__option-hint">
-                    Bloccato: ordini fornitore aperti collegati a queste varianti.
-                  </span>
-                }
+                <span class="shop-change-wizard__option-hint">
+                  Sospesa: cancellava giacenze e movimenti anche di articoli mai passati da Shopify.
+                  Sarà sostituita dall’archiviazione, che scollega senza cancellare.
+                </span>
               </label>
               <label class="shop-change-wizard__option">
                 <span class="shop-change-wizard__option-row">

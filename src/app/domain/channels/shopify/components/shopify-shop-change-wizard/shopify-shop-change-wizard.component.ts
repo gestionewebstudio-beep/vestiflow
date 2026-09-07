@@ -61,7 +61,16 @@ export class ShopifyShopChangeWizardComponent {
   protected readonly preview = signal<ShopifyShopChangePreviewDto | null>(null);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly purgeCatalog = signal(true);
+  /*
+    ⛔ **Nasce SPENTO, e non lo accende più nessuno.** Era `signal(true)`: il
+       wizard proponeva di cancellare il catalogo come impostazione predefinita,
+       e con esso giacenze e movimenti.
+
+    ⚠️ Il segnale resta perché il DTO dell'API lo richiede ancora, e mandarlo a
+       `false` esplicitamente è più chiaro che ometterlo. Il rifiuto vero è
+       sull'API: questa è solo la parte che si vede.
+  */
+  protected readonly purgeCatalog = signal(false);
   protected readonly purgeCustomers = signal(true);
   protected readonly purgeOrders = signal(true);
   protected readonly acknowledgeLoss = signal(false);
@@ -328,7 +337,7 @@ export class ShopifyShopChangeWizardComponent {
     this.step.set('preview');
     this.preview.set(null);
     this.error.set(null);
-    this.purgeCatalog.set(true);
+    this.purgeCatalog.set(false);
     this.purgeCustomers.set(true);
     this.purgeOrders.set(true);
     this.acknowledgeLoss.set(false);

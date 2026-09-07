@@ -2,8 +2,64 @@ import { ShopifySyncStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
+import {
+  RIFERIMENTI_SEDE_NON_PROTETTIVI,
+  type RiferimentoSede,
+} from './location-delete-safety.util';
 import type { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyLocationSyncService } from './shopify-location-sync.service';
+
+/**
+ * I delegati Prisma delle relazioni che una sede si porterebbe via.
+ *
+ * ⚠️ **Generati DALL'ELENCO, non scritti a mano.** Una voce aggiunta domani a
+ *    `RIFERIMENTI_SEDE_NON_PROTETTIVI` deve comparire qui da sola: un mock
+ *    scritto a mano non esporrebbe quel modello, e `verificaSedeCancellabile`
+ *    fallirebbe con un errore che sembra un problema del test invece che una
+ *    protezione mancante.
+ *
+ * ⭐ **Il `count` guarda il CAMPO, non solo il modello.** `stockMovement`
+ *    compare due volte con significati opposti — `locationId` e' inventario
+ *    (`Restrict`, si difende da solo) e `targetLocationId` e' un riferimento
+ *    che si azzera in silenzio. Un mock che rispondesse per modello non
+ *    saprebbe distinguerli, e la prova per relazione non proverebbe niente.
+ *
+ * ⚠️ **`delete` e `deleteMany` sono spie che devono restare mute**: servono a
+ *    dimostrare la seconda meta' del contratto — la sede non si cancella E
+ *    l'entita' collegata resta dov'e'.
+ */
+function creaDelegatiRiferimento(presenti: Readonly<Record<string, number>> = {}) {
+  const campiPerModello = new Map<string, Record<string, number>>();
+  for (const riferimento of RIFERIMENTI_SEDE_NON_PROTETTIVI) {
+    const campi = campiPerModello.get(riferimento.modello) ?? {};
+    campi[riferimento.campo] = presenti[`${riferimento.modello}.${riferimento.campo}`] ?? 0;
+    campiPerModello.set(riferimento.modello, campi);
+  }
+
+  const delegati: Record<
+    string,
+    { count: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> }
+  > = {};
+
+  for (const [modello, campi] of campiPerModello) {
+    delegati[modello] = {
+      count: vi.fn(({ where }: { where: Record<string, unknown> }) => {
+        for (const [campo, quante] of Object.entries(campi)) {
+          if (campo in where) {
+            return Promise.resolve(quante);
+          }
+        }
+        return Promise.resolve(0);
+      }),
+      delete: vi.fn().mockRejectedValue(new Error('nessun percorso deve cancellare questa entita')),
+      deleteMany: vi
+        .fn()
+        .mockRejectedValue(new Error('nessun percorso deve cancellare questa entita')),
+    };
+  }
+
+  return delegati;
+}
 
 describe('ShopifyLocationSyncService', () => {
   const tenantId = 'tenant-1';
@@ -21,6 +77,8 @@ describe('ShopifyLocationSyncService', () => {
     }>;
     tenantLocations?: Array<Record<string, unknown>>;
     defaultStore?: { id: string } | null;
+    /** Quanti riferimenti esistono, per chiave `modello.campo`. */
+    riferimenti?: Readonly<Record<string, number>>;
   }) {
     const shopifyLocations = options?.shopifyLocations ?? [
       {
@@ -57,6 +115,8 @@ describe('ShopifyLocationSyncService', () => {
       return Promise.resolve(allLocations);
     });
 
+    const delegatiRiferimento = creaDelegatiRiferimento(options?.riferimenti);
+
     const prisma = {
       location: {
         findMany: locationFindMany,
@@ -68,11 +128,16 @@ describe('ShopifyLocationSyncService', () => {
         findFirst: vi.fn().mockResolvedValue(defaultStore),
       },
       inventoryLevel: { count: vi.fn().mockResolvedValue(0) },
-      stockMovement: { count: vi.fn().mockResolvedValue(0) },
-      supplierOrder: { count: vi.fn().mockResolvedValue(0) },
       inventoryCountSession: {
         count: vi.fn().mockResolvedValue(0),
       },
+      /*
+        ⚠️ `stockMovement` e `supplierOrder` non sono piu' dichiarati qui: li
+           porta `creaDelegatiRiferimento`, che risponde per campo. Dichiarati
+           due volte, l'ultimo vincerebbe e la prova per relazione tornerebbe 0
+           su un riferimento che invece esiste.
+      */
+      ...delegatiRiferimento,
     };
 
     const shopifyAdmin = {
@@ -91,6 +156,7 @@ describe('ShopifyLocationSyncService', () => {
       locationUpdate,
       locationCreate,
       locationDelete,
+      delegatiRiferimento,
     };
   }
 
@@ -366,5 +432,111 @@ describe('ShopifyLocationSyncService', () => {
     await service.syncFromShopify(tenantId, shopDomain, accessToken);
 
     expect(locationDelete).not.toHaveBeenCalledWith({ where: { id: 'loc-onboarding' } });
+  });
+
+  /*
+    ⛔ **Una prova per OGNI relazione, e le prove le genera l'ELENCO.**
+       Scritte a mano sarebbero undici blocchi copiati, e una relazione aggiunta
+       domani resterebbe senza prova: `check:cascate-sede` direbbe che e'
+       dichiarata, e nessuno verificherebbe che e' davvero protettiva.
+
+    ⭐ Le due guardie si tengono a vicenda: la statica garantisce che l'elenco
+       sia COMPLETO rispetto allo schema, queste prove che ogni voce dell'elenco
+       TRATTENGA davvero la sede.
+
+    ⚠️ Il percorso provato e' `cleanupStaleShopifyLocations`: e' quello che ha
+       prodotto il guasto — una sede collegata che sparisce dal catalogo Shopify
+       e che il sync decide di rimuovere.
+  */
+  describe.each(RIFERIMENTI_SEDE_NON_PROTETTIVI as readonly RiferimentoSede[])(
+    'sede trattenuta da $modello.$campo',
+    ({ modello, campo, effetto }: RiferimentoSede) => {
+      it(`non viene cancellata: l'entita collegata ${effetto === 'cancellata' ? 'sparirebbe' : 'perderebbe la sede'}`, async () => {
+        const { service, locationDelete, locationUpdate, delegatiRiferimento } = createService({
+          shopifyLocations: [{ id: 1001, name: 'Negozio attivo', active: true }],
+          tenantLocations: [
+            {
+              id: 'loc-stale',
+              code: 'LOC-05',
+              name: 'Sede sparita da Shopify',
+              shopifyLocationId: '9999',
+            },
+          ],
+          riferimenti: { [`${modello}.${campo}`]: 3 },
+        });
+
+        await service.syncFromShopify(tenantId, shopDomain, accessToken);
+
+        // 1 · la sede non si cancella
+        expect(locationDelete).not.toHaveBeenCalled();
+
+        // 2 · viene archiviata e scollegata, non persa
+        expect(locationUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'loc-stale' },
+            data: expect.objectContaining({ isActive: false, shopifyLocationId: null }),
+          }),
+        );
+
+        // 3 · l'entita collegata resta intatta
+        const delegato = delegatiRiferimento[modello];
+        if (!delegato) {
+          throw new Error(
+            `il mock non espone «${modello}»: creaDelegatiRiferimento non lo genera piu'.`,
+          );
+        }
+        expect(delegato.delete).not.toHaveBeenCalled();
+        expect(delegato.deleteMany).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  /*
+    ⭐ **Il rovescio della prova sopra, ed e' deliberato**: senza NESSUN
+       riferimento la sede si cancella ancora. E' il comportamento voluto — una
+       sede importata per errore e mai usata non deve restare per sempre nel
+       selettore — e va provato esplicitamente, o la protezione potrebbe essere
+       diventata un blocco totale senza che nessuno se ne accorga.
+
+    ⚠️ Questa prova e' anche il controllo di sanita' delle undici sopra: se
+       fallisse insieme a loro, il mock impedirebbe la cancellazione sempre, e
+       quelle undici non proverebbero piu' niente.
+  */
+  it('cancella la sede solo quando non ha davvero nessun riferimento', async () => {
+    const { service, locationDelete, prisma, delegatiRiferimento } = createService({
+      shopifyLocations: [{ id: 1001, name: 'Negozio attivo', active: true }],
+      tenantLocations: [
+        {
+          id: 'loc-mai-usata',
+          code: 'LOC-05',
+          name: 'Importata per errore',
+          shopifyLocationId: '9999',
+        },
+      ],
+      riferimenti: {},
+    });
+
+    await service.syncFromShopify(tenantId, shopDomain, accessToken);
+
+    expect(locationDelete).toHaveBeenCalledWith({ where: { id: 'loc-mai-usata' } });
+
+    // Le quattro protezioni preesistenti sull'inventario sono state interrogate.
+    expect(prisma.inventoryLevel.count).toHaveBeenCalled();
+    expect(prisma.inventoryCountSession.count).toHaveBeenCalled();
+
+    // E tutte e undici le relazioni dell'elenco, senza eccezioni.
+    for (const riferimento of RIFERIMENTI_SEDE_NON_PROTETTIVI) {
+      const delegato = delegatiRiferimento[riferimento.modello];
+      if (!delegato) {
+        throw new Error(
+          `il mock non espone «${riferimento.modello}»: creaDelegatiRiferimento non lo genera piu'.`,
+        );
+      }
+      expect(delegato.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ [riferimento.campo]: 'loc-mai-usata' }),
+        }),
+      );
+    }
   });
 });
