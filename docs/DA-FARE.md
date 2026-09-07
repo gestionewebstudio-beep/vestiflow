@@ -66,6 +66,111 @@ chiusi, e la differenza conta il giorno in cui il gestionale avrà dati veri.
 
 ---
 
+## ⛔ COLLAUDO DISTRUTTIVO SHOPIFY — quattro lacune di schema, 07/09/2026
+
+> **Misurate contro PostgreSQL vero, non dedotte dallo schema.** Il collaudo
+> (`api/src/test/integration/shopify-distruttivo.integration-spec.ts`, 36 prove)
+> ha trovato quattro divergenze fra ciò che lo schema Prisma dichiara e ciò che
+> il database applica. Nessun test a mock poteva vederle: un mock non ha vincoli
+> di integrità.
+
+### 1 · `shopify_inventory_sync_states.location_id` NON HA CHIAVE ESTERNA
+
+```text
+relazioni verso Location nello schema Prisma   21
+chiavi esterne verso locations nel database    20
+```
+
+⛔ **La colonna esiste, la relazione è dichiarata, il vincolo non c'è.**
+Cancellare una sede lasciava quella riga orfana, puntando a un id che non
+esiste più, e nessun vincolo se ne accorgeva.
+
+⚠️ **Oggi la protezione è solo applicativa**: `RIFERIMENTI_SEDE` include quella
+relazione, quindi `canDeleteLocation` la conta e rifiuta. È una difesa nel
+chiamante, non nel database: un percorso nuovo che chiamasse `location.delete`
+senza passare di lì tornerebbe a creare orfani.
+
+**Da fare**: portare la colonna sotto vincolo. Tranche schema separata — la
+migration è condivisa col ramo del collega, e va misurato prima quante righe
+orfane esistono già.
+
+### 2 · Schema Prisma e database DIVERGONO sull'azione di due FK
+
+| Relazione                             | Prisma dice                           | il database applica |
+| ------------------------------------- | ------------------------------------- | ------------------- |
+| `SalesOrder.locationId`               | `SetNull` (opzionale, non dichiarata) | **RESTRICT**        |
+| `SupplierOrder.destinationLocationId` | `SetNull` (opzionale, non dichiarata) | **RESTRICT**        |
+
+⭐ **Il database è più protettivo dello schema**, quindi non c'è perdita di
+dati. Ma qualunque ragionamento fatto leggendo lo schema Prisma sbaglia su due
+relazioni su ventuno — ed è il motivo per cui `check:cascate-sede` non decide
+più in base all'azione: pretende che ogni relazione sia dichiarata, qualunque
+cosa faccia.
+
+### 3 · `mapPurgeError` nomina una causa che non c'entra
+
+⛔ Ogni violazione di chiave esterna (P2003) durante la purga diventa:
+
+```text
+«…Chiudi gli ordini fornitore aperti e riprova.»
+```
+
+**Misurato con tutti gli ordini fornitore chiusi**: a bloccare era
+`online_sales.sales_order_id`, che è `RESTRICT`. L'operatore chiude gli ordini
+fornitore, riprova, fallisce di nuovo, e non ha modo di sapere perché.
+
+⚠️ **Non è perdita di dati: è il suo opposto.** Il database protegge e la
+transazione non lascia niente a metà. È un difetto di diagnosi.
+
+⏸ **Che cosa debba dire il messaggio è una decisione non presa** — vedi sotto.
+
+### 4 · `stock_reservations.sales_order_id` è `CASCADE`, confermato
+
+Cancellare un ordine Shopify cancella i suoi impegni di magazzino, lasciando
+`inventory_levels.committed` gonfio di impegni che non esistono più. La guardia
+introdotta col commit `e0a837ab` lo impedisce, e il collaudo lo verifica contro
+il database vero (scenario 4).
+
+---
+
+## ⏸ DECISIONI FUNZIONALI APERTE — emerse dal collaudo, non decise
+
+Ognuna è **fotografata da una prova**: il giorno in cui la decisione verrà
+presa e applicata, quella prova diventerà rossa e lo dirà.
+
+| #   | Domanda                                                                                         | Comportamento attuale                 | Prova          |
+| --- | ----------------------------------------------------------------------------------------------- | ------------------------------------- | -------------- |
+| A   | Una sede **realmente vuota** dev'essere eliminata o sempre archiviata?                          | eliminata                             | scenari 10, 11 |
+| B   | Una sede **con dati** può essere disattivata da un sync di canale, senza che nessuno lo chieda? | sì, `isActive: false`                 | scenario 13    |
+| C   | Un **cliente Shopify** importato può essere eliminato fisicamente?                              | oggi la purga fallisce prima          | scenario 14    |
+| D   | Un **ordine Shopify** con vendita online collegata può essere eliminato?                        | no, il database lo impedisce          | scenario 14    |
+| E   | Se un documento perde il cliente, deve conservarne uno **snapshot**?                            | non applicabile finché C non è deciso | —              |
+
+⚠️ **La B è la più insidiosa**: la sede sparisce dai selettori operativi e
+`setLicensedLocations` rifiuta di riattivarla («Riattivale da Shopify Admin»,
+istruzione impossibile per una sede che su Shopify non esiste più).
+
+---
+
+## Matrice distruttiva — Shopify, aggiornata al 07/09/2026
+
+| Operazione                         | Chiamante                                                      | Entità            | Effetto diretto                                 | Cascade                                                                                 | SetNull                                                 | Collaudo                  | Log oggi                        | Cosa manca per attribuire |
+| ---------------------------------- | -------------------------------------------------------------- | ----------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------- | ------------------------------- | ------------------------- |
+| `disconnect()`                     | `DELETE /shopify/connection` (owner)                           | ShopifyCredential | `deleteMany` credenziali                        | —                                                                                       | sedi: `shopifyLocationId → null`                        | ✅ scen. 1                | `logger.warn` solo sulla revoca | chi, quando, da quale IP  |
+| `purge(purgeCatalog)`              | `POST /shop-change/purge`                                      | —                 | **rifiutata come prima istruzione**             | —                                                                                       | —                                                       | ✅ scen. 2, 6             | nessuno                         | —                         |
+| `purge(purgeCustomers)`            | idem                                                           | Customer          | `deleteMany`                                    | —                                                                                       | `documents.customer_id`, `sales_orders`, `online_sales` | ✅ scen. 3, 14            | nessuno                         | chi, quando, quante righe |
+| `purge(purgeOrders)`               | idem                                                           | SalesOrder        | `deleteMany`                                    | `sales_order_lines`, `stock_reservations`, `online_order_events`, `sales_order_refunds` | —                                                       | ✅ scen. 4, 4-bis, 5      | nessuno                         | idem                      |
+| `syncFromShopify()` → sede sparita | `POST /sync/locations` (owner) e **callback OAuth automatico** | Location          | `delete` se vuota, altrimenti archivia          | contatori, dispositivi, POS, assegnazioni                                               | documenti, ordini, vendite online, utenti               | ✅ scen. 8, 10, 12        | `logger.log` / `logger.warn`    | chi ha innescato il sync  |
+| `cleanupUnlinkedImportLocations()` | stessa catena                                                  | Location          | `delete` se vuota, `isActive: false` altrimenti | idem                                                                                    | idem                                                    | ✅ scen. 13               | `logger.log`                    | idem                      |
+| `removeEmptyOnboardingLocation()`  | stessa catena                                                  | Location (LOC-01) | `delete` se vuota                               | idem                                                                                    | idem                                                    | ⚠️ coperto indirettamente | `logger.log`                    | idem                      |
+
+⚠️ **La colonna «log oggi» è la ragione per cui serve un registro persistente**:
+tutto ciò che resta di una cancellazione è una riga di `logger` sul container,
+che Railway perde al riavvio. Non c'è modo di dire **chi** ha innescato un sync,
+**quando**, e **quante righe** ha portato via.
+
+---
+
 ## ⏸ LE FK VERSO `Location` RESTANO IN CASCATA — tranche schema, aperta il 07/09/2026
 
 > **Il rischio è chiuso nel CODICE, non nello SCHEMA.** `canDeleteLocation` ora
