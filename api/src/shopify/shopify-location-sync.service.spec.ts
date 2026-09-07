@@ -489,7 +489,7 @@ describe('ShopifyLocationSyncService', () => {
         /*
           2 · resta operativa e collegata, e il collegamento non verificabile
               viene SEGNALATO — docs/24 §1.13.3.
-        
+
           ⛔ Qui si asseriva `isActive: false, shopifyLocationId: null`. Entrambi
              sono ora vietati: la sincronizzazione non disattiva, e azzerare
              l'identificativo cancella l'unica traccia del collegamento finche'
