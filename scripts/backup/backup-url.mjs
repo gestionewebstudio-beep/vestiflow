@@ -47,15 +47,41 @@ export function sanitizeBackupDatabaseUrl(url) {
 }
 
 /**
- * URL usato da pg_dump. Preferisce BACKUP_DATABASE_URL (session pooler IPv4 su Windows).
+ * Il bersaglio di pg_dump, e da DOVE gli è arrivato.
+ *
+ * ⛔ **Mai da `api/.env`.** È il file che la CLI Prisma e l’applicazione
+ *    caricano da soli: ciò che sta lì non è una scelta di chi lancia il
+ *    comando, è l’ambiente di sviluppo che si trova addosso. Fino al
+ *    07/09/2026 questa funzione ci ripiegava sopra con `env.DIRECT_URL`, e
+ *    bastava digitare `npm run backup` per puntare al database condiviso
+ *    senza averlo nominato.
+ *
+ * ⭐ **Tre fonti, tutte esplicite**, in ordine di precedenza. L’ultima è
+ *    l’ambiente del PROCESSO — una variabile esportata a mano o iniettata
+ *    da un workflow: è una dichiarazione di chi esegue, non un file che
+ *    qualcuno carica per lui. È anche ciò che tiene in piedi il backup
+ *    automatico in CI senza toccarne il workflow.
+ *
+ * ⚠️ Restituisce anche l’ORIGINE, perché il chiamante la stampi: chi lancia
+ *    un backup deve vedere da dove è arrivato il bersaglio, e vederlo senza
+ *    che l’URL compaia nei log.
+ *
+ * @param {{urlEsplicita?: string, daFileIndicato?: string, daAmbiente?: string}} fonti
+ * @returns {{url: string, origine: string|null}}
  */
-export function resolveBackupDatabaseUrl(env) {
-  const backupUrl = env.BACKUP_DATABASE_URL?.trim();
-  if (backupUrl) {
-    return sanitizeBackupDatabaseUrl(backupUrl);
+export function resolveBackupDatabaseUrl(fonti = {}) {
+  const candidate = [
+    [fonti.urlEsplicita, '--database-url'],
+    [fonti.daFileIndicato, 'file di ambiente indicato con --env-file'],
+    [fonti.daAmbiente, 'ambiente del processo'],
+  ];
+  for (const [valore, origine] of candidate) {
+    const pulito = valore?.trim() ?? '';
+    if (pulito) {
+      return { url: sanitizeBackupDatabaseUrl(pulito), origine };
+    }
   }
-  const directUrl = env.DIRECT_URL?.trim() ?? '';
-  return sanitizeBackupDatabaseUrl(directUrl);
+  return { url: '', origine: null };
 }
 
 function extractPgHost(connectionUrl) {
@@ -78,8 +104,10 @@ function isDirectSupabaseDbHost(host) {
 export function assertBackupDatabaseUrl(url) {
   if (!url) {
     throw new Error(
-      'URL database mancante. Imposta BACKUP_DATABASE_URL (consigliato su Windows) ' +
-        'o DIRECT_URL in api/.env.',
+      'Bersaglio del database non indicato. Non viene MAI dedotto da api/.env:\n' +
+        '  --database-url <uri>     indicalo a mano, oppure\n' +
+        '  --env-file <percorso>    un file di ambiente che indichi tu, oppure\n' +
+        '  BACKUP_DATABASE_URL=...  esportata nell’ambiente di questo comando',
     );
   }
 
@@ -89,8 +117,8 @@ export function assertBackupDatabaseUrl(url) {
       'BACKUP_DATABASE_URL punta al host diretto db.*.supabase.co, che su Windows spesso ' +
         'non funziona con pg_dump (solo IPv6).\n\n' +
         'In Supabase clicca Connect → Session pooler → porta 5432 e copia la URI con host tipo:\n' +
-        '  aws-0-eu-west-1.pooler.supabase.com\n' +
-        '(NON db.upuypsqavodytixhlwvz.supabase.co)',
+        '  aws-0-<regione>.pooler.supabase.com\n' +
+        '(NON db.<progetto>.supabase.co)',
     );
   }
 }

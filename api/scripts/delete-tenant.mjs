@@ -2,11 +2,30 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { PrismaClient } from '@prisma/client';
 
+import { confermaBersaglioOEsci } from './bersaglio.mjs';
+
 const tenantId = process.argv[2];
 if (!tenantId) {
-  console.error('Uso: node scripts/delete-tenant.mjs <tenant-id>');
+  console.error('Uso: node scripts/delete-tenant.mjs <tenant-id> [--conferma]');
   process.exit(1);
 }
+
+/*
+  ⛔ **Ventuno `deleteMany` e una `delete`: qui non si torna indietro.**
+     Fino al 07/09/2026 bastava `node scripts/delete-tenant.mjs <id>` per
+     cancellare un tenant intero dal database CONDIVISO — `dotenv/config`
+     carica `api/.env`, e il bersaglio era quello senza che nessuno lo
+     avesse nominato.
+
+  ⭐ La conferma scatta SOLO se il bersaglio non e’ locale: quando
+     `DATABASE_URL` puntera’ al database di prova duplicato, smettera’ di
+     comparire da sola.
+*/
+await confermaBersaglioOEsci({
+  azione: `elimina il tenant ${tenantId}`,
+  url: process.env['DATABASE_URL'],
+  argomenti: process.argv.slice(2),
+});
 
 const prisma = new PrismaClient();
 

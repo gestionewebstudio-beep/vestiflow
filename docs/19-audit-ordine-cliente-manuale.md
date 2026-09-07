@@ -975,7 +975,7 @@ Non è Claude a deciderlo, e non è un arretrato da colmare in silenzio.
 
 ### Fase 7 — Debito strutturale, da avviare solo su decisione esplicita
 
-27. **§3.18 — La chiave di idempotenza sul primo salvataggio.** Precedente disponibile: `OnlineOrderEvent.dedupeKey`. ⛔ Richiede **migration su database condiviso** — SQL a mano, `npm run prisma:deploy`, mai `migrate dev`.
+27. **§3.18 — La chiave di idempotenza sul primo salvataggio.** Precedente disponibile: `OnlineOrderEvent.dedupeKey`. ⛔ Richiede **migration su database condiviso** — SQL a mano, provata con `npm run prisma:deploy:test`, mai `migrate dev`. ⛔ Per applicarla al condiviso non esiste un comando locale (07/09/2026): serve una procedura autorizzata.
 28. **§3.21 — La matrice di coppia unica** per Includi e Genera.
 29. **§3.22 — L'unificazione dei motori economici e dei due prefill.** ⚠️ La regola vieta di **introdurre** una seconda matematica, non ordina di unificare. Prima i test di caratterizzazione, poi la decisione. Comporta migration sulla forma persistita dello sconto.
 30. **Il difetto adiacente di §5.6** — la conclusione in modifica ristretta a `sales_ddt`.

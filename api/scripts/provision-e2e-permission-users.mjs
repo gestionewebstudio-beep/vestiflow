@@ -10,10 +10,24 @@ import { fileURLToPath } from 'node:url';
 
 import { PrismaClient, UserRole } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
+import { confermaBersaglioOEsci } from './bersaglio.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 loadEnvFile(resolve(scriptDir, '../.env'));
 loadEnvFile(resolve(scriptDir, '../../.env'));
+
+/*
+  ⛔ **Crea utenti reali sul bersaglio di `DATABASE_URL`**, che in locale e’ il
+     database di sviluppo CONDIVISO: `loadEnvFile` legge `api/.env` da se’.
+
+  ⭐ La conferma scatta SOLO se il bersaglio non e’ locale, quindi in CI —
+     dove punta al container di prova — non compare.
+*/
+await confermaBersaglioOEsci({
+  azione: 'crea gli utenti E2E',
+  url: process.env['DATABASE_URL'],
+  argomenti: process.argv.slice(2),
+});
 
 const DEFAULT_PASSWORD = process.env.E2E_GRANULAR_PASSWORD?.trim()
   || process.env.E2E_CLERK_PASSWORD?.trim()
