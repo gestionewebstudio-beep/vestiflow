@@ -2034,9 +2034,69 @@ con §1.13.1 e non va toccata.
 Le sei che restano aperte sono elencate in `docs/24` §0-bis, «Voci APERTE dopo
 il consolidamento del 07/09/2026». In sintesi: il termine per «Disattiva», il
 comportamento della sede collegata disattivata localmente, la conseguenza del
-rifiuto di recuperare gli ordini, la progettazione della prima sincronizzazione
-articoli, la quantità iniziale di un articolo solo-Shopify creato in VestiFlow,
-e l'audit persistente con i backup pre-operazione.
+rifiuto di recuperare gli ordini, i **dettagli operativi** del primo
+allineamento degli articoli, le **giacenze iniziali per sede**, e l'audit
+persistente con i backup pre-operazione.
+
+### 8 · Primo allineamento degli ARTICOLI — due direzioni approvate (07/09/2026)
+
+> **La decisione è argomentata in `docs/24` §12.0.** Qui c'è solo il lavoro che
+> ne discende e i limiti da non aggirare.
+
+⚠️ **Qui la formula era «progettazione interamente sospesa». Non vale più.** Lo
+stato preciso è:
+
+> **Due direzioni iniziali approvate; dettagli operativi e giacenze iniziali
+> ancora aperti; implementazione dell'onboarding non ancora autorizzata.**
+
+|                        |                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Parto da Shopify**   | importo prodotti e varianti conservando gli identificativi remoti, e **registro i collegamenti durante l'importazione**             |
+| **Parto da VestiFlow** | preparo il catalogo a mano o via CSV; quando VestiFlow **crea** su Shopify, registra gli identificativi restituiti e i collegamenti |
+
+⛔ **L'identità non si deduce mai** da nome, SKU o barcode: in entrambi i
+percorsi discende dall'operazione. La matrice di §9.2 **resta invariata** — da
+dove si parte non cambia chi possiede cosa.
+
+**Limiti dichiarati, e non aggirabili**: due cataloghi già popolati senza
+collegamenti certi non sono risolti da nessuna delle due direzioni; un CSV
+ordinario non dimostra l'identità di articoli già su Shopify; nessuna fusione,
+cancellazione o sostituzione implicita del catalogo di destinazione; importare
+anagrafiche **non autorizza** a sommare o sovrascrivere quantità.
+
+#### Che cosa fare sull'importazione CSV, che esiste già
+
+⛔ **Non è da scrivere e non è già conforme: è da verificare e adattare.**
+Misurato il 07/09/2026 — `api/src/products/import/` ha `shopify-csv.parse.ts`,
+`shopify-csv.mapper.ts` e `shopify-csv.serialize.ts`, invocati da
+`ProductsImportService`:
+
+- accetta il formato **di Shopify** (handle, tag, prezzi decimali dai mapper
+  Shopify): ⛔ **non** «un CSV qualsiasi»;
+- produce prodotti e varianti **locali**;
+- ⛔ **non registra alcun collegamento remoto**: nel mapper non compare né
+  `shopifyProductId` né un GID.
+
+⭐ È il pezzo che serve alla **direzione 2**, e proprio perché non pretende di
+sapere che cosa esista su Shopify: i collegamenti li registrerà la creazione
+remota, non il file. Che cosa cambiare, e se il formato Shopify resti l'unico
+accettato, è fra i dettagli aperti.
+
+#### Che cosa NON diventa approvato
+
+⛔ Il **wizard a nove passi** di `docs/24` §12 e le **schermate di
+corrispondenza** (§12.6, §12.11) restano proposte non approvate. Le due
+direzioni non passano da un matching: lo rendono superfluo, che è altra cosa dal
+renderlo valido.
+
+#### Che cosa NON è il primo allineamento
+
+- la **riconnessione allo stesso negozio** non lo ripete: conserva i
+  collegamenti e recupera dall'**ultimo checkpoint riuscito** (§1.15.2), senza
+  duplicare gli effetti;
+- il **backfill** (§8.5.8, fase 3) è la conversione tecnica dei collegamenti già
+  esistenti nelle colonne legacy: non chiede nulla a nessuno e non crea
+  articoli. Due lavori distinti.
 
 ---
 

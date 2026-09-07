@@ -71,13 +71,13 @@ Il codice esistente è un dato da censire, non una prova della regola corretta.
 
 ⛔ **Questi punti erano scritti come requisiti approvati e non lo sono.** Finché non vengono decisi, restano proposte o domande: **non si implementano**, e nessuna tranche può passarci sopra dichiarandoli acquisiti.
 
-| Punto                                                                                | Dove       | Perché è aperto                                                                                                |
-| ------------------------------------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------- |
-| **esatto contratto degli snapshot** e necessità delle **chiavi storiche** aggiuntive | §5.2, §5.3 | quali colonne servano davvero, e se le chiavi storiche siano necessarie, non è stabilito                       |
-| **contenuto tecnico del preflight**                                                  | §14.1      | i quattro requisiti funzionali sono decisi; hash, token, scadenze e idempotenza no                             |
-| struttura dell'**outbox**, lock e worker                                             | §8.4       | forma tecnica ipotizzata                                                                                       |
-| **wizard di prima sincronizzazione**                                                 | §12        | i nove passi sono una proposta, non un flusso approvato — e la parte **articoli** è **SOSPESA** dal 07/09/2026 |
-| **politica delle publication per canale**                                            | §10.1      | quali canali, con quale regola                                                                                 |
+| Punto                                                                                | Dove       | Perché è aperto                                                                                                                                                 |
+| ------------------------------------------------------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **esatto contratto degli snapshot** e necessità delle **chiavi storiche** aggiuntive | §5.2, §5.3 | quali colonne servano davvero, e se le chiavi storiche siano necessarie, non è stabilito                                                                        |
+| **contenuto tecnico del preflight**                                                  | §14.1      | i quattro requisiti funzionali sono decisi; hash, token, scadenze e idempotenza no                                                                              |
+| struttura dell'**outbox**, lock e worker                                             | §8.4       | forma tecnica ipotizzata                                                                                                                                        |
+| **wizard di prima sincronizzazione**                                                 | §12        | i nove passi restano una proposta, non un flusso approvato. ⚠️ Per gli **articoli** vale ora §12.0: due direzioni iniziali approvate, dettagli operativi aperti |
+| **politica delle publication per canale**                                            | §10.1      | quali canali, con quale regola                                                                                                                                  |
 
 ⭐ **Un punto aperto non diventa chiuso perché una tranche lo attraversa.** Se un lavoro incontra una di queste voci, si ferma e la si decide.
 
@@ -100,21 +100,21 @@ Tolte dalla tabella perché **decise**, non perché attraversate. Restano elenca
 
 ### ✅ Voci CHIUSE il 07/09/2026 — sedi, clienti, ordini, acquisizione
 
-| Voce                                                          | Dove è decisa      | Che cosa dice                                                                                                    |
-| ------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| **identità di sede e location**                               | §1.13              | due entità autonome; senza collegamento esplicito non si sincronizza niente, in nessuna direzione                |
-| **come nasce un collegamento di sede**                        | §1.13.1, §12.4     | mai automatico; tre scelte per riga; nome e indirizzo non sono prove d'identità; uno-a-uno nello stesso negozio  |
-| **anagrafiche delle sedi**                                    | §1.13.2            | non si sincronizzano, nemmeno quando la creazione parte da una delle due piattaforme                             |
-| **location scomparsa da Shopify**                             | §1.13.3            | la sede resta con tutti i suoi dati; il collegamento si chiude conservando la storia; nessun riaggancio per nome |
-| **quando una sede si può eliminare**                          | §1.13.4            | solo se non collegata e libera secondo tutte e 21 le relazioni; altrimenti si rende non operativa                |
-| **chi può disattivare una sede**                              | §1.13.4            | l'operatore; **mai** una sincronizzazione di canale                                                              |
-| **eliminazione di clienti e ordini da funzioni Shopify**      | §1.14              | non avviene: si chiude o sospende il collegamento. `purgeOrders` è un **difetto da correggere**                  |
-| **rilascio degli impegni alla disconnessione**                | §1.14.3            | non avviene: gli impegni seguono il ciclo di annullamento dell'ordine                                            |
-| **ordini acquisiti alla prima connessione**                   | §1.15.1            | si registra l'istante e si parte da lì; nessuna importazione storica, nemmeno proposta                           |
-| **recupero del periodo non sincronizzato alla riconnessione** | §1.15.2            | proposto, dall'ultimo checkpoint riuscito alla riconnessione, idempotente, solo per lo stesso `shop_gid`         |
-| **che cosa sopravvive alla disconnessione**                   | §1.15.3            | identità del negozio, prima connessione, disconnessione, ultimo checkpoint, intervallo, riconnessione            |
-| **fonte autorevole delle quantità dopo un recupero**          | §1.15.5            | VestiFlow; una modifica manuale su Shopify è un disallineamento da mostrare, non una sovrascrittura              |
-| **prima sincronizzazione degli ARTICOLI**                     | §12 (intestazione) | **sospesa**: nessuna proposta, nessun collegamento automatico, nessuna UI di abbinamento                         |
+| Voce                                                          | Dove è decisa  | Che cosa dice                                                                                                                    |
+| ------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **identità di sede e location**                               | §1.13          | due entità autonome; senza collegamento esplicito non si sincronizza niente, in nessuna direzione                                |
+| **come nasce un collegamento di sede**                        | §1.13.1, §12.4 | mai automatico; tre scelte per riga; nome e indirizzo non sono prove d'identità; uno-a-uno nello stesso negozio                  |
+| **anagrafiche delle sedi**                                    | §1.13.2        | non si sincronizzano, nemmeno quando la creazione parte da una delle due piattaforme                                             |
+| **location scomparsa da Shopify**                             | §1.13.3        | la sede resta con tutti i suoi dati; il collegamento si chiude conservando la storia; nessun riaggancio per nome                 |
+| **quando una sede si può eliminare**                          | §1.13.4        | solo se non collegata e libera secondo tutte e 21 le relazioni; altrimenti si rende non operativa                                |
+| **chi può disattivare una sede**                              | §1.13.4        | l'operatore; **mai** una sincronizzazione di canale                                                                              |
+| **eliminazione di clienti e ordini da funzioni Shopify**      | §1.14          | non avviene: si chiude o sospende il collegamento. `purgeOrders` è un **difetto da correggere**                                  |
+| **rilascio degli impegni alla disconnessione**                | §1.14.3        | non avviene: gli impegni seguono il ciclo di annullamento dell'ordine                                                            |
+| **ordini acquisiti alla prima connessione**                   | §1.15.1        | si registra l'istante e si parte da lì; nessuna importazione storica, nemmeno proposta                                           |
+| **recupero del periodo non sincronizzato alla riconnessione** | §1.15.2        | proposto, dall'ultimo checkpoint riuscito alla riconnessione, idempotente, solo per lo stesso `shop_gid`                         |
+| **che cosa sopravvive alla disconnessione**                   | §1.15.3        | identità del negozio, prima connessione, disconnessione, ultimo checkpoint, intervallo, riconnessione                            |
+| **fonte autorevole delle quantità dopo un recupero**          | §1.15.5        | VestiFlow; una modifica manuale su Shopify è un disallineamento da mostrare, non una sovrascrittura                              |
+| **da dove parte il primo allineamento degli ARTICOLI**        | §12.0          | **due direzioni approvate**: si importa da Shopify, o si crea da VestiFlow. L'identita' non si deduce mai da nome, SKU o barcode |
 
 ---
 
@@ -124,14 +124,14 @@ Tolte dalla tabella perché **decise**, non perché attraversate. Restano elenca
 già elencate sopra. Un punto che non compare in nessuna delle due liste è
 **deciso**: si applica la sezione che lo argomenta.
 
-| #   | Punto aperto                                                                     | Dove              | Perché non si può dedurre                                                                                                                               |
-| --- | -------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **termine definitivo** per una sede non eliminabile                              | §1.13.4           | la proposta corrente è «Disattiva», non «Sospendi». La regola funzionale è decisa e non dipende dal nome                                                |
-| 2   | **comportamento della sede collegata quando viene disattivata localmente**       | §1.13.5           | il comportamento proposto è registrato per non perderlo, non perché sia acquisito                                                                       |
-| 3   | **conseguenza del rifiuto** di recuperare gli ordini mancanti alla riconnessione | §1.15.4           | avviso permanente, o blocco del riallineamento delle quantità: due strade difendibili                                                                   |
-| 4   | **progettazione completa della prima sincronizzazione degli articoli**           | §12               | sospesa: manca una regola affidabile di identità fra un articolo Shopify e uno VestiFlow, e senza quella ogni proposta di corrispondenza crea duplicati |
-| 5   | **quantità iniziale** per un articolo esclusivamente Shopify creato in VestiFlow | §12.9             | oggi la baseline nasce da un documento di apertura; per questo caso specifico la quantità di partenza non è stabilita                                   |
-| 6   | **audit persistente e backup pre-operazione**                                    | `docs/DA-FARE.md` | progettazione e implementazione: di una cancellazione oggi resta una riga di log sul container, che il riavvio perde                                    |
+| #   | Punto aperto                                                                     | Dove              | Perché non si può dedurre                                                                                                                                  |
+| --- | -------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **termine definitivo** per una sede non eliminabile                              | §1.13.4           | la proposta corrente è «Disattiva», non «Sospendi». La regola funzionale è decisa e non dipende dal nome                                                   |
+| 2   | **comportamento della sede collegata quando viene disattivata localmente**       | §1.13.5           | il comportamento proposto è registrato per non perderlo, non perché sia acquisito                                                                          |
+| 3   | **conseguenza del rifiuto** di recuperare gli ordini mancanti alla riconnessione | §1.15.4           | avviso permanente, o blocco del riallineamento delle quantità: due strade difendibili                                                                      |
+| 4   | **dettagli operativi** del primo allineamento degli articoli                     | §12.0, §12.6      | le due direzioni sono approvate; la procedura dell'operatore, gli schermi e il trattamento dei cataloghi gia' popolati non lo sono                         |
+| 5   | **giacenze iniziali per sede** al primo allineamento                             | §12.0, §12.9      | importare le anagrafiche non autorizza a sommare o sovrascrivere quantita'. Resta aperta anche la quantita' di partenza di un articolo creato in VestiFlow |
+| 6   | **audit persistente e backup pre-operazione**                                    | `docs/DA-FARE.md` | progettazione e implementazione: di una cancellazione oggi resta una riga di log sul container, che il riavvio perde                                       |
 
 ### ⏸ Voci APERTE dal 06/09/2026 — ciclo di vita e stato Shopify
 
@@ -3313,36 +3313,101 @@ regola funzionale già scritta.
 >
 > I nove passi qui descritti sono una forma ipotizzata del wizard, non un flusso approvato. Nessuna sottosezione di questo capitolo autorizza un'implementazione.
 
-### ⛔ La prima sincronizzazione degli ARTICOLI è SOSPESA — 07/09/2026
+### 12.0 Il primo allineamento degli ARTICOLI — due direzioni approvate, 07/09/2026
 
-> **La progettazione della prima sincronizzazione di prodotti e varianti è
-> sospesa e verrà ripensata separatamente. Le schermate e le procedure di
-> corrispondenza fra articoli descritte in questo capitolo NON sono decise e non
-> vanno implementate.**
+> **Stato: due direzioni iniziali approvate; dettagli operativi e giacenze
+> iniziali ancora aperti; implementazione dell'onboarding non ancora
+> autorizzata.**
 
-Fino a nuova progettazione, e senza eccezioni:
+⚠️ **Qui c'era «la progettazione è SOSPESA», e non vale più.** La sospensione era
+totale e nasceva da un problema vero — non esiste una regola affidabile per
+stabilire l'identità di un articolo fra le due piattaforme — ma quel problema si
+aggira scegliendo **da dove si parte**, invece di risolverlo dopo.
 
-- **nessuna proposta automatica** di corrispondenza;
-- **nessun collegamento automatico** tramite nome, SKU o barcode;
-- **nessuna creazione automatica** che possa produrre duplicati;
-- **nessuna importazione delle quantità** per varianti non già collegate in modo certo;
-- **nessuna UI di abbinamento** da implementare.
+#### Le due direzioni
 
-⛔ **Il problema da risolvere, e la ragione della sospensione**: importare
-articoli Shopify già presenti in VestiFlow può produrre **duplicati**, perché
-**non esiste ancora una regola affidabile per stabilire l'identità di un
-articolo** fra le due piattaforme. SKU e barcode sembrano chiavi e non lo sono —
-Shopify non ne garantisce né l'unicità né la presenza (`regole-gestionale`), e
-questo documento lo dichiara già altrove (§8.5.4, §11.9).
+|                            |                                                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 · Parto da Shopify**   | si importano prodotti e varianti in VestiFlow **conservando gli identificativi remoti**, e i collegamenti si registrano **durante l'importazione**                  |
+| **2 · Parto da VestiFlow** | si prepara il catalogo a mano o via CSV; quando VestiFlow **crea** prodotti e varianti su Shopify, registra gli identificativi restituiti e i relativi collegamenti |
+
+⭐ **In entrambi i casi la corrispondenza non si deduce: discende dall'operazione
+stessa.** Chi importa sa da quale prodotto remoto è nato ogni articolo locale;
+chi crea sa quale identificativo Shopify ha appena restituito. ⛔ **Nome, SKU e
+barcode non entrano nella determinazione dell'identità**, in nessuno dei due
+percorsi — è la stessa regola di §8.5.4 e §11.9.
+
+⚠️ **Questa scelta riguarda esclusivamente il punto di partenza.** La matrice dei
+campi bidirezionali e unidirezionali di **§9.2 resta invariata**: da dove si parte
+non cambia chi possiede cosa.
+
+#### ⛔ I limiti, che vanno dichiarati e non aggirati
+
+- **Due cataloghi già popolati**, con articoli apparentemente uguali e senza
+  collegamenti certi, **non sono risolti** da nessuna delle due direzioni. Il
+  caso resta aperto.
+- **Un CSV ordinario non dimostra l'identità** di articoli già presenti su
+  Shopify: crea articoli locali, non prova che corrispondano a quelli remoti.
+- **Nessuna fusione automatica**, nessuna cancellazione, nessuna sostituzione
+  implicita del catalogo di destinazione.
+- **La scelta delle giacenze iniziali per sede resta da definire**: importare le
+  anagrafiche **non autorizza** a sommare o sovrascrivere quantità (§12.9).
+
+#### L'importazione CSV che esiste già
+
+⚠️ **Non è da scrivere: è da verificare e adattare.** Misurato il 07/09/2026:
+`api/src/products/import/` contiene `shopify-csv.parse.ts`,
+`shopify-csv.mapper.ts` e `shopify-csv.serialize.ts`, invocati da
+`ProductsImportService`.
+
+|                     |                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| formato accettato   | quello **di Shopify** — `handle`, tag e prezzi decimali passano dai mapper Shopify. ⛔ Non è «un CSV qualsiasi» |
+| che cosa produce    | prodotti e varianti **locali**                                                                                  |
+| collegamenti remoti | ⛔ **nessuno**: nel mapper non compare alcun `shopifyProductId` né GID                                          |
+
+⭐ **È esattamente il pezzo che serve alla direzione 2**, e il suo limite è
+quello che la rende compatibile: crea il catalogo locale e **non pretende** di
+sapere che cosa esiste su Shopify. I collegamenti li registrerà la creazione
+remota, non il file.
+
+⛔ **Non va descritta come assente, né come già conforme.** Che cosa cambiare —
+e se il formato Shopify resti l'unico accettato — è parte dei dettagli operativi
+ancora aperti.
+
+#### Che cosa NON diventa approvato
+
+⛔ **Il wizard a nove passi di questo capitolo resta una proposta**, e le
+schermate di corrispondenza fra articoli (§12.6) **non sono approvate**. Le due
+direzioni qui sopra non passano da un matching: lo rendono superfluo, che è
+un'altra cosa dal renderlo valido.
+
+Fino a nuova progettazione restano esclusi:
+
+- proposte automatiche di corrispondenza;
+- collegamenti dedotti da nome, SKU o barcode;
+- creazioni automatiche che possano produrre duplicati;
+- importazione di quantità per varianti non già collegate in modo certo;
+- interfacce di abbinamento.
 
 ⚠️ **Una schermata di abbinamento non risolve il problema: lo sposta
-sull'operatore.** Chiedere a una persona di confermare centinaia di
-corrispondenze proposte su basi inaffidabili produce conferme date per stanchezza
-— e un duplicato confermato a mano è indistinguibile da uno corretto.
+sull'operatore.** Confermare centinaia di corrispondenze proposte su basi
+inaffidabili produce conferme date per stanchezza, e un duplicato confermato a
+mano è indistinguibile da uno corretto.
 
-⭐ **Che cosa NON è sospeso**: §12.4 (sedi e location) segue §1.13, che è decisa.
-E ciò che riguarda la **connessione**, la verifica tecnica e gli **ordini** segue
-§1.15, anch'essa decisa.
+#### Che cosa NON è il primo allineamento
+
+⛔ **La riconnessione allo stesso negozio non lo ripete.** Conserva i
+collegamenti e segue il recupero già deciso in §1.15.2 — dall'**ultimo checkpoint
+riuscito**, idempotente, senza duplicare gli effetti.
+
+⛔ **E il backfill non è la procedura dell'operatore.** Il backfill (§8.5.8,
+fase 3) è la conversione tecnica dei collegamenti **già esistenti** nelle colonne
+legacy verso il modello a identità e periodi: non chiede nulla a nessuno e non
+crea articoli. Sono due lavori distinti e non si sostituiscono.
+
+⭐ **Che cosa NON è mai stato sospeso**: §12.4 (sedi e location) segue §1.13, che
+è decisa. Connessione, verifica tecnica e ordini seguono §1.15, anch'essa decisa.
 
 ### 12.1 Stati della connessione
 
@@ -3432,10 +3497,16 @@ La lettura viene identificata da un `reconciliationRunId`. Se scade o il remoto 
 
 ### 12.6 Step 3 — Matching prodotti e varianti
 
-> ⛔ **SOSPESA il 07/09/2026.** L'ordine di affidabilita` qui sotto e` una
-> proposta, e la sua parte automatica e` esclusa: nessun collegamento per SKU,
-> barcode, nome o opzioni, nemmeno come proposta applicata. Vedi la nota in
-> testa a questo capitolo.
+> ⛔ **NON APPROVATA, e resa superflua dalle due direzioni di §12.0.** L'ordine
+> di affidabilita` qui sotto resta una proposta, e la sua parte automatica e`
+> esclusa: nessun collegamento per SKU, barcode, nome o opzioni, nemmeno come
+> proposta applicata.
+>
+> ⭐ Nei due percorsi approvati **non c'e` un matching da fare**: la
+corrispondenza discende dall'importazione o dalla creazione. Questa sezione
+resta scritta perche` descrive il caso che le due direzioni **non** risolvono
+> — due cataloghi gia` popolati senza collegamenti certi — che e` tuttora
+> aperto.
 
 Ordine di affidabilità:
 
@@ -3489,6 +3560,11 @@ Un lordo 25,00 al 22% deve tornare 25,00 dopo scorporo e ricomposizione.
 
 ### 12.9 Step 6 — Baseline inventariale
 
+> ⏸ **La scelta delle giacenze iniziali per sede è APERTA** (§12.0). Le due
+> direzioni approvate riguardano le **anagrafiche**: importarle o crearle non
+> autorizza a sommare né a sovrascrivere quantità. Quanto segue resta la
+> proposta precedente, non una decisione.
+
 Le quantità vengono trattate solo dopo la mappatura location.
 
 Per la direzione Shopify → VestiFlow:
@@ -3524,10 +3600,13 @@ La baseline salva:
 
 ### 12.11 Step 8 — Anteprima completa
 
-> ⛔ **SOSPESA per la parte ARTICOLI il 07/09/2026**: l'anteprima elenca
-> creazioni e collegamenti di prodotti e varianti, che dipendono da un matching
-> che non esiste piu`. Resta valida la forma — si conferma cio` che accadra`,
-non cio` che si spera — e resta valida per sedi e ordini.
+> ⛔ **NON APPROVATA nella forma qui descritta per gli ARTICOLI**: l'anteprima
+> elenca creazioni e collegamenti che dipendono da un matching che le due
+> direzioni di §12.0 non usano. Resta valida la forma — si conferma cio` che
+accadra`, non cio` che si spera — e resta valida per sedi e ordini.
+>
+> ⚠️ Che cosa mostri l'anteprima nei due percorsi approvati e` parte dei
+> **dettagli operativi ancora aperti**.
 
 Prima di scrivere mostrare:
 
