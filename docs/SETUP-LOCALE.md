@@ -287,6 +287,82 @@ Poi apri `http://localhost:4200`.
 
 ---
 
+## 7-bis. Due cartelle: l'app che si usa e il ramo che si collauda
+
+> **Chi lavora su un ramo che TOCCA `schema.prisma` deve avere una cartella
+> separata per l'app che usa tutti i giorni.** Non è un vezzo organizzativo: è
+> l'unico modo per non spegnersi l'applicazione da soli.
+
+⛔ **Il client Prisma è UNO per cartella, e vive in `node_modules`.** Rigenerarlo
+su un ramo che ha aggiunto una colonna lo allinea a uno schema che il database
+condiviso non ha ancora: da quel momento **ogni lettura di quella tabella va in
+500**, anche quelle che con la colonna nuova non c'entrano niente — perché
+Prisma senza `select` seleziona tutti gli scalari.
+
+⚠️ **È già successo il 07/09/2026**, e il sintomo non nomina la causa: il
+pannello «Integrazione Shopify» delle Impostazioni mostrava «Si è verificato un
+errore — Errore interno del server», che è il messaggio di
+`api/src/common/filters/all-exceptions.filter.ts`. Sembrava un guasto
+dell'integrazione; era una colonna che il client selezionava e il database non
+aveva.
+
+### Le due cartelle
+
+|                                        |                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **`C:/vf-stabile`** — l'app che si usa | worktree in `--detach` sulla versione **rilasciata** (`origin/main`). Dipendenze, build e client Prisma **propri** |
+| **la cartella del ramo**               | il lavoro in corso e i suoi collaudi. Il suo client può divergere quanto serve                                     |
+
+```bash
+# una volta sola, dalla cartella del ramo
+git worktree add --detach C:/vf-stabile origin/main
+cp api/.env C:/vf-stabile/api/.env
+cd C:/vf-stabile/api && npm ci && npx prisma generate && npm run build
+```
+
+⭐ **`node_modules` non è tracciato da Git**, quindi i due worktree hanno
+davvero due client distinti. Verificato il 07/09/2026: 80 delegati nel ramo
+(con `shopifyLocationPair`), 75 nello stabile (senza), e generare nel ramo
+lascia il checksum del client stabile **identico**.
+
+### Da dove si avvia che cosa
+
+```bash
+# L'APP che si usa — API dalla cartella stabile
+cd C:/vf-stabile/api && node dist/main.js        # http://localhost:3000
+
+# il frontend può restare dalla cartella del ramo: punta a localhost:3000
+# e le modifiche di un ramo di schema non lo riguardano
+npm start                                         # http://localhost:4200
+
+# I COLLAUDI del ramo — dalla cartella del ramo
+cd <ramo>/api && npm run prisma:generate
+npm run test:integration
+```
+
+⛔ **`DATABASE_URL` dell'app NON si punta a `localhost:5433/vestiflow_test`.**
+Quello è il database sacrificabile dei test, e
+`shopify-link-rollback.integration-spec.ts` ne fa `DROP SCHEMA public CASCADE`
+a ogni esecuzione: i dati con cui si sta lavorando sparirebbero senza preavviso.
+
+⚠️ **Un database locale persistente per provare le funzioni nuove
+dall'interfaccia sarà un TERZO ambiente**, distinto sia dal condiviso sia da
+quello distruttivo dei test. Non esiste ancora.
+
+### Se il client si rompe
+
+Un `prisma generate` interrotto da `EPERM` — l'API in esecuzione tiene bloccato
+il query engine — lascia il client **a metà**: espone due delegati invece di
+ottanta, e ogni query fallisce con `Cannot read properties of undefined`.
+Misurato: quattordici file `query_engine-windows.dll.node.tmp*` accumulati, uno
+per ogni tentativo.
+
+```bash
+# fermare l'API di QUELLA cartella, poi
+rm -f api/node_modules/.prisma/client/*.tmp*
+cd api && npm run prisma:generate
+```
+
 ## 8. Primo accesso
 
 Il seed crea i **dati** ma non un utente: l'identità vive in Supabase Auth, non
