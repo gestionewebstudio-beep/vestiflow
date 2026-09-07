@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { ambienteIntegrazione } from './env';
+import { conStoricoSbloccato } from './fixture';
 
 /**
  * Le fixture LEGACY per il collaudo della migration degli stati commerciali.
@@ -119,10 +120,12 @@ export async function creaLegacy(prisma: PrismaClient): Promise<void> {
   // ⛔ La barriera si ri-verifica prima del TRUNCATE, non solo all'avvio.
   assertBersaglio();
 
-  await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "sales_orders", "supplier_orders", "documents", "suppliers", ' +
-      '"parties", "locations", "tenants" RESTART IDENTITY CASCADE',
-  );
+  await conStoricoSbloccato(prisma, async () => {
+    await prisma.$executeRawUnsafe(
+      'TRUNCATE TABLE "sales_orders", "supplier_orders", "documents", "suppliers", ' +
+        '"parties", "locations", "tenants" RESTART IDENTITY CASCADE',
+    );
+  });
 
   await prisma.$executeRawUnsafe(
     `INSERT INTO "tenants" ("id","name","created_at","updated_at")

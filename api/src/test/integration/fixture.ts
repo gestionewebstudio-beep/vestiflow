@@ -45,6 +45,50 @@ export const IDS = {
  *    validazione fatta in `setup.ts` lascerebbe l'operazione distruttiva senza
  *    rete propria — e questa è l'unica funzione del file che cancella dati.
  */
+/**
+ * Le tabelle il cui storico rifiuta DELETE e TRUNCATE (docs/24 §8.5.2).
+ *
+ * ⛔ **Il divieto e' voluto**: un GID cancellato tornerebbe riassegnabile a un
+ *    altro articolo, e la storia di un collegamento sparirebbe senza traccia.
+ *
+ * ⚠️ **Ma la pulizia dei test deve poter passare**, e per farlo spegne i
+ *    trigger per la SOLA durata dell'operazione. E' DDL — richiede
+ *    l'ownership — quindi nessun servizio puo' imboccare questa strada, e la
+ *    guardia `check:storico-non-cancellabile` fa fallire il lint se un
+ *    `DISABLE TRIGGER` compare fuori da `api/src/test/`.
+ */
+const STORICO_PROTETTO = [
+  'shopify_product_identities',
+  'shopify_variant_identities',
+  'shopify_product_links',
+  'shopify_variant_links',
+  'shopify_location_links',
+] as const;
+
+/**
+ * Esegue `pulizia` con le protezioni dello storico spente, e le riaccende
+ * SEMPRE — anche se la pulizia fallisce: lasciarle spente sarebbe peggio del
+ * test rosso che le ha spente.
+ *
+ * ⚠️ Chi la chiama ha gia' verificato host e database: senza quella barriera
+ *    questo blocco spegnerebbe le protezioni di un database qualunque.
+ */
+export async function conStoricoSbloccato(
+  prisma: PrismaClient,
+  pulizia: () => Promise<void>,
+): Promise<void> {
+  for (const tabella of STORICO_PROTETTO) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "${tabella}" DISABLE TRIGGER USER`);
+  }
+  try {
+    await pulizia();
+  } finally {
+    for (const tabella of STORICO_PROTETTO) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "${tabella}" ENABLE TRIGGER USER`);
+    }
+  }
+}
+
 export async function svuota(prisma: PrismaClient): Promise<void> {
   const ambiente = ambienteIntegrazione();
   if (ambiente.host !== 'localhost:5433' || ambiente.database !== 'vestiflow_test') {
@@ -53,12 +97,29 @@ export async function svuota(prisma: PrismaClient): Promise<void> {
     );
   }
 
-  // Solo le tabelle che queste prove toccano, in ordine di dipendenza.
-  // `CASCADE` copre le righe figlie senza doverle elencare tutte.
-  await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "invoice_sales_ddt_links", "document_lines", "documents", ' +
-      '"user_locations", "users", "locations", "tenants" RESTART IDENTITY CASCADE',
-  );
+  /*
+    ⛔ **Lo storico dei collegamenti Shopify rifiuta DELETE e TRUNCATE**, ed e'
+       voluto: un GID cancellato tornerebbe riassegnabile a un altro articolo
+       (misurato il 07/09/2026). Il `CASCADE` qui sotto ci arriva partendo da
+       `tenants`, quindi la pulizia va sbloccata esplicitamente.
+
+    ⭐ **Solo per la durata del TRUNCATE, e solo qui.** E' DDL — richiede
+       l'ownership della tabella — quindi non e' un percorso che un servizio
+       possa imboccare: nessun endpoint emette `ALTER TABLE`. La guardia
+       `check:storico-non-cancellabile` fa fallire il lint se un
+       `DISABLE TRIGGER` compare fuori da `src/test/`.
+
+    ⚠️ E la barriera su host e database e' gia' passata sopra: senza,
+       questo blocco spegnerebbe le protezioni di un database qualunque.
+  */
+  await conStoricoSbloccato(prisma, async () => {
+    // Solo le tabelle che queste prove toccano, in ordine di dipendenza.
+    // `CASCADE` copre le righe figlie senza doverle elencare tutte.
+    await prisma.$executeRawUnsafe(
+      'TRUNCATE TABLE "invoice_sales_ddt_links", "document_lines", "documents", ' +
+        '"user_locations", "users", "locations", "tenants" RESTART IDENTITY CASCADE',
+    );
+  });
 }
 
 /** Crea il dataset. Idempotente: svuota prima di scrivere. */

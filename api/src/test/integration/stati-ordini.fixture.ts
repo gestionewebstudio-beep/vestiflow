@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { ambienteIntegrazione } from './env';
+import { conStoricoSbloccato } from './fixture';
 
 /**
  * Dataset del Passo 6A: il minimo che serve a creare ordini veri via API.
@@ -36,13 +37,15 @@ export async function creaDatasetStati(prisma: PrismaClient): Promise<void> {
   // ⛔ La barriera si ri-verifica prima del TRUNCATE.
   assertBersaglio();
 
-  await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "stock_reservations", "stock_movements", "inventory_levels", ' +
-      '"supplier_order_lines", "supplier_orders", "sales_order_lines", "sales_orders", ' +
-      '"document_lines", "documents", "product_variants", "products", "customers", ' +
-      '"suppliers", "parties", "user_locations", "users", "locations", "document_counters", ' +
-      '"tenants" RESTART IDENTITY CASCADE',
-  );
+  await conStoricoSbloccato(prisma, async () => {
+    await prisma.$executeRawUnsafe(
+      'TRUNCATE TABLE "stock_reservations", "stock_movements", "inventory_levels", ' +
+        '"supplier_order_lines", "supplier_orders", "sales_order_lines", "sales_orders", ' +
+        '"document_lines", "documents", "product_variants", "products", "customers", ' +
+        '"suppliers", "parties", "user_locations", "users", "locations", "document_counters", ' +
+        '"tenants" RESTART IDENTITY CASCADE',
+    );
+  });
 
   const T = IDS_STATI;
   const sql = (s: string) => prisma.$executeRawUnsafe(s);

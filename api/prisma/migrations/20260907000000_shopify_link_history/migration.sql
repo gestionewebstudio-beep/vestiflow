@@ -46,7 +46,11 @@ CREATE TYPE "ShopifyLinkCloseReason" AS ENUM (
   'remote_delete',
   'not_found',
   'operator',
-  'shop_change'
+  'shop_change',
+  -- Ammessa SOLO su prodotti e varianti, e i CHECK a lista bianca lo
+  -- impongono: una sede non si elimina definitivamente finche' ha una
+  -- storia (§1.13.4). L'enum e' condiviso, il permesso no.
+  'local_delete'
 );
 
 -- ── Ausiliarie sulle tabelle esistenti ──────────────────────────────────────
@@ -100,17 +104,207 @@ CREATE UNIQUE INDEX "shopify_shops_id_tenant_id_key" ON "shopify_shops" ("id", "
 ALTER TABLE "shopify_shops" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON "shopify_shops" FROM PUBLIC, anon, authenticated;
 
--- ── shopify_product_links: storico dei collegamenti prodotto ────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- IDENTITA' REMOTE E PERIODI — la famiglia ARTICOLI
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- ⭐ Stessa forma delle sedi — identita' stabile + periodi — con UNA differenza
+--    che non e' un dettaglio: per gli articoli NON c'e' unicita' totale
+--    sull'anagrafica locale. Una ripubblicazione genera un GID nuovo per lo
+--    stesso prodotto, quindi PIU' IDENTITA' STORICHE convivono sullo stesso
+--    articolo. A restare unico e' il collegamento ATTIVO.
+--
+-- ⛔ E l'appartenenza e' scritta DUE VOLTE, non una:
+--      original_product_id   l'appartenenza ORIGINARIA. NOT NULL, immutabile,
+--                            e SENZA chiave esterna: e' un dato storico, come
+--                            gli snapshot documentali. Non si azzera nemmeno
+--                            quando il prodotto viene eliminato.
+--      product_id            il riferimento VIVO. Nullable, con FK RESTRICT.
+--                            Si sgancia alla purga.
+--    Un CHECK impone che il vivo, quando c'e', sia l'originario: dopo lo
+--    sganciamento non esiste un valore da mettere che punti altrove.
+
+-- ── Ausiliarie sulle identita' di negozio, per le FK composite ──────────────
+-- (shopify_shops ha gia' UNIQUE (id, tenant_id) piu' sopra)
+
+-- ── shopify_product_identities ──────────────────────────────────────────────
+
+CREATE TABLE "shopify_product_identities" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "tenant_id" UUID NOT NULL,
+  "shop_id" UUID NOT NULL,
+  "shopify_product_gid" TEXT NOT NULL,
+  "original_product_id" UUID NOT NULL,
+  "product_id" UUID,
+  "local_deleted_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
+
+  -- ⭐ Colonna GENERATA: e' cio' che rende DICHIARATIVO «un periodo attivo
+  --    esige un'identita' viva». Un trigger non regge in concorrenza — misurato
+  --    il 07/09/2026: due sessioni si incrociano, entrambe committano, e resta
+  --    un periodo attivo su un'identita' eliminata. Una FK invece la serializza
+  --    PostgreSQL da se'.
+  "viva" BOOLEAN GENERATED ALWAYS AS ("product_id" IS NOT NULL) STORED,
+
+  CONSTRAINT "shopify_product_identities_pkey" PRIMARY KEY ("id"),
+
+  CONSTRAINT "shopify_product_identities_gid_forma" CHECK (
+    "shopify_product_gid" ~ '^gid://shopify/Product/[0-9]+$'
+  ),
+  -- Il riferimento vivo, quando c'e', E' l'articolo originario. Dopo lo
+  -- sganciamento non esiste un valore che punti altrove.
+  CONSTRAINT "shopify_product_identities_vivo_e_originario" CHECK (
+    "product_id" IS NULL OR "product_id" = "original_product_id"
+  ),
+  -- O viva, o eliminata localmente. Nessun terzo stato.
+  CONSTRAINT "shopify_product_identities_stato_coerente" CHECK (
+    ("product_id" IS NULL) = ("local_deleted_at" IS NOT NULL)
+  )
+);
+
+-- ⛔ L'IDENTITA' REMOTA E' UNICA PER NEGOZIO, e su TUTTE le righe: e' cio' che
+--    impedisce di riassegnare un GID a un altro articolo.
+CREATE UNIQUE INDEX "shopify_product_identities_shop_id_gid_key"
+  ON "shopify_product_identities" ("shop_id", "shopify_product_gid");
+
+-- ⭐ NESSUNA unicita' su original_product_id: piu' identita' storiche per lo
+--    stesso articolo sono il caso NORMALE dopo una ripubblicazione.
+CREATE INDEX "shopify_product_identities_tenant_id_original_product_id_idx"
+  ON "shopify_product_identities" ("tenant_id", "original_product_id");
+
+CREATE UNIQUE INDEX "shopify_product_identities_id_tenant_id_key"
+  ON "shopify_product_identities" ("id", "tenant_id");
+CREATE UNIQUE INDEX "shopify_product_identities_id_shop_id_key"
+  ON "shopify_product_identities" ("id", "shop_id");
+CREATE UNIQUE INDEX "shopify_product_identities_id_original_product_id_key"
+  ON "shopify_product_identities" ("id", "original_product_id");
+-- L'ausiliaria della FK dichiarativa: (id, viva).
+CREATE UNIQUE INDEX "shopify_product_identities_id_viva_key"
+  ON "shopify_product_identities" ("id", "viva");
+
+ALTER TABLE "shopify_product_identities"
+  ADD CONSTRAINT "shopify_product_identities_tenant_id_fkey" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT "shopify_product_identities_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
+    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- ⚠️ Si disarma quando product_id va a NULL, ed e' VOLUTO: e' cio' che rende
+  --    possibile l'eliminazione definitiva senza toccare RESTRICT. Cio' che la
+  --    FK smette di garantire lo garantisce la FK diretta sul tenant, che non
+  --    passa da questa colonna.
+  ADD CONSTRAINT "shopify_product_identities_product_id_tenant_id_fkey" FOREIGN KEY ("product_id", "tenant_id")
+    REFERENCES "products" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "shopify_product_identities" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON "shopify_product_identities" FROM PUBLIC, anon, authenticated;
+
+-- ── shopify_variant_identities ──────────────────────────────────────────────
+
+CREATE TABLE "shopify_variant_identities" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "tenant_id" UUID NOT NULL,
+  "shop_id" UUID NOT NULL,
+  "product_identity_id" UUID NOT NULL,
+  "shopify_variant_gid" TEXT NOT NULL,
+  "shopify_inventory_item_gid" TEXT,
+  "original_variant_id" UUID NOT NULL,
+  "original_product_id" UUID NOT NULL,
+  "variant_id" UUID,
+  "product_id" UUID,
+  "local_deleted_at" TIMESTAMP(3),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
+
+  "viva" BOOLEAN GENERATED ALWAYS AS ("variant_id" IS NOT NULL) STORED,
+  -- ⭐ L'anello che dichiara la GERARCHIA: una variante viva esige un prodotto
+  --    vivo. Senza, si sgancia il prodotto lasciando la variante agganciata —
+  --    misurato, e nessun vincolo se ne accorgeva.
+  "richiede_padre_vivo" BOOLEAN GENERATED ALWAYS AS (
+    CASE WHEN "variant_id" IS NOT NULL THEN true END
+  ) STORED,
+
+  CONSTRAINT "shopify_variant_identities_pkey" PRIMARY KEY ("id"),
+
+  CONSTRAINT "shopify_variant_identities_gid_forma" CHECK (
+    "shopify_variant_gid" ~ '^gid://shopify/ProductVariant/[0-9]+$'
+  ),
+  CONSTRAINT "shopify_variant_identities_inventory_gid_forma" CHECK (
+    "shopify_inventory_item_gid" IS NULL
+    OR "shopify_inventory_item_gid" ~ '^gid://shopify/InventoryItem/[0-9]+$'
+  ),
+  CONSTRAINT "shopify_variant_identities_vivo_e_originario" CHECK (
+    "variant_id" IS NULL OR "variant_id" = "original_variant_id"
+  ),
+  CONSTRAINT "shopify_variant_identities_prodotto_originario" CHECK (
+    "product_id" IS NULL OR "product_id" = "original_product_id"
+  ),
+  CONSTRAINT "shopify_variant_identities_stato_coerente" CHECK (
+    ("variant_id" IS NULL) = ("local_deleted_at" IS NOT NULL)
+  ),
+  -- ⛔ Niente stato intermedio «variante sganciata, prodotto ancora agganciato»
+  --    sulla stessa riga: i due riferimenti vivi si sganciano insieme.
+  CONSTRAINT "shopify_variant_identities_riferimenti_insieme" CHECK (
+    ("variant_id" IS NULL) = ("product_id" IS NULL)
+  )
+);
+
+CREATE UNIQUE INDEX "shopify_variant_identities_shop_id_variant_gid_key"
+  ON "shopify_variant_identities" ("shop_id", "shopify_variant_gid");
+-- La quinta garanzia (§8.5.2): variante <-> inventory item e' uno-a-uno.
+CREATE UNIQUE INDEX "shopify_variant_identities_shop_id_inventory_gid_key"
+  ON "shopify_variant_identities" ("shop_id", "shopify_inventory_item_gid");
+
+CREATE INDEX "shopify_variant_identities_tenant_id_original_variant_id_idx"
+  ON "shopify_variant_identities" ("tenant_id", "original_variant_id");
+CREATE UNIQUE INDEX "shopify_variant_identities_id_tenant_id_key"
+  ON "shopify_variant_identities" ("id", "tenant_id");
+CREATE UNIQUE INDEX "shopify_variant_identities_id_original_variant_id_key"
+  ON "shopify_variant_identities" ("id", "original_variant_id");
+CREATE UNIQUE INDEX "shopify_variant_identities_id_viva_key"
+  ON "shopify_variant_identities" ("id", "viva");
+
+ALTER TABLE "shopify_variant_identities"
+  ADD CONSTRAINT "shopify_variant_identities_tenant_id_fkey" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT "shopify_variant_identities_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
+    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- Il padre e' dello stesso tenant…
+  ADD CONSTRAINT "shopify_variant_identities_padre_tenant_fkey" FOREIGN KEY ("product_identity_id", "tenant_id")
+    REFERENCES "shopify_product_identities" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- …dello stesso negozio…
+  ADD CONSTRAINT "shopify_variant_identities_padre_shop_fkey" FOREIGN KEY ("product_identity_id", "shop_id")
+    REFERENCES "shopify_product_identities" ("id", "shop_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- …e dello stesso PRODOTTO ORIGINARIO. ⭐ Questa regge anche a riferimenti
+  -- sganciati, perche' confronta le colonne originarie, che non si azzerano.
+  ADD CONSTRAINT "shopify_variant_identities_padre_originario_fkey"
+    FOREIGN KEY ("product_identity_id", "original_product_id")
+    REFERENCES "shopify_product_identities" ("id", "original_product_id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- ⭐ GERARCHIA DICHIARATIVA: variante viva => prodotto vivo.
+  ADD CONSTRAINT "shopify_variant_identities_padre_vivo_fkey"
+    FOREIGN KEY ("product_identity_id", "richiede_padre_vivo")
+    REFERENCES "shopify_product_identities" ("id", "viva")
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+  ADD CONSTRAINT "shopify_variant_identities_variant_id_tenant_id_fkey" FOREIGN KEY ("variant_id", "tenant_id")
+    REFERENCES "product_variants" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- La variante e' figlia di quel prodotto, finche' le anagrafiche esistono.
+  ADD CONSTRAINT "shopify_variant_identities_variante_del_prodotto_fkey" FOREIGN KEY ("variant_id", "product_id")
+    REFERENCES "product_variants" ("id", "product_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "shopify_variant_identities" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON "shopify_variant_identities" FROM PUBLIC, anon, authenticated;
+
+
+-- ── I PERIODI di collegamento — prodotto ────────────────────────────────────
 
 CREATE TABLE "shopify_product_links" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "tenant_id" UUID NOT NULL,
-  "shop_id" UUID NOT NULL,
-  "product_id" UUID NOT NULL,
-  "shopify_product_gid" TEXT NOT NULL,
+  "identity_id" UUID NOT NULL,
+  "original_product_id" UUID NOT NULL,
   "status" "ShopifyLinkStatus" NOT NULL DEFAULT 'active',
   "close_reason" "ShopifyLinkCloseReason",
-  "superseded_by_link_id" UUID,
   "linked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "closed_at" TIMESTAMP(3),
   "last_event_at" TIMESTAMP(3),
@@ -118,17 +312,19 @@ CREATE TABLE "shopify_product_links" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL,
 
+  -- ⭐ NULL quando il periodo e' chiuso: MATCH SIMPLE non verifica una FK con
+  --    una colonna NULL, quindi un periodo CHIUSO puo' restare su un'identita'
+  --    sganciata — la storia sopravvive alla purga. Un periodo ATTIVO invece
+  --    porta `true`, e la FK esige un'identita' viva.
+  "richiede_viva" BOOLEAN GENERATED ALWAYS AS (
+    CASE WHEN "status" = 'active' THEN true END
+  ) STORED,
+  "attivo" BOOLEAN GENERATED ALWAYS AS (
+    CASE WHEN "status" = 'active' THEN true END
+  ) STORED,
+
   CONSTRAINT "shopify_product_links_pkey" PRIMARY KEY ("id"),
 
-  -- Solo un GID di PRODOTTO: un `ProductVariant` qui viene rifiutato.
-  CONSTRAINT "shopify_product_links_gid_forma" CHECK (
-    "shopify_product_gid" ~ '^gid://shopify/Product/[0-9]+$'
-  ),
-
-  -- I cinque CHECK di stato vanno letti come UN GRUPPO (docs/24 §8.5.2).
-  -- ⚠️ Il secondo non e' ridondante rispetto al terzo e al quarto: senza di lui
-  --    un `close_reason` NULL renderebbe `IN (...)` uguale a NULL, e un CHECK
-  --    fallisce solo su FALSE — il varco si chiude imponendo NOT NULL qui.
   CONSTRAINT "shopify_product_links_attivo_pulito" CHECK (
     "status" <> 'active' OR ("closed_at" IS NULL AND "close_reason" IS NULL)
   ),
@@ -138,78 +334,61 @@ CREATE TABLE "shopify_product_links" (
   CONSTRAINT "shopify_product_links_causale_eliminato" CHECK (
     "status" <> 'remotely_deleted' OR "close_reason" IN ('remote_delete', 'not_found')
   ),
+  -- ⭐ `local_delete` e' ammessa QUI e sulle varianti, NON sulle sedi: una sede
+  --    non si elimina definitivamente finche' ha una storia (§1.13.4).
   CONSTRAINT "shopify_product_links_causale_scollegato" CHECK (
-    "status" <> 'unlinked' OR "close_reason" IN ('operator', 'shop_change')
+    "status" <> 'unlinked' OR "close_reason" IN ('operator', 'shop_change', 'local_delete')
   ),
-  -- ⚠️ Blocca l'auto-riferimento (A→A), NON un ciclo fra due righe (A→B, B→A):
-  --    un CHECK di riga non puo' vedere un'altra riga. Quella garanzia resta
-  --    applicativa (docs/24 §8.5.2).
-  CONSTRAINT "shopify_product_links_successore_non_se_stesso" CHECK (
-    "superseded_by_link_id" IS NULL OR "superseded_by_link_id" <> "id"
+  CONSTRAINT "shopify_product_links_periodo_coerente" CHECK (
+    "closed_at" IS NULL OR "closed_at" >= "linked_at"
   )
 );
 
--- Un id remoto compare UNA VOLTA SOLA, storico incluso: e' cio' che impedisce
--- di riusarlo dopo la chiusura e tiene risolvibili ordini e resi storici.
-CREATE UNIQUE INDEX "shopify_product_links_shop_id_shopify_product_gid_key"
-  ON "shopify_product_links" ("shop_id", "shopify_product_gid");
-CREATE UNIQUE INDEX "shopify_product_links_id_product_id_shop_id_key"
-  ON "shopify_product_links" ("id", "product_id", "shop_id");
-CREATE INDEX "shopify_product_links_tenant_id_shopify_product_gid_idx"
-  ON "shopify_product_links" ("tenant_id", "shopify_product_gid");
-CREATE INDEX "shopify_product_links_tenant_id_product_id_status_idx"
-  ON "shopify_product_links" ("tenant_id", "product_id", "status");
+-- Un solo periodo vivo per IDENTITA'…
+CREATE UNIQUE INDEX "shopify_product_links_identity_attivo_key"
+  ON "shopify_product_links" ("identity_id") WHERE "status" = 'active';
+-- …e un solo collegamento vivo per ANAGRAFICA locale, che e' la condizione 2:
+-- piu' identita' storiche convivono, un solo collegamento attivo.
+CREATE UNIQUE INDEX "shopify_product_links_original_attivo_key"
+  ON "shopify_product_links" ("original_product_id") WHERE "status" = 'active';
 
--- Garanzia 3 (docs/24 §8.5.2): un solo collegamento ATTIVO per prodotto
--- locale. Le garanzie 1-2 qui sopra impediscono di riusare un id remoto;
--- questa impedisce che un'entita' LOCALE abbia due collegamenti vivi
--- insieme — la stessa regola di §3.1 («un solo asse alla volta»), applicata
--- dal database invece che da un controllo applicativo.
---
--- ⭐ E' l'indice a decidere, quindi non c'e' race condition: due inserimenti
---    concorrenti che superassero entrambi un controllo di servizio si
---    bloccherebbero qui, e il secondo fallirebbe. Vale gia' sotto
---    l'isolamento di default di PostgreSQL, senza SERIALIZABLE ne' lock.
---
--- ⚠️ Prisma non sa esprimere un indice parziale: lo schema lo dichiara in un
---    commento sul modello, non come `@@unique`.
-CREATE UNIQUE INDEX "shopify_product_links_product_attivo_key"
-  ON "shopify_product_links" ("product_id")
-  WHERE "status" = 'active';
+CREATE UNIQUE INDEX "shopify_product_links_id_attivo_key"
+  ON "shopify_product_links" ("id", "attivo");
+CREATE INDEX "shopify_product_links_identity_id_linked_at_idx"
+  ON "shopify_product_links" ("identity_id", "linked_at");
+CREATE INDEX "shopify_product_links_tenant_id_status_idx"
+  ON "shopify_product_links" ("tenant_id", "status");
 
 ALTER TABLE "shopify_product_links"
   ADD CONSTRAINT "shopify_product_links_tenant_id_fkey" FOREIGN KEY ("tenant_id")
     REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  -- FK COMPOSITE: negozio e prodotto devono essere dello stesso tenant del link.
-  ADD CONSTRAINT "shopify_product_links_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
-    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  ADD CONSTRAINT "shopify_product_links_product_id_tenant_id_fkey" FOREIGN KEY ("product_id", "tenant_id")
-    REFERENCES "products" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  -- Il successore appartiene allo STESSO prodotto e allo STESSO negozio.
-  -- ⚠️ `RESTRICT` esplicito: mai SET NULL (perderebbe il legame in silenzio),
-  --    mai CASCADE (propagherebbe una cancellazione lungo la catena).
-  ADD CONSTRAINT "shopify_product_links_superseded_by_fkey"
-    FOREIGN KEY ("superseded_by_link_id", "product_id", "shop_id")
-    REFERENCES "shopify_product_links" ("id", "product_id", "shop_id")
+  ADD CONSTRAINT "shopify_product_links_identity_tenant_fkey" FOREIGN KEY ("identity_id", "tenant_id")
+    REFERENCES "shopify_product_identities" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- La denormalizzazione non puo' mentire.
+  ADD CONSTRAINT "shopify_product_links_identity_originario_fkey"
+    FOREIGN KEY ("identity_id", "original_product_id")
+    REFERENCES "shopify_product_identities" ("id", "original_product_id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  -- ⭐ IL RIMEDIO AL DIFETTO DI CONCORRENZA: un periodo ATTIVO esige
+  --    un'identita' VIVA, e lo esige una FK — che PostgreSQL serializza.
+  ADD CONSTRAINT "shopify_product_links_identita_viva_fkey"
+    FOREIGN KEY ("identity_id", "richiede_viva")
+    REFERENCES "shopify_product_identities" ("id", "viva")
     ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 ALTER TABLE "shopify_product_links" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON "shopify_product_links" FROM PUBLIC, anon, authenticated;
 
--- ── shopify_variant_links: storico dei collegamenti variante ────────────────
+-- ── I PERIODI di collegamento — variante ────────────────────────────────────
 
 CREATE TABLE "shopify_variant_links" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "tenant_id" UUID NOT NULL,
-  "shop_id" UUID NOT NULL,
-  "product_id" UUID NOT NULL,
-  "variant_id" UUID NOT NULL,
-  "product_link_id" UUID NOT NULL,
-  "shopify_variant_gid" TEXT NOT NULL,
-  "shopify_inventory_item_gid" TEXT,
+  "identity_id" UUID NOT NULL,
+  "original_variant_id" UUID NOT NULL,
+  "product_link_id" UUID,
   "status" "ShopifyLinkStatus" NOT NULL DEFAULT 'active',
   "close_reason" "ShopifyLinkCloseReason",
-  "superseded_by_link_id" UUID,
   "linked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "closed_at" TIMESTAMP(3),
   "last_event_at" TIMESTAMP(3),
@@ -217,16 +396,17 @@ CREATE TABLE "shopify_variant_links" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL,
 
-  CONSTRAINT "shopify_variant_links_pkey" PRIMARY KEY ("id"),
+  "richiede_viva" BOOLEAN GENERATED ALWAYS AS (
+    CASE WHEN "status" = 'active' THEN true END
+  ) STORED,
+  -- Un periodo variante attivo esige un periodo prodotto attivo: e' il legame
+  -- che la migration precedente aveva come `product_link_id` NOT NULL, e che
+  -- qui regge anche quando il periodo padre e' chiuso (la colonna e' NULL).
+  "richiede_padre_attivo" BOOLEAN GENERATED ALWAYS AS (
+    CASE WHEN "status" = 'active' THEN true END
+  ) STORED,
 
-  -- Due identificativi remoti, due tipi diversi, due CHECK distinti.
-  CONSTRAINT "shopify_variant_links_gid_forma" CHECK (
-    "shopify_variant_gid" ~ '^gid://shopify/ProductVariant/[0-9]+$'
-  ),
-  CONSTRAINT "shopify_variant_links_inventory_gid_forma" CHECK (
-    "shopify_inventory_item_gid" IS NULL
-    OR "shopify_inventory_item_gid" ~ '^gid://shopify/InventoryItem/[0-9]+$'
-  ),
+  CONSTRAINT "shopify_variant_links_pkey" PRIMARY KEY ("id"),
 
   CONSTRAINT "shopify_variant_links_attivo_pulito" CHECK (
     "status" <> 'active' OR ("closed_at" IS NULL AND "close_reason" IS NULL)
@@ -238,54 +418,237 @@ CREATE TABLE "shopify_variant_links" (
     "status" <> 'remotely_deleted' OR "close_reason" IN ('remote_delete', 'not_found')
   ),
   CONSTRAINT "shopify_variant_links_causale_scollegato" CHECK (
-    "status" <> 'unlinked' OR "close_reason" IN ('operator', 'shop_change')
+    "status" <> 'unlinked' OR "close_reason" IN ('operator', 'shop_change', 'local_delete')
   ),
-  CONSTRAINT "shopify_variant_links_successore_non_se_stesso" CHECK (
-    "superseded_by_link_id" IS NULL OR "superseded_by_link_id" <> "id"
+  CONSTRAINT "shopify_variant_links_periodo_coerente" CHECK (
+    "closed_at" IS NULL OR "closed_at" >= "linked_at"
+  ),
+  -- Un periodo attivo dichiara il proprio periodo padre.
+  CONSTRAINT "shopify_variant_links_padre_dichiarato" CHECK (
+    "status" <> 'active' OR "product_link_id" IS NOT NULL
   )
 );
 
-CREATE UNIQUE INDEX "shopify_variant_links_shop_id_shopify_variant_gid_key"
-  ON "shopify_variant_links" ("shop_id", "shopify_variant_gid");
-CREATE UNIQUE INDEX "shopify_variant_links_shop_id_inventory_item_gid_key"
-  ON "shopify_variant_links" ("shop_id", "shopify_inventory_item_gid");
-CREATE UNIQUE INDEX "shopify_variant_links_id_variant_id_shop_id_key"
-  ON "shopify_variant_links" ("id", "variant_id", "shop_id");
-CREATE INDEX "shopify_variant_links_tenant_id_shopify_variant_gid_idx"
-  ON "shopify_variant_links" ("tenant_id", "shopify_variant_gid");
-CREATE INDEX "shopify_variant_links_tenant_id_variant_id_status_idx"
-  ON "shopify_variant_links" ("tenant_id", "variant_id", "status");
-
--- Garanzia 4 (docs/24 §8.5.2): un solo collegamento ATTIVO per variante
--- locale. Vedi la garanzia 3 sulla tabella prodotto per il perche'.
-CREATE UNIQUE INDEX "shopify_variant_links_variant_attivo_key"
-  ON "shopify_variant_links" ("variant_id")
-  WHERE "status" = 'active';
+CREATE UNIQUE INDEX "shopify_variant_links_identity_attivo_key"
+  ON "shopify_variant_links" ("identity_id") WHERE "status" = 'active';
+CREATE UNIQUE INDEX "shopify_variant_links_original_attivo_key"
+  ON "shopify_variant_links" ("original_variant_id") WHERE "status" = 'active';
+CREATE INDEX "shopify_variant_links_identity_id_linked_at_idx"
+  ON "shopify_variant_links" ("identity_id", "linked_at");
+CREATE INDEX "shopify_variant_links_tenant_id_status_idx"
+  ON "shopify_variant_links" ("tenant_id", "status");
 
 ALTER TABLE "shopify_variant_links"
   ADD CONSTRAINT "shopify_variant_links_tenant_id_fkey" FOREIGN KEY ("tenant_id")
     REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  ADD CONSTRAINT "shopify_variant_links_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
-    REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  -- La variante appartiene al tenant del link…
-  ADD CONSTRAINT "shopify_variant_links_variant_id_tenant_id_fkey" FOREIGN KEY ("variant_id", "tenant_id")
-    REFERENCES "product_variants" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  -- …ed e' davvero figlia del prodotto dichiarato: e' il database a dirlo.
-  ADD CONSTRAINT "shopify_variant_links_variant_id_product_id_fkey" FOREIGN KEY ("variant_id", "product_id")
-    REFERENCES "product_variants" ("id", "product_id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  -- Il link del padre condivide prodotto e negozio: la chiusura a cascata
-  -- (docs/24 §8.5.2, regola 8) diventa una UPDATE sola e verificabile.
-  ADD CONSTRAINT "shopify_variant_links_product_link_fkey"
-    FOREIGN KEY ("product_link_id", "product_id", "shop_id")
-    REFERENCES "shopify_product_links" ("id", "product_id", "shop_id")
+  ADD CONSTRAINT "shopify_variant_links_identity_tenant_fkey" FOREIGN KEY ("identity_id", "tenant_id")
+    REFERENCES "shopify_variant_identities" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT "shopify_variant_links_identity_originario_fkey"
+    FOREIGN KEY ("identity_id", "original_variant_id")
+    REFERENCES "shopify_variant_identities" ("id", "original_variant_id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT "shopify_variant_links_identita_viva_fkey"
+    FOREIGN KEY ("identity_id", "richiede_viva")
+    REFERENCES "shopify_variant_identities" ("id", "viva")
     ON DELETE RESTRICT ON UPDATE RESTRICT,
-  ADD CONSTRAINT "shopify_variant_links_superseded_by_fkey"
-    FOREIGN KEY ("superseded_by_link_id", "variant_id", "shop_id")
-    REFERENCES "shopify_variant_links" ("id", "variant_id", "shop_id")
+  ADD CONSTRAINT "shopify_variant_links_padre_attivo_fkey"
+    FOREIGN KEY ("product_link_id", "richiede_padre_attivo")
+    REFERENCES "shopify_product_links" ("id", "attivo")
     ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 ALTER TABLE "shopify_variant_links" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON "shopify_variant_links" FROM PUBLIC, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LE PROTEZIONI — immutabilita', nascita, e il divieto di cancellare la storia
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ── 1 · Un'identita' NASCE AGGANCIATA ───────────────────────────────────────
+--
+-- ⛔ Senza, l'identita' puo' nascere gia' sganciata e l'appartenenza originaria
+--    non viene verificata NEMMENO UNA VOLTA: `original_product_id` non ha FK, e
+--    con `product_id` NULL nessun vincolo guarda quel valore. Misurato: due
+--    INSERT riusciti con un articolo inesistente.
+-- ⭐ Nata viva, il CHECK «vivo = originario» piu' la FK composita verificano
+--    l'appartenenza UNA volta, e l'immutabilita' la tiene valida per sempre.
+
+-- ⚠️ DUE funzioni, non una condivisa: plpgsql risolve `NEW.<campo>` anche nel
+--    ramo non preso, quindi una funzione che nomina `variant_id` fallisce
+--    sulla tabella prodotto con «record "new" has no field». Misurato.
+
+CREATE OR REPLACE FUNCTION "shopify_product_identities_nasce_agganciata"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."product_id" IS NULL THEN
+    RAISE EXCEPTION 'shopify_product_identities_nasce_agganciata: un''identita'' nasce agganciata al proprio articolo'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION "shopify_variant_identities_nasce_agganciata"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."variant_id" IS NULL THEN
+    RAISE EXCEPTION 'shopify_variant_identities_nasce_agganciata: un''identita'' nasce agganciata alla propria variante'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "shopify_product_identities_nasce_agganciata"
+  BEFORE INSERT ON "shopify_product_identities"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_product_identities_nasce_agganciata"();
+CREATE TRIGGER "shopify_variant_identities_nasce_agganciata"
+  BEFORE INSERT ON "shopify_variant_identities"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_variant_identities_nasce_agganciata"();
+
+-- ── 2 · L'identita' non si riassegna ────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION "shopify_product_identities_immutabile"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."tenant_id" IS DISTINCT FROM OLD."tenant_id"
+     OR NEW."shop_id" IS DISTINCT FROM OLD."shop_id"
+     OR NEW."shopify_product_gid" IS DISTINCT FROM OLD."shopify_product_gid"
+     OR NEW."original_product_id" IS DISTINCT FROM OLD."original_product_id" THEN
+    RAISE EXCEPTION 'shopify_product_identities_immutabile: l''identita'' remota non si riassegna'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  -- Il riferimento vivo si SGANCIA soltanto: mai riagganciato, mai spostato.
+  IF OLD."product_id" IS NULL AND NEW."product_id" IS NOT NULL THEN
+    RAISE EXCEPTION 'shopify_product_identities_immutabile: un''identita'' sganciata non si riaggancia'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  -- ⭐ `local_deleted_at` si scrive UNA volta: l'eliminazione di un prodotto non
+  --    riscrive la data di una variante eliminata prima.
+  IF OLD."local_deleted_at" IS NOT NULL
+     AND NEW."local_deleted_at" IS DISTINCT FROM OLD."local_deleted_at" THEN
+    RAISE EXCEPTION 'shopify_product_identities_immutabile: la data di eliminazione non si riscrive'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "shopify_product_identities_immutabile"
+  BEFORE UPDATE ON "shopify_product_identities"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_product_identities_immutabile"();
+
+CREATE OR REPLACE FUNCTION "shopify_variant_identities_immutabile"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."tenant_id" IS DISTINCT FROM OLD."tenant_id"
+     OR NEW."shop_id" IS DISTINCT FROM OLD."shop_id"
+     OR NEW."product_identity_id" IS DISTINCT FROM OLD."product_identity_id"
+     OR NEW."shopify_variant_gid" IS DISTINCT FROM OLD."shopify_variant_gid"
+     OR NEW."shopify_inventory_item_gid" IS DISTINCT FROM OLD."shopify_inventory_item_gid"
+     OR NEW."original_variant_id" IS DISTINCT FROM OLD."original_variant_id"
+     OR NEW."original_product_id" IS DISTINCT FROM OLD."original_product_id" THEN
+    RAISE EXCEPTION 'shopify_variant_identities_immutabile: l''identita'' remota non si riassegna'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF (OLD."variant_id" IS NULL AND NEW."variant_id" IS NOT NULL)
+     OR (OLD."product_id" IS NULL AND NEW."product_id" IS NOT NULL) THEN
+    RAISE EXCEPTION 'shopify_variant_identities_immutabile: un''identita'' sganciata non si riaggancia'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF OLD."local_deleted_at" IS NOT NULL
+     AND NEW."local_deleted_at" IS DISTINCT FROM OLD."local_deleted_at" THEN
+    RAISE EXCEPTION 'shopify_variant_identities_immutabile: la data di eliminazione non si riscrive'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "shopify_variant_identities_immutabile"
+  BEFORE UPDATE ON "shopify_variant_identities"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_variant_identities_immutabile"();
+
+-- ── 3 · Un periodo chiuso non si riapre e non si riscrive ───────────────────
+
+CREATE OR REPLACE FUNCTION "shopify_periodo_immutabile"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."tenant_id" IS DISTINCT FROM OLD."tenant_id"
+     OR NEW."identity_id" IS DISTINCT FROM OLD."identity_id"
+     OR NEW."linked_at" IS DISTINCT FROM OLD."linked_at" THEN
+    RAISE EXCEPTION 'shopify_periodo_immutabile: appartenenza e apertura del periodo non si modificano'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF OLD."status" <> 'active'
+     AND (NEW."status" <> OLD."status"
+          OR NEW."close_reason" IS DISTINCT FROM OLD."close_reason"
+          OR NEW."closed_at" IS DISTINCT FROM OLD."closed_at") THEN
+    RAISE EXCEPTION 'shopify_periodo_immutabile: un periodo chiuso non si riapre e la sua causale non si riscrive'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "shopify_product_links_immutabile"
+  BEFORE UPDATE ON "shopify_product_links"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_periodo_immutabile"();
+CREATE TRIGGER "shopify_variant_links_immutabile"
+  BEFORE UPDATE ON "shopify_variant_links"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_periodo_immutabile"();
+
+-- ── 4 · LA STORIA NON SI CANCELLA — e il TRUNCATE non e' un DELETE ──────────
+--
+-- ⛔ Misurato il 07/09/2026: il DELETE del PERIODO passava (nessun vincolo lo
+--    guardava), e da li' passava anche quello dell'identita' — con lo stesso GID
+--    che rinasceva su un altro prodotto. E' la stessa asimmetria gia' vista
+--    sulle sedi («i due UNIQUE impediscono di INSERIRE, non di MODIFICARE») un
+--    passo piu' in la': non impediscono nemmeno di CANCELLARE.
+--
+-- ⭐ Il divieto sta sui PERIODI e sulle IDENTITA' ARTICOLO, e NON si estende ad
+--    altre tabelle del gestionale: e' la storia dei collegamenti remoti, non un
+--    append-only generale.
+--
+-- ⚠️ E NON impedisce l'eliminazione definitiva dell'ANAGRAFICA: `products` e
+--    `product_variants` restano cancellabili una volta sganciati. Si conserva
+--    l'identita' remota, non si vieta la purga locale.
+
+CREATE OR REPLACE FUNCTION "shopify_storico_non_si_cancella"()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'shopify_storico_non_si_cancella: % e'' storia dei collegamenti remoti e non si cancella', TG_TABLE_NAME
+    USING ERRCODE = 'check_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "shopify_product_identities_mai_delete"
+  BEFORE DELETE ON "shopify_product_identities"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+CREATE TRIGGER "shopify_product_identities_mai_truncate"
+  BEFORE TRUNCATE ON "shopify_product_identities"
+  FOR EACH STATEMENT EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+
+CREATE TRIGGER "shopify_variant_identities_mai_delete"
+  BEFORE DELETE ON "shopify_variant_identities"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+CREATE TRIGGER "shopify_variant_identities_mai_truncate"
+  BEFORE TRUNCATE ON "shopify_variant_identities"
+  FOR EACH STATEMENT EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+
+CREATE TRIGGER "shopify_product_links_mai_delete"
+  BEFORE DELETE ON "shopify_product_links"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+CREATE TRIGGER "shopify_product_links_mai_truncate"
+  BEFORE TRUNCATE ON "shopify_product_links"
+  FOR EACH STATEMENT EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+
+CREATE TRIGGER "shopify_variant_links_mai_delete"
+  BEFORE DELETE ON "shopify_variant_links"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+CREATE TRIGGER "shopify_variant_links_mai_truncate"
+  BEFORE TRUNCATE ON "shopify_variant_links"
+  FOR EACH STATEMENT EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+
 
 -- ── LA COPPIA E I SUOI PERIODI — due tabelle, non una ──────────────────────
 --
@@ -517,3 +880,33 @@ CREATE INDEX "shopify_connections_shop_id_idx" ON "shopify_connections" ("shop_i
 ALTER TABLE "shopify_connections"
   ADD CONSTRAINT "shopify_connections_shop_id_tenant_id_fkey" FOREIGN KEY ("shop_id", "tenant_id")
     REFERENCES "shopify_shops" ("id", "tenant_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- ── 5 · LE SEDI: la stessa falla, e una distinzione da preservare ───────────
+--
+-- ⚠️ La verifica chiesta il 07/09/2026: si', la stessa possibilita' di
+--    cancellare la storia riguardava anche le sedi. Cancellando i PERIODI la
+--    coppia tornava cancellabile, e con essa il GID di location tornava
+--    riassegnabile.
+--
+-- ⭐ Ma qui la distinzione decisa in §1.13.6 va PRESERVATA, e il divieto sta
+--    quindi SOLO sui periodi:
+--
+--      coppia CON periodi   la storia esiste -> i periodi non si cancellano, e
+--                           la FK RESTRICT impedisce di cancellare la coppia
+--      coppia SENZA periodi nessuna storia, nessun effetto -> si cancella, ed e'
+--                           la correzione dell'abbinamento iniziale errato
+--
+-- ⛔ E' la differenza fra sedi e articoli, e ha una ragione: un abbinamento di
+--    sede LO DICHIARA UNA PERSONA e puo' sbagliare; un'identita' di articolo
+--    nasce da un'operazione tecnica — un'importazione o una creazione remota
+--    riuscita — quindi non c'e' un errore di abbinamento umano da correggere.
+
+CREATE TRIGGER "shopify_location_links_mai_delete"
+  BEFORE DELETE ON "shopify_location_links"
+  FOR EACH ROW EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+CREATE TRIGGER "shopify_location_links_mai_truncate"
+  BEFORE TRUNCATE ON "shopify_location_links"
+  FOR EACH STATEMENT EXECUTE FUNCTION "shopify_storico_non_si_cancella"();
+
+-- ⚠️ NESSUN trigger su `shopify_location_pairs`: una coppia senza periodi resta
+--    cancellabile, ed e' la correzione iniziale che §1.13.6 consente.

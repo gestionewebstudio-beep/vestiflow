@@ -18,6 +18,7 @@ import {
 } from '@prisma/client';
 
 import { ambienteIntegrazione } from './env';
+import { conStoricoSbloccato } from './fixture';
 
 /**
  * Il dataset del collaudo distruttivo Shopify, nel SOLO database di prova.
@@ -156,7 +157,9 @@ export async function svuotaTutto(prisma: PrismaClient): Promise<void> {
     (t) => !(CATALOGHI_DI_SISTEMA as readonly string[]).includes(t.tablename),
   );
   const elenco = daTroncare.map((t) => `"${t.tablename}"`).join(', ');
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${elenco} RESTART IDENTITY CASCADE`);
+  await conStoricoSbloccato(prisma, async () => {
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${elenco} RESTART IDENTITY CASCADE`);
+  });
 
   /*
     ⭐ **La rete: un catalogo vuoto qui significa che il database di prova e'
