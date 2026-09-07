@@ -1541,6 +1541,132 @@ reale**: `fiscal_receipts` e `cash_sessions` hanno zero righe. Non è una deroga
 
 ---
 
+## 📋 DECISIONI SHOPIFY DEL 07/09/2026 — che cosa resta da fare
+
+> **Le decisioni sono in `docs/24` §§1.13, 1.14, 1.15 e nell'intestazione di
+> §12.** Qui c'è solo il lavoro che ne discende: implementazione, collaudi,
+> guide e ciò che resta da decidere.
+
+### 1 · Requisito di schema — `shopify_location_links`
+
+⛔ **Serve uno storico dei collegamenti delle location**, equivalente a
+`shopify_product_links` e `shopify_variant_links` già introdotti dal commit
+`c82295c4`.
+
+Senza, «il collegamento è stato chiuso» e «il collegamento non è mai esistito»
+sono indistinguibili — ed è esattamente la differenza su cui si regge §1.13.3:
+una location scomparsa e poi ricomparsa **non si riaggancia da sola**, e per
+saperlo bisogna ricordare che quel collegamento c'era.
+
+Deve conservare almeno: identità della sede VestiFlow, identità della location
+Shopify (GID), identità del negozio (`shop_gid`), quando il collegamento è nato,
+quando si è chiuso e **perché**.
+
+⚠️ **La migration NON è stata scritta**, ed è deliberato: questa tranche è
+documentale. Va scritta a mano, come impone `regole-qualita`, e provata sul
+database di prova.
+
+### 2 · Storia della connessione — campi da conservare
+
+§1.15.3 elenca sei informazioni che la disconnessione **non deve azzerare**:
+`shop_gid`, prima connessione, disconnessione, ultimo checkpoint ordini
+riuscito, intervallo non sincronizzato, riconnessione.
+
+⛔ **Oggi `disconnect()` azzera `lastSyncAt` e `lastWebhookEventAt`.** Quelle
+due colonne rispondono a un'altra domanda: la storia della connessione ha
+bisogno di campi propri, che la disconnessione **scrive** invece di cancellare.
+
+### 3 · Difetto da correggere — `purgeOrders` cancella fisicamente
+
+⛔ **Non è un punto da decidere: la decisione è presa** (§1.14.2). L'attuale
+`purgeOrders` esegue `salesOrder.deleteMany`, e va sostituito con la chiusura o
+sospensione del collegamento.
+
+⚠️ **Due conseguenze misurate il 07/09/2026 che rendono la correzione urgente:**
+
+- `stock_reservations.sales_order_id` è `ON DELETE CASCADE`: cancellare l'ordine
+  porta via gli impegni e lascia `inventory_levels.committed` gonfio;
+- `documents.customer_id`, `sales_orders.customer_id` e `online_sales.customer_id`
+  sono `SET NULL`: rimuovere i clienti scollega i documenti che li nominano.
+
+⭐ La guardia sugli impegni attivi introdotta con `e0a837ab` (ramo
+`fix/shopify-purge-preserves-inventory`) mitiga il primo caso; non lo chiude,
+perché la cancellazione resta possibile a impegni chiusi.
+
+### 4 · Difetto da correggere — il messaggio d'errore della purga mente
+
+`mapPurgeError` traduce **ogni** violazione di chiave esterna in «Chiudi gli
+ordini fornitore aperti e riprova». Misurato con tutti gli ordini fornitore
+chiusi: a bloccare era `online_sales.sales_order_id`, che è `RESTRICT`.
+
+L'operatore chiude gli ordini fornitore, riprova, fallisce di nuovo, e non ha
+modo di sapere perché.
+
+### 5 · Collaudi da eseguire, dopo l'implementazione
+
+| Che cosa                                                                                    | Perché non basta un test a mock                                                         |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| collegamento di sede creato, chiuso e **non riagganciato** dopo il ritorno della location   | la storia del collegamento è una riga in una tabella: solo un database vero dice se c'è |
+| sede collegata che **sparisce da Shopify**: dati invariati, sync fermo, collegamento chiuso | già coperto in parte dallo scenario 8 del collaudo distruttivo                          |
+| **prima connessione**: nessun ordine anteriore importato                                    | serve un negozio di prova con ordini precedenti                                         |
+| **riconnessione allo stesso negozio**: recupero dell'intervallo, idempotente                | l'idempotenza si prova solo rieseguendo contro dati reali                               |
+| **riconnessione a un negozio diverso**: nessuna eredità dell'intervallo                     | due `shop_gid` distinti                                                                 |
+| `purgeOrders` corretto: l'ordine **resta**, il collegamento si chiude                       | il collaudo distruttivo ha già la fotografia che lo verifica                            |
+
+⚠️ **Prerequisito già noto e non risolto**: cinque webhook su otto (ordini,
+resi, clienti) non sono registrabili sullo shop di sviluppo per mancata
+approvazione Shopify «Protected customer data» (`docs/24` §8.5.6). I collaudi
+sugli ordini dipendono da quella approvazione.
+
+### 6 · Guide utente — che cosa dovrà entrarci, DOPO il collaudo
+
+⛔ **Non si scrivono adesso**: la funzione non è implementata, e una guida che
+descrive una funzione inesistente è peggio di nessuna guida.
+
+Da scrivere quando il collaudo sarà passato:
+
+- **come si collega una sede a una location Shopify**, e che la scelta è sempre
+  dell'operatore: nessun collegamento automatico, nome e indirizzo non bastano;
+- **che le anagrafiche non si sincronizzano**: cambiare il nome di una sede in
+  VestiFlow non lo cambia su Shopify, e viceversa;
+- **che cosa succede quando una location sparisce da Shopify**: la sede resta,
+  con tutti i suoi dati, e il collegamento si chiude — non si riaggancia da sola
+  se la location ritorna;
+- **quando una sede si può eliminare** e cosa fare quando non si può: la si
+  rende non operativa, e la storia resta;
+- **da quando arrivano gli ordini** alla prima connessione: da adesso, non da
+  prima;
+- **che cosa propone la riconnessione**, e che le quantità che prevalgono sono
+  quelle di VestiFlow;
+- **che una modifica di quantità fatta su Shopify** compare come disallineamento
+  e non sovrascrive VestiFlow.
+
+### 6-bis · Guide che DESCRIVONO un comportamento ora dichiarato difetto
+
+⚠️ **Non vanno corrette adesso** — descrivono il codice com'è, e finché è così
+sono vere. Vanno corrette **insieme** all'implementazione, o descriveranno una
+funzione che non esiste:
+
+| Documento                                       | Che cosa dice oggi                                                                 | Perché va rivisto                                                                                         |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `GUIDA-OPERATORE-VESTIFLOW.md` (endpoint purge) | «Rimuove dati importati/syncati da Shopify (prodotti, varianti, clienti, ordini…)» | `purgeCatalog` è **sospeso** e la rimozione di clienti e ordini diventa chiusura del collegamento (§1.14) |
+| `GUIDA-UTENTE-VESTIFLOW.md` (cambio negozio)    | «Rimuove catalogo, clienti, ordini vendita e location collegati a Shopify»         | stessa ragione, più le **location**: non si rimuovono, si scollegano (§1.13.3)                            |
+
+⭐ `GUIDA-OPERATORE-VESTIFLOW.md` dice già «**non** collega più automaticamente
+la sede onboarding `LOC-01` al primo match Shopify»: quella riga è **coerente**
+con §1.13.1 e non va toccata.
+
+### 7 · Decisioni residue
+
+Le sei che restano aperte sono elencate in `docs/24` §0-bis, «Voci APERTE dopo
+il consolidamento del 07/09/2026». In sintesi: il termine per «Disattiva», il
+comportamento della sede collegata disattivata localmente, la conseguenza del
+rifiuto di recuperare gli ordini, la progettazione della prima sincronizzazione
+articoli, la quantità iniziale di un articolo solo-Shopify creato in VestiFlow,
+e l'audit persistente con i backup pre-operazione.
+
+---
+
 ## SHOPIFY — stato al 06/09/2026
 
 ⛔ **Qui c'era «⏸ SHOPIFY — quello che questa tranche lascia aperto (03/09/2026)»**, con la
@@ -1576,7 +1702,7 @@ e ripristino (`docs/24` §8.5.7).
 | **azione massiva «Copia nome VestiFlow»**       | ⏸ decisa in `docs/24` §1.9, entra col menu delle azioni massive                                                                                                                                                                                                                                                                                                                                                        |
 | **`apiVersion` mostrata nel pannello**          | ⚠️ **debito separato, NON bloccante** — riconfermato il 07/09/2026: viene dalla riga di connessione, aggiornata solo a una riconnessione (`shopify-oauth.service.ts:169`), mentre le chiamate usano `SHOPIFY_API_VERSION`. Un negozio registra `2025-01` e risponde correttamente a `2026-07`: è un valore **informativo stantio**, non un difetto di comunicazione col canale. Non blocca il modello dei collegamenti |
 | **rifiuti HMAC invisibili**                     | ⏸ `verifyHmac` lancia 401 e nulla di più: nessun contatore, nessuna traccia, nessuna degradazione dello stato. ⭐ `lastWebhookEventAt` **esiste ora** ed è timbrato, quindi l'assenza di eventi si vede; il **motivo** no                                                                                                                                                                                              |
-| **Location indovinata**                         | ⏸ `shopify-order-location.util.ts:52` ripiega ancora sulla prima sede in ordine alfabetico, e il valore letto non dice se è dichiarato o dedotto                                                                                                                                                                                                                                                                       |
+| **Location indovinata**                         | ⛔ **ora è VIETATO, non solo da chiudere** (`docs/24` §1.13, §12.4): senza collegamento esplicito nessuna quantità si sincronizza, e non esiste una sede di ripiego. `shopify-order-location.util.ts:52` ripiega ancora sulla prima sede in ordine alfabetico, e il valore letto non dice se è dichiarato o dedotto                                                                                                    |
 
 ### ✅ Il modello che manca è ora PROGETTATO — 06/09/2026, non ancora costruito
 

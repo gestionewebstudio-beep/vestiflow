@@ -396,6 +396,11 @@ location arriva da `order.location_id` mappato sulla sede (con fallback alla pri
 licenziata attiva). Per il POS crea la Vendita online e **anche la voce COR-**: la creazione
 del corrispettivo non è condizionata al canale.
 
+⛔ **Il fallback alla prima sede è VIETATO dal 07/09/2026** — `docs/24` §1.13 e
+§12.4: senza un collegamento esplicito fra sede e location non si sincronizza
+niente, e non esiste una sede di ripiego. La riga qui sopra descrive il codice
+com'è, non come deve restare.
+
 Ma lo scarico di magazzino passa **solo per il consumo di un impegno**. In
 `createFromFulfilledOrderTx`, una riga senza impegno viene saltata:
 
