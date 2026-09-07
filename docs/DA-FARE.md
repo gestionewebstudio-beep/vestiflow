@@ -66,6 +66,333 @@ chiusi, e la differenza conta il giorno in cui il gestionale avrà dati veri.
 
 ---
 
+## ⛔ COLLAUDO DISTRUTTIVO SHOPIFY — quattro lacune di schema, 07/09/2026
+
+> **Misurate contro PostgreSQL vero, non dedotte dallo schema.** Il collaudo
+> (`api/src/test/integration/shopify-distruttivo.integration-spec.ts`, 36 prove)
+> ha trovato quattro divergenze fra ciò che lo schema Prisma dichiara e ciò che
+> il database applica. Nessun test a mock poteva vederle: un mock non ha vincoli
+> di integrità.
+
+### 1 · `shopify_inventory_sync_states.location_id` NON HA CHIAVE ESTERNA
+
+```text
+relazioni verso Location nello schema Prisma   21
+chiavi esterne verso locations nel database    20
+```
+
+⛔ **La colonna esiste, la relazione è dichiarata, il vincolo non c'è.**
+Cancellare una sede lasciava quella riga orfana, puntando a un id che non
+esiste più, e nessun vincolo se ne accorgeva.
+
+⚠️ **Oggi la protezione è solo applicativa**: `RIFERIMENTI_SEDE` include quella
+relazione, quindi `canDeleteLocation` la conta e rifiuta. È una difesa nel
+chiamante, non nel database: un percorso nuovo che chiamasse `location.delete`
+senza passare di lì tornerebbe a creare orfani.
+
+**Da fare**: portare la colonna sotto vincolo. Tranche schema separata — la
+migration è condivisa col ramo del collega, e va misurato prima quante righe
+orfane esistono già.
+
+### 2 · Schema Prisma e database DIVERGONO sull'azione di due FK
+
+| Relazione                             | Prisma dice                           | il database applica |
+| ------------------------------------- | ------------------------------------- | ------------------- |
+| `SalesOrder.locationId`               | `SetNull` (opzionale, non dichiarata) | **RESTRICT**        |
+| `SupplierOrder.destinationLocationId` | `SetNull` (opzionale, non dichiarata) | **RESTRICT**        |
+
+⭐ **Il database è più protettivo dello schema**, quindi non c'è perdita di
+dati. Ma qualunque ragionamento fatto leggendo lo schema Prisma sbaglia su due
+relazioni su ventuno — ed è il motivo per cui `check:cascate-sede` non decide
+più in base all'azione: pretende che ogni relazione sia dichiarata, qualunque
+cosa faccia.
+
+### 3 · `mapPurgeError` nomina una causa che non c'entra
+
+⛔ Ogni violazione di chiave esterna (P2003) durante la purga diventa:
+
+```text
+«…Chiudi gli ordini fornitore aperti e riprova.»
+```
+
+**Misurato con tutti gli ordini fornitore chiusi**: a bloccare era
+`online_sales.sales_order_id`, che è `RESTRICT`. L'operatore chiude gli ordini
+fornitore, riprova, fallisce di nuovo, e non ha modo di sapere perché.
+
+⚠️ **Non è perdita di dati: è il suo opposto.** Il database protegge e la
+transazione non lascia niente a metà. È un difetto di diagnosi.
+
+⏸ **Che cosa debba dire il messaggio è una decisione non presa** — vedi sotto.
+
+### 4 · `stock_reservations.sales_order_id` è `CASCADE`, confermato
+
+Cancellare un ordine Shopify cancella i suoi impegni di magazzino, lasciando
+`inventory_levels.committed` gonfio di impegni che non esistono più. La guardia
+introdotta col commit `e0a837ab` lo impedisce, e il collaudo lo verifica contro
+il database vero (scenario 4).
+
+---
+
+## ⏸ DECISIONI FUNZIONALI APERTE — emerse dal collaudo, non decise
+
+Ognuna è **fotografata da una prova**: il giorno in cui la decisione verrà
+presa e applicata, quella prova diventerà rossa e lo dirà.
+
+| #   | Domanda                                                                                         | Comportamento attuale                 | Prova          |
+| --- | ----------------------------------------------------------------------------------------------- | ------------------------------------- | -------------- |
+| A   | Una sede **realmente vuota** dev'essere eliminata o sempre archiviata?                          | eliminata                             | scenari 10, 11 |
+| B   | Una sede **con dati** può essere disattivata da un sync di canale, senza che nessuno lo chieda? | sì, `isActive: false`                 | scenario 13    |
+| C   | Un **cliente Shopify** importato può essere eliminato fisicamente?                              | oggi la purga fallisce prima          | scenario 14    |
+| D   | Un **ordine Shopify** con vendita online collegata può essere eliminato?                        | no, il database lo impedisce          | scenario 14    |
+| E   | Se un documento perde il cliente, deve conservarne uno **snapshot**?                            | non applicabile finché C non è deciso | —              |
+
+⚠️ **La B è la più insidiosa**: la sede sparisce dai selettori operativi e
+`setLicensedLocations` rifiuta di riattivarla («Riattivale da Shopify Admin»,
+istruzione impossibile per una sede che su Shopify non esiste più).
+
+---
+
+## Matrice distruttiva — Shopify, aggiornata al 07/09/2026 (dopo le correzioni)
+
+⛔ **Qui c'era la matrice del comportamento PRECEDENTE**, scritta prima delle
+correzioni: descriveva `purge()` che cancellava clienti e ordini, e i tre
+percorsi di sincronizzazione che eliminavano o disattivavano sedi. È rimasta
+ferma mentre il codice cambiava sotto — il difetto che questo progetto combatte
+ovunque, in un documento invece che nel codice.
+
+| Operazione                            | Chiamante                                                      | Entità            | Effetto oggi                                                                   | Collaudo           |
+| ------------------------------------- | -------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------ | ------------------ |
+| `disconnect()`                        | `DELETE /shopify/connection` (owner)                           | ShopifyCredential | cancella le **credenziali**; le sedi perdono `shopifyLocationId`; nient'altro  | ✅ scen. 1         |
+| `purge(*)` — ogni combinazione        | `POST /shop-change/purge`                                      | —                 | ⛔ **rifiutata prima di ogni lettura**: nessun record cambia                   | ✅ 7 combinazioni  |
+| `syncFromShopify()` → sede sparita    | `POST /sync/locations` (owner) e **callback OAuth automatico** | Location          | conserva sede, identificativo e dati; segnala `shopifySyncStatus: error`       | ✅ scen. 8, 10, 12 |
+| `cleanupUnlinkedImportLocations()`    | stessa catena                                                  | Location          | conserva e segnala; **non disattiva più**                                      | ✅ scen. 13        |
+| ~~`removeEmptyOnboardingLocation()`~~ | —                                                              | —                 | **rimossa**: esisteva solo per eliminare                                       | —                  |
+| `applyOrderFromShopify()`             | webhook ordini, pull bulk                                      | SalesOrderLine    | riscrive le righe dell'ordine; **payload senza righe → aggiornamento sospeso** | ✅ 6 scenari       |
+
+⭐ **Le uniche cancellazioni rimaste nel perimetro Shopify** sono su entità
+tecniche del canale — stato OAuth, credenziali — e sulle righe figlie di un
+ordine che il canale possiede. Verificate una per una, e sorvegliate da
+`check:shopify-inventario`.
+
+⚠️ **La colonna «log» resta la ragione per cui serve un registro persistente**:
+di un'operazione resta una riga di `logger` sul container, che Railway perde al
+riavvio. Non c'è modo di dire **chi** ha innescato un sync, **quando**, e con
+quale effetto.
+
+---
+
+## ✅ LE REGOLE SEDI, CLIENTI E ORDINI SONO IMPLEMENTATE — 07/09/2026
+
+> **Le otto regole di `docs/24` §§1.13-1.14 sono in codice e sotto collaudo su
+> PostgreSQL reale.** Qui resta ciò che il modello storico non ancora esistente
+> impedisce di fare bene, e i debiti che la correzione ha lasciato dietro.
+
+### Che cosa fa oggi la sincronizzazione delle sedi
+
+| Situazione                        | Prima                        | Ora                                             |
+| --------------------------------- | ---------------------------- | ----------------------------------------------- |
+| sede vuota, non collegata         | **eliminata**                | conservata                                      |
+| sede vuota, sparita da Shopify    | **eliminata**                | conservata, collegata, segnalata                |
+| sede con dati, sparita da Shopify | disattivata e **scollegata** | conservata, operativa, **collegata**, segnalata |
+| residuo di import non collegato   | **disattivato**              | conservato, segnalato                           |
+| sede `LOC-01` di onboarding vuota | **eliminata**                | conservata                                      |
+| purge, ogni combinazione          | eseguita in parte            | **rifiutata** prima di ogni lettura             |
+
+Il segnale è `shopifySyncStatus: error` più un messaggio che dice all'operatore
+che cosa è successo e che cosa può fare.
+
+---
+
+### ⏸ Che cosa NON è implementabile senza `shopify_location_links`
+
+⛔ **Il comportamento definitivo di §1.13.3** — «il collegamento si chiude
+conservandone la storia» — **non è implementabile oggi**, e ciò che c'è al suo
+posto è un ripiego dichiarato.
+
+| Regola                                                             | Perché serve lo storico                                                                                                                                                      |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| «il collegamento **viene chiuso** conservandone la storia»         | non esiste un posto dove scrivere che un collegamento è finito: c'è solo `shopifyLocationId`, che è presente o assente                                                       |
+| «una nuova location con lo stesso nome **non viene riagganciata**» | oggi il riaggancio per nome è impedito solo perché l'identificativo **non viene azzerato**: se una location tornasse con un id nuovo, `findMatch` la riaggancerebbe per nome |
+| «VestiFlow **mostra** che la location non è più disponibile»       | oggi lo dice un messaggio d'errore su un campo che serve anche ad altro; è leggibile, non è uno stato del collegamento                                                       |
+
+⚠️ **Il ripiego ha un costo, ed è giusto conoscerlo**: la sede resta collegata a
+un identificativo Shopify che non esiste più. È deliberato — la traccia vale più
+della coerenza formale — ma significa che una sede può restare in quello stato a
+tempo indefinito, e nessuno la riconcilia se non l'operatore.
+
+⭐ **Lo stesso vale per clienti e ordini**: §1.14 dice «può chiudere o sospendere
+il collegamento», e nemmeno quello esiste. Per questo la purge non è stata
+riscritta come scollegamento: è stata **sospesa**. Scrivere lo scollegamento
+senza il posto dove registrarlo avrebbe prodotto un secondo ripiego, in un
+percorso che l'operatore invoca esplicitamente.
+
+---
+
+### Debiti lasciati dalla correzione
+
+**1 · `verificaSedeCancellabile` e `RIFERIMENTI_SEDE` non hanno consumatori di
+produzione.** Sono il contratto della funzione VestiFlow dedicata
+all'eliminazione (§1.13.4), che non esiste ancora. Restano verificati da
+`check:cascate-sede` e dalle 21 prove generate dall'elenco — non è codice
+dimenticato, è un contratto in attesa del suo consumatore. Quando la funzione
+dedicata verrà scritta, deve usare quello e non riscriverne un altro.
+
+**2 · `mapPurgeError` è stata rimossa col resto della purga**, e con lei il
+difetto che traduceva ogni violazione di chiave esterna in «Chiudi gli ordini
+fornitore aperti». Non è stato corretto: è diventato irraggiungibile. Quando la
+purga tornerà come scollegamento, servirà una traduzione degli errori — e quella
+dovrà nominare il vincolo vero.
+
+**3 · `preview()` conta ancora `removableShopifyLocations`.** Promette una
+capacità che non esiste più: nessuna sede è rimovibile da lì. Non è distruttivo
+— l'anteprima è di sola lettura — ma il numero è una promessa falsa, e il
+frontend lo mostra.
+
+**4 · ✅ `notIn: []` — MISURATO, ERA UN DIFETTO, CORRETTO il 07/09/2026.**
+
+⛔ **Era una deduzione, e la deduzione era giusta.** Misurato contro PostgreSQL
+17.11: `prisma.salesOrderLine.deleteMany` con
+`externalLineId: { notIn: [] }` cancella **tutte** le righe — `count = 2` su
+due righe che avevano entrambe un `externalLineId`.
+
+⚠️ **Che cosa sarebbe successo.** Un ordine con righe e impegni attivi,
+raggiunto da un payload magro — risposta troncata, webhook parziale, errore di
+serializzazione a monte — perdeva TUTTE le righe. Gli impegni venivano poi
+rilasciati dal dominio, perché `emitCanonicalOrderEvents` ricostruisce le righe
+correnti rileggendole dal database: nessuna riga, nessun impegno da tenere. La
+giacenza tornava disponibile per merce già venduta.
+
+⭐ **La correzione è a monte, non sulla query**: un payload senza righe sospende
+l'aggiornamento, conserva righe e impegni, e registra un errore di
+sincronizzazione sulla connessione. Un ordine Shopify senza righe non esiste: se
+il payload non ne porta, è il payload a essere incompleto — non l'ordine.
+
+Sei scenari in `shopify-righe-ordine.integration-spec.ts`, più la misura del
+comportamento di Prisma come contratto dello strumento: se un aggiornamento ne
+cambiasse la semantica, quella prova diventerebbe rossa e lo direbbe.
+
+---
+
+### Collaudi da eseguire quando lo storico esisterà
+
+- collegamento creato, chiuso, e **non riagganciato** al ritorno della location;
+- una location che torna con un **id nuovo** e lo stesso nome: non si riaggancia;
+- scollegamento di un cliente e di un ordine: l'entità resta, il collegamento no;
+- riconnessione allo stesso `shop_gid` dopo uno scollegamento: la storia è leggibile.
+
+---
+
+## ⏸ LE FK VERSO `Location` RESTANO IN CASCATA — tranche schema, aperta il 07/09/2026
+
+> **Il rischio è chiuso nel CODICE, non nello SCHEMA.** `canDeleteLocation` ora
+> rifiuta di cancellare una sede che porterebbe via qualcosa, e la sede viene
+> archiviata invece che eliminata. Ma se domani un percorso nuovo chiamasse
+> `location.delete` senza passare di lì, il database eseguirebbe la cascata
+> senza dire niente.
+
+⛔ **Qui c'era «aperto: `canDeleteLocation` non controlla tutto ciò che la
+cascata porta via», con una tabella di quattro `Cascade`.** Erano quattro su
+**undici**: il censimento completo, fatto il 07/09/2026 leggendo lo schema, ha
+trovato **21 relazioni verso `Location`** —
+
+```text
+ 4  Cascade    l'entità collegata SPARISCE
+ 7  SetNull    l'entità resta, ma perde la sede — in silenzio
+10  Restrict   il database rifiuta il DELETE: si difendono da sole
+```
+
+⚠️ **Le sette `SetNull` erano invisibili perché NON SONO DICHIARATE.** Quindici
+relazioni su ventuno non scrivono `onDelete`, e il default di Prisma dipende
+dall'opzionalità: `Restrict` se la relazione è obbligatoria, `SetNull` se è
+facoltativa. Una lettura che cercasse `onDelete: Cascade` nello schema ne
+perderebbe sette su undici — ed è esattamente quello che era successo.
+
+⭐ **Fra le sette c'è `Document.locationId`**: cancellare una sede scollegava i
+documenti che l'avevano emessa, lasciandoli senza sede di origine.
+
+⚠️ **`DocumentCounter` resta il più insidioso**: è la numerazione dei documenti
+di quella sede. Cancellarla non rompe niente subito — settimane dopo la serie
+riparte da un numero già usato, il vincolo di unicità lo rifiuta, e il guasto si
+manifesta lontano dalla causa.
+
+### Che cosa resta da fare, e perché non ora
+
+**Portare le quattro `Cascade` a `Restrict`** è la difesa che vale anche per il
+codice che non è ancora stato scritto: sposta la protezione dal chiamante al
+database, dove nessun percorso nuovo può scavalcarla.
+
+⛔ **Richiede una tranche schema separata** — decisione del proprietario del
+07/09/2026, presa insieme alla patch di sicurezza. Non è prudenza generica: una
+migration su questo database è condivisa con il ramo del collega, e cambiare una
+FK a `Restrict` fa fallire ogni percorso che oggi si affida alla cascata. Va
+misurato prima quali sono.
+
+⭐ **Nel frattempo la protezione è verificata da due guardie che si tengono a
+vicenda**, ed è il motivo per cui il rinvio è accettabile:
+
+| Guardia                          | Che cosa impedisce                                               |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `npm run check:cascate-sede`     | che l'elenco delle relazioni resti indietro rispetto allo schema |
+| le 11 prove generate dall'elenco | che una voce dichiarata non trattenga davvero la sede            |
+
+⚠️ **La stessa domanda vale per il `canDeleteLocation` gemello** in
+`shopify-shop-change.service.ts`, che sopravvive perché `preview()` lo usa per
+CONTARE le sedi rimovibili: conta come rimovibile una sede che porterebbe via i
+contatori, quindi il numero mostrato all'operatore è ottimista. Non distrugge
+niente — la purga del catalogo è sospesa — ma il numero è sbagliato.
+
+---
+
+## ⛔ UN FIX DI PERDITA DATI È RIMASTO 29 GIORNI FUORI DA `main` — 07/09/2026
+
+> **Il difetto che ha distrutto le giacenze di un tenant era già stato trovato,
+> corretto e coperto da un test. La correzione non è arrivata in produzione, e
+> nessuno se n’è accorto per un mese.**
+
+```text
+c4044d98   06/08/2026 12:33   ultimo commit servito da Railway
+81a9fc45   08/08/2026 16:28   il fix: «disconnettere sospende, non cancella»
+b2b3c8ab   10/08/2026 20:04   il fix entra in develop
+                              ⋮  29 giorni
+03/09/2026 ~18:51 UTC         ⛔ il danno: giacenze e movimenti cancellati
+9b59a14b   06/09/2026 19:44   il fix entra finalmente in main
+```
+
+⭐ **Il test esisteva già** — «disconnect non cancella giacenze, movimenti,
+conteggi né ordini fornitore», introdotto dallo stesso commit del fix. Girava in
+CI su `develop` a ogni PR, ed è sempre stato verde. **Non ha protetto nessuno**,
+perché ciò che gira in produzione non era quel ramo.
+
+⚠️ **Questo NON è un difetto di codice**: il codice era corretto dall’08/08. È un
+difetto del **rilascio**, e va chiuso lì — nella patch di sicurezza non entra.
+
+### ⛔ La guardia sbagliata da NON scrivere
+
+Una guardia «`main` deve contenere `develop`» sarebbe **falsa come regola**: i due
+rami divergono legittimamente, e `develop` contiene lavoro non ancora rilasciabile.
+Fallirebbe quasi sempre, e una guardia che fallisce sempre si impara a ignorare —
+è già scritto in `regole-qualita` a proposito del gate di copertura.
+
+### La politica da definire: cinque punti
+
+|                                         |                                                                                                                                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1 · classificare**                    | un fix che impedisce una perdita di dati porta un’etichetta esplicita — `perdita-dati` sul commit o sulla PR. Oggi `81a9fc45` non si distingue da un `fix` qualunque, e la sua urgenza si legge solo aprendo il registro dei difetti |
+| **2 · promuovere**                      | un fix così classificato non aspetta il prossimo rilascio: va su `main` da solo, con la sua PR                                                                                                                                       |
+| **3 · verificare dopo il deploy**       | che il commit correttivo sia **davvero** nell’immagine in esercizio. `git merge-base --is-ancestor <fix> origin/main` dice solo che è nel ramo, non che Railway lo stia servendo                                                     |
+| **4 · controllare la versione servita** | oggi l’API di produzione non espone il commit che sta eseguendo: `/health` risponde `{"status":"ok","database":"up"}` e basta. Senza quel dato, «è in produzione?» non è una domanda a cui si possa rispondere da fuori              |
+| **5 · registrare l’esito**              | data di rilascio e verifica, accanto al difetto nel registro                                                                                                                                                                         |
+
+⭐ **Il punto 4 è quello che avrebbe rotto il silenzio.** Con il commit servito
+esposto da `/health`, chiunque avrebbe potuto vedere il 09/08 che la produzione
+era ferma al 06/08 — e il difetto è vissuto un altro mese proprio perché quella
+domanda non aveva risposta.
+
+⚠️ **Non è una guardia automatica**: è una politica, e va decisa. Qui è registrata
+come debito, non come lavoro fatto.
+
+---
+
 ## Cassa — correzioni del preflight (aggiornato 06/09/2026)
 
 - Consegna 05/09: corretto l'editing quantità checkout. Il vuoto resta in modifica,

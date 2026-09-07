@@ -111,45 +111,63 @@ describe('ShopifyShopChangeWizardComponent', () => {
     expect(screen.getByRole('button', { name: 'Disconnetti senza rimuovere' })).toBeVisible();
   });
 
-  it('deseleziona catalogo bloccato e consente purge parziale', async () => {
+  /*
+    ⛔ **Qui c'erano tre prove del flusso di purga**: la selezione parziale delle
+       categorie, il passaggio allo step di conferma, e il rifiuto del dominio
+       sbagliato. Descrivevano una capacita' che non esiste piu': la rimozione
+       dei dati Shopify e' sospesa in ogni sua forma (docs/24 §1.14).
+
+    ⭐ Restano le due domande che contano: che le tre caselle siano spente e
+       spiegate, e che il wizard non offra un comando che l'API rifiuterebbe.
+  */
+  it('mostra i blocker dell’anteprima: resta una vista informativa', async () => {
+    /*
+      ⭐ L'anteprima non e' sparita con la purga: dice all'operatore che cosa c'e'
+         di collegato a Shopify e che cosa lo trattiene. Serve a decidere, e
+         adesso e' l'unica cosa che quel passo fa.
+    */
     await setup({ preview: PREVIEW_WITH_BLOCKER });
 
-    await screen.findByText('Ordini fornitore aperti su location Shopify.');
-
-    const catalogCheckbox = screen.getByRole('checkbox', {
-      name: /Catalogo importato da Shopify/i,
-    });
-    expect(catalogCheckbox).toBeDisabled();
-    expect(catalogCheckbox).not.toBeChecked();
-    expect(screen.getByRole('button', { name: 'Continua' })).toBeEnabled();
+    expect(await screen.findByText('Ordini fornitore aperti su location Shopify.')).toBeVisible();
   });
 
-  it('passa allo step conferma da anteprima', async () => {
+  it('tutte e tre le categorie sono spente, e ognuna dice perché', async () => {
+    await setup();
+
+    await screen.findByText('Prodotti Shopify');
+
+    for (const nome of [
+      /Catalogo importato da Shopify/i,
+      /Ordini vendita Shopify/i,
+      /Clienti Shopify/i,
+    ]) {
+      const casella = screen.getByRole('checkbox', { name: nome });
+      expect(casella).toBeDisabled();
+      expect(casella).not.toBeChecked();
+    }
+
+    // La ragione sta accanto alla casella, non in un messaggio dopo il clic.
+    expect(screen.getByText(/cancellava giacenze e movimenti/i)).toBeVisible();
+    expect(screen.getByText(/restavano contati sulla giacenza/i)).toBeVisible();
+    expect(screen.getByText(/perdevano l’intestatario/i)).toBeVisible();
+  });
+
+  it('non offre il comando di rimozione: non c’è niente da rimuovere', async () => {
     const user = userEvent.setup();
     await setup();
 
     await screen.findByText('Prodotti Shopify');
     await user.click(screen.getByRole('button', { name: 'Continua' }));
 
-    expect(await screen.findByLabelText(/Digita il dominio del negozio attuale/i)).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Rimuovi dati selezionati' })).toBeVisible();
-  });
-
-  it('segnala dominio non corrispondente in conferma purge', async () => {
-    const user = userEvent.setup();
-    await setup();
-
-    await screen.findByText('Prodotti Shopify');
-    await user.click(screen.getByRole('button', { name: 'Continua' }));
-
-    const domainInput = await screen.findByLabelText(/Digita il dominio del negozio attuale/i);
-    await user.type(domainInput, 'altro.myshopify.com');
-    await user.click(screen.getByRole('checkbox', { name: /Capisco che l'operazione/i }));
-    await user.click(screen.getByRole('button', { name: 'Rimuovi dati selezionati' }));
-
+    /*
+      ⭐ Con nessuna categoria selezionabile il wizard arriva al ramo «nessun
+         dato da rimuovere», che non chiede il dominio e non offre il pulsante
+         di rimozione. Un comando che fallisce sempre e' peggio di un comando
+         assente: chi lo preme pensa a un guasto.
+    */
     expect(
-      await screen.findByText(/dominio inserito non corrisponde al negozio attualmente collegato/i),
-    ).toBeVisible();
+      screen.queryByRole('button', { name: 'Rimuovi dati selezionati' }),
+    ).not.toBeInTheDocument();
   });
 
   it('disconnette senza purge in modalità disconnect', async () => {
