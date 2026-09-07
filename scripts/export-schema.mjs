@@ -582,7 +582,26 @@ const invocatoDirettamente =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invocatoDirettamente) {
-  const corpo = componiCorpo(await leggi(), leggiIlRamo());
+  /*
+    ⛔ **Gli errori di Prisma nominano l'HOST**, e su Supabase l'host contiene
+       l'identificativo del progetto: «Can't reach database server at
+       `db.<progetto>.supabase.co:5432`». Non è la password, ma finisce
+       comunque nei log della CI e negli incolla di chat.
+
+    ⚠️ `mascheraUrl` non basta: copre `postgres://…`, e lì lo schema non c’è.
+       Qui si toglie tutto ciò che Prisma mette fra apici inversi, che è
+       esattamente dove mette host e porta.
+  */
+  let corpo;
+  try {
+    corpo = componiCorpo(await leggi(), leggiIlRamo());
+  } catch (errore) {
+    const messaggio = String(errore?.message ?? errore)
+      .replace(/`[^`]*`/g, "`***`")
+      .split("\n")[0];
+    console.error(`[schema:export] Lettura fallita: ${messaggio}`);
+    process.exit(2);
+  }
 
   if (soloCorpo) {
     process.stdout.write(corpo);
