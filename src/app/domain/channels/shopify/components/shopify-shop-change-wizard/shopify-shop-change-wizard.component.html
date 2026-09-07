@@ -98,25 +98,29 @@
                   Sarà sostituita dall’archiviazione, che scollega senza cancellare.
                 </span>
               </label>
-              <label class="shop-change-wizard__option">
+              <!--
+                ⛔ Sospese anche queste, per la stessa ragione del catalogo:
+                   nessuna funzione Shopify elimina clienti o ordini VestiFlow
+                   (docs/24 §1.14). Restano visibili e spente perché toglierle
+                   farebbe sembrare che non siano mai esistite.
+              -->
+              <label class="shop-change-wizard__option shop-change-wizard__option--disabled">
                 <span class="shop-change-wizard__option-row">
-                  <input
-                    type="checkbox"
-                    [checked]="purgeOrders()"
-                    [disabled]="purgeCustomers()"
-                    (change)="purgeOrders.set($any($event.target).checked)"
-                  />
+                  <input type="checkbox" [checked]="false" disabled />
                   Ordini vendita Shopify
                 </span>
+                <span class="shop-change-wizard__option-hint">
+                  Sospesa: cancellava gli ordini e con loro gli impegni di magazzino, che restavano
+                  contati sulla giacenza senza esistere più.
+                </span>
               </label>
-              <label class="shop-change-wizard__option">
+              <label class="shop-change-wizard__option shop-change-wizard__option--disabled">
                 <span class="shop-change-wizard__option-row">
-                  <input
-                    type="checkbox"
-                    [checked]="purgeCustomers()"
-                    (change)="onPurgeCustomersChange($any($event.target).checked)"
-                  />
-                  Clienti Shopify (include ordini vendita collegati)
+                  <input type="checkbox" [checked]="false" disabled />
+                  Clienti Shopify
+                </span>
+                <span class="shop-change-wizard__option-hint">
+                  Sospesa: i documenti che nominavano quel cliente perdevano l’intestatario.
                 </span>
               </label>
             </fieldset>

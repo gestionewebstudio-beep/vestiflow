@@ -78,6 +78,33 @@ const VIETATE = new Set([
        spetta a un sync di canale.
   */
   'location',
+  /*
+    ⛔ **`customer` e `salesOrder` aggiunte il 07/09/2026** — `docs/24` §1.14:
+       nessuna funzione Shopify elimina clienti o ordini VestiFlow. Puo' chiudere
+       o sospendere il collegamento; l'eliminazione locale e' una funzione
+       VestiFlow separata e controllata.
+
+    ⚠️ **Vale anche per l'ordine che non ha ancora generato un documento.** E' il
+       caso che sembra innocuo, ed e' quello in cui la cancellazione sembra piu'
+       giustificabile.
+
+    ⭐ **Le due cancellazioni erano in `purge()`**, e ognuna faceva un danno per
+       CASCATA che il codice non nominava: `salesOrder.deleteMany` portava via
+       gli impegni (`StockReservation.order` e' `Cascade`) scavalcando il
+       servizio di dominio quantita', e `customer.deleteMany` scollegava i
+       documenti che nominavano quel cliente (`documents.customer_id` e'
+       `SET NULL`).
+
+    ⚠️ **`salesOrderLine` e `salesOrderRefundTaxLine` restano FUORI**, ed e' una
+       distinzione misurata: sono righe figlie riscritte durante l'upsert di un
+       ordine, che il canale possiede. Vietarle produrrebbe impegni gonfiati per
+       sempre — `emitCanonicalOrderEvents` rilegge le righe dal database, quindi
+       una riga fantasma non verrebbe mai rilasciata — e scomposizioni IVA
+       duplicate a ogni risincronizzazione. Il divieto e' sull'ENTITA', non sulle
+       sue righe.
+  */
+  'customer',
+  'salesOrder',
 ]);
 
 /**

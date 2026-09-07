@@ -1,7 +1,7 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { PrismaClient } from '@prisma/client';
-import { ShopifyConnectionStatus, SupplierOrderStatus } from '@prisma/client';
+import { ShopifyConnectionStatus } from '@prisma/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../../app.module';
@@ -210,122 +210,81 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
     expect(dopo.sedi).toBe(prima.sedi);
   });
 
-  it('scenario 2 · purge del solo catalogo è rifiutata e non tocca niente', async () => {
-    const prima = await fotografa(prisma);
+  /*
+    ⛔ **TUTTE le combinazioni della purge sono bloccate** — `docs/24` §1.14:
+       nessuna funzione Shopify elimina clienti o ordini VestiFlow. Il blocco e'
+       temporaneo e dichiarato: cade quando esistera' lo scollegamento storico
+       non distruttivo.
 
-    await expect(
-      cambioNegozio.purge(P.tenant, { confirmShopDomain: DOMINIO_PROVA, purgeCatalog: true, purgeCustomers: false, purgeOrders: false }),
-    ).rejects.toThrow(/sospesa/i);
+    ⭐ **Il rifiuto arriva PRIMA di letture e transazioni.** Non e' un dettaglio
+       di stile: un rifiuto che arrivasse dopo una lettura sarebbe gia' un
+       percorso che «entra» nella purga, e dovrebbe garantire di uscirne senza
+       aver scritto. Rifiutare in testa toglie la domanda.
 
-    const dopo = await fotografa(prisma);
-    attendiIntatti(prima, dopo, [...TUTTO_CIO_CHE_RESTA, 'clienti', 'ordiniVendita']);
-  });
+    ⚠️ Le sette combinazioni sono generate, non scritte a mano: cosi' nessuna
+       resta fuori per distrazione, e una categoria nuova nel DTO fa comparire
+       le sue prove da sola.
+  */
+  describe('scenario 2-6 · ogni combinazione della purge e rifiutata', () => {
+    const CATEGORIE = ['purgeCatalog', 'purgeCustomers', 'purgeOrders'] as const;
 
-  it('scenario 3 · purge dei soli clienti non tocca inventario né sedi', async () => {
-    // Un cliente con ordini non e' rimovibile: resta quello senza.
-    const prima = await fotografa(prisma);
-
-    const rifiuto = await esegui(() =>
-      cambioNegozio.purge(P.tenant, {
-        confirmShopDomain: DOMINIO_PROVA,
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: false,
-      }),
-    );
-
-    /*
-      ⭐ **Rifiutata, ed e' giusto cosi'.** Il cliente di prova ha ordini
-         Shopify collegati: rimuoverlo senza rimuoverli lascerebbe ordini che
-         nominano un cliente inesistente. La guardia esiste e funziona.
-    */
-    expect(rifiuto).toMatch(/includi anche gli ordini/i);
-
-    const dopo = await fotografa(prisma);
-    attendiIntatti(prima, dopo, [...TUTTO_CIO_CHE_RESTA, 'clienti', 'ordiniVendita']);
-  });
-
-  it('scenario 4 · purge dei soli ordini non tocca inventario né sedi', async () => {
-    // Con impegni attivi la purga deve fermarsi: e' la guardia introdotta dal
-    // primo commit, e qui si prova contro il database vero.
-    const prima = await fotografa(prisma);
-
-    await expect(
-      cambioNegozio.purge(P.tenant, {
-        confirmShopDomain: DOMINIO_PROVA,
-        purgeCatalog: false,
-        purgeCustomers: false,
-        purgeOrders: true,
-      }),
-    ).rejects.toThrow(/impegni/i);
-
-    const dopo = await fotografa(prisma);
-    attendiIntatti(prima, dopo, [...TUTTO_CIO_CHE_RESTA, 'ordiniVendita', 'impegni']);
-  });
-
-  it('scenario 4-bis · chiusi gli impegni, la purga ordini non tocca comunque inventario né sedi', async () => {
-    await prisma.stockReservation.updateMany({
-      where: { tenantId: P.tenant },
-      data: { status: 'released' },
+    /** Le sette combinazioni non vuote di tre categorie. */
+    const COMBINAZIONI = Array.from({ length: 7 }, (_, n) => n + 1).map((maschera) => {
+      const scelte = {
+        purgeCatalog: Boolean(maschera & 1),
+        purgeCustomers: Boolean(maschera & 2),
+        purgeOrders: Boolean(maschera & 4),
+      };
+      const nome = CATEGORIE.filter((c) => scelte[c])
+        .map((c) => c.replace('purge', '').toLowerCase())
+        .join(' + ');
+      return { nome, scelte };
     });
-    const prima = await fotografa(prisma);
 
-    const rifiuto = await esegui(() =>
-      cambioNegozio.purge(P.tenant, {
-        confirmShopDomain: DOMINIO_PROVA,
-        purgeCatalog: false,
-        purgeCustomers: false,
-        purgeOrders: true,
-      }),
+    it.each(COMBINAZIONI.map((c) => [c.nome, c.scelte] as const))(
+      '%s — rifiutata, e nessun record cambia',
+      async (_nome, scelte) => {
+        const prima = await fotografa(prisma);
+
+        const rifiuto = await esegui(() =>
+          cambioNegozio.purge(P.tenant, { confirmShopDomain: DOMINIO_PROVA, ...scelte }),
+        );
+
+        expect(rifiuto, 'la purga NON e stata rifiutata').not.toBeNull();
+        expect(rifiuto, 'il rifiuto non dichiara di essere temporaneo').toMatch(
+          /sospes|temporane|non distruttiv/i,
+        );
+
+        // ⛔ Nessun record cambia: ne` catalogo, ne` inventario, ne` sedi, ne`
+        //    clienti, ne` ordini, ne` impegni.
+        const dopo = await fotografa(prisma);
+        const differenzeTrovate = differenze(prima, dopo);
+        expect(differenzeTrovate, 'la purga rifiutata ha modificato dei record').toEqual([]);
+      },
     );
 
-    /*
-      ⭐ **Una seconda guardia, e anche questa funziona**: il dataset ha un
-         ordine fornitore ancora aperto, e la purga si ferma. Che l'esito sia
-         una riuscita o un rifiuto, quello che il collaudo verifica e' lo
-         stesso: nulla di inventario, catalogo e sedi si muove.
-    */
-    const dopo = await fotografa(prisma);
-    attendiIntatti(prima, dopo, TUTTO_CIO_CHE_RESTA);
-    if (rifiuto !== null) {
-      expect(rifiuto).toMatch(/ordini fornitore aperti/i);
-    }
-  });
+    it('il rifiuto arriva PRIMA di leggere il database', async () => {
+      /*
+        ⭐ **Come si prova che non ha letto**: si passa un dominio di conferma
+           SBAGLIATO. Il controllo del dominio richiede una lettura della
+           connessione; se il rifiuto lo precede, il messaggio parla della purga
+           sospesa e non del dominio.
+      */
+      const rifiuto = await esegui(() =>
+        cambioNegozio.purge(P.tenant, {
+          confirmShopDomain: 'un-negozio-che-non-e-quello.myshopify.com',
+          purgeCatalog: false,
+          purgeCustomers: true,
+          purgeOrders: true,
+        }),
+      );
 
-  it('scenario 5 · purge di clienti e ordini insieme non tocca inventario né sedi', async () => {
-    await prisma.stockReservation.updateMany({
-      where: { tenantId: P.tenant },
-      data: { status: 'released' },
+      expect(rifiuto).not.toBeNull();
+      expect(
+        rifiuto,
+        'il rifiuto arriva DOPO la lettura della connessione: parla del dominio',
+      ).not.toMatch(/dominio/i);
     });
-    const prima = await fotografa(prisma);
-
-    const rifiuto = await esegui(() =>
-      cambioNegozio.purge(P.tenant, {
-        confirmShopDomain: DOMINIO_PROVA,
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: true,
-      }),
-    );
-
-    const dopo = await fotografa(prisma);
-    attendiIntatti(prima, dopo, TUTTO_CIO_CHE_RESTA);
-    if (rifiuto !== null) {
-      expect(rifiuto).toMatch(/ordini fornitore aperti|includi anche gli ordini/i);
-    }
-  });
-
-  it('scenario 6 · purge di tutte le categorie è rifiutata per il catalogo', async () => {
-    const prima = await fotografa(prisma);
-
-    await expect(
-      cambioNegozio.purge(P.tenant, { confirmShopDomain: DOMINIO_PROVA, purgeCatalog: true, purgeCustomers: true, purgeOrders: true }),
-    ).rejects.toThrow(/sospesa/i);
-
-    // ⭐ Il rifiuto e' la PRIMA istruzione: nemmeno clienti e ordini vengono
-    //    toccati, perche' la funzione non arriva a leggerli.
-    const dopo = await fotografa(prisma);
-    attendiIntatti(prima, dopo, [...TUTTO_CIO_CHE_RESTA, 'clienti', 'ordiniVendita', 'impegni']);
   });
 
   it('scenario 7 · cambio negozio: purga consentita più riconnessione altrove', async () => {
@@ -550,90 +509,20 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
   });
 
   /*
-    ⛔ **Il messaggio d'errore della purga NOMINA UNA CAUSA CHE NON C'ENTRA.**
+    ⛔ **Lo scenario 14 e' stato RIMOSSO, e la ragione va detta.**
 
-       Misurato il 07/09/2026 contro PostgreSQL vero. Rimuovere clienti e ordini
-       Shopify fallisce, e all'operatore arriva:
+       Provava che il messaggio d'errore della purga nominasse una causa
+       inesistente: «Chiudi gli ordini fornitore aperti» mentre a bloccare era
+       `online_sales.sales_order_id`, che e' `RESTRICT`.
 
-         «…Chiudi gli ordini fornitore aperti e riprova.»
+       Quel difetto **non e' piu' raggiungibile**: la purga e' rifiutata in
+       testa per ogni combinazione, quindi nessuna violazione di chiave esterna
+       puo' piu' arrivare a `mapPurgeError`.
 
-       Gli ordini fornitore non c'entrano: in questa prova sono tutti chiusi.
-       A bloccare è `online_sales.sales_order_id`, che è `RESTRICT` — una
-       vendita online riferisce l'ordine che si sta cancellando.
-
-    ⚠️ **Non è un difetto di perdita dati: è il suo opposto.** Il database
-       protegge, e la transazione non lascia niente a metà. Ma
-       `mapPurgeError` traduce OGNI violazione di chiave esterna (P2003) in
-       quell'unica frase, quindi l'operatore chiude gli ordini fornitore,
-       riprova, e fallisce di nuovo senza sapere perché.
-
-    ⭐ **Effetto collaterale utile**: il difetto segnalato dal censimento —
-       «rimuovere i clienti scollega i documenti che li nominano», perché
-       `documents.customer_id` è `SET NULL` — NON è raggiungibile da questo
-       percorso. La cancellazione fallisce prima, su un altro vincolo. Resta
-       un rischio se un domani quel blocco cadesse.
+    ⚠️ **Il difetto pero' non e' corretto: e' diventato irraggiungibile.** Se un
+       domani la purga tornera' — come scollegamento non distruttivo — quella
+       traduzione sbagliata sara' ancora li'. Registrato in `docs/DA-FARE.md`.
   */
-  it('scenario 14 · la purga di clienti e ordini fallisce, e il motivo dichiarato è sbagliato', async () => {
-    // Il documento passa a nominare il cliente SENZA ordini, che sarebbe rimovibile.
-    await prisma.document.update({
-      where: { id: P.documento },
-      data: { customerId: P.clienteSenzaOrdini },
-    });
-    // Si tolgono le due guardie a monte, per raggiungere il caso: con impegni
-    // attivi o ordini fornitore aperti la purga si fermerebbe prima.
-    await prisma.stockReservation.updateMany({
-      where: { tenantId: P.tenant },
-      data: { status: 'released' },
-    });
-    await prisma.supplierOrder.updateMany({
-      where: { tenantId: P.tenant },
-      data: { status: SupplierOrderStatus.concluded },
-    });
-    const prima = await fotografa(prisma);
-    expect(prima.documentiSenzaCliente).toBe(1); // il solo trasferimento
-
-    const rifiuto = await esegui(() =>
-      cambioNegozio.purge(P.tenant, {
-        confirmShopDomain: DOMINIO_PROVA,
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: true,
-      }),
-    );
-
-    const dopo = await fotografa(prisma);
-
-    // ⭐ Ciò che conta di più: il fallimento non lascia niente a metà.
-    attendiIntatti(prima, dopo, [
-      ...CATALOGO,
-      ...INVENTARIO,
-      ...DOCUMENTI,
-      ...SEDI,
-      ...SCOLLEGAMENTI,
-      'clienti',
-      'ordiniVendita',
-    ]);
-
-    /*
-      ⏸ **DECISIONE FUNZIONALE APERTA.** Che il messaggio sia sbagliato è un
-         fatto; che cosa debba dire invece dipende da una decisione che non è
-         stata presa:
-
-           · un ordine Shopify con una vendita online collegata può essere
-             eliminato? (oggi no, e il database lo impone)
-           · se no, la purga deve dirlo — e allora serve sapere quali vincoli
-             nominare, cioè quali dati la purga NON potrà mai rimuovere
-           · un cliente Shopify importato può essere eliminato fisicamente?
-
-         Questa prova fissa il comportamento attuale. Il giorno in cui il
-         messaggio verrà corretto, sarà questa riga a diventare rossa.
-    */
-    expect(rifiuto, 'oggi la purga fallisce').not.toBeNull();
-    expect(
-      rifiuto,
-      'e il motivo dichiarato è «ordini fornitore aperti», che qui non ce ne sono',
-    ).toMatch(/ordini fornitore aperti/i);
-  });
 
   describe('scenario 12 · una sede con un riferimento non si elimina', () => {
     it.each(RELAZIONI_SEDE.map((r) => [r.nome, r] as const))(

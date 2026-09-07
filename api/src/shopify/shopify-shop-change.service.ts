@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,12 +15,6 @@ import type { PurgeShopifyDataDto } from './dto/purge-shopify-data.dto';
 const OPEN_SUPPLIER_ORDER_STATUSES: readonly SupplierOrderStatus[] = [
   SupplierOrderStatus.confirmed,
 ];
-
-/** Purge può coinvolere molte righe (catalogo + movimenti + ordini). */
-const PURGE_TRANSACTION_OPTIONS = {
-  maxWait: 10_000,
-  timeout: 120_000,
-} as const;
 
 export interface ShopifyShopChangeBlocker {
   readonly code: 'supplier_orders_open';
@@ -79,156 +72,58 @@ export class ShopifyShopChangeService {
     };
   }
 
+  /**
+   * ⛔ **SOSPESA per intero, per ogni combinazione** — `docs/24` §1.14.
+   *
+   * Nessuna funzione Shopify elimina clienti o ordini VestiFlow: puo' chiudere
+   * o sospendere il collegamento. L'eliminazione locale e' una funzione
+   * VestiFlow separata e controllata.
+   *
+   * ⚠️ **Vale anche per l'ordine che non ha ancora generato un documento**
+   *    (§1.14.2). E' il caso che sembra innocuo — «non e' ancora diventato
+   *    niente» — ed e' quello in cui la cancellazione sembra piu' giustificabile.
+   *
+   * ⭐ **Il rifiuto e' la PRIMA istruzione**: prima della conferma del dominio,
+   *    prima di leggere il database, prima di aprire la transazione. Un rifiuto
+   *    che arrivasse dopo una lettura sarebbe gia' un percorso che «entra» nella
+   *    purga, e dovrebbe garantire di uscirne senza aver scritto: rifiutare in
+   *    testa toglie la domanda.
+   *
+   * ⚠️ **Che cosa c'era qui, e perche' non torna in questa forma.**
+   *
+   *    `purgeCatalog` cancellava prodotti collegati, giacenze, movimenti e
+   *    righe di conteggio. Il 03/09/2026 un tenant ha perso TUTTE le giacenze e
+   *    TUTTI i movimenti: 48 righe documento con la spunta magazzino sono
+   *    rimaste senza il loro effetto.
+   *
+   *    `purgeOrders` faceva `salesOrder.deleteMany`, e
+   *    `StockReservation.order` e' `onDelete: Cascade`: gli impegni sparivano
+   *    SCAVALCANDO il servizio di dominio, quindi `committed` restava gonfiato
+   *    e `available` piu' basso del vero, per sempre, senza segnale.
+   *
+   *    `purgeCustomers` faceva `customer.deleteMany`, e `documents.customer_id`,
+   *    `sales_orders.customer_id` e `online_sales.customer_id` sono `SET NULL`:
+   *    i documenti perdevano l'intestatario.
+   *
+   * ⭐ **Il comportamento definitivo** — chiudere il collegamento conservandone
+   *    la storia — richiede `shopify_location_links` e gli equivalenti per
+   *    clienti e ordini. Fino ad allora questa capacita' non esiste, e non
+   *    esiste sull'API: nasconderla nell'interfaccia proteggerebbe solo chi
+   *    passa dall'interfaccia.
+   *
+   * ⚠️ **Le due `deleteMany` sono state RIMOSSE, non rese irraggiungibili.** Un
+   *    rifiuto in testa le renderebbe irraggiungibili oggi; toglierle le rende
+   *    irraggiungibili anche dopo la prossima modifica distratta.
+   */
   async purge(tenantId: string, dto: PurgeShopifyDataDto): Promise<ShopifyShopChangePurgeResult> {
-    /*
-      ⛔ **La rimozione del CATALOGO e' sospesa, e il rifiuto viene PRIMA di ogni
-         altra cosa** — prima della conferma del dominio, prima di leggere il
-         database, prima di aprire la transazione. Un rifiuto che arrivasse dopo
-         una lettura sarebbe gia' un percorso che «entra» nella purga.
-
-      ⛔ **Perche' e' sospesa.** `purgeCatalog` cancellava fisicamente prodotti
-         collegati, giacenze, movimenti e righe di conteggio. Le decisioni di
-         prodotto dicono l'opposto: Shopify non puo' cancellare la storia
-         inventariale di VestiFlow, un prodotto gia' collegato non si elimina, e
-         la rimozione remota e' uno STATO del collegamento — non una
-         cancellazione dell'entita' locale.
-
-      ⚠️ **Non e' una precauzione teorica.** Il 03/09/2026 un tenant ha perso
-         TUTTE le giacenze e TUTTI i movimenti: 48 righe documento con la spunta
-         magazzino sono rimaste senza il loro effetto. Il percorso era
-         `disconnect()`, corretto l'08/08 e arrivato in produzione solo il 06/09;
-         ma la stessa pulizia era — ed e' — raggiungibile da qui.
-
-      ⭐ Il comportamento definitivo (archiviazione e scollegamento non
-         distruttivo) si progetta nel lavoro sullo storico dei collegamenti. Fino
-         ad allora questa capacita' non esiste, e non esiste sull'API: nasconderla
-         nell'interfaccia proteggerebbe solo chi passa dall'interfaccia.
-    */
-    if (dto.purgeCatalog) {
-      throw new UnprocessableEntityException(
-        'La rimozione del catalogo Shopify e` sospesa: cancellava prodotti, giacenze e ' +
-          'movimenti locali. Verra` sostituita dall`archiviazione e dallo scollegamento non ' +
-          'distruttivo. Puoi rimuovere clienti e ordini Shopify.',
-      );
-    }
-
-    const currentShopDomain = await this.requireCurrentShopDomain(tenantId);
-    if (dto.confirmShopDomain !== currentShopDomain) {
-      throw new BadRequestException(
-        'Il dominio inserito non corrisponde al negozio Shopify attualmente collegato.',
-      );
-    }
-
-    if (!dto.purgeCustomers && !dto.purgeOrders) {
-      throw new BadRequestException('Seleziona almeno una categoria di dati da rimuovere.');
-    }
-
-    /*
-      ⛔ **`salesOrder.deleteMany` corrompe la giacenza per CASCATA, e non si vede.**
-         `StockReservation.order` è `onDelete: Cascade` (schema.prisma), quindi
-         cancellare un ordine Shopify porta via i suoi impegni di magazzino.
-
-      ⚠️ Il problema non è la riga persa: è che sparisce SCAVALCANDO il servizio
-         di dominio. Lo schema lo dichiara sopra `StockReservation`: «ogni
-         variazione passa dal servizio di dominio quantità (mai update sparsi):
-         committed e available su InventoryLevel cambiano solo insieme
-         all'impegno». Una cascata non lo invoca: `committed` resta gonfiato e
-         `available` più basso del vero, per sempre, senza che niente lo segnali.
-
-      ⭐ **Si rifiuta, non si rilascia in automatico.** Rilasciare gli impegni qui
-         dentro sarebbe progettare un comportamento nuovo dentro una patch di
-         sicurezza. Chi vuole rimuovere quegli ordini chiude prima i loro impegni,
-         dal percorso che li governa.
-
-      ⚠️ Non è teorico: sul database di sviluppo ci sono 21 impegni su ordini
-         Shopify.
-    */
-    if (dto.purgeOrders) {
-      const impegniAttivi = await this.prisma.stockReservation.count({
-        where: {
-          tenantId,
-          status: 'active',
-          order: { shopifyOrderId: { not: null } },
-        },
-      });
-      if (impegniAttivi > 0) {
-        throw new UnprocessableEntityException(
-          `Impossibile rimuovere gli ordini Shopify: ${impegniAttivi} impegni di magazzino sono ` +
-            'ancora attivi su quegli ordini. Cancellarli scollegherebbe la quantità impegnata ' +
-            'dalla giacenza senza aggiornarla. Chiudi prima gli impegni.',
-        );
-      }
-    }
-
-    if (dto.purgeCustomers && !dto.purgeOrders) {
-      const linkedOrders = await this.prisma.salesOrder.count({
-        where: {
-          tenantId,
-          shopifyOrderId: { not: null },
-          customer: { shopifyCustomerId: { not: null } },
-        },
-      });
-      if (linkedOrders > 0) {
-        throw new BadRequestException(
-          'Per rimuovere i clienti Shopify includi anche gli ordini vendita Shopify.',
-        );
-      }
-    }
-
-    const purged = {
-      products: 0,
-      customers: 0,
-      salesOrders: 0,
-      stockMovements: 0,
-      inventoryLevels: 0,
-      inventoryCountLines: 0,
-      locations: 0,
-    };
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        if (dto.purgeOrders) {
-          const orders = await tx.salesOrder.deleteMany({
-            where: { tenantId, shopifyOrderId: { not: null } },
-          });
-          purged.salesOrders = orders.count;
-        }
-
-        if (dto.purgeCustomers) {
-          const customers = await tx.customer.deleteMany({
-            where: { tenantId, shopifyCustomerId: { not: null } },
-          });
-          purged.customers = customers.count;
-        }
-
-        /*
-          ⛔ **Qui c'era la pulizia delle SEDI**, e girava anche quando l'operatore
-             aveva spuntato SOLO clienti o SOLO ordini:
-
-               if (dto.purgeCatalog || dto.purgeCustomers || dto.purgeOrders) {
-                 purged.locations = await this.cleanupShopifyLocations(tx, tenantId, dto.purgeCatalog);
-               }
-
-             `prepareShopifyLocationForRemoval` cancellava sessioni di conteggio,
-             giacenze e movimenti di OGNI sede mai sincronizzata — e li cancellava
-             PRIMA di controllare `purgeCatalog`, che veniva letto solo piu' sotto
-             per gli ordini fornitore. Rimuovere i clienti Shopify portava via la
-             storia inventariale di articoli che con Shopify non c'entravano nulla.
-
-          ⭐ **Rimuovere clienti e ordini non tocca le sedi**, e non deve toccarle:
-             una sede e' un luogo fisico del gestionale, non un dato del canale.
-        */
-      }, PURGE_TRANSACTION_OPTIONS);
-    } catch (error) {
-      this.logger.error(`Purge dati Shopify fallita (${tenantId})`, error);
-      throw this.mapPurgeError(error);
-    }
-
-    this.logger.log(
-      `Purge dati Shopify (${tenantId}, ${currentShopDomain}): prodotti=${purged.products} clienti=${purged.customers} ordini=${purged.salesOrders} location=${purged.locations}`,
+    void tenantId;
+    void dto;
+    throw new UnprocessableEntityException(
+      'La rimozione dei dati Shopify è sospesa in ogni sua forma: cancellava prodotti, ' +
+        'giacenze, movimenti, clienti e ordini locali. Verrà sostituita dallo scollegamento ' +
+        'non distruttivo, che chiude il collegamento conservando i dati e la loro storia. ' +
+        'La disconnessione da Shopify resta disponibile e non tocca nulla in VestiFlow.',
     );
-
-    return { purged };
   }
 
   private async resolveCurrentShopDomain(tenantId: string): Promise<string | null> {
@@ -268,29 +163,6 @@ export class ShopifyShopChangeService {
       select: { id: true },
     });
     return variants.map((variant) => variant.id);
-  }
-
-  private mapPurgeError(error: unknown): Error {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2003') {
-        return new UnprocessableEntityException(
-          'Impossibile rimuovere alcuni dati Shopify perché sono ancora collegati ad altre operazioni nel gestionale. Chiudi gli ordini fornitore aperti e riprova.',
-        );
-      }
-      if (error.code === 'P2028') {
-        return new UnprocessableEntityException(
-          'Operazione troppo lunga: attendi qualche minuto e riprova.',
-        );
-      }
-    }
-
-    if (error instanceof Error && /expired transaction/i.test(error.message)) {
-      return new UnprocessableEntityException(
-        'Operazione troppo lunga: attendi qualche minuto e riprova.',
-      );
-    }
-
-    return error instanceof Error ? error : new Error(String(error));
   }
 
   private async countShopifyData(

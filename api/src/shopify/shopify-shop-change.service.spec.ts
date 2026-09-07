@@ -1,5 +1,5 @@
-import { BadRequestException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { Prisma, SupplierOrderStatus } from '@prisma/client';
+import { UnprocessableEntityException } from '@nestjs/common';
+import { SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
@@ -173,249 +173,98 @@ describe('ShopifyShopChangeService', () => {
     expect(preview.blockers).toEqual([]);
   });
 
-  it('purge richiede dominio corrispondente', async () => {
-    const { service } = createService();
-
-    await expect(
-      service.purge(tenantId, {
-        confirmShopDomain: 'other.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: true,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
   /*
-    ⛔ **La rimozione del catalogo e' sospesa.** Cancellava prodotti collegati,
-       giacenze, movimenti e righe di conteggio: l'opposto delle decisioni di
-       prodotto, per cui la rimozione remota e' uno STATO del collegamento.
+    ⛔ **La purga e' SOSPESA in ogni sua forma** — `docs/24` §1.14: nessuna
+       funzione Shopify elimina clienti o ordini VestiFlow.
 
-    ⚠️ Il rifiuto deve arrivare PRIMA di qualunque lettura o scrittura. Un
-       rifiuto tardivo sarebbe gia' un percorso che entra nella purga, e
-       basterebbe un `return` spostato per farlo diventare distruttivo di nuovo.
+    ⚠️ **Qui c'erano dodici prove** che descrivevano il comportamento delle
+       singole categorie: quali combinazioni riuscissero, che cosa rimuovessero,
+       quali guardie le fermassero. Descrivevano una capacita' che non esiste
+       piu', e tenerle avrebbe significato sorvegliare un contratto ritirato.
+
+    ⭐ **Restano le tre domande che contano ancora**: che il rifiuto arrivi per
+       OGNI combinazione, che arrivi PRIMA di qualunque accesso al database, e
+       che il messaggio dica «sospesa» — cioe' che la capacita' tornera' in
+       un'altra forma, non che sia vietata per sempre.
   */
-  describe('purgeCatalog e` sospeso', () => {
-    it('viene rifiutato prima di qualsiasi lettura o scrittura', async () => {
-      const { service, prisma, tx, location } = createService();
+  describe('la purga e` sospesa in ogni sua forma', () => {
+    /** Le sette combinazioni non vuote delle tre categorie. */
+    const COMBINAZIONI = Array.from({ length: 7 }, (_, n) => n + 1).map((maschera) => ({
+      purgeCatalog: Boolean(maschera & 1),
+      purgeCustomers: Boolean(maschera & 2),
+      purgeOrders: Boolean(maschera & 4),
+    }));
+
+    it.each(COMBINAZIONI)(
+      'rifiutata: catalogo=$purgeCatalog clienti=$purgeCustomers ordini=$purgeOrders',
+      async (scelte) => {
+        const { service, prisma, tx, location } = createService();
+
+        await expect(
+          service.purge(tenantId, { confirmShopDomain: 'old.myshopify.com', ...scelte }),
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+        /*
+          ⭐ **Nessun accesso al database, di nessun tipo.** Non «nessuna
+             scrittura»: nessuna LETTURA. Un rifiuto che arrivasse dopo una
+             lettura sarebbe gia' un percorso che entra nella purga.
+        */
+        expect(prisma.shopifyCredential.findUnique).not.toHaveBeenCalled();
+        expect(prisma.shopifyConnection.findUnique).not.toHaveBeenCalled();
+        expect(prisma.stockReservation.count).not.toHaveBeenCalled();
+        expect(prisma.salesOrder.count).not.toHaveBeenCalled();
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+        attendiCatalogoEInventarioIntatti(tx, location);
+      },
+    );
+
+    it('il messaggio dice che e` sospesa, non che e` vietata per sempre', async () => {
+      const { service } = createService();
 
       await expect(
         service.purge(tenantId, {
           confirmShopDomain: 'old.myshopify.com',
-          purgeCatalog: true,
-          purgeCustomers: false,
-          purgeOrders: false,
+          purgeCatalog: false,
+          purgeCustomers: true,
+          purgeOrders: true,
         }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
-
-      // Nemmeno la lettura del dominio corrente: il rifiuto e' la prima cosa.
-      expect(prisma.shopifyCredential.findUnique).not.toHaveBeenCalled();
-      expect(prisma.$transaction).not.toHaveBeenCalled();
-      attendiCatalogoEInventarioIntatti(tx, location);
+      ).rejects.toThrow(/sospes/i);
     });
 
-    it('e` rifiutato anche insieme alle altre categorie, e anche col dominio giusto', async () => {
-      const { service, prisma } = createService();
+    it('il rifiuto precede il controllo del dominio', async () => {
+      /*
+        ⭐ **Come si prova**: con un dominio di conferma SBAGLIATO. Il controllo
+           del dominio richiede una lettura della connessione; se il rifiuto lo
+           precede, il messaggio parla della sospensione e non del dominio.
+      */
+      const { service } = createService();
 
-      for (const dto of [
-        { purgeCatalog: true, purgeCustomers: true, purgeOrders: false },
-        { purgeCatalog: true, purgeCustomers: false, purgeOrders: true },
-        { purgeCatalog: true, purgeCustomers: true, purgeOrders: true },
-      ]) {
+      await expect(
+        service.purge(tenantId, {
+          confirmShopDomain: 'un-altro-negozio.myshopify.com',
+          purgeCatalog: false,
+          purgeCustomers: true,
+          purgeOrders: true,
+        }),
+      ).rejects.toThrow(/sospes/i);
+    });
+
+    it('il rifiuto sta nel SERVIZIO, quindi vale anche per una chiamata diretta', async () => {
+      /*
+        ⚠️ Nasconderla nell'interfaccia proteggerebbe solo chi passa
+           dall'interfaccia: il wizard non e' l'unico modo di arrivare qui.
+      */
+      const { service } = createService();
+
+      for (const scelte of COMBINAZIONI) {
         await expect(
-          service.purge(tenantId, { confirmShopDomain: 'old.myshopify.com', ...dto }),
+          service.purge(tenantId, { confirmShopDomain: 'old.myshopify.com', ...scelte }),
         ).rejects.toBeInstanceOf(UnprocessableEntityException);
       }
-
-      expect(prisma.$transaction).not.toHaveBeenCalled();
-    });
-
-    it('il messaggio dice perche` e cosa resta possibile', async () => {
-      const { service } = createService();
-
-      await expect(
-        service.purge(tenantId, {
-          confirmShopDomain: 'old.myshopify.com',
-          purgeCatalog: true,
-          purgeCustomers: false,
-          purgeOrders: false,
-        }),
-      ).rejects.toThrow(/sospesa/i);
-    });
-
-    /*
-      ⛔ **Una chiamata diretta all'endpoint non aggira la protezione**, e questa
-         prova serve a dimostrare DOVE vive: nel servizio, non nel controller e
-         non nel DTO.
-
-         `ShopifyController.purgeShopifyData` inoltra il DTO cosi` com'e`
-         (`return this.shopifyShopChange.purge(tenantId, dto)`) e il DTO valida
-         solo che `purgeCatalog` sia un booleano. Quindi chi chiama l'endpoint
-         con `curl` incontra lo stesso rifiuto di chi passa dall'interfaccia.
-
-      ⚠️ Nascondere il comando nell'interfaccia sarebbe stato inutile: il difetto
-         che ha distrutto i dati non e` passato da un pulsante nascosto, e la
-         protezione che conta e` quella che il server applica da solo.
-    */
-    it('il rifiuto sta nel SERVIZIO, quindi vale anche per una chiamata diretta', async () => {
-      const { service } = createService();
-      const chiamataGrezza = {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: true,
-        purgeCustomers: false,
-        purgeOrders: false,
-      };
-
-      // Il controller fa esattamente questo, senza aggiungere né togliere nulla.
-      await expect(service.purge(tenantId, chiamataGrezza)).rejects.toBeInstanceOf(
-        UnprocessableEntityException,
-      );
     });
   });
 
-  /*
-    ⛔ **Qui c'era «purge elimina dati selezionati e location Shopify vuote»**,
-       che asseriva `location.delete` chiamata due volte — cioe' verificava come
-       corretto proprio il comportamento che ha distrutto i dati di un tenant.
 
-    ⭐ Rimuovere clienti e ordini Shopify non tocca ne' il catalogo, ne'
-       l'inventario, ne' le sedi.
-  */
-  describe('rimuovere clienti e ordini non tocca catalogo, inventario e sedi', () => {
-    it('solo clienti', async () => {
-      const { service, prisma, tx, location } = createService();
-      /*
-        Regola preesistente e corretta: i clienti Shopify non si rimuovono da
-        soli se restano ordini Shopify che li referenziano. Qui non ce ne sono,
-        cosi' la prova verifica cio' che deve verificare — che la purga dei soli
-        clienti non tocchi inventario e sedi — e non inciampa in un altro rifiuto.
-      */
-      prisma.salesOrder.count.mockResolvedValue(0);
-
-      const result = await service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: false,
-      });
-
-      expect(result.purged.customers).toBe(3);
-      expect(result.purged.locations).toBe(0);
-      expect(tx.customer.deleteMany).toHaveBeenCalledTimes(1);
-      expect(tx.salesOrder.deleteMany).not.toHaveBeenCalled();
-      attendiCatalogoEInventarioIntatti(tx, location);
-    });
-
-    it('solo ordini', async () => {
-      const { service, tx, location } = createService();
-
-      const result = await service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: false,
-        purgeOrders: true,
-      });
-
-      expect(result.purged.salesOrders).toBe(4);
-      expect(result.purged.locations).toBe(0);
-      expect(tx.salesOrder.deleteMany).toHaveBeenCalledTimes(1);
-      expect(tx.customer.deleteMany).not.toHaveBeenCalled();
-      attendiCatalogoEInventarioIntatti(tx, location);
-    });
-
-    it('clienti e ordini insieme', async () => {
-      const { service, tx, location } = createService();
-
-      const result = await service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: true,
-      });
-
-      expect(result.purged.customers).toBe(3);
-      expect(result.purged.salesOrders).toBe(4);
-      expect(result.purged.locations).toBe(0);
-      attendiCatalogoEInventarioIntatti(tx, location);
-    });
-
-    /*
-      ⭐ **Il caso che ha prodotto il danno**: una sede collegata a Shopify che
-         contiene articoli nati SOLO in VestiFlow. La vecchia pulizia cancellava
-         giacenze e movimenti per SEDE, senza filtrare per variante: quegli
-         articoli sparivano senza aver mai avuto a che fare col canale.
-    */
-    it('una sede Shopify con articoli solo VestiFlow non perde nulla', async () => {
-      const { service, tx, location } = createService();
-      // La sede E` collegata a Shopify — e` il caso peggiore, non uno facile.
-      expect(location.shopifyLocation.shopifyLocationId).toBeTruthy();
-
-      await service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: true,
-      });
-
-      attendiCatalogoEInventarioIntatti(tx, location);
-      // E la sede non viene nemmeno ispezionata: la purga non la riguarda.
-      expect(location.findMany).not.toHaveBeenCalled();
-    });
-  });
-
-  /*
-    ⛔ **La cascata che corrompe la giacenza senza cancellare nulla di visibile.**
-       `StockReservation.order` e` `onDelete: Cascade`: cancellare un ordine
-       Shopify porta via i suoi impegni SCAVALCANDO il servizio di dominio, che
-       e` l'unico autorizzato a variare `committed` e `available`. Il risultato
-       e` una giacenza disponibile piu` bassa del vero, per sempre.
-  */
-  it('purgeOrders e` rifiutato se restano impegni di magazzino attivi', async () => {
-    const { service, prisma, tx } = createService();
-    prisma.stockReservation.count.mockResolvedValue(21);
-
-    await expect(
-      service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: false,
-        purgeOrders: true,
-      }),
-    ).rejects.toThrow(/impegni di magazzino/i);
-
-    // Il rifiuto arriva prima della transazione: nessun ordine cancellato.
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-    expect(tx.salesOrder.deleteMany).not.toHaveBeenCalled();
-  });
-
-  it('purge blocca se manca connessione', async () => {
-    const { service, prisma } = createService();
-    prisma.shopifyCredential.findUnique.mockResolvedValue(null);
-    prisma.shopifyConnection.findUnique.mockResolvedValue(null);
-
-    await expect(
-      service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: false,
-      }),
-    ).rejects.toBeInstanceOf(NotFoundException);
-  });
-
-  it('purge rifiuta se non e` selezionata alcuna categoria', async () => {
-    const { service, prisma } = createService();
-
-    await expect(
-      service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: false,
-        purgeOrders: false,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-  });
 
   it('preview segnala ordini fornitore aperti', async () => {
     const { service, prisma } = createService();
@@ -439,21 +288,4 @@ describe('ShopifyShopChangeService', () => {
     );
   });
 
-  it('purge mappa vincoli FK Prisma in 422', async () => {
-    const { service, prisma } = createService();
-    const fkError = new Prisma.PrismaClientKnownRequestError('FK', {
-      code: 'P2003',
-      clientVersion: 'test',
-    });
-    prisma.$transaction.mockRejectedValue(fkError);
-
-    await expect(
-      service.purge(tenantId, {
-        confirmShopDomain: 'old.myshopify.com',
-        purgeCatalog: false,
-        purgeCustomers: true,
-        purgeOrders: true,
-      }),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
-  });
 });
