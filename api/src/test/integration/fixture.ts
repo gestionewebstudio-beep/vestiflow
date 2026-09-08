@@ -62,12 +62,59 @@ const TRIGGER_ANTICANCELLAZIONE = [
   ['shopify_location_links', 'shopify_location_links_mai_truncate'],
 ] as const;
 
-/** Il bersaglio ammesso per una pulizia distruttiva. */
-function esigiDatabaseDiProva(): void {
+/** Il nome del database di prova, e l'unico su cui questo DDL è ammesso. */
+const DATABASE_DI_PROVA = 'vestiflow_test';
+
+/**
+ * Prima barriera: l'AMBIENTE dichiarato è quello di prova.
+ *
+ * ⚠️ **Non basta, e da sola è ingannevole**: dice che `DATABASE_URL_TEST` punta
+ *    al posto giusto, non che il client passato ci sia connesso. La seconda
+ *    barriera — `esigiConnessioneDiProva` — è quella che conta.
+ */
+function esigiAmbienteDiProva(): void {
   const ambiente = ambienteIntegrazione();
-  if (ambiente.host !== 'localhost:5433' || ambiente.database !== 'vestiflow_test') {
+  if (ambiente.host !== 'localhost:5433' || ambiente.database !== DATABASE_DI_PROVA) {
     throw new Error(
-      `⛔ pulizia rifiutata: ${ambiente.host}/${ambiente.database} non è il database di prova.`,
+      `⛔ pulizia rifiutata: l'ambiente dichiara ${ambiente.host}/${ambiente.database}, ` +
+        `che non è il database di prova.`,
+    );
+  }
+}
+
+/**
+ * Seconda barriera, e quella vera: **si chiede alla CONNESSIONE dove si trova**.
+ *
+ * ⛔ **Controllare `process.env` non protegge nulla**, ed è il difetto che
+ *    questa funzione chiude. `conStoricoSbloccato` accetta un `PrismaClient`
+ *    qualunque: un `new PrismaClient()` senza override del datasource legge
+ *    `DATABASE_URL`, che è il database **condiviso** — mentre
+ *    `DATABASE_URL_TEST` continua a dire `vestiflow_test`. La vecchia barriera
+ *    passava, e il DDL finiva sul bersaglio sbagliato.
+ *
+ * ⭐ **Va eseguita sulla STESSA sessione che emetterà il DDL**, cioè sul `tx`,
+ *    come primo enunciato della transazione: se rifiuta, il rollback riguarda
+ *    una transazione in cui nessun `ALTER TABLE` è mai stato scritto.
+ *
+ * ⚠️ **Il nome del database è l'unico discriminante buono, ed è misurato su
+ *    entrambi i lati**: la connessione di prova risponde `vestiflow_test`, il
+ *    condiviso si chiama `postgres` (letto dall'URL, senza connettersi).
+ *
+ * ⛔ **`inet_server_port()` NON serve, e va detto perché qualcuno lo
+ *    aggiungerebbe**: misurato l'08/09/2026, dall'interno del container
+ *    risponde **5432**, non 5433 — la 5433 è la porta della mappatura Docker,
+ *    che il server non vede. Un controllo sulla porta sarebbe sempre falso.
+ */
+async function esigiConnessioneDiProva(tx: PrismaTransazione): Promise<void> {
+  const righe = await tx.$queryRawUnsafe<{ db: string; utente: string }[]>(
+    'SELECT current_database() AS db, current_user AS utente',
+  );
+  const db = righe[0]?.db;
+  if (db !== DATABASE_DI_PROVA) {
+    throw new Error(
+      `⛔ pulizia rifiutata: il CLIENT è connesso a «${db ?? '(ignoto)'}» ` +
+        `come «${righe[0]?.utente ?? '(ignoto)'}», non a «${DATABASE_DI_PROVA}». ` +
+        `Nessun DDL è stato emesso.`,
     );
   }
 }
@@ -88,14 +135,22 @@ function esigiDatabaseDiProva(): void {
  *    emettere lo stesso DDL da qualunque punto: a tenere questo permesso nei
  *    test e` la guardia statica `check:storico-non-cancellabile`, che fa
  *    fallire il lint — non il database.
+ *
+ * ⭐ **Due barriere, e la seconda e` quella che protegge davvero**: l'ambiente
+ *    dichiarato prima di aprire la transazione, e la CONNESSIONE come primo
+ *    enunciato dentro di essa. Un client sbagliato viene rifiutato **prima**
+ *    che un solo `ALTER TABLE` sia stato scritto.
  */
 export async function conStoricoSbloccato(
   prisma: PrismaClient,
   pulizia: (tx: PrismaTransazione) => Promise<void>,
 ): Promise<void> {
-  esigiDatabaseDiProva();
+  esigiAmbienteDiProva();
   await prisma.$transaction(
     async (tx) => {
+      // ⛔ PRIMO enunciato, prima di qualunque DDL: chi mi ha passato questo
+      //    client puo` averlo costruito altrove.
+      await esigiConnessioneDiProva(tx);
       for (const [tabella, trigger] of TRIGGER_ANTICANCELLAZIONE) {
         await tx.$executeRawUnsafe(`ALTER TABLE "${tabella}" DISABLE TRIGGER "${trigger}"`);
       }

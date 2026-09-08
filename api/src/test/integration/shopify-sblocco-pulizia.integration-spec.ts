@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ambienteIntegrazione } from './env';
@@ -149,10 +149,9 @@ describe('conStoricoSbloccato — le protezioni tornano sempre accese', () => {
     expect(await conta()).toEqual({ anti: 10, altri: 6 });
   });
 
-  it('rifiuta un bersaglio che non sia il database di prova, e non pulisce nulla', async () => {
-    // ⭐ La barriera vive DENTRO `conStoricoSbloccato`, non nei chiamanti: qui
-    //    si sposta il bersaglio dichiarato e si verifica che l'helper si fermi
-    //    PRIMA di spegnere qualunque cosa.
+  it("rifiuta un AMBIENTE che non sia quello di prova, e non pulisce nulla", async () => {
+    // ⭐ Prima barriera: il bersaglio DICHIARATO. Vive dentro l'helper, non nei
+    //    chiamanti, e ferma prima ancora di aprire la transazione.
     const vero = process.env['DATABASE_URL_TEST'];
     let pulizieEseguite = 0;
     try {
@@ -168,5 +167,56 @@ describe('conStoricoSbloccato — le protezioni tornano sempre accese', () => {
     expect(pulizieEseguite).toBe(0);
     expect(await conta()).toEqual({ anti: 10, altri: 6 });
     expect(ambienteIntegrazione().database).toBe('vestiflow_test');
+  });
+
+  /**
+   * ⛔ **Il divario che la sola barriera d'ambiente lasciava aperto.**
+   *
+   * `conStoricoSbloccato` accetta un `PrismaClient` qualunque. Un client
+   * costruito altrove — `new PrismaClient()` senza override — legge
+   * `DATABASE_URL`, cioè il database **condiviso**, mentre
+   * `DATABASE_URL_TEST` continua a dire `vestiflow_test`: l'ambiente e' in
+   * regola, e il DDL finisce sul bersaglio sbagliato.
+   *
+   * ⚠️ **Il client sbagliato di questa prova e' locale e sacrificabile**: e' il
+   *    database `postgres` della STESSA istanza di prova (misurato l'08/09/2026:
+   *    sull'istanza ci sono due database, `postgres` e `vestiflow_test`). Non
+   *    si punta mai a un bersaglio vero per dimostrare che verrebbe rifiutato.
+   */
+  it('rifiuta un CLIENT connesso altrove, prima di emettere il DDL', async () => {
+    const url = new URL(ambienteIntegrazione().databaseUrl);
+    expect(url.hostname, 'il bersaglio della prova deve restare locale').toBe('localhost');
+    url.pathname = '/postgres';
+
+    // ⚠️ `datasources` esplicito, mai un client nudo: un `new PrismaClient()`
+    //    senza override leggerebbe l'ambiente del processo, ed e` proprio la
+    //    strada che `check:integration-db` (R3) vieta.
+    const sbagliato = new PrismaClient({
+      datasources: { db: { url: url.toString() } },
+      log: ['error'],
+    });
+    let pulizieEseguite = 0;
+    let messaggio = '';
+    try {
+      await conStoricoSbloccato(sbagliato, async () => {
+        pulizieEseguite += 1;
+      });
+      throw new Error('la pulizia NON e` stata rifiutata');
+    } catch (errore) {
+      messaggio = errore instanceof Error ? errore.message : String(errore);
+    } finally {
+      await sbagliato.$disconnect();
+    }
+
+    // ⭐ 1 · Rifiutata, e il messaggio nomina il database SBAGLIATO.
+    expect(messaggio).toMatch(/il CLIENT è connesso a «postgres»/);
+    // ⭐ 2 · Rifiutata dalla NOSTRA barriera, non da PostgreSQL che non trova
+    //        la tabella: e` la differenza fra «fermato prima» e «fallito dopo».
+    expect(messaggio).toContain('Nessun DDL è stato emesso');
+    expect(messaggio).not.toMatch(/does not exist|relation/i);
+    // ⭐ 3 · La pulizia non e` stata nemmeno invocata.
+    expect(pulizieEseguite).toBe(0);
+    // ⭐ 4 · E il database di prova e` intatto.
+    expect(await conta()).toEqual({ anti: 10, altri: 6 });
   });
 });
