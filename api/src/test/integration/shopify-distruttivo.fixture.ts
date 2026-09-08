@@ -157,8 +157,8 @@ export async function svuotaTutto(prisma: PrismaClient): Promise<void> {
     (t) => !(CATALOGHI_DI_SISTEMA as readonly string[]).includes(t.tablename),
   );
   const elenco = daTroncare.map((t) => `"${t.tablename}"`).join(', ');
-  await conStoricoSbloccato(prisma, async () => {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${elenco} RESTART IDENTITY CASCADE`);
+  await conStoricoSbloccato(prisma, async (tx) => {
+    await tx.$executeRawUnsafe(`TRUNCATE TABLE ${elenco} RESTART IDENTITY CASCADE`);
   });
 
   /*

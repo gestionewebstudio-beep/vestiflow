@@ -120,8 +120,8 @@ export async function creaLegacy(prisma: PrismaClient): Promise<void> {
   // ⛔ La barriera si ri-verifica prima del TRUNCATE, non solo all'avvio.
   assertBersaglio();
 
-  await conStoricoSbloccato(prisma, async () => {
-    await prisma.$executeRawUnsafe(
+  await conStoricoSbloccato(prisma, async (tx) => {
+    await tx.$executeRawUnsafe(
       'TRUNCATE TABLE "sales_orders", "supplier_orders", "documents", "suppliers", ' +
         '"parties", "locations", "tenants" RESTART IDENTITY CASCADE',
     );

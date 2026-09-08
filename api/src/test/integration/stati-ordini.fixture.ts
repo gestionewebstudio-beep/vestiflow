@@ -37,8 +37,8 @@ export async function creaDatasetStati(prisma: PrismaClient): Promise<void> {
   // ⛔ La barriera si ri-verifica prima del TRUNCATE.
   assertBersaglio();
 
-  await conStoricoSbloccato(prisma, async () => {
-    await prisma.$executeRawUnsafe(
+  await conStoricoSbloccato(prisma, async (tx) => {
+    await tx.$executeRawUnsafe(
       'TRUNCATE TABLE "stock_reservations", "stock_movements", "inventory_levels", ' +
         '"supplier_order_lines", "supplier_orders", "sales_order_lines", "sales_orders", ' +
         '"document_lines", "documents", "product_variants", "products", "customers", ' +
