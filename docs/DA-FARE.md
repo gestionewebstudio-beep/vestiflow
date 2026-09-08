@@ -2279,6 +2279,7 @@ tranche.
 | 1   | webhook `products/*` → `importProduct` ricrea una **variante** eliminata dall'operatore | ⛔ **raggiungibile oggi**: `deleteVariantInTx` non ha guardia Shopify e il push non cancella la remota                                                |
 | 2   | webhook `products/*` ricrea un **prodotto** assente                                     | l'eliminazione di un prodotto collegato è oggi rifiutata, quindi non raggiungibile — ma è lo scenario di §11.8 il giorno che lo sarà                  |
 | 3   | sync Location post-OAuth **riaggancia una sede per NOME**                               | ⛔ **raggiungibile oggi**, e viola una regola già decisa (§1.13): certo dopo disconnetti/riconnetti, perché `disconnect()` azzera `shopifyLocationId` |
+| 4   | sync Location post-OAuth **crea sedi VestiFlow** (`:80`)                                | ⛔ **raggiungibile oggi**, e viola §1.13.1: la creazione è una delle tre scelte dell’utente, non un effetto della sincronizzazione (§15.3)            |
 
 ⭐ **Il motore che crea è UNO SOLO** — `importProduct` in `shopify-product-pull.service.ts`
 — raggiunto sia dal pull manuale sia dai webhook: `findFirst` per `shopifyProductId`, `if
@@ -2405,118 +2406,153 @@ pre-operazione: le nove voci di §7.4 non sono coperte dal minimo.
 > ⛔ **Proposta, non lavoro autorizzato.** Nessuna implementazione, nessuna
 > modifica alla politica attuale.
 
-⛔ **Il guasto non è uno, ed è più largo di come l'avevo scritto.** L'08/09/2026 lo
-attribuivo alla sola cancellazione amministrativa del tenant. La causa è **una primitiva
-condivisa**, `purgeTenantBackupData` — e i suoi chiamanti sono **due**:
+⛔ **Il guasto non è uno.** La causa è **una primitiva condivisa**,
+`purgeTenantBackupData`, e i suoi chiamanti sono **due**:
 
 ```text
-api/src/admin/tenant-delete.util.ts:11        cancellazione amministrativa
-api/src/tenant/tenant-backup/…-import.service.ts:148   RIPRISTINO di un backup
+api/src/admin/tenant-delete.util.ts:11                  cancellazione amministrativa
+api/src/tenant/tenant-backup/…-import.service.ts:148    RIPRISTINO di un backup
 ```
 
-⚠️ **Quindi alla prima identità scritta non si rompe solo la cancellazione di un tenant: si
-rompe il RIPRISTINO di qualunque backup**, compreso uno fatto cinque minuti prima. Il
-ripristino purga e reinserisce, e `TENANT_BACKUP_DELETE_ORDER` contiene `products`,
-`productVariants` e `locations`.
+⚠️ Alla prima identità scritta non si rompe solo la cancellazione di un tenant: si rompe il
+**ripristino di qualunque backup**, compreso uno fatto cinque minuti prima.
 
 #### Le tre cose vanno tenute distinte, perché si comportano diversamente
 
-|                                   | Che cos'è                                                          | Sa delle sette tabelle?                                                                               |
-| --------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| **Backup applicativo del tenant** | ZIP per tenant: `manifest.json` + `data/<entità>.json` + allegati  | ⛔ **no** — non sono in `TENANT_BACKUP_MODELS`                                                        |
-| **Ripristino** dello stesso ZIP   | purga tutto il tenant e reinserisce, in **una** transazione        | ⛔ **no** — e la purga si scontrerà con le FK `RESTRICT`                                              |
-| **Dump completo** (`backup:full`) | `pg_dump` cifrato dell'**intero database**, dati di tutti i tenant | ✅ **sì, per costruzione**: fotografa lo schema qualunque esso sia, senza elenchi da tenere allineati |
+|                                   | Che cos'è                                                         | Sa delle sette tabelle?                                                           |
+| --------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Backup applicativo del tenant** | ZIP per tenant: `manifest.json` + `data/<entità>.json` + allegati | ⛔ **no** — non sono in `TENANT_BACKUP_MODELS`                                    |
+| **Ripristino** dello stesso ZIP   | purga tutto il tenant e reinserisce, in **una** transazione       | ⛔ **no** — e la purga si scontra con le FK                                       |
+| **Dump completo** (`backup:full`) | `pg_dump` cifrato dell'**intero database**                        | ✅ **sì per costruzione**: fotografa lo schema, senza elenchi da tenere allineati |
 
-⭐ **Il dump completo non richiede lavoro**, ed è la rete che oggi esiste davvero. È anche
-la ragione per cui il ripristino applicativo può permettersi di essere prudente: non è
-l'unica copia.
+⭐ **Il dump completo non richiede lavoro**, ed è la rete che oggi esiste davvero.
 
-#### ⛔ Che cosa succede a un backup PRECEDENTE all'introduzione delle sette tabelle
+#### ⛔ 10.1 · Il nodo — «zero collegamenti attivi» NON basta
 
-Il meccanismo è misurato, e non è quello che ci si aspetterebbe:
+⚠️ **Qui la stesura dell'08/09 proponeva di rifiutare il ripristino finché esistono
+collegamenti ATTIVI. È insufficiente**, e la verifica locale del 08/09/2026 lo mostra: a
+trattenere l'anagrafica non sono i **periodi**, sono le **identità** e le **coppie**, che
+restano vive anche quando tutti i periodi sono chiusi.
+
+**Misurato** sul database di prova, in una transazione annullata, con `periodi attivi = 0` su
+tutte e tre le famiglie:
 
 ```text
-tenant-backup-archive.util.ts:107-112
-  se formatVersion >= 4 e manifest.entityCounts[chiave] è undefined
-    → BadRequestException «Conteggio backup non coerente»
+DELETE variante   RIFIUTATO   shopify_variant_identities_variant_id_tenant_id_fkey
+DELETE prodotto   RIFIUTATO   shopify_product_identities_product_id_tenant_id_fkey
+DELETE sede       RIFIUTATO   shopify_location_pairs_location_id_tenant_id_fkey
+DELETE coppia     RIFIUTATO   shopify_location_links_pair_id_tenant_id_fkey
 ```
 
-⚠️ **Aggiungere le sette tabelle a `TENANT_BACKUP_MODELS` invaliderebbe di colpo TUTTI gli
-archivi v4 esistenti** — non perché manchino i dati, ma perché il loro manifest non porta i
-conteggi delle chiavi nuove. Il rifiuto arriverebbe al cancello, prima ancora di aprire una
-transazione.
+⛔ **E «sganciare per far passare il ripristino» è una trappola**, non una soluzione:
+`shopify_product_identities_immutabile` vieta poi di riagganciare, per sempre. Si otterrebbe
+un ripristino che riesce e lascia articoli che **non potranno mai più** essere ricollegati al
+proprio GID.
 
-⭐ **La via è quella già usata due volte**: si alza `TENANT_BACKUP_FORMAT_VERSION` a **5** e
-si dichiara un `TENANT_BACKUP_V4_ENTITY_FILES` — l'elenco dei file **obbligatori** per un
-archivio v4 — esattamente come esiste `TENANT_BACKUP_V3_ENTITY_FILES`. Un archivio v4 resta
-importabile, e le chiavi nuove valgono `[]`.
+⛔ **Neanche differire aiuta, com'è oggi**: `SET CONSTRAINTS ALL DEFERRED` non ha effetto su
+una FK `RESTRICT` — misurato, il DELETE resta rifiutato. È documentato in PostgreSQL:
+`RESTRICT` è come `NO ACTION` «tranne che il controllo non è differibile».
 
-⛔ **`TENANT_BACKUP_MIN_FORMAT_VERSION` resta 3**: alzarlo renderebbe illeggibili archivi che
-oggi si leggono, ed è una perdita che nessuno ha chiesto.
+#### ⭐ La soluzione: differire il controllo, non sciogliere il collegamento
 
-#### ⛔ E `[]` non significa «cancella»: qui sta la domanda vera
+> **Il ripristino cancella e reinserisce le righe CON LO STESSO `id`. La violazione è
+> transitoria: esiste fra il DELETE e l'INSERT, e non esiste più al commit.**
 
-Un archivio v4 non porta identità. Se il ripristino trattasse «assente» come «vuoto da
-ripristinare», **purgerebbe le identità esistenti e non ne reinserirebbe nessuna**: le
-esclusioni Shopify registrate **dopo la data del backup sparirebbero in silenzio**, e il
-primo pull successivo ricreerebbe gli articoli che erano stati esclusi. È lo scenario che il
-punto 1 chiede di impedire, ed è quello che si otterrebbe applicando la regola generale
-senza pensarci.
+Il rimedio è dire questo al database, invece di aggirarlo.
 
-##### La regola proposta: lo storico dei collegamenti NON si ripristina, e non si purga
+##### S1 · Quattro FK diventano `NO ACTION DEFERRABLE INITIALLY IMMEDIATE`
 
-> **Le sette tabelle entrano nel backup come CONTENUTO ESPORTATO e leggibile, ma il
-> ripristino non le purga e non le riscrive.**
+Sono **quattro**, misurate, e sono le sole che trattengono un'anagrafica che il ripristino
+purga e reinserisce:
 
-| Operazione                              | Sulle sette tabelle                                                                   |
-| --------------------------------------- | ------------------------------------------------------------------------------------- |
-| **export**                              | ✅ esportate, e finiscono nel pacchetto: un backup deve poter essere letto per intero |
-| **purga durante il ripristino**         | ⛔ **no**                                                                             |
-| **reinserimento durante il ripristino** | ⛔ **no**                                                                             |
-| **cancellazione amministrativa**        | ✅ sì, ma per una via propria — vedi §10.2                                            |
+```text
+shopify_product_identities_product_id_tenant_id_fkey        → products
+shopify_variant_identities_variant_id_tenant_id_fkey        → product_variants
+shopify_variant_identities_variante_del_prodotto_fkey       → product_variants
+shopify_location_pairs_location_id_tenant_id_fkey           → locations
+```
 
-⭐ **La ragione è che sono di natura diversa dal resto del backup.** Il pacchetto contiene lo
-**stato** del tenant a una data; le identità remote sono un **registro storico** di ciò che
-è stato collegato, e un registro non si riporta indietro nel tempo: riportarlo indietro
-significa dimenticare, e qui dimenticare ha un nome — **riabilitare un GID escluso**.
+⛔ **Tutte le altre restano `RESTRICT`**: le sette FK verso `tenants` (il ripristino non
+cancella la riga tenant) e le quindici **interne** fra identità, periodi e coppie — lo storico
+non si purga mai, quindi lì non c'è niente da differire.
 
-⚠️ **È la stessa disciplina già scelta per i movimenti in `docs/24` §8.5.2**: la storia
-sopravvive alla purga dell'anagrafica. Qui sopravvive anche al ripristino.
+⭐ **`INITIALLY IMMEDIATE` è il punto**: la FK si comporta **esattamente come oggi** finché
+qualcuno non la differisce esplicitamente. Misurato l'08/09/2026 su uno schema di prova
+isolato, con quella come **unica** FK presente:
 
-##### Le tre conseguenze, dichiarate — nessuna è indolore
+| Prova                                                              | Esito                                             |
+| ------------------------------------------------------------------ | ------------------------------------------------- |
+| `DELETE` nudo, fuori transazione                                   | ⛔ **rifiutato** — protegge come `RESTRICT`       |
+| `DELETE` dentro una transazione, senza differire                   | ⛔ **rifiutato**                                  |
+| `SET CONSTRAINTS … DEFERRED` + `DELETE` + `INSERT` dello stesso id | ✅ **riesce**                                     |
+| differita, ma **senza** reinserire                                 | ⛔ **rifiutata al commit**, transazione annullata |
 
-| Caso                                                                              | Che cosa succede                                                                                                        |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| esclusione registrata **dopo** il backup                                          | ⭐ **sopravvive**: l'identità resta, `local_deleted_at` resta, il GID resta escluso. È il requisito                     |
-| collegamento **aperto** dopo il backup, su un articolo che il backup non contiene | ⚠️ l'articolo viene purgato dal ripristino… **e la purga fallisce**, perché l'identità viva lo trattiene con `RESTRICT` |
-| articolo presente nel backup e **ancora collegato**                               | ⚠️ stesso problema: viene purgato e reinserito con lo stesso `id`, ma l'identità lo trattiene                           |
+⭐ **L'ultima riga è la garanzia che rende la proposta accettabile**: differire non spegne il
+vincolo, lo **sposta al commit**. Un ripristino che non rimette al suo posto un articolo
+trattenuto **fallisce per intero**, e non lascia niente a metà.
 
-⛔ **Le ultime due righe sono il nodo, e non si risolve col solo «non purgare le sette
-tabelle».** Il ripristino purga i **prodotti**, e un'identità viva è una FK `RESTRICT` su
-quel prodotto. Due strade, e vanno decise:
+⚠️ **Il `SET CONSTRAINTS` si scrive NOMINANDO le quattro FK**, mai `ALL`: `ALL` differirebbe
+anche le quindici interne, e una violazione dello storico verrebbe scoperta al commit invece
+che sull'istruzione che l'ha causata.
 
-**A · Il ripristino esige lo sganciamento preventivo.** Prima di ripristinare, i collegamenti
-attivi del tenant si chiudono e le identità si sganciano — con causale propria. Il ripristino
-riesce, lo storico resta, e al termine **nessun articolo è collegato**: il tenant riparte
-scollegato e ricollega quello che vuole.
+##### S2 · Lo storico non si purga MAI, e si reinserisce solo per ASSENZA
 
-- ✅ non perde storia, non riabilita niente, è spiegabile all'operatore;
-- ⛔ **è un'operazione distruttiva sul canale** fatta da un comando che si chiama
-  «ripristina»: va dichiarata **prima**, con conferma esplicita, non scoperta dopo.
+| Operazione                              | Sulle sette tabelle                                        |
+| --------------------------------------- | ---------------------------------------------------------- |
+| **export**                              | ✅ esportate: un backup deve poter essere letto per intero |
+| **purga** durante il ripristino         | ⛔ **mai**                                                 |
+| **reinserimento** durante il ripristino | ⭐ **solo le righe il cui `id` non esiste già in locale**  |
+| **sovrascrittura** di una riga presente | ⛔ **mai**                                                 |
 
-**B · Il ripristino si RIFIUTA finché esistono collegamenti attivi**, e chiede di scollegare
-prima, con un comando suo.
+⭐ **È la regola che risolve i due casi opposti con una frase sola:**
 
-- ✅ nessuna sorpresa: chi ripristina sa già che sta scollegando;
-- ⛔ un passo in più, e un ripristino d'emergenza è il momento peggiore per aggiungerne.
+| Caso                                                                     | Che cosa succede                                                                                                           |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| **recupero su database VUOTO**                                           | niente esiste ⇒ **tutto viene inserito**: lo storico si recupera, ed è il caso che la stesura precedente lasciava scoperto |
+| **ripristino su tenant esistente, backup precedente a nuove esclusioni** | le identità esistono ⇒ **non toccate**: l'esclusione scritta dopo il backup **sopravvive**                                 |
 
-⭐ **La proposta è B, con il messaggio che nomina quanti collegamenti bloccano e dove.** Un
-ripristino è raro e grave; A nasconde dentro una parola («ripristina») un effetto che
-l'operatore non ha chiesto, ed è la forma di guasto muto che questo progetto combatte.
+⛔ **«Esportare ma non reinserire mai» era sbagliato**, ed era la lacuna della stesura
+precedente: su un database vuoto avrebbe perso lo storico, e con esso ogni esclusione. La
+discriminante non è «ripristinare sì o no»: è **per assenza**.
 
-⚠️ **Serve comunque `assertNoIncomingTenantReferences` esteso**: oggi itera solo i modelli
-**del registro di backup**, quindi un riferimento dalle sette tabelle non lo vedrebbe — il
-ripristino fallirebbe più avanti con un errore FK grezzo, che non spiega niente.
+⚠️ **Conflitto di GID**: una riga del pacchetto con un `id` nuovo ma un
+`(shop_id, shopify_product_gid)` che in locale appartiene a un'**altra** riga. L'`UNIQUE`
+totale la rifiuterebbe con un errore grezzo: va intercettata dal pre-controllo (S3) e
+**nominata**, perché significa che quel pacchetto e quel database raccontano due storie
+diverse dello stesso GID.
+
+##### S3 · Un pre-controllo che spiega, prima di aprire la transazione
+
+| Cosa verifica                                                                         | Se fallisce                                                                       |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| ogni **identità viva** e ogni **coppia** ha la propria anagrafica dentro il pacchetto | ⛔ rifiuta, e **elenca** gli articoli e le sedi che il ripristino farebbe sparire |
+| nessun conflitto di GID fra pacchetto e database                                      | ⛔ rifiuta, e nomina i GID                                                        |
+| `assertNoIncomingTenantReferences` **esteso alle sette tabelle**                      | oggi itera solo i modelli del registro: un riferimento da lì non lo vedrebbe      |
+
+⭐ **Senza S3 il rimedio funzionerebbe lo stesso**, perché la FK differita fallisce al commit
+e annulla tutto. S3 non serve alla sicurezza: serve a far capire **perché**, invece di
+restituire un errore di chiave esterna a chi sta ripristinando in emergenza.
+
+⛔ **Nessuna chiusura e nessuno sganciamento impliciti.** La soluzione non tocca periodi,
+identità, coppie né il canale: il ripristino o riesce così com'è, o si rifiuta dicendo cosa
+manca. Che cosa offrire all'operatore davanti a quel rifiuto — un elenco e basta, o un'azione
+esplicita di scollegamento con la sua traccia — è **la sola scelta d'interfaccia rimasta**,
+ed è la decisione §15.1.
+
+#### 10.1-bis · Il formato del backup
+
+Misurato: con `formatVersion >= 4` un `entityCounts` mancante è un **rifiuto al cancello**
+(`tenant-backup-archive.util.ts:107-112`). ⚠️ Aggiungere le sette tabelle a
+`TENANT_BACKUP_MODELS` invaliderebbe quindi **tutti gli archivi v4 esistenti**.
+
+⭐ La via è quella già usata due volte: si alza `TENANT_BACKUP_FORMAT_VERSION` a **5** e si
+dichiara `TENANT_BACKUP_V4_ENTITY_FILES` — l'elenco dei file obbligatori per un archivio v4 —
+come già esiste `TENANT_BACKUP_V3_ENTITY_FILES`. ⛔ `TENANT_BACKUP_MIN_FORMAT_VERSION` resta
+**3**: alzarlo renderebbe illeggibili archivi che oggi si leggono.
+
+⚠️ **In un archivio v4 le chiavi nuove valgono `[]`, e per la regola S2 `[]` non cancella
+niente**: non c'è più il rischio che un pacchetto vecchio spazzi via lo storico, perché il
+ripristino non purga.
 
 #### ⏸ 10.2 · La cancellazione amministrativa del tenant resta una cosa a parte
 
@@ -2524,81 +2560,134 @@ ripristino fallirebbe più avanti con un errore FK grezzo, che non spiega niente
 > non deve passare per nessuno dei percorsi di canale.
 
 ⛔ **E non deve riusare lo sblocco dei test.** `conStoricoSbloccato` spegne i trigger con
-`ALTER TABLE … DISABLE TRIGGER`: è DDL, è per tabella, vale **per tutte le righe di tutti i
-tenant** finché la transazione è aperta, e vive in `api/src/test/` proprio perché non sia un
-percorso applicativo. Portarlo nell'applicazione significherebbe che una cancellazione di un
-tenant apre una finestra in cui **lo storico di ogni altro tenant è cancellabile**.
+`ALTER TABLE … DISABLE TRIGGER`: è DDL, è per tabella, e vale **per tutte le righe di tutti i
+tenant** finché la transazione è aperta. Portarlo nell'applicazione significherebbe che la
+cancellazione di un tenant apre una finestra in cui lo storico di **ogni altro tenant** è
+cancellabile.
 
-##### La forma proposta: un permesso di riga, per transazione, che il trigger legge
+##### Il permesso di riga, per transazione
 
 ```sql
--- nel trigger, prima di rifiutare
+-- dentro shopify_storico_non_si_cancella, prima di rifiutare
 IF current_setting('vestiflow.cancellazione_tenant', true) = OLD.tenant_id::text THEN
-  RETURN OLD;   -- ammesso: e solo per QUESTO tenant
+  RETURN OLD;   -- ammesso, e solo per QUESTO tenant
 END IF;
 RAISE EXCEPTION 'shopify_storico_non_si_cancella: …';
 ```
 
-| Proprietà                          | Perché conta                                                                                             |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| **limitato al tenant richiesto**   | il confronto è con `OLD.tenant_id`: le righe di un altro tenant restano protette anche a permesso acceso |
-| **per transazione**                | `set_config(..., true)` è locale alla transazione: al commit o al rollback sparisce, non resta acceso    |
-| **nessun DDL**                     | non serve l'ownership, non c'è niente da riaccendere, e un errore a metà non lascia una tabella scoperta |
-| **non riutilizzabile per sbaglio** | il valore da impostare è **l'id del tenant**: non esiste un «accendi tutto»                              |
+| Proprietà                          | Perché conta                                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **limitato al tenant richiesto**   | il confronto è con `OLD.tenant_id`: le righe di un altro tenant restano protette a permesso acceso     |
+| **per transazione**                | `set_config(..., true)` è locale: sparisce al commit come al rollback, non resta acceso                |
+| **nessun DDL**                     | non serve l'ownership, non c'è niente da riaccendere, un errore a metà non lascia una tabella scoperta |
+| **non riutilizzabile per sbaglio** | il valore da impostare è **l'id del tenant**: non esiste un «accendi tutto»                            |
 
-⭐ **La tracciabilità viene prima del permesso, non dopo**: la riga di registro
-(§10.3) si scrive **prima** di impostare il permesso, così una cancellazione senza traccia
-non è possibile nemmeno in caso di errore a metà.
+⚠️ **Autorizzazione: resta `PLATFORM_ADMIN_EMAILS`** su `DELETE /admin/tenants/:id`. ⛔ Questa
+proposta **non la cambia**.
 
-⚠️ **Autorizzazione: oggi è `PLATFORM_ADMIN_EMAILS`**, un elenco di email letto dalla
-configurazione, e la cancellazione di un tenant è `DELETE /admin/tenants/:id` dietro
-`PlatformAdminGuard`. ⛔ **Questa proposta non la cambia** — è la politica attuale, e il punto
-2 dice esplicitamente di non cambiarla. La si nomina perché chi valuta il permesso di riga
-sappia che cosa lo protegge a monte.
+##### ⛔ E la traccia deve SOPRAVVIVERE all'operazione che descrive
+
+⚠️ **«Si scrive prima» non basta, ed era il difetto della stesura precedente.** Due modi in
+cui una traccia scritta prima sparisce comunque:
+
+1. è **dentro la stessa transazione**: il rollback di un tentativo fallito la porta via, e del
+   fallimento non resta niente — proprio il caso che si vuole leggere dopo;
+2. porta un **`tenantId`**: rientra nell'ordine di cancellazione, e l'operazione **cancella la
+   propria traccia** un istante dopo averla scritta.
+
+⭐ **Dove sopravvive**: una tabella **di piattaforma**, non del tenant. Misurato l'08/09/2026 —
+su 81 modelli, solo `PaymentMethodCode` e `VatNature` non sono legati a un tenant, e sono
+cataloghi globali: **una tabella così, per l'amministrazione, non esiste ancora**.
+
+| Proprietà                           | Perché                                                                                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **nessuna FK verso `tenants`**      | il tenant sta per sparire: il riferimento va conservato come **testo**, com'è già per attore e bersaglio in `TenantUserAuditLog` |
+| **fuori da `TENANT_BACKUP_MODELS`** | altrimenti torna nell'ordine di cancellazione, e si autocancella                                                                 |
+| **append-only per struttura**       | nessun `updatedAt`, nessuna rotta che modifichi o cancelli                                                                       |
+
+##### Tre righe, non una: tentativo, esito, e transazioni SEPARATE
+
+```text
+1. TENTATIVO      commit proprio, PRIMA di aprire la transazione di cancellazione
+2. …la cancellazione…
+3. COMPLETAMENTO  oppure  FALLIMENTO      commit proprio, DOPO
+```
+
+⭐ **PostgreSQL non ha transazioni autonome**: perché la traccia sopravviva a un rollback,
+deve essere **già committata** quando la cancellazione comincia. Da qui le tre righe e le tre
+transazioni.
+
+⚠️ **Un tentativo senza esito è un'informazione, non un buco**: dice che qualcuno ha avviato
+una cancellazione e che il processo è morto a metà — cosa che una riga sola, scritta alla
+fine, non potrebbe mai raccontare.
+
+⛔ **La correlazione le tiene insieme**: le tre righe portano lo stesso identificativo di
+operazione, o «tentativo» ed «esito» diventano due fatti che nessuno sa accoppiare.
 
 ##### Le alternative scartate, e perché
 
-| Scartata                                                           | Perché                                                                                                            |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| aggiungere le sette tabelle a `TENANT_BACKUP_DELETE_ORDER` e basta | non basta: i trigger vietano il DELETE. Fallirebbe uguale, più tardi e con un errore peggiore                     |
-| togliere i trigger `mai_delete`                                    | ⛔ è la protezione, e la cancellazione di un tenant è l'unico caso che la deve superare: si supera, non si smonta |
-| `ON DELETE CASCADE` verso `tenants`                                | ⛔ una cancellazione accidentale di un tenant porterebbe via lo storico senza che nessun vincolo si opponga       |
-| non cancellare mai, solo marcare il tenant                         | è una decisione di prodotto che nessuno ha preso, e cambierebbe la politica attuale                               |
+| Scartata                                                           | Perché                                                                                         |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| aggiungere le sette tabelle a `TENANT_BACKUP_DELETE_ORDER` e basta | non basta: i trigger vietano il DELETE. Fallirebbe uguale, più tardi e con un errore peggiore  |
+| togliere i trigger `mai_delete`                                    | ⛔ è la protezione, e la cancellazione di un tenant è l'unico caso che la deve superare        |
+| `ON DELETE CASCADE` verso `tenants`                                | ⛔ una cancellazione accidentale porterebbe via lo storico senza che nessun vincolo si opponga |
+| traccia dentro la transazione di cancellazione                     | ⛔ sparisce col rollback: è il difetto che questa sezione corregge                             |
+| non cancellare mai, solo marcare il tenant                         | è una decisione di prodotto che nessuno ha preso, e cambierebbe la politica attuale            |
 
-#### ⏸ 10.3 · La registrazione persistente minima — dentro la tranche, non fuori
+#### ⏸ 10.3 · Il registro — UNO solo, che nasce con il sottoinsieme minimo
+
+> ⭐ **Deciso dal proprietario l'08/09/2026: un unico registro definitivo, che all'inizio
+> porta solo il sottoinsieme minimo necessario. Non due registri da fondere dopo.**
 
 ⛔ **«Si registra» non basta**, ed era la lacuna della stesura precedente: il primo percorso
 operativo rifiuta una reimportazione e lascia una riga di log su un container che il riavvio
-perde. Un rifiuto invisibile è indistinguibile da un articolo che non è mai arrivato — e
-quella distinzione è tutto ciò che l'operatore ha per capire perché un prodotto non c'è.
+perde. Un rifiuto invisibile è indistinguibile da un articolo che non è mai arrivato.
 
-⭐ **Il registro completo (§7.4, residuo 3) resta un lavoro suo.** Qui entra il suo
-**sottoinsieme minimo**, con la stessa forma, così che il completamento sia un'aggiunta di
-colonne e non una tabella da rifare.
+⚠️ **E nemmeno «un registro minimo adesso, quello vero dopo» andava bene**: due registri sono
+due schemi, due scritture da tenere allineate e una fusione da fare — e la fusione è il lavoro
+che non si fa mai.
 
-| Campo            | Nella tranche                                                                          |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| **autore**       | `webhook` · `pull` · `push` · `utente` — con lo snapshot testuale se è una persona     |
-| **tenant**       | ✅                                                                                     |
-| **negozio**      | `shop_gid` (disponibile: la fase 2 è una dipendenza della tranche)                     |
-| **entità**       | famiglia + GID remoto + identificativo locale se c'è, come **testo**                   |
-| **operazione**   | `creazione_rifiutata` · `identita_scritta` · `periodo_aperto` · `riaggancio_rifiutato` |
-| **motivo**       | la regola che ha deciso, per nome                                                      |
-| **data e ora**   | ✅                                                                                     |
-| **esito**        | ✅ **riuscita** o **rifiutata** — ed è la metà che serve di più                        |
-| **correlazione** | id della consegna webhook o del lotto di pull                                          |
+##### I campi — quelli di §7.4, con tre precisazioni
 
-⛔ **Il rifiuto si scrive FUORI dalla transazione che ha rifiutato**, o sparisce col
-rollback. È la differenza di forma rispetto a `TenantUserAuditLog`, che scrive solo dopo
-un'operazione riuscita.
+| Campo            | Nella prima tranche                                                                                             | §7.4                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| **autore**       | ⭐ umano **o processo**: `webhook` · `pull` · `push` · `utente` + snapshot testuale                             | «operatore»            |
+| **tenant**       | ✅ come **testo**, per la ragione di §10.2                                                                      | ✅                     |
+| **negozio**      | ⭐ `shop_gid` — non è fra le nove: la stessa operazione su due negozi è due operazioni                          | —                      |
+| **entità**       | famiglia + GID remoto + identificativo locale, come snapshot testuali                                           | «record e snapshot»    |
+| **operazione**   | `creazione_rifiutata` · `identita_scritta` · `periodo_aperto` · `riaggancio_rifiutato` · `cancellazione_tenant` | —                      |
+| **motivo**       | la regola che ha deciso, per nome                                                                               | «avvisi · conferma»    |
+| **data e ora**   | ✅                                                                                                              | ✅                     |
+| **esito**        | ⭐ `tentativo` · `riuscita` · `rifiutata` · `fallita`                                                           | «tentativi ed errori»  |
+| **correlazione** | consegna webhook, lotto di pull, o operazione amministrativa                                                    | «ID operazione remota» |
 
-⚠️ **Append-only per struttura**: nessun `updatedAt`, nessuna rotta che modifichi o cancelli,
-riferimenti `onDelete: Restrict`. Nessun segreto, nessun payload: del webhook si registra la
-**correlazione**, non il contenuto.
+⏸ **Restano da riempire, e le colonne nascono già previste**: avvisi mostrati, conferma
+ricevuta, stato Shopify prima e dopo. È il senso di «un registro solo»: si aggiungono valori,
+non tabelle.
 
-⚠️ **E la sua cancellazione segue il tenant**: la riga porta `tenantId`, quindi rientra nella
-politica di §10.2 e va aggiunta all'ordine di cancellazione — altrimenti si crea, con la
-tranche, l'ottavo blocco della stessa famiglia.
+##### La scelta della tabella — motivata rispetto a ciò che esiste
+
+| Modello esistente         | Perché non si riusa                                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TenantUserAuditLog`      | ⭐ **la forma giusta** (snapshot testuali, nessuna FK verso l'attore) ma il **dominio è sbagliato**: è l'audit degli utenti di un tenant, ha `tenantId` con FK, e sparirebbe con lui |
+| `OnlineOrderEvent`        | registro di **eventi ricevuti** con chiave di deduplica: qui si registra ciò che **noi** abbiamo fatto                                                                               |
+| `CashSessionDeviceChange` | ⭐ **il modello strutturale da copiare** — append-only senza `updatedAt` — ma è legato a una sessione di cassa                                                                       |
+| `StockMovement`           | è un movimento di magazzino, con effetti sulla giacenza: non è un registro di operazioni                                                                                             |
+| `DocumentRevision`        | numerazione progressiva per documento, dominio documentale                                                                                                                           |
+
+⭐ **Quindi una tabella nuova, che prende la FORMA di `TenantUserAuditLog` e la
+STRUTTURA append-only di `CashSessionDeviceChange`**, e non è legata al tenant da una FK.
+⚠️ **Il nome e la collocazione restano da decidere** con chi implementa: la decisione qui è
+che sia **una sola** e con questi campi.
+
+##### Tre vincoli di forma
+
+1. ⛔ **Il rifiuto si scrive FUORI dalla transazione che ha rifiutato**, o sparisce col
+   rollback. È la differenza rispetto a `TenantUserAuditLog`, che scrive solo dopo un'operazione
+   riuscita: qui metà dei casi utili sono fallimenti, e sono proprio quelli che si vanno a cercare.
+2. **Append-only per struttura**, con una guardia sul modello di `check:cassa-append-only`.
+3. ⚠️ **Nessun segreto e nessun dato personale**: del webhook si registra la **correlazione**,
+   non il contenuto (`regole-sicurezza`, «LOGGING E AUDIT»).
 
 ---
 
@@ -2608,14 +2697,14 @@ tranche, l'ottavo blocco della stessa famiglia.
 l'elenco misurato l'08/09/2026 di ciò che, scritta la prima identità, si troverebbe davanti
 una FK `RESTRICT` — e per ognuno la risposta proposta.
 
-| #   | Comando                                                                       | Chi lo trattiene                         | Oggi                                    | Proposta                                                                                    |
-| --- | ----------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 1   | **`deleteVariantInTx`** — variante tolta dal form prodotto (`:1268`)          | `shopify_variant_identities.variant_id`  | ✅ consentita se non ha movimenti       | ⭐ **resta consentita**: prima si chiude il periodo e si sgancia l'identità, poi si elimina |
-| 2   | **`removeProduct`** — eliminazione prodotto (`:961`)                          | `shopify_product_identities.product_id`  | ⛔ già rifiutata se collegato a Shopify | invariata: chi non è collegato non ha identità, chi lo è era già rifiutato                  |
-| 3   | **ripristino da backup** — purga `products` / `productVariants` / `locations` | tutte e tre                              | ✅ consentito                           | ⛔ **si rifiuta** finché esistono collegamenti attivi (§10)                                 |
-| 4   | **cancellazione amministrativa del tenant**                                   | `shopify_shops.tenant_id` e le altre sei | ✅ consentita                           | permesso di riga per transazione, limitato a quel tenant (§10.2)                            |
-| 5   | **`disconnect()`** — sgancia le sedi (`shopifyLocationId` a `NULL`)           | nessuno: aggiorna, non cancella          | ✅ consentito                           | invariato — ⚠️ ma va deciso se chiuda anche i **periodi** di sede                           |
-| 6   | **sync location** — non cancella più sedi (due `location.delete` già rimossi) | —                                        | ✅                                      | invariato                                                                                   |
+| #   | Comando                                                                       | Chi lo trattiene                                    | Oggi                                    | Proposta                                                                                                                              |
+| --- | ----------------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **`deleteVariantInTx`** — variante tolta dal form prodotto (`:1268`)          | `shopify_variant_identities.variant_id`             | ✅ consentita se non ha movimenti       | ⭐ **resta consentita**: prima si **chiude il collegamento**, poi si **elimina definitivamente in locale** (§15.5), poi la riga       |
+| 2   | **`removeProduct`** — eliminazione prodotto (`:961`)                          | `shopify_product_identities.product_id`             | ⛔ già rifiutata se collegato a Shopify | invariata: chi non è collegato non ha identità, chi lo è era già rifiutato                                                            |
+| 3   | **ripristino da backup** — purga `products` / `productVariants` / `locations` | identità e coppie, **anche a periodi tutti chiusi** | ✅ consentito                           | ⭐ **riesce**: quattro FK differite al commit, storico mai purgato (§10.1)                                                            |
+| 4   | **cancellazione amministrativa del tenant**                                   | `shopify_shops.tenant_id` e le altre sei            | ✅ consentita                           | permesso di riga per transazione, limitato a quel tenant (§10.2)                                                                      |
+| 5   | **`disconnect()`** — azzera `shopifyLocationId` sulle sedi                    | nessuno: aggiorna, non cancella                     | ✅ consentito                           | ✅ **deciso** (§15.2): coppie e periodi **restano**, nessun `shop_change`; a fermare la sincronizzazione è lo stato della CONNESSIONE |
+| 6   | **sync location** — non cancella più sedi (due `location.delete` già rimossi) | —                                                   | ✅                                      | invariato                                                                                                                             |
 
 ⭐ **Il punto 1 è quello che il proprietario ha nominato, ed è il caso vero.** Oggi togliere
 una variante dal form di un prodotto Shopify **è consentito** (l'unico blocco sono i
@@ -2623,12 +2712,16 @@ movimenti), e la variante resta viva sul negozio remoto perché il push non canc
 doppia scrittura le desse un'identità e null'altro, quell'eliminazione **smetterebbe di
 funzionare**: una funzione che c'era sparirebbe come effetto collaterale.
 
-> **Chi scrive l'identità si prende anche il dovere di saperla sganciare.** La doppia
-> scrittura e lo sganciamento in eliminazione sono lo **stesso** lavoro, e non si spezzano
+> **Chi scrive l'identità si prende anche il dovere di chiuderne il collegamento.** La
+> doppia scrittura e la chiusura in eliminazione sono lo **stesso** lavoro, e non si spezzano
 > in due tranche.
 
-⚠️ **Sganciare non è cancellare**: l'identità resta, con `local_deleted_at` valorizzato e il
-periodo chiuso con causale `local_delete`. L'esclusione del GID **nasce lì**, ed è la ragione
+⚠️ **Due parole distinte, e §15.5 spiega perché**: **chiudere il collegamento** finisce il
+periodo e lascia viva l'identità; **eliminare definitivamente in locale** azzera `product_id`,
+scrive `local_deleted_at` ed è **irreversibile**. «Sganciare», da solo, le confondeva.
+
+⚠️ **Eliminare definitivamente non è cancellare l'identità**: quella resta, con
+`local_deleted_at` valorizzato e il periodo chiuso con causale `local_delete`. L'esclusione del GID **nasce lì**, ed è la ragione
 per cui il caso 1 è insieme il rischio e il primo consumatore utile del modello.
 
 #### Che cosa la doppia scrittura COPRE — e che cosa dichiaratamente no
@@ -2662,11 +2755,11 @@ verrebbe agganciata automaticamente per nome, che è esattamente ciò che §1.13
 ⭐ **Non esiste un collegamento automatico per nome, punto.** Né dopo una chiusura, né senza
 periodi precedenti, né alla prima connessione.
 
-| Situazione                                      | Oggi                                                        | Proposta                                   |
-| ----------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------ |
-| sede con `shopifyLocationId` **corrispondente** | ✅ riconosciuta per id                                      | ✅ invariato: è un id, non un nome         |
-| sede **senza** `shopifyLocationId`, stesso nome | ⛔ **agganciata automaticamente** (`findMatch`, `:294-302`) | ⛔ **non agganciata**                      |
-| location Shopify senza sede corrispondente      | crea una sede nuova già collegata                           | ⚠️ da decidere — vedi «decisioni mancanti» |
+| Situazione                                      | Oggi                                                        | Proposta                                          |
+| ----------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------- |
+| sede con `shopifyLocationId` **corrispondente** | ✅ riconosciuta per id                                      | ✅ invariato: è un id, non un nome                |
+| sede **senza** `shopifyLocationId`, stesso nome | ⛔ **agganciata automaticamente** (`findMatch`, `:294-302`) | ⛔ **non agganciata**                             |
+| location Shopify senza sede corrispondente      | crea una sede nuova già collegata                           | ⛔ **non la crea**: §1.13.1 lo decide già (§15.3) |
 
 ⚠️ **Una proposta per nome può restare come AIUTO alla lettura**, mai applicata da sola: è
 già la forma scritta in `docs/24` §11.x per gli articoli — «proposta per nome/opzioni, mai
@@ -2692,14 +2785,15 @@ significa rompere tre funzioni che oggi lavorano, e scoprirlo dal campo.
 
 #### Fase A — compatibilità, senza scrivere una sola identità
 
-| #   | Lavoro                                                                                                             | Chiude     |
-| --- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
-| A1  | backup **v5**: le sette tabelle nell'export, `TENANT_BACKUP_V4_ENTITY_FILES` per gli archivi vecchi                | §10        |
-| A2  | ripristino: **non purga e non riscrive** lo storico; si **rifiuta** se esistono collegamenti attivi, nominandoli   | §10        |
-| A3  | `assertNoIncomingTenantReferences` esteso alle sette tabelle, così il rifiuto **spiega**                           | §10        |
-| A4  | cancellazione tenant: permesso di riga per transazione, limitato a quel tenant; ordine di cancellazione aggiornato | §10.2      |
-| A5  | il **registro minimo** (§10.3): tabella, scrittura fuori transazione, guardia append-only                          | §10.3      |
-| A6  | `check:storico-non-cancellabile` esteso ai trigger `…_immutabile` e al nuovo permesso di riga                      | robustezza |
+| #      | Lavoro                                                                                                                                                         | Chiude     |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| A1     | backup **v5**: le sette tabelle nell'export, `TENANT_BACKUP_V4_ENTITY_FILES` per gli archivi vecchi                                                            | §10        |
+| A2     | quattro FK verso l'anagrafica a `NO ACTION DEFERRABLE INITIALLY IMMEDIATE`, differite **per nome** dal ripristino                                              | §10.1      |
+| A2-bis | ripristino: **non purga mai** lo storico e lo reinserisce **solo per assenza** — è ciò che salva il recupero su database vuoto                                 | §10        |
+| A3     | pre-controllo che **spiega** prima di aprire la transazione, con `assertNoIncomingTenantReferences` esteso alle sette tabelle                                  | §10        |
+| A4     | cancellazione tenant: permesso di riga per transazione, limitato a quel tenant; **traccia in tre righe e tre transazioni separate**, su tabella di piattaforma | §10.2      |
+| A5     | il registro **definitivo**, che nasce col sottoinsieme minimo: scrittura fuori transazione, guardia append-only                                                | §10.3      |
+| A6     | `check:storico-non-cancellabile` esteso ai trigger `…_immutabile` e al nuovo permesso di riga                                                                  | robustezza |
 
 ⭐ **La fase A è interamente verificabile a tabelle VUOTE più fixture**, e non cambia il
 comportamento di nessuna funzione esistente: è compatibilità, non funzione nuova.
@@ -2709,18 +2803,18 @@ dopo, il primo rifiuto della fase B è un rifiuto che nessuno può leggere.
 
 #### Fase B — la prima scrittura, e il divieto
 
-| #   | Lavoro                                                                                                      | Dove                                                             |
-| --- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| B1  | **fase 2 di §8.5.8**: acquisizione dello `shop_gid`, riga `shopify_shops`, `shopify_connections.shop_id`    | `shopify-admin.client.ts` · `shopify-oauth.service.ts` (2 punti) |
-| B2  | **doppia scrittura** su `importProduct`: identità + periodo nella stessa transazione delle colonne-cache    | `shopify-product-pull.service.ts` (`:314`, `:344`, `:439`)       |
-| B3  | **doppia scrittura sul push**: `persistShopifyIds` scrive anche identità e periodo                          | `shopify-product-push.service.ts:960`                            |
-| B4  | **sganciamento in eliminazione**: `deleteVariantInTx` chiude il periodo e sgancia prima di eliminare        | `products.service.ts:1244`                                       |
-| B5  | **interrogazione prima di creare**: assenza di un collegamento **non chiuso**, non della sola colonna-cache | `shopify-product-pull.service.ts`                                |
-| B6  | **il rifiuto**: identità con `local_deleted_at` ⇒ non crea, non apre, **registra** e prosegue               | idem                                                             |
-| B7  | **sedi**: tolto il collegamento automatico per nome; coppia + periodo scritti sul collegamento esplicito    | `shopify-location-sync.service.ts:294`                           |
+| #   | Lavoro                                                                                                                                 | Dove                                                             |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| B1  | **fase 2 di §8.5.8**: acquisizione dello `shop_gid`, riga `shopify_shops`, `shopify_connections.shop_id`                               | `shopify-admin.client.ts` · `shopify-oauth.service.ts` (2 punti) |
+| B2  | **doppia scrittura** su `importProduct`: identità + periodo nella stessa transazione delle colonne-cache                               | `shopify-product-pull.service.ts` (`:314`, `:344`, `:439`)       |
+| B3  | **doppia scrittura sul push**: `persistShopifyIds` scrive anche identità e periodo                                                     | `shopify-product-push.service.ts:960`                            |
+| B4  | **chiusura in eliminazione**: `deleteVariantInTx` chiude il collegamento ed elimina definitivamente in locale, prima della riga        | `products.service.ts:1244`                                       |
+| B5  | **interrogazione prima di creare**: assenza di un collegamento **non chiuso**, non della sola colonna-cache                            | `shopify-product-pull.service.ts`                                |
+| B6  | **il rifiuto**: identità con `local_deleted_at` ⇒ non crea, non apre, **registra** e prosegue                                          | idem                                                             |
+| B7  | **sedi**: tolti il collegamento automatico per nome **e la creazione automatica** (§15.3); coppia + periodo sul collegamento esplicito | `shopify-location-sync.service.ts:80`, `:294`                    |
 
-⛔ **B4 non è separabile da B2 e B3.** Chi scrive un'identità si prende il dovere di saperla
-sganciare: separati, la tranche toglierebbe un'eliminazione che oggi funziona.
+⛔ **B4 non è separabile da B2 e B3.** Chi scrive un'identità si prende il dovere di
+chiuderne il collegamento: separati, la tranche toglierebbe un'eliminazione che oggi funziona.
 
 ⛔ **Il rifiuto NON ferma il lotto.** Un import che si interrompe al primo articolo escluso è
 peggio del difetto: si salta, si registra, si prosegue.
@@ -2763,34 +2857,43 @@ quello che gli si è insegnato.
 
 **Fase A** — integrazione, tabelle popolate da fixture:
 
-| Prova                                                | Esito atteso                                                     |
-| ---------------------------------------------------- | ---------------------------------------------------------------- |
-| export v5 di un tenant con identità e periodi        | il pacchetto li contiene, con i conteggi nel manifest            |
-| import di un archivio **v4** (senza le chiavi nuove) | ✅ accettato; le chiavi nuove valgono `[]`                       |
-| import di un archivio **v3**                         | ✅ ancora accettato: il minimo non si alza                       |
-| ripristino con un collegamento **attivo**            | ⛔ rifiutato, e il messaggio dice **quanti** e **quali**         |
-| ripristino con soli collegamenti **chiusi**          | ✅ riesce, e **lo storico è ancora lì dopo**                     |
-| esclusione registrata **dopo** la data del backup    | ⭐ **sopravvive al ripristino**: il GID resta escluso            |
-| cancellazione tenant A con storico di A **e di B**   | A sparisce, **lo storico di B è intatto**                        |
-| cancellazione tenant senza il permesso di riga       | ⛔ rifiutata dal trigger                                         |
-| permesso di riga impostato sul tenant **sbagliato**  | ⛔ rifiutata: il confronto è con `OLD.tenant_id`                 |
-| dopo il commit e dopo un rollback                    | il permesso **non è più attivo**                                 |
-| rifiuto registrato                                   | la riga di registro **esiste** anche se la transazione è fallita |
+| Prova                                                        | Esito atteso                                                      |
+| ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| export v5 di un tenant con identità e periodi                | il pacchetto li contiene, con i conteggi nel manifest             |
+| import di un archivio **v4** (senza le chiavi nuove)         | ✅ accettato; le chiavi nuove valgono `[]`                        |
+| import di un archivio **v3**                                 | ✅ ancora accettato: il minimo non si alza                        |
+| ripristino di un articolo **collegato**, presente nel backup | ✅ riesce: FK differita, riga reinserita con lo stesso `id`       |
+| ripristino di un articolo con **tutti i periodi chiusi**     | ✅ riesce — è il caso che la stesura precedente sbagliava         |
+| **sede** con coppia storica e nessun periodo attivo          | ✅ riesce                                                         |
+| articolo **collegato ma assente** dal backup                 | ⛔ rifiutato dal pre-controllo, che lo **nomina**                 |
+| lo stesso, con il pre-controllo disattivato                  | ⛔ rifiutato **al commit** dalla FK differita: niente a metà      |
+| **recupero su database vuoto**                               | ⭐ lo storico **si reinserisce**: nulla esiste, tutto è assente   |
+| **conflitto di GID** fra pacchetto e database                | ⛔ rifiutato dal pre-controllo, che nomina i GID                  |
+| ripristino con un collegamento **attivo**                    | ✅ riesce, come sopra: non è più un caso speciale                 |
+| ripristino con soli collegamenti **chiusi**                  | ✅ riesce, e **lo storico è ancora lì dopo**: non è stato purgato |
+| esclusione registrata **dopo** la data del backup            | ⭐ **sopravvive**: la riga esiste, e per assenza non si tocca     |
+| cancellazione tenant A con storico di A **e di B**           | A sparisce, **lo storico di B è intatto**                         |
+| cancellazione tenant senza il permesso di riga               | ⛔ rifiutata dal trigger                                          |
+| permesso di riga impostato sul tenant **sbagliato**          | ⛔ rifiutata: il confronto è con `OLD.tenant_id`                  |
+| dopo il commit e dopo un rollback                            | il permesso **non è più attivo**                                  |
+| cancellazione tenant interrotta a metà                       | ⭐ resta la riga **tentativo**, senza esito: e si vede            |
+| dopo la cancellazione del tenant                             | ⭐ le tre righe di traccia **esistono ancora**                    |
+| rifiuto registrato                                           | la riga di registro **esiste** anche se la transazione è fallita  |
 
 **Fase B** — integrazione:
 
-| Prova                                                 | Esito atteso                                                          |
-| ----------------------------------------------------- | --------------------------------------------------------------------- |
-| GID mai visto                                         | crea, **e scrive identità + periodo**                                 |
-| GID con identità viva e periodo attivo                | aggiorna, **non** apre un secondo periodo                             |
-| GID con identità viva e periodo **chiuso**            | ⛔ non riapre da solo                                                 |
-| GID con identità **eliminata**                        | ⛔ non crea, non apre, **registra**, prosegue col resto               |
-| lo stesso da **webhook** invece che dal pull          | stesso esito: la porta non cambia la regola                           |
-| **push** di un prodotto nuovo                         | scrive identità e periodo per il prodotto e le varianti abbinate      |
-| push con una variante **senza SKU**                   | identità del prodotto sì, di quella variante no — e non è un errore   |
-| variante tolta dal form, prodotto collegato           | ⭐ **l'eliminazione riesce**, con periodo chiuso e identità sganciata |
-| sede senza `shopifyLocationId` con lo **stesso nome** | ⛔ **non collegata**, né la prima volta né dopo una chiusura          |
-| lo stesso GID su **due negozi**                       | due identità distinte, nessuna interferenza                           |
+| Prova                                                 | Esito atteso                                                           |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| GID mai visto                                         | crea, **e scrive identità + periodo**                                  |
+| GID con identità viva e periodo attivo                | aggiorna, **non** apre un secondo periodo                              |
+| GID con identità viva e periodo **chiuso**            | ⛔ non riapre da solo                                                  |
+| GID con identità **eliminata**                        | ⛔ non crea, non apre, **registra**, prosegue col resto                |
+| lo stesso da **webhook** invece che dal pull          | stesso esito: la porta non cambia la regola                            |
+| **push** di un prodotto nuovo                         | scrive identità e periodo per il prodotto e le varianti abbinate       |
+| push con una variante **senza SKU**                   | identità del prodotto sì, di quella variante no — e non è un errore    |
+| variante tolta dal form, prodotto collegato           | ⭐ **riesce**: collegamento chiuso, poi eliminazione definitiva locale |
+| sede senza `shopifyLocationId` con lo **stesso nome** | ⛔ **non collegata**, né la prima volta né dopo una chiusura           |
+| lo stesso GID su **due negozi**                       | due identità distinte, nessuna interferenza                            |
 
 **Concorrenza**, con la forma già collaudata (due connessioni, incastro dichiarato letto da
 `pg_stat_activity`): due webhook per lo stesso GID in parallelo ⇒ **una** identità, **un**
@@ -2800,7 +2903,9 @@ periodo, la seconda transazione rifiutata dall'`UNIQUE`.
 
 - tolta l'interrogazione ⇒ le prove del rifiuto devono **cadere**;
 - tolta la doppia scrittura ⇒ «scrive identità + periodo» deve **cadere**;
-- tolto lo sganciamento da `deleteVariantInTx` ⇒ l'eliminazione della variante deve **fallire**;
+- tolta la chiusura del collegamento da `deleteVariantInTx` ⇒ l'eliminazione della variante deve **fallire**;
+- rimesse le quattro FK a `RESTRICT` ⇒ le prove del ripristino devono **cadere**;
+- differite con `ALL` invece che per nome ⇒ deve cadere la prova che uno storico incoerente è rifiutato **subito**;
 - tolto il confronto con `OLD.tenant_id` ⇒ la prova del tenant sbagliato deve **cadere**;
 - tolto il trigger `…_immutabile` ⇒ la guardia estesa deve **arrossare**.
 
@@ -2874,23 +2979,120 @@ mescolarlo a un lavoro di modello renderebbe illeggibili entrambi.
 
 ---
 
-### ⏸ 15 · Le decisioni funzionali che mancano DAVVERO
+### ✅ 15 · Le sei domande — chiuse dal proprietario l'08/09/2026
 
-⚠️ Tutto il resto di questa sezione è lavoro. Queste sei sono domande a cui il codice non
-può rispondere, e nessun documento risponde oggi. ⛔ **Nessuna di esse rimette in
-discussione una decisione confermata.**
+⛔ **Non erano sei decisioni nuove**, ed era un mio errore di classificazione: quattro erano
+già decise o già risolvibili, e la prima era un **problema tecnico**, non una scelta.
 
-| #   | Domanda                                                                                                                            | Perché non è deducibile                                                                                                   |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Il **ripristino** rifiuta se ci sono collegamenti attivi (proposta B), o li chiude lui dopo conferma (A)?                          | è un compromesso fra sicurezza e usabilità in un momento d'emergenza: lo decide chi userà quel comando                    |
-| 2   | Che cosa fa `disconnect()` ai **periodi di sede**: li chiude con `shop_change`, o li lascia aperti in attesa di riconnessione?     | §1.15.3 elenca cosa non si azzera, non cosa si chiude. Oggi la domanda non si poneva perché i periodi non esistevano      |
-| 3   | Il **sync location** può ancora **creare** una sede nuova per una location Shopify senza corrispondenza, o crea solo su richiesta? | §1.13 vieta il collegamento automatico; sulla **creazione** non dice. Sono due cose diverse                               |
-| 4   | Quale **permesso** autorizza la ripresa di un collegamento chiuso: quello di eliminazione di §7.4, o uno suo?                      | §7.4 nomina eliminare e ripristinare, non riprendere un collegamento                                                      |
-| 5   | Un articolo con identità **sganciata** può essere ricollegato a un GID **diverso**?                                                | il modello lo consente (una seconda identità sullo stesso `original_product_id`), ma nessun testo dice se si deve offrire |
-| 6   | Il **registro minimo** di §10.3 nasce come tabella propria, o come prima colonna d'uso di quella completa di §7.4?                 | è una scelta di sequenza, e cambia quanto lavoro si rifà dopo                                                             |
+| #   | Era presentata come            | In realtà                                                             |
+| --- | ------------------------------ | --------------------------------------------------------------------- |
+| 1   | scelta A o B sul ripristino    | ⭐ **problema tecnico**, ora risolto in §10.1: nessuna scelta serviva |
+| 2   | «cosa fa `disconnect()`»       | ✅ **decisa**: la disconnessione non è un cambio negozio              |
+| 3   | «il sync può creare una sede?» | ✅ **già decisa in §1.13.1**, e non l'avevo riconosciuta              |
+| 4   | permesso di ripresa            | ✅ **decisa**: permesso di gestione dei collegamenti                  |
+| 5   | GID diverso                    | ✅ **già prevista in §11.9**, più una correzione di vocabolario       |
+| 6   | uno o due registri             | ✅ **decisa**: uno solo (§10.3)                                       |
 
-⭐ **Le prime tre bloccano la fase A e B7**; la 4 e la 5 no — si possono chiudere quando il
-comando di ripresa esisterà. La 6 va decisa **prima** di A5.
+#### 15.1 · Ripristino — non era una scelta
+
+⛔ **Né A né B**, ed entrambe erano sbagliate: chiudere i periodi non toglie le FK delle
+identità vive e delle coppie, quindi «zero collegamenti attivi» non garantiva niente
+(misurato, §10.1). La soluzione è **differire il controllo**, non sciogliere il collegamento.
+
+⏸ **Resta una sola scelta d'interfaccia**, e la si decide quando il comportamento tecnico sarà
+in piedi: davanti al rifiuto, l'operatore vede **solo l'elenco** di ciò che manca, oppure gli
+si offre anche un'azione **esplicita** di scollegamento — con la sua traccia — da compiere
+prima di riprovare. ⛔ In nessuno dei due casi il ripristino chiude o cancella qualcosa da sé.
+
+#### 15.2 · Disconnessione — ✅ DECISA
+
+> **La normale disconnessione interrompe la sincronizzazione. Non equivale a un cambio
+> negozio: conserva coppie e collegamenti per la riconnessione allo STESSO negozio.**
+
+|     |                                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------ |
+| ⛔  | **`shop_change` non si usa quando il negozio non è cambiato**: la causale racconterebbe un fatto falso |
+| ✅  | coppie e periodi **restano**, ed è ciò che rende la riconnessione una ripresa e non una ricostruzione  |
+| ⛔  | **un periodo attivo NON autorizza a sincronizzare** mentre la connessione è disattiva                  |
+
+⭐ **Il cancello della sincronizzazione è lo stato della CONNESSIONE, non quello del
+collegamento.** I due rispondono a domande diverse — «questo negozio è raggiungibile adesso?»
+e «questa sede è abbinata a quella location?» — e confonderli farebbe ripartire il traffico
+verso un negozio da cui ci si è disconnessi.
+
+⚠️ **Il cambio negozio resta il caso distinto già deciso** (§8.5.1): lì i collegamenti si
+chiudono davvero, con `shop_change`, perché il negozio è un altro.
+
+#### 15.3 · Creazione delle sedi — ✅ GIÀ DECISA in §1.13.1
+
+⛔ **Non era una domanda aperta, e averla posta è un mio errore**: §1.13.1 decide già che per
+ogni location non collegata l'utente sceglie fra **collegare**, **creare** o **lasciarla
+soltanto su Shopify**. Una sede nuova nasce da quella scelta, non dalla sincronizzazione.
+
+> **Nessuna sede creata automaticamente dalla sincronizzazione.** ⚠️ Oggi il sync post-OAuth
+> ne crea (`shopify-location-sync.service.ts:80`): è un difetto rispetto a §1.13.1, non una
+> lacuna di specifica.
+
+⏸ **Il wizard di prima configurazione non si implementa ora**: la decisione qui è che la
+creazione automatica **si toglie**, non che l'interfaccia che la sostituisce si scriva adesso.
+
+#### 15.4 · Permesso di ripresa — ✅ DECISA
+
+> **Un permesso di GESTIONE DEI COLLEGAMENTI nel sistema permessi esistente, con default
+> titolare/amministratore.**
+
+|     |                                                                                             |
+| --- | ------------------------------------------------------------------------------------------- |
+| ⛔  | **non si lega automaticamente al permesso di eliminazione**: sono due capacità diverse      |
+| ⛔  | **non si codificano i ruoli nel servizio** — è la prescrizione di §7.4, e vale identica qui |
+| ✅  | default titolare/amministratore, configurabile col sistema permessi esistente               |
+
+#### 15.5 · GID diverso — ✅ GIÀ PREVISTA, e una parola da correggere
+
+> **Per un articolo ANCORA ESISTENTE, la pubblicazione esplicita che produce un nuovo GID è
+> già prevista** (§11.9, §7.5): conserva la vecchia identità e ne crea una nuova.
+
+⛔ **Non è un'autorizzazione a due cose diverse**, e vanno dette entrambe:
+
+- **non** autorizza ad abbinare arbitrariamente un prodotto remoto **già esistente** a un
+  articolo locale: l'identità nasce da un'operazione, non da una somiglianza (§1.13.1 dice la
+  stessa cosa per le sedi, e §8.5.4 per gli articoli);
+- **non** autorizza a riesumare un'identità **eliminata definitivamente**: quella resta con
+  `local_deleted_at`, e i trigger la tengono ferma.
+
+##### ⛔ La parola «sganciato» significava due cose, e va corretta
+
+⚠️ **È l'ambiguità che ha reso plausibile la domanda 5.** Nel testo dell'08/09 «sganciare»
+indicava sia la chiusura di un collegamento sia l'eliminazione definitiva dell'identità — che
+sono l'una reversibile e l'altra no.
+
+| Da qui in avanti si dice…               | Che cosa significa                                                             | Reversibile?                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------- |
+| **chiudere il collegamento**            | il periodo finisce. L'identità resta **viva**, `product_id` valorizzato        | ✅ sì: si apre un periodo nuovo — la ripresa |
+| **eliminare definitivamente in locale** | `product_id → NULL` e `local_deleted_at` scritto: l'anagrafica locale sparisce | ⛔ **no**: il GID resta escluso per sempre   |
+
+⛔ **«Sganciare» non si usa più da solo.** Dove serve nominare la seconda operazione si scrive
+**«sganciare definitivamente»**, e il testo di §11 e §13 è stato allineato: `deleteVariantInTx`
+**chiude il collegamento** e poi elimina definitivamente in locale — due cose, nell'ordine.
+
+#### 15.6 · Registro — ✅ DECISA: uno solo
+
+Vedi §10.3. ⭐ Un unico registro definitivo, che nasce con il sottoinsieme minimo; la scelta
+concreta della tabella è motivata lì rispetto ai cinque modelli esistenti.
+
+---
+
+### ⏸ 16 · Che cosa resta APERTO davvero
+
+| #   | Domanda                                                                                                 | Chi la chiude                                        |
+| --- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1   | Davanti al rifiuto del ripristino: solo l'elenco, o anche un'azione esplicita di scollegamento? (§15.1) | il proprietario, **dopo** che il rifiuto funziona    |
+| 2   | Nome e collocazione della tabella del registro (§10.3)                                                  | chi implementa, con la forma già decisa              |
+| 3   | Se il **dump completo** debba diventare un prerequisito dichiarato prima di un ripristino applicativo   | ⏸ non è stata posta: la si segnala, non la si decide |
+
+⚠️ **La 3 nasce da §10**: il ripristino applicativo è ora un'operazione che può fallire a
+metà strada in modi nuovi, e il `pg_dump` è la sola rete che non dipende da elenchi da tenere
+allineati. Non è una decisione presa: è una domanda che il lavoro di oggi ha reso visibile.
 
 ---
 
