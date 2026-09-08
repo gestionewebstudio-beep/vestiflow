@@ -85,12 +85,30 @@ function esigiAmbienteDiProva(): void {
 /**
  * Seconda barriera, e quella vera: **si chiede alla CONNESSIONE dove si trova**.
  *
- * ⛔ **Controllare `process.env` non protegge nulla**, ed è il difetto che
- *    questa funzione chiude. `conStoricoSbloccato` accetta un `PrismaClient`
- *    qualunque: un `new PrismaClient()` senza override del datasource legge
- *    `DATABASE_URL`, che è il database **condiviso** — mentre
- *    `DATABASE_URL_TEST` continua a dire `vestiflow_test`. La vecchia barriera
- *    passava, e il DDL finiva sul bersaglio sbagliato.
+ * ⛔ **Controllare `process.env` non dice NIENTE sul client passato**, ed è il
+ *    difetto che questa funzione chiude: `conStoricoSbloccato` accetta un
+ *    `PrismaClient` qualunque, e il DDL va sulla connessione di QUEL client,
+ *    non sull'URL che la barriera ha letto.
+ *
+ * ⚠️ **La motivazione che avevo scritto qui era SBAGLIATA, e va detto quale**:
+ *    «un `new PrismaClient()` nudo legge `DATABASE_URL`, cioè il condiviso».
+ *    Dentro la suite di integrazione non è vero — `setup.ts` riscrive
+ *    `DATABASE_URL` con la connessione di prova prima che un test parta, e lo
+ *    dichiara: «un client nudo ora finisce sul database di prova, che è il
+ *    posto giusto».
+ *
+ * ⭐ **Le due vie per cui la barriera serve davvero sono altre, e sono reali:**
+ *
+ *    1. un client con `datasources` ESPLICITO e url sbagliata — che è per
+ *       giunta l'unica forma ammessa da `check:integration-db` (R3): un
+ *       refuso o un copia-incolla, non una distrazione esotica;
+ *    2. un chiamante FUORI dalla suite di integrazione, dove `setup.ts` non
+ *       è caricato. La suite di CONTRATTO è esattamente quel posto — il suo
+ *       config dichiara «nessun `setupFiles` che dirotti il database» — e lì
+ *       un client nudo raggiunge il condiviso davvero
+ *       (`src/test/contract/shopify-credenziali.ts:131`). Oggi nessuno importa
+ *       `conStoricoSbloccato` da lì; la barriera è ciò che rende innocuo il
+ *       giorno in cui qualcuno lo farà.
  *
  * ⭐ **Va eseguita sulla STESSA sessione che emetterà il DDL**, cioè sul `tx`,
  *    come primo enunciato della transazione: se rifiuta, il rollback riguarda

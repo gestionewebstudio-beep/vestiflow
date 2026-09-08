@@ -172,11 +172,16 @@ describe('conStoricoSbloccato — le protezioni tornano sempre accese', () => {
   /**
    * ⛔ **Il divario che la sola barriera d'ambiente lasciava aperto.**
    *
-   * `conStoricoSbloccato` accetta un `PrismaClient` qualunque. Un client
-   * costruito altrove — `new PrismaClient()` senza override — legge
-   * `DATABASE_URL`, cioè il database **condiviso**, mentre
-   * `DATABASE_URL_TEST` continua a dire `vestiflow_test`: l'ambiente e' in
-   * regola, e il DDL finisce sul bersaglio sbagliato.
+   * `conStoricoSbloccato` accetta un `PrismaClient` qualunque, e la barriera
+   * d'ambiente non dice niente su DOVE quel client sia connesso: il DDL va
+   * sulla sua connessione, non sull'URL che la barriera ha letto.
+   *
+   * ⚠️ **Non e' il "client nudo"**: dentro questa suite `setup.ts` riscrive
+   *    `DATABASE_URL` con la connessione di prova, quindi un client nudo
+   *    atterra sul posto giusto. Le vie reali sono un `datasources` esplicito
+   *    con url sbagliata — l'unica forma ammessa da `check:integration-db` R3,
+   *    cioe' un refuso — e un chiamante fuori dalla suite di integrazione,
+   *    dove `setup.ts` non e' caricato.
    *
    * ⚠️ **Il client sbagliato di questa prova e' locale e sacrificabile**: e' il
    *    database `postgres` della STESSA istanza di prova (misurato l'08/09/2026:
