@@ -2201,44 +2201,304 @@ esiste per impedire.
 
 #### ⛔ Che cosa NON è fatto
 
-| Residuo                                   |                                                                                                                                                                  |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **backfill**                              | le tabelle nascono **vuote** (§8.5.8, fase 3): nessuna lettura le interroga, nessuna scrittura le popola                                                         |
-| **passaggio dei lettori**                 | i servizi leggono ancora le colonne-cache su `Product` / `ProductVariant`                                                                                        |
-| **funzione operativa di eliminazione**    | l'API che sgancia l'identità, chiude i periodi e purga l'anagrafica **non esiste**: c'è il modello che la rende possibile, non il comando                        |
-| **blocco della riapertura automatica**    | il database impedisce di **riaprire un periodo chiuso**, non che un servizio ne **apra uno nuovo** su un'identità eliminata da poco. Vedi sotto: è una decisione |
-| **identità del negozio**                  | due righe di `shopify_shops` per lo stesso negozio reale sono oggi possibili. Vedi sotto                                                                         |
-| **registro delle operazioni**             | nessuna traccia di chi ha eliminato, quando e su quali collegamenti. Vedi sotto                                                                                  |
-| ⛔ **applicazione al database CONDIVISO** | mai eseguita in questa forma. La migration è collaudata **solo in locale**                                                                                       |
+| Residuo                                   |                                                                                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **backfill**                              | le tabelle nascono **vuote** (§8.5.8, fase 3): nessuna lettura le interroga, nessuna scrittura le popola                                  |
+| **passaggio dei lettori**                 | i servizi leggono ancora le colonne-cache su `Product` / `ProductVariant`                                                                 |
+| **funzione operativa di eliminazione**    | l'API che sgancia l'identità, chiude i periodi e purga l'anagrafica **non esiste**: c'è il modello che la rende possibile, non il comando |
+| **divieto di riapertura automatica**      | ⭐ **implementazione mancante, non decisione aperta** — la decisione è §11.8, confermata il 03/09/2026. Vedi sotto                        |
+| **identità del negozio**                  | ⭐ **controllo da definire, non decisione aperta** — l'identità è `shop_gid` (§8.5.1) e il rilascio a fasi è §8.5.8. Vedi sotto           |
+| **registro delle operazioni**             | ⭐ **già richiesto** da §7.4, §4.2 e `regole-gestionale`. Manca la forma minima e chi la scrive. Vedi sotto                               |
+| ⛔ **applicazione al database CONDIVISO** | mai eseguita in questa forma. La migration è collaudata **solo in locale**                                                                |
 
-#### ⏸ I tre residui che sono DECISIONI, non codice
+#### ⚠️ Riclassificati l'08/09/2026 — erano descritti come decisioni aperte, e non lo sono
 
-**1 · Blocco della riapertura automatica.** Un periodo chiuso non si riapre — lo
-impone `shopify_periodo_immutabile`. Ma nulla vieta a un servizio di **aprire un
-periodo nuovo** sulla stessa identità appena l'anagrafica torna viva, ed è
-esattamente ciò che una risincronizzazione automatica farebbe. ⚠️ Il modello lo
-consente **di proposito**: è la «ripresa» (§8.5.2), che deve restare possibile.
-Serve decidere **chi** può aprirla: l'operatore sempre, un webhook mai, e che
-cosa fa una risincronizzazione che trova un'identità con `local_deleted_at`
-valorizzato. ⛔ Finché non è deciso, nessun servizio automatico deve aprire
-periodi.
+⛔ **Qui i tre residui erano presentati come «decisioni, non codice».** Era sbagliato per
+tutti e tre, e in un modo che costa: una decisione aperta si rimanda in attesa di
+qualcuno che decida; un'implementazione mancante si pianifica. Presentare la seconda come
+la prima ferma il lavoro senza che nessuno l'abbia deciso.
 
-**2 · Identità del negozio.** `shopify_shops` ha `UNIQUE (shop_gid)` globale, ma
-un negozio che cambia dominio, o una riconnessione che non ritrova la riga
-precedente, possono produrre **due righe per lo stesso negozio reale** — e con
-esse due identità remote per lo stesso GID, che le garanzie 1-2 non fermano
-perché sono per `shop_id`. ⚠️ Non è teorico: `shopify_connections.shop_id` è
-appena stato introdotto, e prima di lui non esisteva un modo per sapere quale
-riga fosse la corrente. Serve decidere come si riconosce «lo stesso negozio» e
-che cosa succede ai collegamenti dell'altra riga.
+##### ⛔ 1 · Il divieto di riapertura e reimportazione automatica — È DECISO
 
-**3 · Registro delle operazioni.** ⛔ **Questi rimedi non lo sostituiscono, e non
-devono sembrare di farlo.** I trigger impediscono che la storia sparisca; non
-dicono **chi** ha sganciato un'identità né **perché** — `close_reason` dice la
-categoria, non l'autore. Un'eliminazione definitiva è un'azione sensibile ai
-sensi di `regole-gestionale` («AUDITABILITÀ UI»), e chiede chi, quando, su quale
-entità e con quale stato prima. È lavoro a sé, ed è elencato in `docs/24` §0-bis
-fra le voci aperte.
+> **§11.8 «Prevenzione della reimportazione», decisione confermata il 03/09/2026:** il
+> riferimento tecnico minimo «**impedisce** che il normale pull Shopify ricrei
+> automaticamente l'elemento» e «può essere superato **soltanto da un comando
+> amministrativo esplicito**».
+
+⭐ **Pull, webhook e risincronizzazioni non devono aggirarlo**, né riaprendo un periodo né
+creando **identità nuove** o **articoli nuovi**: creare un articolo nuovo con un GID già
+escluso è la stessa violazione con un altro nome.
+
+###### ⛔ E la mia formulazione precedente confondeva due cose diverse
+
+Qui c'era: _«nulla vieta a un servizio di aprire un periodo nuovo sulla stessa identità
+appena l'anagrafica torna viva… il modello lo consente di proposito: è la ripresa»_. Sono
+**due situazioni che non si toccano**:
+
+|                                       | **Collegamento chiuso**                           | **Articolo eliminato definitivamente**            |
+| ------------------------------------- | ------------------------------------------------- | ------------------------------------------------- |
+| l'anagrafica locale                   | **esiste ancora**                                 | **non esiste più**                                |
+| `shopify_product_identities`          | `product_id` valorizzato, `local_deleted_at` NULL | `product_id` NULL, `local_deleted_at` valorizzato |
+| un periodo nuovo `active`             | ✅ possibile — **è la ripresa**                   | ⛔ **impossibile: lo vieta il database**          |
+| serve un'azione esplicita autorizzata | ✅ sì                                             | — non si pone                                     |
+
+⭐ **La «ripresa» riguarda SOLO la prima colonna**: un'anagrafica ancora esistente, il cui
+collegamento era stato chiuso, che si ricollega con un **periodo nuovo** e un'**azione
+esplicita autorizzata**. Non è, e non è mai stata, il ripristino di un'identità eliminata.
+
+⛔ **Il secondo caso il database lo vieta già**, con quattro sbarramenti indipendenti
+(misurati l'08/09/2026, e ognuno basta da solo):
+
+1. `shopify_product_identities_immutabile` rifiuta `product_id` da `NULL` a un valore —
+   _«un'identità sganciata non si riaggancia»_;
+2. lo stesso trigger rifiuta di riscrivere `local_deleted_at`, e per il CHECK
+   `stato_coerente` le due cose si esigono a vicenda: non se ne può fare una sola;
+3. la FK `…_identita_viva_fkey` rifiuta un periodo `active` su un'identità con `viva =
+false`;
+4. `mai_delete` / `mai_truncate` più l'`UNIQUE` totale su `(shop_id, gid)` chiudono la via
+   «cancello e reinserisco».
+
+⚠️ **«L'operatore sempre» era troppo ampio**, e va corretto: §7.4 chiede un **permesso
+applicativo esplicito** per eliminare e ripristinare, con default a titolare/amministratore.
+La ripresa di un collegamento è della stessa famiglia — non è un'azione che chiunque abbia
+accesso alla scheda compie per il fatto di averla aperta.
+
+###### ⚠️ Una differenza di robustezza, che non cambia la classificazione
+
+I divieti sulle **identità** poggiano su un **trigger utente**, spegnibile da chi si
+connette come owner — cioè l'API; quelli sui **periodi** poggiano su una **FK**, che
+richiede il superuser. E `check:storico-non-cancellabile` verifica oggi solo
+`mai_delete` / `mai_truncate`, **non** che i trigger `…_immutabile` esistano: cancellarli
+non farebbe arrossare niente. Estendere la guardia è lavoro piccolo e va fatto con la
+tranche.
+
+###### I tre percorsi automatici che oggi ricreano — misurati l'08/09/2026
+
+| #   | Percorso                                                                                | Stato                                                                                                                                                 |
+| --- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | webhook `products/*` → `importProduct` ricrea una **variante** eliminata dall'operatore | ⛔ **raggiungibile oggi**: `deleteVariantInTx` non ha guardia Shopify e il push non cancella la remota                                                |
+| 2   | webhook `products/*` ricrea un **prodotto** assente                                     | l'eliminazione di un prodotto collegato è oggi rifiutata, quindi non raggiungibile — ma è lo scenario di §11.8 il giorno che lo sarà                  |
+| 3   | sync Location post-OAuth **riaggancia una sede per NOME**                               | ⛔ **raggiungibile oggi**, e viola una regola già decisa (§1.13): certo dopo disconnetti/riconnetti, perché `disconnect()` azzera `shopifyLocationId` |
+
+⭐ **Il motore che crea è UNO SOLO** — `importProduct` in `shopify-product-pull.service.ts`
+— raggiunto sia dal pull manuale sia dai webhook: `findFirst` per `shopifyProductId`, `if
+(!existing)`, `create`. Le due guardie esistenti (`shopifySyncEnabled`,
+`shouldSkipShopifyCatalogImport`) sono condizionate a un prodotto locale **già esistente**,
+quindi su un'assenza **non scattano affatto**. Un punto solo da correggere è una buona
+notizia.
+
+⚠️ **I webhook si accendono da soli**: `autoSyncEnabled` viene attivato alla fine del
+callback OAuth, e da lì l'ingresso è pubblico (solo HMAC).
+
+##### ⛔ 2 · L'identità del negozio — la chiave È `shop_gid`, e il controllo va definito
+
+> **§8.5.1, decisione confermata:** _«`myshopifyDomain` è di fatto stabile ma è una
+> stringa, non un'identità»_, e `shop_gid` è **univoco globalmente** — lo stesso negozio
+> non appartiene a due tenant insieme.
+
+⛔ **Oggi il negozio è riconosciuto dal DOMINIO**, contro quella decisione, e in due
+depositi indipendenti (misurato l'08/09/2026):
+
+| Verso                          | Dove legge                        | Vincolo    |
+| ------------------------------ | --------------------------------- | ---------- |
+| **ingresso** (webhook)         | `shopify_connections.shop_domain` | ⛔ nessuno |
+| **uscita** (ogni chiamata API) | `shopify_credentials.shop_domain` | ⛔ nessuno |
+
+Nessun indice unico, **nessun indice affatto**, e nulla che leghi le due colonne: la
+risoluzione dominio→tenant è un `findFirst` che, con due righe uguali, sceglie
+arbitrariamente. E `shop_gid` **non viene mai acquisito**: `getShop()` legge `/shop.json` e
+tiene solo `{ name }`, scartando l'id. `shopify_shops` non è scritta da nessun servizio.
+
+###### Il controllo, prima dell'uso operativo delle identità
+
+⭐ **È la FASE 2 del rilascio già scritto** (§8.5.8): _«acquisizione esplicita
+dell'identità: `shop_gid` letto e scritto per ogni connessione»_, con il vincolo _«passo
+dichiarato, mai nascosto dentro una migration»_. Non serve inventare una sequenza: serve
+eseguire quella.
+
+Il controllo, in forma minima:
+
+1. **si legge il `shop_gid` da Shopify** al callback OAuth e alla riconnessione, e si
+   **rifiuta di proseguire** se non lo si ottiene. ⛔ Nessuna deduzione dal dominio: il
+   dominio resta una fotografia, non una chiave;
+2. si **cerca** la riga di `shopify_shops` per quel `shop_gid` — che è globalmente unico —
+   e la si **crea solo se assente**. Ritrovare è la via normale, creare l'eccezione;
+3. `shopify_connections.shop_id` punta a quella riga: da lì in poi «quale negozio» ha una
+   risposta sola;
+4. ⛔ **due righe ambigue non si fondono automaticamente**. Si **segnalano** e si fermano
+   le operazioni che dipendono dall'identità. Una fusione automatica sceglierebbe al posto
+   di una persona proprio dove la scelta è irreversibile;
+5. il blocco «sei già connesso a un altro negozio» va portato **anche sul `shop_gid`**, e i
+   punti sono **due** — `beginAuth` e `handleCallback` — da toccare insieme.
+
+⚠️ **`shop_gid` resta NULLABLE fino alla fase 5**, ed è voluto: `NOT NULL` e unicità globale
+si stringono _«solo qui, e solo se 2-4 sono verdi»_. Il rilascio graduale non si accorcia.
+
+⛔ **E c'è un guasto muto che la fase 2 farebbe emergere**: le sette tabelle nuove sono
+**fuori** da backup, purge e cancellazione del tenant, e la loro FK verso `tenants` è
+`ON DELETE RESTRICT`. Appena esisterà **una** riga, `DELETE /admin/tenants/:id` fallirà. E
+per identità e periodi non basta aggiungerli all'ordine di cancellazione: i trigger
+`shopify_storico_non_si_cancella` vietano ogni DELETE. Va deciso e risolto **prima** della
+fase 2, non dopo.
+
+##### ⛔ 3 · Il registro delle operazioni — già richiesto, manca la forma minima
+
+> **§7.4 «Permessi e audit», decisione confermata**, elenca già nove voci che l'audit
+> conserva; **§4.2** prescrive che l'eliminazione definitiva conservi «l'audit minimo
+> dell'operazione»; `regole-gestionale` («AUDITABILITÀ UI») chiede chi, quando, su quale
+> entità e con quale stato prima/dopo.
+
+⛔ **I trigger non lo sostituiscono**: impediscono che la storia sparisca, non dicono
+**chi** ha sganciato un'identità. `close_reason` dice la **categoria**, non l'autore — i
+periodi hanno i timestamp dell'evento e nessun campo che dica chi.
+
+###### La proposta minima
+
+⭐ **Non è un modello nuovo: è §7.4 con tre precisazioni** — l'autore può essere un
+processo, il negozio è una dimensione a sé, e i tentativi **rifiutati** si registrano quanto
+quelli riusciti.
+
+| Campo            | Contenuto                                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| **autore**       | ⭐ umano **o processo**, dichiarato: `utente` con snapshot testuale, oppure `webhook` / `pull` / `backfill` |
+| **tenant**       | sempre, ed è la dimensione di isolamento                                                                    |
+| **negozio**      | `shop_gid` — ⭐ non è fra le nove di §7.4, e serve: la stessa operazione su due negozi è due operazioni     |
+| **entità**       | famiglia (prodotto / variante / sede) + identificativo locale + GID remoto, come **snapshot testuali**      |
+| **operazione**   | che cosa si è tentato: sgancio, chiusura periodo, ripresa, eliminazione definitiva, creazione da canale     |
+| **motivo**       | la causale dichiarata, distinta dal `close_reason` tecnico                                                  |
+| **data e ora**   | dell'evento                                                                                                 |
+| **esito**        | ⭐ **riuscita** o **rifiutata**, con il vincolo o la regola che ha rifiutato                                |
+| **correlazione** | id dell'operazione remota e/o della consegna webhook, per ricucire una catena                               |
+
+###### Tre vincoli di forma, e vengono da pattern già in casa
+
+1. ⭐ **Snapshot testuali, nessuna FK verso l'attore o il bersaglio.** È la forma di
+   `TenantUserAuditLog`, e la ragione è la stessa: la riga deve restare leggibile dopo che
+   l'utente è stato rinominato o l'articolo eliminato — che è esattamente il caso qui.
+2. ⭐ **Append-only per STRUTTURA**, come `CashSessionDeviceChange`: nessun `updatedAt`,
+   nessuna API che modifichi o cancelli, riferimenti `onDelete: Restrict`. La superficie si
+   tiene chiusa con una guardia sul modello di `check:cassa-append-only`, che fa fallire la
+   build se un controller espone `@Delete` / `@Put` / `@Patch`.
+3. ⛔ **Il tentativo RIFIUTATO va scritto FUORI dalla transazione che ha fallito**, o
+   sparisce col rollback. È la differenza di forma rispetto a `TenantUserAuditLog`, che
+   scrive solo dopo un'operazione riuscita: qui metà dei casi utili sono fallimenti, e sono
+   proprio quelli che si vanno a cercare.
+
+⚠️ **Senza segreti né dati personali**: `regole-sicurezza` («LOGGING E AUDIT») vieta token,
+credenziali e payload interi. Del payload di un webhook si registra la **correlazione**, non
+il contenuto.
+
+⚠️ **`shopify_webhook_deliveries` (§8.5.3) è un'altra cosa** e non va confusa: quella è
+l'**inbox** delle consegne — a che punto è una consegna — questo è il registro di **che cosa
+è stato fatto**. Condividono la chiave di correlazione, non il mestiere.
+
+⛔ **Resta fuori dalla tranche qui sotto**, e va detto: il registro è un lavoro suo,
+elencato in §0-bis voce 6 insieme al backup pre-operazione.
+
+### ⏸ 10 · PROPOSTA — prima tranche operativa del divieto di riapertura automatica
+
+> ⛔ **È una proposta, non un lavoro autorizzato.** Non implementata, non
+> pianificata: presentata perché sia possibile deciderla.
+
+⭐ **Nella sequenza già scritta è il passo 5 di §8.5.7** — «`products/delete`,
+classificazione dell'assenza remota, **blocco della ricreazione**» — e non la
+anticipa: la circoscrive.
+
+#### Il perimetro: la SCRITTURA prima della lettura
+
+⛔ **Applicare il divieto interrogando le identità, e basta, sarebbe INERTE**: le tabelle
+sono vuote, quindi la risposta sarebbe sempre «mai visto» e il divieto non scatterebbe mai.
+Ed è la ragione per cui §8.5.7 mette il backfill (passo 3) prima del blocco (passo 5).
+
+⭐ **Ma una parte è utile prima del backfill, e non lo anticipa**: far sì che **ogni
+creazione automatica registri l'identità e apra il periodo nella stessa transazione**. Da
+quel momento il divieto è efficace su tutto ciò che nasce da lì in avanti, senza aspettare
+la conversione dello storico.
+
+⚠️ È esattamente la «tranche 1» già scritta in §8.5.5: _«link canonici + colonne-cache
+scritte insieme; ogni lettura NUOVA passa dai link»_.
+
+| Dentro                                                                   | Fuori                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| scrittura di identità e periodo su **ogni creazione da canale**          | **backfill** dello storico (fase 3) — copertura dichiarata parziale |
+| interrogazione delle identità **prima** di creare                        | migrazione degli **altri** lettori (§8.5.4 ne censisce quattro)     |
+| il rifiuto quando l'identità esiste ed è eliminata                       | il **comando amministrativo** che supera il divieto (§11.8)         |
+| il riaggancio per NOME delle sedi                                        | **registro delle operazioni** (residuo 3)                           |
+| estensione di `check:storico-non-cancellabile` ai trigger `…_immutabile` | eliminazione definitiva operativa, ritiro colonne-cache             |
+
+#### Dipendenze, in ordine, e nessuna è saltabile
+
+| #   | Dipendenza                                                          | Perché blocca                                                                                                                                                                            |
+| --- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | ⛔ **le sette tabelle dentro backup, purge e cancellazione tenant** | FK `RESTRICT` verso `tenants`: alla **prima riga**, `DELETE /admin/tenants/:id` fallisce. E i trigger vietano il DELETE, quindi non basta l'ordine di cancellazione — va deciso **come** |
+| 1   | ⛔ **fase 2: acquisizione dello `shop_gid`** (§8.5.8)               | `shopify_product_identities.shop_id` è `NOT NULL` con FK a `shopify_shops`: **senza una riga negozio non si può scrivere un'identità**                                                   |
+| 2   | il controllo di identità del negozio (residuo 2)                    | ⭐ **il divieto ha grana per negozio**: senza sapere quale negozio, «GID già visto» non è una domanda ben posta                                                                          |
+| 3   | applicazione della migration al **condiviso**                       | oggi collaudata solo in locale, e con la verifica dei residui in sola lettura prima                                                                                                      |
+
+⚠️ **La 0 non era nell'elenco di §8.5.7**, ed è emersa misurando l'08/09/2026: è un guasto
+muto che si manifesta alla prima riga scritta, cioè **dentro** la fase 2. Va chiusa prima.
+
+#### Il lavoro, in cinque passi
+
+| #   | Passo                                                                                                                                                            | Dove                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | **doppia scrittura**: `importProduct` scrive identità + periodo nella **stessa transazione** delle colonne-cache                                                 | `shopify-product-pull.service.ts` (`:314`, `:344`, `:439`) |
+| 2   | **interrogazione prima di creare**: la creazione si condiziona all'assenza di un collegamento **non chiuso**, non alla sola assenza della colonna-cache (§8.5.4) | stesso file, i tre punti sopra                             |
+| 3   | **il rifiuto**: identità presente con `local_deleted_at` valorizzato ⇒ non si crea, non si apre un periodo, si registra e si prosegue con gli altri articoli     | stesso file                                                |
+| 4   | **le sedi**: il riaggancio per NOME si condiziona all'assenza di un periodo chiuso per quella sede                                                               | `shopify-location-sync.service.ts:298`                     |
+| 5   | **la guardia**: `check:storico-non-cancellabile` verifica anche i trigger `…_immutabile`                                                                         | `scripts/check-storico-non-cancellabile.mjs`               |
+
+⭐ **Un motore solo da toccare**: `importProduct` è raggiunto sia dal pull manuale sia dai
+webhook, quindi i passi 1-3 valgono per entrambi senza doppioni.
+
+⛔ **Il rifiuto NON è un errore che ferma il pull.** Un import di catalogo che si interrompe
+al primo articolo escluso è peggio del difetto: si salta quell'articolo, lo si registra, si
+va avanti. È la stessa disciplina degli avvisi non bloccanti di `regole-gestionale`.
+
+#### I test
+
+⚠️ **Nessuno di questi è un test unitario con mock**: la regola vive in un database, e un
+mock direbbe quello che gli si è insegnato.
+
+**Integrazione** (database di prova, tabelle popolate da fixture):
+
+| Prova                                                  | Esito atteso                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------ |
+| GID mai visto                                          | crea, **e scrive identità + periodo** — non solo il prodotto |
+| GID con identità viva e periodo attivo                 | aggiorna, **non** apre un secondo periodo                    |
+| GID con identità viva e periodo **chiuso**             | ⛔ non riapre da solo: serve l'azione esplicita autorizzata  |
+| GID con identità **eliminata** (`local_deleted_at`)    | ⛔ non crea, non apre, **registra** e prosegue               |
+| lo stesso, arrivato da **webhook** invece che dal pull | stesso esito: la porta non cambia la regola                  |
+| due articoli nello stesso pull, uno escluso            | l'altro viene importato: il rifiuto non ferma il lotto       |
+| sede con periodo chiuso, stesso **nome**               | ⛔ non riaggancia                                            |
+| lo stesso GID su **due negozi** diversi                | sono due identità: nessuna interferenza                      |
+
+**Concorrenza**, con la forma già collaudata (due connessioni, incastro dichiarato,
+`pg_stat_activity`): due webhook per lo stesso GID in parallelo ⇒ **una** identità, **un**
+periodo, e la seconda transazione rifiutata dall'`UNIQUE` — non due righe.
+
+**Falsificazioni obbligatorie**, sul solo database sacrificabile:
+
+- tolta l'interrogazione ⇒ le prove del rifiuto devono **cadere**;
+- tolta la doppia scrittura ⇒ la prova «scrive identità + periodo» deve **cadere**;
+- tolto il trigger `…_immutabile` ⇒ la guardia estesa deve **arrossare**.
+
+⛔ **Una falsificazione che non fa cadere niente non prova che il codice è buono: prova che
+il test è cieco.** È già successo due volte in questa tranche.
+
+**Guardie statiche**: `check:storico-non-cancellabile` esteso; e va valutata una guardia che
+impedisca a un percorso di creazione da canale di scrivere `shopifyProductId` **senza**
+scrivere l'identità nella stessa transazione — è la forma che impedisce alla doppia
+scrittura di scollarsi in silenzio.
+
+#### Che cosa questa tranche NON garantisce, dichiarato
+
+⛔ **Gli articoli collegati PRIMA della tranche restano scoperti** finché non c'è il
+backfill: le loro identità non esistono, quindi per loro «GID già visto» continua a
+rispondere no. La tranche rende il divieto **vero da qui in avanti**, non retroattivo.
+
+⛔ **E non rende il modello fonte canonica**: §8.5.8 chiede due condizioni congiunte —
+backfill verificato **e** lettori migrati — e questa tranche non soddisfa nessuna delle due.
 
 ---
 

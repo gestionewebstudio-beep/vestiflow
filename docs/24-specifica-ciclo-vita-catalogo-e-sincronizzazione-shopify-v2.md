@@ -2249,6 +2249,16 @@ riapertura, nessuna riscrittura della causale.
 seconda identità, nasce un **periodo nuovo** sulla stessa. È la distinzione che il modello
 a due tabelle rende esprimibile e che quello a una non poteva.
 
+⛔ **La ripresa riguarda un'anagrafica ANCORA ESISTENTE, e vuole un'azione esplicita
+autorizzata.** Non è il ripristino di un'identità eliminata definitivamente: quella ha
+`local_deleted_at` valorizzato e `product_id` a `NULL`, e su di lei un periodo `active` è
+**impossibile** — lo vietano il trigger `…_immutabile` (che rifiuta sia di riagganciare sia
+di riscrivere la data) e la FK `…_identita_viva_fkey`, ciascuno da solo. Confondere le due
+cose è l'errore che fa sembrare aperta una regola che il database applica già.
+
+⚠️ **Il permesso non è «l'operatore»**: §7.4 chiede un permesso applicativo esplicito, con
+default a titolare/amministratore, e la ripresa di un collegamento è della stessa famiglia.
+
 ⛔ **L'immutabilità la impongono TRIGGER, non i soli UNIQUE**, e la distinzione è stata
 misurata: i vincoli unici impediscono di **inserire** un doppione, non di **modificare** una
 riga esistente. `shopify_product_identities_immutabile` rifiuta di spostare il GID o
@@ -2345,6 +2355,12 @@ di sede: dieci trigger. `BEFORE TRUNCATE` è `FOR EACH STATEMENT` ed è **separa
 ⛔ **La COPPIA di sede non li ha, ed è deliberato**: una coppia **senza periodi** deve
 restare cancellabile, perché è la correzione dell'abbinamento iniziale sbagliato (§1.13.6).
 
+⚠️ **I due divieti non hanno la stessa robustezza, e va saputo**: quelli sulle **identità**
+(riaggancio, riscrittura della data) poggiano su un **trigger utente**, spegnibile
+dall'owner; quello sui **periodi** poggia su una **FK**, che per essere tolta richiede il
+superuser. ⛔ E `check:storico-non-cancellabile` verifica oggi solo `mai_delete` /
+`mai_truncate`: se qualcuno cancellasse i trigger `…_immutabile` non arrossirebbe niente.
+
 ⛔ **E non è una barriera di PRIVILEGI.** L'API si connette come **owner** del database — la
 stessa scelta per cui scavalca la RLS — quindi `ALTER TABLE … DISABLE TRIGGER` da un
 servizio riuscirebbe. Questi trigger fermano la cancellazione **accidentale**: un `CASCADE`
@@ -2379,6 +2395,15 @@ dichiara dove vive il vincolo che Prisma non può esprimere — usata su `Paymen
 
 ⚠️ **Finché il backfill non c'è, queste tabelle sono vuote**: nessuna lettura le interroga e
 nessuna scrittura le popola. Il modello è verificato, non ancora in servizio.
+
+⛔ **Un guasto muto che si manifesterà alla PRIMA riga scritta** — misurato l'08/09/2026.
+Le sette tabelle sono **fuori** da backup, purge e cancellazione del tenant, e la loro FK
+verso `tenants` è `ON DELETE RESTRICT`: appena esisterà una riga,
+`DELETE /admin/tenants/:id` fallirà. E per identità e periodi **non basta aggiungerle
+all'ordine di cancellazione**, perché `shopify_storico_non_si_cancella` vieta ogni DELETE:
+va deciso **come** un tenant si cancella quando porta storia remota. Oggi non si vede solo
+perché le tabelle sono vuote — cioè è esattamente il tipo di difetto che si scopre in
+fase 2.
 
 ### 8.5.3 Registro delle consegne webhook — un INBOX, non solo una deduplica
 
