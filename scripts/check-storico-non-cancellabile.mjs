@@ -11,14 +11,21 @@
  * su un altro prodotto.
  *
  * ⭐ **Ma le fixture di integrazione devono poter pulire**, e per farlo spengono
- * i trigger con `ALTER TABLE … DISABLE TRIGGER USER`. E' DDL, richiede
- * l'ownership, e nessun endpoint lo emette: non e' un percorso applicativo.
- * Questa guardia serve a tenerlo tale.
+ * i trigger uno per uno (`conStoricoSbloccato` in `api/src/test/integration/
+ * fixture.ts`), dentro una transazione sola sul solo database di prova.
+ *
+ * ⛔ **Questa guardia NON e' una barriera di privilegi**, e presentarla come
+ * tale sarebbe peggio di non averla. Qui c'era scritto che il DDL «richiede
+ * l'ownership e nessun endpoint lo emette, quindi non e' un percorso
+ * applicativo»: e' falso — l'API si connette proprio come OWNER del database
+ * (la stessa scelta per cui scavalca la RLS), quindi da un servizio quel DDL
+ * riuscirebbe. Cio' che manca e' il codice che lo scriva, non il permesso.
  *
  * ⚠️ **Perche' una guardia e non un test**: un test prova che oggi l'app non
  * spegne niente. Questa fa fallire la build il giorno in cui qualcuno lo scrive
  * in un servizio — che e' il momento in cui la decisione va ridiscussa invece
- * che presa per inerzia. E' la stessa forma di `check:cassa-append-only`.
+ * che presa per inerzia. Ferma chi lo scrive, non chi lo esegue. E' la stessa
+ * forma di `check:cassa-append-only`.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';

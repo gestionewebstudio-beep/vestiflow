@@ -612,6 +612,14 @@ CREATE TRIGGER "shopify_variant_links_immutabile"
 -- ⚠️ E NON impedisce l'eliminazione definitiva dell'ANAGRAFICA: `products` e
 --    `product_variants` restano cancellabili una volta sganciati. Si conserva
 --    l'identita' remota, non si vieta la purga locale.
+--
+-- ⛔ NON e' una barriera di PRIVILEGI, e non va letta come tale: l'API si
+--    connette come OWNER del database — la stessa scelta per cui scavalca la
+--    RLS — quindi `ALTER TABLE … DISABLE TRIGGER` da un servizio riuscirebbe.
+--    Questi trigger fermano la cancellazione ACCIDENTALE (un CASCADE, un
+--    TRUNCATE di pulizia, una query di manutenzione), non un servizio che si
+--    metta deliberatamente a spegnerli. A fermare QUELLO e' una guardia
+--    statica, `check:storico-non-cancellabile`, che fa fallire il lint.
 
 CREATE OR REPLACE FUNCTION "shopify_storico_non_si_cancella"()
 RETURNS TRIGGER AS $$

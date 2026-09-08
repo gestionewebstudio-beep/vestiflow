@@ -898,12 +898,11 @@ il caso commerciale che lo giustifica. Una sede non può quindi essere collegata
 a due negozi insieme — sincronizzare quantità verso due negozi richiederebbe una
 regola di ripartizione che non esiste e non è stata chiesta.
 
-⭐ **`superseded_by_link_id` non è la «ripubblicazione» dei prodotti (§11.9)**:
-per una sede è la **sostituzione esplicita** decisa dall'operatore. Resta
-facoltativo — la semplice chiusura lo lascia `NULL` — e la FK impone che
-predecessore e successore condividano **tenant e sede**, non il negozio:
-imporre lo stesso negozio impedirebbe la sostituzione dopo un cambio negozio,
-che è proprio uno dei casi in cui il collegamento si sostituisce.
+⛔ **Qui c'era la descrizione di `superseded_by_link_id` come colonna esistente** —
+«per una sede è la sostituzione esplicita decisa dall'operatore», con la sua FK. È
+testo morto: la colonna è stata **ritirata lo stesso giorno**, due paragrafi più
+sopra e nella tabella delle quattro decisioni, e non è mai entrata nella migration.
+Restava a contraddire il proprio ritiro nella stessa sezione.
 
 ⚠️ **Nessuna colonna di nome o indirizzo**, ed è la parte che tiene in piedi il
 divieto di riaggancio: un nome in quella tabella sarebbe l'appiglio per il
@@ -2088,167 +2087,298 @@ rifiutato da PostgreSQL, non da una convenzione.
 
 ### 8.5.2 Storico dei collegamenti Shopify — modello
 
-> ✅ **Decisione confermata** (06/09/2026)
+> ✅ **Decisione confermata** (06/09/2026) · ⭐ **modello dati ristrutturato il 07/09/2026**
 
-**Due tabelle sorelle**, `ShopifyProductLink` e `ShopifyVariantLink`, con FK reali verso
-`Product`/`ProductVariant` e verso `ShopifyShop`. Sono la fonte canonica di collegamento
-(§8.5.5); le colonne-cache esistenti restano un puntatore rapido aggiornato insieme.
+⛔ **Qui c'erano DUE tabelle, `ShopifyProductLink` e `ShopifyVariantLink`, che facevano
+due mestieri insieme**: dicevano _quale articolo locale è quel GID_ e insieme _da quando a
+quando è stato collegato_. Reggeva finché l'anagrafica locale non si eliminava mai. Dal
+momento in cui l'eliminazione definitiva locale è stata decisa (§1.8, §7), quella forma si
+è spezzata su due punti misurati, e la ristrutturazione non è un ripensamento estetico:
+
+|                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| una riga con `product_id` **NOT NULL** e FK `RESTRICT` rende l'eliminazione definitiva **impossibile**: o si toglie il vincolo, o non si elimina            |
+| resa `product_id` **nullable**, la FK composita `(product_id, tenant_id)` diventa **inerte**: `MATCH SIMPLE` non verifica nulla quando una colonna è `NULL` |
+
+⭐ **Il modello effettivo separa l'IDENTITÀ dai PERIODI**, ed è la stessa forma già decisa
+per le sedi (§1.13.6): la cosa stabile da una parte, i suoi intervalli di tempo dall'altra.
 
 ```text
-shopify_product_links
-  id · tenant_id · shop_id · product_id
-  shopify_product_id
+shopify_product_identities          ← chi è quel GID, per sempre
+  id · tenant_id · shop_id
+  shopify_product_gid               gid://shopify/Product/{id}, forma imposta da CHECK
+  original_product_id               l'appartenenza ORIGINARIA — immutabile, SENZA FK
+  product_id                        il riferimento VIVO — nullable, FK RESTRICT
+  local_deleted_at                  si scrive una volta sola
+  viva                              GENERATED ALWAYS AS (product_id IS NOT NULL) STORED
+
+shopify_product_links               ← DA QUANDO A QUANDO è stato collegato
+  id · tenant_id · identity_id
+  original_product_id               denormalizzato, e una FK composita gli impedisce di mentire
   status            active | remotely_deleted | unlinked
-  close_reason      null | remote_delete | not_found | operator | shop_change
-  superseded_by_link_id   FK a se stessa, nullable
+  close_reason      null | remote_delete | not_found | operator | shop_change | local_delete
   linked_at · closed_at
   last_event_at · last_event_triggered_at
+  richiede_viva     GENERATED ALWAYS AS (CASE WHEN status='active' THEN true END) STORED
 
-shopify_variant_links
-  id · tenant_id · shop_id · product_id · variant_id · product_link_id
-  shopify_variant_id · shopify_inventory_item_id
-  status · close_reason · superseded_by_link_id
-  linked_at · closed_at · last_event_at · last_event_triggered_at
+shopify_variant_identities          ← due identificativi remoti, non uno
+  … + shopify_variant_gid · shopify_inventory_item_gid
+  product_identity_id · original_variant_id · original_product_id
+  variant_id · product_id           i due riferimenti vivi, che si sganciano INSIEME
+
+shopify_variant_links               ← come sopra, più product_link_id (il periodo padre)
 ```
 
-#### Unicità — cinque garanzie, non quattro
+#### ⭐ L'appartenenza è scritta DUE VOLTE, e la distinzione è tutto il modello
 
-⭐ **La quinta è stata deliberata il 07/09/2026**: `UNIQUE (shop_id,
-shopify_inventory_item_gid)` su `shopify_variant_links`. In Shopify il legame
-variante ↔ inventory item è uno-a-uno, quindi un inventory item non può comparire
-su due varianti.
+|                       |                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `original_product_id` | **dato storico**, come uno snapshot documentale. Immutabile, **senza chiave esterna**, sopravvive alla purga |
+| `product_id`          | **riferimento vivo**. Nullable, FK `RESTRICT`. Si azzera alla purga, e da lì la FK non verifica più nulla    |
 
-⛔ **Esisteva già nel codice e non in questa sezione**, che si intitolava «quattro
-garanzie, non tre» ed elencava quattro indici: il database imponeva una regola che
-nessun documento sosteneva, e un fallimento di backfill dovuto a quell'indice non
-sarebbe stato rintracciabile in nessuna decisione. È il rovescio esatto di una
-lacuna, e ha lo stesso costo.
+⚠️ **Ciò che quella FK smette di garantire lo garantisce la FK diretta sul tenant**, che
+resta `NOT NULL`: una riga sganciata non diventa senza padrone.
 
-⚠️ La colonna è nullable e PostgreSQL non fa collidere i NULL: il vincolo morde
-solo sulle varianti con inventory item noto.
+⭐ **E `original_product_id` è ciò che blocca la ricreazione automatica**: l'identità
+rimane, quindi un GID già visto non torna assegnabile a un articolo diverso, nemmeno dopo
+che l'anagrafica locale è stata eliminata. È il requisito che l'eliminazione definitiva
+doveva soddisfare, e la ragione per cui la colonna non porta una FK.
 
-⭐ **E le sedi hanno le proprie**, con la stessa forma: `UNIQUE (shop_id,
-shopify_location_gid)` su tutte le righe e `UNIQUE (location_id) WHERE
-status = 'active'` — vedi §1.13.3 per la decisione sulla cardinalità.
+#### ⛔ `superseded_by_link_id` NON esiste più
 
-#### Le quattro garanzie originarie
+Era stato deciso il 06/09/2026 come «l'esistenza di un successore, e quale». La
+ristrutturazione del 07/09 lo ha superato: **la ripubblicazione è una seconda identità
+sullo stesso `original_product_id`**, e i periodi di un'identità si susseguono nel tempo.
+Un successore da indicare non c'è — si leggono ordinati per `linked_at`.
 
-> ✅ **Decisione confermata**: l'unicità solo sulle righe `active` per id remoto è
-> insufficiente, perché renderebbe ambigua la risoluzione di ordini e resi storici (§8.5.4).
+⚠️ Cade con lui il CHECK «un link non punta a se stesso», e cade il problema che esso non
+risolveva: il ciclo fra due righe, che un vincolo di riga non può vedere. **La garanzia
+applicativa «nessun ciclo» non serve più a nessuno**, perché non c'è più il puntatore che
+poteva formarne uno.
 
-| #   | Garanzia                                                       | Indice                                                                        |
-| --- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 1   | un solo record, **storico o corrente**, per `shopifyProductId` | `UNIQUE (shop_id, shopify_product_id)` — su TUTTE le righe, non solo `active` |
-| 2   | un solo record, **storico o corrente**, per `shopifyVariantId` | `UNIQUE (shop_id, shopify_variant_id)` — idem                                 |
-| 3   | un solo collegamento `active` per prodotto locale              | `UNIQUE (product_id) WHERE status = 'active'` — indice **parziale**           |
-| 4   | un solo collegamento `active` per variante locale              | `UNIQUE (variant_id) WHERE status = 'active'` — idem                          |
+#### Unicità — cinque garanzie, e adesso stanno su DUE tabelle
 
-⭐ **Le garanzie 1-2 sono quelle che rendono impossibile riusare un id remoto dopo la
-chiusura** (la tua regola d'apertura): un id remoto compare **una volta sola** nella tabella,
-per sempre. Le garanzie 3-4 impediscono invece che un'entità locale abbia due collegamenti
-vivi insieme — sono la stessa regola di §3.1 (un solo asse alla volta), applicata al database.
+⭐ **Le garanzie non sono cambiate: è cambiato dove vivono.** Le prime due, e la quinta,
+riguardano l'**identità remota** e stanno sulle tabelle delle identità; la terza e la
+quarta riguardano il **collegamento attivo** e stanno sui periodi.
+
+| #   | Garanzia                                                  | Indice, e su quale tabella                                                    |
+| --- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1   | un solo record, **storico o corrente**, per GID prodotto  | `UNIQUE (shop_id, shopify_product_gid)` su **identities** — su TUTTE le righe |
+| 2   | un solo record, **storico o corrente**, per GID variante  | `UNIQUE (shop_id, shopify_variant_gid)` su **identities** — idem              |
+| 3   | un solo collegamento `active` per **anagrafica** prodotto | `UNIQUE (original_product_id) WHERE status = 'active'` su **links**, parziale |
+| 4   | un solo collegamento `active` per **anagrafica** variante | `UNIQUE (original_variant_id) WHERE status = 'active'` su **links**, parziale |
+| 5   | variante ↔ inventory item è uno-a-uno dentro il negozio   | `UNIQUE (shop_id, shopify_inventory_item_gid)` su **identities**              |
+
+⭐ **Le garanzie 3-4 poggiano su `original_*`, NON su `product_id`/`variant_id`**, ed è la
+conseguenza diretta del nullable: un indice parziale su una colonna che dopo la purga vale
+`NULL` smetterebbe di garantire qualcosa proprio per le righe che più contano. La colonna
+storica non si azzera mai, quindi l'indice morde sempre.
+
+⭐ **Una sesta unicità, tecnica**: `UNIQUE (identity_id) WHERE status = 'active'` — un solo
+periodo vivo per identità. Non è una garanzia di dominio nuova, è il modo in cui i periodi
+esprimono «adesso è collegato una volta sola».
+
+⚠️ La quinta colonna è nullable e PostgreSQL non fa collidere i NULL: il vincolo morde solo
+sulle varianti con inventory item noto.
+
+⭐ **E le sedi hanno le proprie**, con la stessa forma — `UNIQUE (shop_id,
+shopify_location_gid)` e `UNIQUE (location_id)` sulla **coppia**, entrambi su tutte le
+righe: vedi §1.13.3 e §1.13.6.
 
 ⭐ **Un indice unico parziale è già un pattern del progetto**: usato da
-`cash_sessions_open_per_location` e `vat_codes_tenant_default_key`. Non introduce una tecnica
-nuova.
+`cash_sessions_open_per_location` e `vat_codes_tenant_default_key`. Non introduce una
+tecnica nuova.
 
-⚠️ **Sull'indice parziale, nessuna race condition**: è l'indice a decidere, non un controllo
-applicativo — due inserimenti concorrenti che superano entrambi un controllo a livello di
-servizio non sono un problema, perché il secondo si blocca sul conflitto finché il primo non
-fa commit, poi fallisce con un errore di vincolo che il chiamante traduce in un conflitto di
-dominio leggibile. Vale già sotto l'isolamento di default di PostgreSQL, senza bisogno di
-`SERIALIZABLE` né di lock espliciti.
+#### ⛔ Un indice unico non basta: la concorrenza vuole una FK, non un trigger
+
+> **Un periodo `active` esige un'identità VIVA, e a esigerlo è una CHIAVE ESTERNA.**
+
+⚠️ **Misurato il 07/09/2026** su due connessioni vere: con la sola guardia procedurale — un
+trigger, o un controllo nel servizio — due sessioni si incrociano, **entrambe committano**,
+e resta un periodo attivo su un'identità eliminata. Un trigger legge lo stato con il
+proprio snapshot e non vede la transazione dell'altro.
+
+⭐ **Il rimedio è dichiarativo**, e PostgreSQL lo serializza da sé:
+
+```sql
+-- sull'identità: vero quando l'anagrafica c'è ancora
+viva          GENERATED ALWAYS AS (product_id IS NOT NULL) STORED
+UNIQUE (id, viva)
+
+-- sul periodo: `true` se attivo, NULL se chiuso
+richiede_viva GENERATED ALWAYS AS (CASE WHEN status='active' THEN true END) STORED
+FOREIGN KEY (identity_id, richiede_viva)
+  REFERENCES shopify_product_identities (id, viva)
+  ON DELETE RESTRICT ON UPDATE RESTRICT
+```
+
+⭐ **`MATCH SIMPLE` qui lavora a favore**, per una volta: su un periodo **chiuso**
+`richiede_viva` è `NULL`, quindi la FK non verifica nulla e **la storia sopravvive alla
+purga**. Su un periodo **attivo** vale `true`, e allora esige `(id, true)` — cioè
+un'identità viva.
+
+⚠️ **È lo stesso `MATCH SIMPLE` che rendeva inerte la vecchia FK su `product_id`.** Non è
+una contraddizione: là l'inerzia era un difetto perché il vincolo doveva valere sempre,
+qui è la funzione perché il vincolo deve valere **solo** sui periodi attivi. La differenza
+è che ora è **dichiarata**, non subita.
+
+⚠️ **Verificato in concorrenza, nei due ordini**
+(`shopify-articoli-identita.integration-spec.ts`): una transazione riesce, l'altra è
+**rifiutata dalla FK** — e la prova esige il nome del vincolo, perché un rifiuto
+dell'indice unico dei periodi attivi direbbe la cosa giusta per la ragione sbagliata.
 
 #### Stati — tre, non quattro
 
-> ⛔ **Corretto il 06/09/2026: `superseded` NON è uno stato.**
+> ⛔ **Corretto il 06/09/2026: `superseded` NON è uno stato.** Rappresentava solo
+> l'esistenza di un successore, e usarlo come stato **cancella la causa vera**: un link
+> chiuso perché il prodotto è stato eliminato su Shopify, dopo una ripubblicazione,
+> diventerebbe genericamente «sostituito».
 
-Rappresenta solo l'esistenza di un successore, e usarlo come stato **cancella la causa vera**:
-un link chiuso perché il prodotto è stato eliminato su Shopify, dopo una ripubblicazione,
-diventerebbe genericamente «sostituito» — e nessuno saprebbe più che era stato cancellato.
+| Colonna        | Che cosa dice                                                            | Quando cambia                      |
+| -------------- | ------------------------------------------------------------------------ | ---------------------------------- |
+| `status`       | dov'è il collegamento adesso: `active` · `remotely_deleted` · `unlinked` | una volta, alla chiusura — mai più |
+| `close_reason` | **perché** si è chiuso                                                   | fissata alla chiusura, non cambia  |
 
-| Colonna                 | Che cosa dice                                                            | Quando cambia                                                         |
-| ----------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `status`                | dov'è il collegamento adesso: `active` · `remotely_deleted` · `unlinked` | una volta, alla chiusura — mai più                                    |
-| `close_reason`          | **perché** si è chiuso                                                   | fissata alla chiusura, non cambia mai                                 |
-| `superseded_by_link_id` | **se** esiste un successore, e quale                                     | può essere impostata **dopo** la chiusura, quando nasce il nuovo link |
+⭐ **Ripubblicazione, corretta**: il vecchio periodo resta `remotely_deleted` con la sua
+`close_reason` originale (`remote_delete` o `not_found`) — **non la perde mai**. Nasce
+un'identità **nuova** con il GID nuovo, e su di lei un periodo `active`. Nessuna
+riapertura, nessuna riscrittura della causale.
 
-⭐ **Ripubblicazione, corretta**: il vecchio link resta `remotely_deleted` con la sua
-`close_reason` originale (`remote_delete` o `not_found`) — **non la perde mai**. Riceve solo il
-puntatore al successore. Nasce un link **nuovo**, `active`. Nessuna riapertura, nessuna
-riscrittura della causale.
+⭐ **Ripresa della stessa identità** (stesso GID che torna disponibile): non nasce una
+seconda identità, nasce un **periodo nuovo** sulla stessa. È la distinzione che il modello
+a due tabelle rende esprimibile e che quello a una non poteva.
 
-#### I CHECK — cinque, e vanno letti come un gruppo
+⛔ **L'immutabilità la impongono TRIGGER, non i soli UNIQUE**, e la distinzione è stata
+misurata: i vincoli unici impediscono di **inserire** un doppione, non di **modificare** una
+riga esistente. `shopify_product_identities_immutabile` rifiuta di spostare il GID o
+l'appartenenza originaria; `shopify_periodo_immutabile` rifiuta di riscrivere una causale o
+di riaprire un periodo chiuso.
+
+#### ⭐ Una sesta causale: `local_delete`
+
+Ammessa **solo** su prodotti e varianti, e vietata sulle sedi da un CHECK a lista bianca:
+una sede non si elimina definitivamente finché ha una storia (§1.13.4). È la causale con
+cui si chiude un periodo quando è l'**anagrafica locale** a sparire — distinta da
+`remote_delete`, che dice che a sparire è stato il prodotto su Shopify.
+
+#### I CHECK — vanno letti come un gruppo
 
 ```sql
--- 1-2: bidirezionale. Attivo ⇒ nessuna chiusura; chiuso ⇒ chiusura completa.
+-- Sui PERIODI · 1-2: bidirezionale. Attivo ⇒ nessuna chiusura; chiuso ⇒ chiusura completa.
 CHECK (status <> 'active' OR (closed_at IS NULL AND close_reason IS NULL))
-CHECK (status = 'active'  OR (closed_at IS NOT NULL AND close_reason IS NOT NULL))
+CHECK (status =  'active' OR (closed_at IS NOT NULL AND close_reason IS NOT NULL))
 
 -- 3-4: la causale ammessa dipende dallo stato.
 CHECK (status <> 'remotely_deleted' OR close_reason IN ('remote_delete', 'not_found'))
-CHECK (status <> 'unlinked'         OR close_reason IN ('operator', 'shop_change'))
+CHECK (status <> 'unlinked' OR close_reason IN ('operator', 'shop_change', 'local_delete'))
 
--- 5: un link non punta a se stesso.
-CHECK (superseded_by_link_id IS NULL OR superseded_by_link_id <> id)
+-- 5: un periodo non si chiude prima di aprirsi.
+CHECK (closed_at IS NULL OR closed_at >= linked_at)
+
+-- Sulle IDENTITÀ · il riferimento vivo, quando c'è, È l'articolo originario.
+CHECK (product_id IS NULL OR product_id = original_product_id)
+-- O viva, o eliminata localmente. Nessun terzo stato.
+CHECK ((product_id IS NULL) = (local_deleted_at IS NOT NULL))
+-- E il GID ha una forma, non è una stringa qualunque.
+CHECK (shopify_product_gid ~ '^gid://shopify/Product/[0-9]+$')
 ```
 
 ⚠️ **I CHECK 3 e 4 non reggono da soli**: `close_reason IN (...)` su `NULL` vale `NULL`, e un
-CHECK fallisce solo su `FALSE` — un `close_reason` lasciato vuoto su un link `remotely_deleted`
-supererebbe 3-4 in silenzio. È il **CHECK 2** a chiudere il varco, imponendo `close_reason NOT
-NULL` per ogni stato diverso da `active`. **I cinque vanno scritti e letti insieme**: un giorno
-il 2 può sembrare ridondante rispetto a 3-4 e venire tolto per pulizia — non lo è.
+CHECK fallisce solo su `FALSE` — un `close_reason` lasciato vuoto su un periodo
+`remotely_deleted` supererebbe 3-4 in silenzio. È il **CHECK 2** a chiudere il varco,
+imponendo `close_reason NOT NULL` per ogni stato diverso da `active`. **Vanno scritti e
+letti insieme**: un giorno il 2 può sembrare ridondante rispetto a 3-4 e venire tolto per
+pulizia — non lo è.
 
-⛔ **Il CHECK 5 non basta contro un ciclo fra due righe** (A punta a B, B punta ad A): un
-vincolo di riga non può vedere un'altra riga. La garanzia «nessun ciclo» resta **applicativa**
-(si scrive il successore solo in un `UPDATE` che segue l'`INSERT` del nuovo link, mai in un
-ordine che permetta due righe di puntarsi a vicenda), non del database.
+⭐ **Il CHECK «stato coerente» è quello che tiene onesta l'eliminazione**: senza,
+esisterebbe la riga «sganciata ma senza data di eliminazione», che è lo stato in cui non si
+sa più se l'articolo è stato eliminato o se qualcuno ha semplicemente azzerato una colonna.
 
-#### Le FK — verificate, con due correzioni
+#### Le FK
 
 ```text
-FK (product_id, tenant_id)  → products(id, tenant_id)
-FK (shop_id, tenant_id)     → shopify_shops(id, tenant_id)
-FK (superseded_by_link_id, product_id, shop_id)
-     → shopify_product_links(id, product_id, shop_id)     ON DELETE RESTRICT
+-- IDENTITÀ
+FK (tenant_id)             → tenants(id)
+FK (shop_id, tenant_id)    → shopify_shops(id, tenant_id)
+FK (product_id, tenant_id) → products(id, tenant_id)          nullable ⇒ inerte dopo la purga
+   original_product_id                                        NESSUNA FK, per costruzione
 
--- variante, in più:
-FK (variant_id, product_id) → product_variants(id, product_id)   ← la variante È di quel prodotto
-FK (product_link_id, product_id, shop_id)
-     → shopify_product_links(id, product_id, shop_id)             ON DELETE RESTRICT
+-- PERIODI
+FK (identity_id, tenant_id)          → identities(id, tenant_id)          ON DELETE RESTRICT
+FK (identity_id, original_product_id)→ identities(id, original_product_id) la denormalizzazione non mente
+FK (identity_id, richiede_viva)      → identities(id, viva)               ON DELETE/UPDATE RESTRICT
+
+-- VARIANTE, in più
+FK (product_identity_id, tenant_id)  → product_identities(id, tenant_id)
+FK (product_link_id)                 → product_links(id)                  il periodo padre
 ```
 
-⚠️ **`ON DELETE RESTRICT`, esplicito, su entrambe le FK auto-referenziali e gerarchiche —
-correzione tecnica del 06/09/2026.** Mai `SET NULL` (perderebbe il legame con il predecessore o
-col prodotto senza che nessuno se ne accorga) e mai `CASCADE` (su una catena di ripubblicazioni
-propagherebbe una cancellazione lungo tutta la storia). Un link non si cancella mai comunque
-(§8.5.5): `RESTRICT` è la forma che lo dichiara.
+⚠️ **`ON DELETE RESTRICT` esplicito ovunque.** Mai `SET NULL` (perderebbe il legame senza
+che nessuno se ne accorga) e mai `CASCADE` (su una catena di ripubblicazioni propagherebbe
+una cancellazione lungo tutta la storia).
 
-⭐ **Precedente già nel progetto**: `FiscalReceipt.originalReceiptId` è già una FK
-auto-referenziale nello schema attuale — la forma non è nuova per questo database.
-
-⭐ **Ordine di scrittura, verificato**: prima si crea (`INSERT`) il link nuovo `active`, poi si
-aggiorna (`UPDATE`) il vecchio con `superseded_by_link_id`. Nella stessa transazione, senza
-bisogno di vincoli `DEFERRABLE`.
+⭐ **E la FK del padre variante confronta colonne che non si azzerano mai**
+(`original_product_id`), quindi regge anche quando i riferimenti vivi sono già stati
+sganciati — che è esattamente il momento in cui una FK sui riferimenti vivi smetterebbe di
+dire qualcosa.
 
 **Ausiliarie sulle tabelle esistenti**, additive:
 
 ```text
 products          UNIQUE (id, tenant_id)
 product_variants  UNIQUE (id, tenant_id) · UNIQUE (id, product_id)
+locations         UNIQUE (id, tenant_id)
 ```
 
-#### ⚠️ Il Client Prisma non conosce l'indice parziale né i CHECK — mitigazione obbligatoria
+#### ⛔ La storia non si CANCELLA — e il TRUNCATE non è un DELETE
+
+⚠️ **Misurato il 07/09/2026**: il `DELETE` di un periodo passava — nessun vincolo lo
+guardava — e da lì passava anche quello dell'identità, con lo stesso GID che rinasceva su
+un altro prodotto. È la stessa asimmetria già vista sulle sedi («i due UNIQUE impediscono di
+INSERIRE, non di MODIFICARE») un passo più in là: **non impediscono nemmeno di CANCELLARE**.
+
+`BEFORE DELETE` e `BEFORE TRUNCATE` su identità e periodi delle due famiglie, più i periodi
+di sede: dieci trigger. `BEFORE TRUNCATE` è `FOR EACH STATEMENT` ed è **separato** dal
+`BEFORE DELETE`: un `TRUNCATE` non fa scattare i trigger di riga.
+
+⛔ **La COPPIA di sede non li ha, ed è deliberato**: una coppia **senza periodi** deve
+restare cancellabile, perché è la correzione dell'abbinamento iniziale sbagliato (§1.13.6).
+
+⛔ **E non è una barriera di PRIVILEGI.** L'API si connette come **owner** del database — la
+stessa scelta per cui scavalca la RLS — quindi `ALTER TABLE … DISABLE TRIGGER` da un
+servizio riuscirebbe. Questi trigger fermano la cancellazione **accidentale**: un `CASCADE`
+che arriva da `tenants`, un `TRUNCATE` di pulizia, una query di manutenzione. A fermare un
+servizio che li spegnesse deliberatamente è una **guardia statica**,
+`npm run check:storico-non-cancellabile`, che fa fallire il lint se un `DISABLE TRIGGER`
+compare fuori da `api/src/test/`. Ferma chi lo scrive, non chi lo esegue — ed è tutto ciò
+che una guardia può fare.
+
+#### ⚠️ Il Client Prisma non conosce l'indice parziale, i CHECK né le colonne generate
 
 Verificato: Prisma legge e scrive la tabella normalmente, ma non valida questi vincoli — una
-violazione arriva come errore PostgreSQL grezzo (`23505`, `23514`), non come `P2002` con
-`meta.target` leggibile, e va tradotta a mano nel servizio applicativo.
+violazione arriva come errore PostgreSQL grezzo (`23505`, `23514`, `23503`), non come `P2002`
+con `meta.target` leggibile, e va tradotta a mano nel servizio applicativo.
 
-⭐ **La mitigazione è già una convenzione del progetto**: un commento `///` sul campo dello
-`schema.prisma` che dichiara dove vive il vincolo che Prisma non può esprimere — usata su
-`PaymentOption`, `CashSession`, `CashSessionDeviceChange`. Va applicata identica qui: ogni
-colonna coinvolta in un CHECK o nell'indice parziale porta il commento che rimanda alla
-migration che lo scrive.
+⚠️ **Le colonne generate (`viva`, `richiede_viva`, `attivo`) non compaiono nello
+`schema.prisma`**: Prisma non le esprime, e non deve — sono calcolate dal database. Vivono
+nella migration, e i modelli le dichiarano nei commenti `///`.
+
+⭐ **La mitigazione è già una convenzione del progetto**: un commento `///` sul campo che
+dichiara dove vive il vincolo che Prisma non può esprimere — usata su `PaymentOption`,
+`CashSession`, `CashSessionDeviceChange`. È applicata identica qui.
+
+#### ⏸ Stato: il modello esiste, i servizi non lo usano ancora
+
+| Fatto                                                                   | Non fatto                                                               |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| schema, migration, vincoli, trigger, RLS e REVOKE                       | **backfill** dai dati esistenti (§8.5.8)                                |
+| collaudo locale: migration da vuoto, da copia con dati, rollback a metà | **passaggio dei lettori** al nuovo modello: i servizi leggono ancora    |
+| falsificazione dei vincoli, concorrenza nei due ordini                  | le colonne-cache su `Product`/`ProductVariant`                          |
+| ⛔ nessuna applicazione al database CONDIVISO                           | la **funzione operativa** di eliminazione definitiva, e il suo registro |
+
+⚠️ **Finché il backfill non c'è, queste tabelle sono vuote**: nessuna lettura le interroga e
+nessuna scrittura le popola. Il modello è verificato, non ancora in servizio.
 
 ### 8.5.3 Registro delle consegne webhook — un INBOX, non solo una deduplica
 
@@ -3226,10 +3356,15 @@ client.ts` intercetta il `404` solo per le `DELETE` in uscita (e lo tratta come 
 oggi nessun evento e nessun controllo lo attiva. È lavoro di tranche, non debito da correggere
 in una riga.
 
-⭐ **Il modello che dà a questa sezione dove scrivere il proprio esito è progettato**, non più
-solo evocato: `ShopifyProductLink`/`ShopifyVariantLink` (§8.5.2), con gli stati `active` /
-`remotely_deleted` / `unlinked` che sostituiscono ogni interpretazione ad hoc di «eliminato».
-Resta lavoro di tranche **costruirlo**: la progettazione non è implementazione.
+⭐ **Il modello che dà a questa sezione dove scrivere il proprio esito è SCRITTO E COLLAUDATO
+in locale** (§8.5.2): identità remote `shopify_product_identities` /
+`shopify_variant_identities` e periodi `shopify_product_links` / `shopify_variant_links`, con
+gli stati `active` / `remotely_deleted` / `unlinked` che sostituiscono ogni interpretazione ad
+hoc di «eliminato».
+
+⚠️ **Ma resta un bersaglio senza grilletto anche per un secondo motivo**: le tabelle esistono
+e **nessun servizio le scrive**. Mancano il backfill e il passaggio dei lettori (§8.5.8), che
+sono lavoro di tranche: il modello verificato non è il modello in servizio.
 
 ### 11.8 Prevenzione della reimportazione
 
@@ -3275,10 +3410,18 @@ voce 2), il primo `products/update` o `products/create` in arrivo per quello ste
 impedire. Non è ipotetico: è il comportamento che il codice produce oggi, verificato leggendo
 la funzione.
 
-⭐ **Il «riferimento tecnico minimo» che questa sezione chiedeva è progettato**: è
-`ShopifyProductLink`/`ShopifyVariantLink` con `status = 'remotely_deleted'` o `unlinked`
-(§8.5.2) — la stessa tabella che serve §11.7, non una seconda. `findFirst` dovrà interrogare
-i link prima di concludere «mai visto» (§8.5.4).
+⭐ **Il «riferimento tecnico minimo» che questa sezione chiedeva è SCRITTO** (§8.5.2), e non è
+il periodo: è l'**identità remota** — `shopify_product_identities` con `local_deleted_at`
+valorizzato e `original_product_id` intatto.
+
+⛔ **La distinzione conta.** Un periodo chiuso dice che _quel collegamento_ è finito; è
+l'identità a dire che _quel GID appartiene a quell'articolo, per sempre_, ed è lei a
+sopravvivere all'eliminazione definitiva dell'anagrafica — proprio perché
+`original_product_id` **non porta una chiave esterna**. Cercare l'esclusione fra i periodi
+avrebbe lasciato passare la reimportazione nel caso che questa sezione esiste per impedire.
+
+⚠️ `findFirst` dovrà interrogare le **identità** prima di concludere «mai visto» (§8.5.4). Non
+lo fa ancora: le tabelle sono vuote finché non c'è il backfill.
 
 ### 11.9 Pubblicazione successiva
 

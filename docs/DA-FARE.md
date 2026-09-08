@@ -205,6 +205,12 @@ che cosa è successo e che cosa può fare.
 
 ### ⏸ Che cosa NON è implementabile senza `shopify_location_links`
 
+⚠️ **Il titolo va letto con una precisazione del 07/09/2026**: la tabella **è
+scritta** (migration `20260907000000_shopify_link_history`, punti 1 e 9 sotto).
+Ciò che manca non è più lo schema: è il **backfill** e il passaggio dei servizi,
+quindi le tabelle sono vuote e nessun lettore le interroga. Il ripiego qui sotto
+resta perciò in vigore esattamente com'è descritto.
+
 ⛔ **Il comportamento definitivo di §1.13.3** — «il collegamento si chiude
 conservandone la storia» — **non è implementabile oggi**, e ciò che c'è al suo
 posto è un ripiego dichiarato.
@@ -1888,9 +1894,16 @@ documentale». Non vale più.
 **Quattro decisioni prese dal proprietario prima di scriverla** — il modello non
 era interamente derivabile, e dedurle sarebbe stato inventarle: cardinalità (una
 sede, un solo collegamento vivo), cambio negozio (chiude anche le sedi, con
-`shop_change`), `superseded_by_link_id` (sì, per la sostituzione esplicita),
-unicità sull'inventory item (deliberata come quinta garanzia). Le motivazioni
-stanno in `docs/24` §1.13.3.
+`shop_change`), `superseded_by_link_id`, unicità sull'inventory item (deliberata
+come quinta garanzia). Le motivazioni stanno in `docs/24` §1.13.3.
+
+⛔ **Due di quelle quattro sono state superate poche ore dopo, dallo stesso
+proprietario**, e vanno lette così: la cardinalità è diventata **coppia stabile**
+con vincoli TOTALI (un indice parziale lasciava la sede libera appena il
+collegamento si chiudeva, cioè permetteva le riassegnazioni che la decisione
+esclude), e `superseded_by_link_id` è stato **ritirato** — senza procedure di
+sostituzione non esiste un successore da indicare, e i periodi si susseguono nel
+tempo. Nella migration quella colonna non è mai entrata.
 
 **Chiuse insieme, nella stessa migration**, due lacune che il confronto ha fatto
 emergere:
@@ -1931,13 +1944,24 @@ su `products`/`product_variants`. ⛔ Se ci sono, la rimozione è un passo
 **dichiarato e autorizzato a parte** — non una `IF NOT EXISTS` aggiunta alla
 migration, che nasconderebbe la divergenza invece di chiuderla.
 
-⚠️ **E resta aperta una domanda che non riguarda le sedi**: le FK verso
-`products`/`product_variants` sono `ON DELETE RESTRICT`, e §11.8 dichiara che il
-riferimento anti-reimportazione **è** il link chiuso — ma §4.2 descrive
-l'eliminazione definitiva locale come «purga fisica, irreversibile». Con
-`RESTRICT` la riga di prodotto non è cancellabile finché esiste un link. Nessun
-testo scioglie la tensione, e §0-bis tiene ancora aperta la domanda se un
-articolo già salvato possa essere eliminato definitivamente.
+✅ **La domanda che restava aperta sugli ARTICOLI è chiusa dal modello**, ed è la
+ragione della ristrutturazione descritta al punto 9. Qui c'era: «le FK verso
+`products`/`product_variants` sono `ON DELETE RESTRICT`, §11.8 dichiara che il
+riferimento anti-reimportazione **è** il link chiuso, ma §4.2 descrive la purga
+locale come fisica e irreversibile — con `RESTRICT` la riga di prodotto non è
+cancellabile finché esiste un link, e nessun testo scioglie la tensione».
+
+⭐ **La scioglie l'appartenenza scritta due volte**: il riferimento
+anti-reimportazione non è il periodo chiuso, è l'**identità remota** con
+`original_product_id` — che **non porta una chiave esterna** e quindi non trattiene
+nulla. `RESTRICT` resta dov'è, sul solo riferimento vivo, che alla purga si azzera.
+
+⚠️ **Per le SEDI la tensione non si pone e non va risolta allo stesso modo**: una
+sede con una storia **non si elimina** (§1.13.4), e la causale `local_delete` è
+vietata su quella famiglia da un CHECK a lista bianca. ⛔ §0-bis resta aperta sul
+punto diverso — se un articolo già salvato possa essere eliminato definitivamente
+**dall'interfaccia**, e con quali avvisi: qui è stato reso possibile dal modello,
+non autorizzato come funzione.
 
 ### 2 · Storia della connessione — campi da conservare
 
@@ -2134,6 +2158,87 @@ renderlo valido.
 - il **backfill** (§8.5.8, fase 3) è la conversione tecnica dei collegamenti già
   esistenti nelle colonne legacy: non chiede nulla a nessuno e non crea
   articoli. Due lavori distinti.
+
+### ✅ 9 · Modello dati degli ARTICOLI — identità e periodi (07-08/09/2026)
+
+> **Il modello è argomentato in `docs/24` §8.5.2.** Qui c'è solo lo stato di
+> avanzamento e ciò che resta operativo.
+
+⛔ **Il modello precedente non reggeva l'eliminazione definitiva locale**, e i due
+punti erano misurati, non temuti: con `product_id` **NOT NULL** e FK `RESTRICT`
+la purga era impossibile; reso nullable, la FK composita diventava **inerte**
+(`MATCH SIMPLE` non verifica nulla con una colonna `NULL`).
+
+**La ristrutturazione separa l'IDENTITÀ dai PERIODI** — la stessa forma delle
+sedi (§1.13.6) — e l'appartenenza si scrive due volte: `original_product_id`
+storico, immutabile e **senza chiave esterna**, `product_id` vivo, nullable e con
+FK. È la colonna senza FK a sopravvivere alla purga, ed è lei a impedire che un
+GID già visto torni assegnabile a un altro articolo.
+
+#### Che cosa è fatto e verificato — in LOCALE
+
+| Fatto                                                           | Come è stato verificato                                                                                   |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| sette tabelle, vincoli, CHECK, indici parziali, RLS e REVOKE    | migration da vuoto e da copia con dati; seconda esecuzione; errore iniettato a metà e rollback completo   |
+| **la concorrenza**: un periodo attivo esige un'identità viva    | FK su colonne generate (`viva` / `richiede_viva`), non un trigger — un trigger non regge, ed era misurato |
+| **la storia non si cancella**: dieci trigger DELETE e TRUNCATE  | falsificati togliendo i trigger: il GID rinasceva su un altro prodotto                                    |
+| ciò che deve restare POSSIBILE: ripubblicazione, ripresa, purga | prove dedicate — «un controllo che blocca tutto non è accettabile»                                        |
+
+⭐ **Le prove di concorrenza coordinano le due transazioni esplicitamente** e
+verificano che una **si blocchi davvero** su un lock, quale delle due riesce,
+quale è rifiutata e **con quale vincolo per nome**.
+
+⛔ **La prima stesura era verde per il motivo sbagliato**, ed è la ragione per cui
+questa riga esiste: lanciava le due transazioni sperando che si incrociassero,
+accettava «entrambe fallite» come esito buono, e lasciava attivo il periodo di
+partenza — così a rifiutare era l'indice unico dei periodi attivi, e la FK nuova
+non veniva nemmeno interrogata.
+
+⭐ **Falsificata togliendo la FK sul solo database sacrificabile**: senza,
+**riescono entrambe** — che è il difetto originale — e la corsa lascia nel
+database esattamente il periodo appeso su un'identità eliminata che la FK
+esiste per impedire.
+
+#### ⛔ Che cosa NON è fatto
+
+| Residuo                                   |                                                                                                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **backfill**                              | le tabelle nascono **vuote** (§8.5.8, fase 3): nessuna lettura le interroga, nessuna scrittura le popola                                                         |
+| **passaggio dei lettori**                 | i servizi leggono ancora le colonne-cache su `Product` / `ProductVariant`                                                                                        |
+| **funzione operativa di eliminazione**    | l'API che sgancia l'identità, chiude i periodi e purga l'anagrafica **non esiste**: c'è il modello che la rende possibile, non il comando                        |
+| **blocco della riapertura automatica**    | il database impedisce di **riaprire un periodo chiuso**, non che un servizio ne **apra uno nuovo** su un'identità eliminata da poco. Vedi sotto: è una decisione |
+| **identità del negozio**                  | due righe di `shopify_shops` per lo stesso negozio reale sono oggi possibili. Vedi sotto                                                                         |
+| **registro delle operazioni**             | nessuna traccia di chi ha eliminato, quando e su quali collegamenti. Vedi sotto                                                                                  |
+| ⛔ **applicazione al database CONDIVISO** | mai eseguita in questa forma. La migration è collaudata **solo in locale**                                                                                       |
+
+#### ⏸ I tre residui che sono DECISIONI, non codice
+
+**1 · Blocco della riapertura automatica.** Un periodo chiuso non si riapre — lo
+impone `shopify_periodo_immutabile`. Ma nulla vieta a un servizio di **aprire un
+periodo nuovo** sulla stessa identità appena l'anagrafica torna viva, ed è
+esattamente ciò che una risincronizzazione automatica farebbe. ⚠️ Il modello lo
+consente **di proposito**: è la «ripresa» (§8.5.2), che deve restare possibile.
+Serve decidere **chi** può aprirla: l'operatore sempre, un webhook mai, e che
+cosa fa una risincronizzazione che trova un'identità con `local_deleted_at`
+valorizzato. ⛔ Finché non è deciso, nessun servizio automatico deve aprire
+periodi.
+
+**2 · Identità del negozio.** `shopify_shops` ha `UNIQUE (shop_gid)` globale, ma
+un negozio che cambia dominio, o una riconnessione che non ritrova la riga
+precedente, possono produrre **due righe per lo stesso negozio reale** — e con
+esse due identità remote per lo stesso GID, che le garanzie 1-2 non fermano
+perché sono per `shop_id`. ⚠️ Non è teorico: `shopify_connections.shop_id` è
+appena stato introdotto, e prima di lui non esisteva un modo per sapere quale
+riga fosse la corrente. Serve decidere come si riconosce «lo stesso negozio» e
+che cosa succede ai collegamenti dell'altra riga.
+
+**3 · Registro delle operazioni.** ⛔ **Questi rimedi non lo sostituiscono, e non
+devono sembrare di farlo.** I trigger impediscono che la storia sparisca; non
+dicono **chi** ha sganciato un'identità né **perché** — `close_reason` dice la
+categoria, non l'autore. Un'eliminazione definitiva è un'azione sensibile ai
+sensi di `regole-gestionale` («AUDITABILITÀ UI»), e chiede chi, quando, su quale
+entità e con quale stato prima. È lavoro a sé, ed è elencato in `docs/24` §0-bis
+fra le voci aperte.
 
 ---
 
