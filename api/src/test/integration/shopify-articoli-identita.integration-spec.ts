@@ -308,81 +308,223 @@ describe('Articoli — identita` remote e periodi di collegamento', () => {
 
     /**
      * ⭐ **La prova che un trigger non avrebbe superato.** Due connessioni vere,
-     *    non due query in sequenza: T1 chiude e sgancia, T2 apre un periodo. Con
-     *    la sola guardia procedurale entrambe committavano e restava un periodo
-     *    attivo su un'identita' eliminata. Con la FK, PostgreSQL le serializza.
+     *    con l'incastro DICHIARATO invece che sperato: T1 chiude e sgancia, T2
+     *    apre un periodo. Con la sola guardia procedurale entrambe committavano
+     *    e restava un periodo attivo su un'identita' eliminata. Con la FK,
+     *    PostgreSQL le serializza.
+     *
+     * ⛔ **La prima stesura era verde per il motivo sbagliato**, e va scritto
+     *    perche' e' il difetto che questa riscrittura chiude:
+     *
+     *    - lanciava le due transazioni con `Promise.allSettled` e sperava che
+     *      si incrociassero: nessuno verificava che la seconda si BLOCCASSE
+     *      davvero. Due esecuzioni in fila l'avrebbero superata uguale;
+     *    - chiedeva `riuscite < 2`, quindi **entrambe fallite** passava — e
+     *      «non riesce niente» non e' la garanzia che si vuole;
+     *    - lasciava il periodo PER(1) ATTIVO durante la prova, quindi
+     *      l'inserimento di PER(2) cadeva sull'indice unico dei periodi attivi
+     *      (`…_identity_attivo_key`) **prima** di arrivare alla FK: la nuova
+     *      protezione non veniva nemmeno interrogata.
+     *
+     * ⭐ Qui il periodo di partenza e' CHIUSO — lo si verifica — quindi l'unica
+     *    cosa che puo' rifiutare e' `…_identita_viva_fkey`, e la prova lo esige
+     *    per nome.
      */
-    it('in CONCORRENZA, nei due ordini, non lascia mai un periodo attivo su un identita` eliminata', async () => {
-      const bersaglio = ambienteIntegrazione();
-      expect(bersaglio.host).toBe('localhost:5433');
+    describe('in CONCORRENZA, con le due transazioni coordinate', () => {
+      const SGANCIA =
+        'UPDATE shopify_product_identities SET product_id = NULL, local_deleted_at = now() WHERE id = $1::uuid';
+      const APRI = `INSERT INTO shopify_product_links
+           (id, tenant_id, identity_id, original_product_id, updated_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, now())`;
 
-      for (const ordineInverso of [false, true]) {
-        await svuota(prisma);
-        await creaDataset(prisma);
-        await prisma.$executeRawUnsafe(
-          `INSERT INTO shopify_shops (id, tenant_id, shop_gid, updated_at)
-           VALUES ($1::uuid, $2::uuid, 'gid://shopify/Shop/7001', now())`,
-          SHOP,
-          IDS.tenantA,
-        );
-        await prisma.$executeRawUnsafe(
-          `INSERT INTO products (id, tenant_id, name, article_code, updated_at)
-           VALUES ($1::uuid, $2::uuid, 'Articolo uno', 'ART-1', now())`,
-          P1,
-          IDS.tenantA,
-        );
+      /** Un cancello a un colpo: chi aspetta riparte quando qualcuno lo apre. */
+      function cancello(): { attesa: Promise<void>; apri: () => void } {
+        let sblocca!: () => void;
+        const attesa = new Promise<void>((risolvi) => {
+          sblocca = risolvi;
+        });
+        return { attesa, apri: () => sblocca() };
+      }
+
+      /**
+       * Attende che UNA sessione risulti davvero **in attesa di un lock** su
+       * quella tabella, e non si limita a dormire.
+       *
+       * ⭐ E' il cuore del coordinamento: senza, «le due transazioni si sono
+       *    incrociate» resta un'ipotesi. Restituisce `false` se non accade,
+       *    cosi` la prova fallisce dicendo che l'incastro non c'e' stato.
+       */
+      async function attendiBloccata(tabella: string): Promise<boolean> {
+        for (let tentativo = 0; tentativo < 200; tentativo += 1) {
+          const righe = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+            `SELECT count(*) AS n FROM pg_stat_activity
+              WHERE state = 'active' AND wait_event_type = 'Lock' AND query ILIKE $1`,
+            `%${tabella}%`,
+          );
+          if (Number(righe[0]!.n) > 0) return true;
+          await new Promise((r) => setTimeout(r, 25));
+        }
+        return false;
+      }
+
+      function motivo(esito: PromiseSettledResult<unknown>): string | null {
+        if (esito.status !== 'rejected') return null;
+        const causa: unknown = esito.reason;
+        return causa instanceof Error
+          ? causa.message.replace(/\s+/g, ' ')
+          : String(causa);
+      }
+
+      /**
+       * Identita` VIVA, e nessun periodo attivo su di lei.
+       *
+       * ⚠️ E` la condizione che toglie di mezzo l'indice unico: senza, la prova
+       *    misurerebbe quello invece della FK.
+       */
+      async function preparaSenzaPeriodoAttivo(): Promise<void> {
         expect(await creaIdentita(ID(1), 'gid://shopify/Product/30')).toBeNull();
         expect(await apriPeriodo(PER(1), ID(1))).toBeNull();
+        expect(await chiudiPeriodo(PER(1), 'operator')).toBeNull();
 
-        // ⭐ Due CLIENT distinti = due connessioni. Prisma non espone `pg`,
-        //    e non si aggiunge una dipendenza per una prova: due transazioni
-        //    interattive concorrenti bastano, ed e` lo stesso lock.
+        const attivi = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+          "SELECT count(*) AS n FROM shopify_product_links WHERE identity_id = $1::uuid AND status = 'active'",
+          ID(1),
+        );
+        expect(
+          Number(attivi[0]!.n),
+          'nessun periodo attivo: altrimenti a rifiutare sarebbe l indice unico, non la FK',
+        ).toBe(0);
+      }
+
+      /** Quanti periodi attivi pendono da un identita` gia` eliminata. */
+      async function appesi(): Promise<number> {
+        const righe = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+          `SELECT count(*) AS n FROM shopify_product_links l
+             JOIN shopify_product_identities i ON i.id = l.identity_id
+            WHERE l.status = 'active' AND i.product_id IS NULL`,
+        );
+        return Number(righe[0]!.n);
+      }
+
+      /** Lo stato dell'identita` e del periodo conteso, a giochi fatti. */
+      async function statoFinale(): Promise<{ viva: boolean; per2: string | null }> {
+        const identita = await prisma.$queryRawUnsafe<{ product_id: string | null }[]>(
+          'SELECT product_id FROM shopify_product_identities WHERE id = $1::uuid',
+          ID(1),
+        );
+        const periodo = await prisma.$queryRawUnsafe<{ status: string }[]>(
+          'SELECT status::text AS status FROM shopify_product_links WHERE id = $1::uuid',
+          PER(2),
+        );
+        return {
+          viva: identita[0]!.product_id !== null,
+          per2: periodo.length > 0 ? periodo[0]!.status : null,
+        };
+      }
+
+      it('se SGANCIA per prima, l apertura concorrente viene rifiutata dalla FK', async () => {
+        expect(ambienteIntegrazione().host).toBe('localhost:5433');
+        await preparaSenzaPeriodoAttivo();
+
         const uno = creaClientIntegrazione();
         const due = creaClientIntegrazione();
+        let bloccata = false;
+        let esiti: PromiseSettledResult<unknown>[] = [];
         try {
-          const chiudiESgancia = () =>
-            uno.$transaction(async (tx) => {
-              await tx.$executeRawUnsafe(
-                `UPDATE shopify_product_links SET status='unlinked', close_reason='local_delete', closed_at=now() WHERE id=$1::uuid`,
-                PER(1),
-              );
-              await tx.$executeRawUnsafe(
-                'UPDATE shopify_product_identities SET product_id = NULL, local_deleted_at = now() WHERE id = $1::uuid',
-                ID(1),
-              );
-            });
-          const apri = () =>
-            due.$transaction(async (tx) => {
-              await tx.$executeRawUnsafe(
-                `INSERT INTO shopify_product_links (id, tenant_id, identity_id, original_product_id, updated_at)
-                 VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, now())`,
-                PER(2),
-                IDS.tenantA,
-                ID(1),
-                P1,
-              );
-            });
+          const sganciato = cancello();
+          const viaLibera = cancello();
 
-          const esiti = await Promise.allSettled(
-            ordineInverso ? [apri(), chiudiESgancia()] : [chiudiESgancia(), apri()],
+          const t1 = uno.$transaction(
+            async (tx) => {
+              await tx.$executeRawUnsafe(SGANCIA, ID(1));
+              sganciato.apri();
+              // ⭐ Non committa finche` T2 non e` davvero bloccata su di lei.
+              await viaLibera.attesa;
+            },
+            { timeout: 60_000, maxWait: 30_000 },
           );
+          t1.catch(() => undefined);
 
-          // ⭐ Almeno una delle due DEVE fallire: non possono riuscire entrambe.
-          const riuscite = esiti.filter((e) => e.status === 'fulfilled').length;
-          expect(riuscite, `ordine inverso=${ordineInverso}`).toBeLessThan(2);
+          await sganciato.attesa;
+          const t2 = due.$transaction(
+            async (tx) => {
+              await tx.$executeRawUnsafe(APRI, PER(2), IDS.tenantA, ID(1), P1);
+            },
+            { timeout: 60_000, maxWait: 30_000 },
+          );
+          t2.catch(() => undefined);
+
+          bloccata = await attendiBloccata('shopify_product_links');
+          viaLibera.apri();
+          esiti = await Promise.allSettled([t1, t2]);
         } finally {
           await uno.$disconnect();
           await due.$disconnect();
         }
 
-        const appesi = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-          `SELECT count(*) AS n FROM shopify_product_links l
-             JOIN shopify_product_identities i ON i.id = l.identity_id
-            WHERE l.status = 'active' AND i.product_id IS NULL`,
+        // ⭐ 1 · L'incastro c'e` stato davvero: T2 ha ATTESO T1.
+        expect(bloccata, 'T2 doveva bloccarsi sul lock della riga identita`').toBe(true);
+        // ⭐ 2 · Una riesce e una fallisce. «Entrambe fallite» NON passa.
+        expect(esiti[0]!.status, 'chi committa per prima vince').toBe('fulfilled');
+        expect(esiti[1]!.status).toBe('rejected');
+        // ⭐ 3 · E fallisce per la RAGIONE attesa: la FK, non l indice unico.
+        expect(violato(motivo(esiti[1]!))).toBe('shopify_product_links_identita_viva_fkey');
+        // ⭐ 4 · Lo stato finale e` quello coerente, non «nessuno dei due».
+        expect(await statoFinale()).toEqual({ viva: false, per2: null });
+        expect(await appesi()).toBe(0);
+      }, 90_000);
+
+      it('se APRE per prima, lo sgancio concorrente viene rifiutato dalla FK', async () => {
+        expect(ambienteIntegrazione().host).toBe('localhost:5433');
+        await preparaSenzaPeriodoAttivo();
+
+        const uno = creaClientIntegrazione();
+        const due = creaClientIntegrazione();
+        let bloccata = false;
+        let esiti: PromiseSettledResult<unknown>[] = [];
+        try {
+          const aperto = cancello();
+          const viaLibera = cancello();
+
+          const t2 = due.$transaction(
+            async (tx) => {
+              await tx.$executeRawUnsafe(APRI, PER(2), IDS.tenantA, ID(1), P1);
+              aperto.apri();
+              await viaLibera.attesa;
+            },
+            { timeout: 60_000, maxWait: 30_000 },
+          );
+          t2.catch(() => undefined);
+
+          await aperto.attesa;
+          const t1 = uno.$transaction(
+            async (tx) => {
+              await tx.$executeRawUnsafe(SGANCIA, ID(1));
+            },
+            { timeout: 60_000, maxWait: 30_000 },
+          );
+          t1.catch(() => undefined);
+
+          // ⭐ Qui a bloccarsi e` lo SGANCIO: la riga identita` e` gia`
+          //    trattenuta dal lock che l'inserimento del figlio ha preso.
+          bloccata = await attendiBloccata('shopify_product_identities');
+          viaLibera.apri();
+          esiti = await Promise.allSettled([t2, t1]);
+        } finally {
+          await uno.$disconnect();
+          await due.$disconnect();
+        }
+
+        expect(bloccata, 'lo sgancio doveva bloccarsi sul lock preso dall inserimento').toBe(
+          true,
         );
-        expect(Number(appesi[0]!.n), `ordine inverso=${ordineInverso}`).toBe(0);
-      }
-    }, 60_000);
+        expect(esiti[0]!.status, 'chi committa per prima vince').toBe('fulfilled');
+        expect(esiti[1]!.status).toBe('rejected');
+        expect(violato(motivo(esiti[1]!))).toBe('shopify_product_links_identita_viva_fkey');
+        expect(await statoFinale()).toEqual({ viva: true, per2: 'active' });
+        expect(await appesi()).toBe(0);
+      }, 90_000);
+    });
   });
 
   // ── 4 · Cio` che DEVE restare possibile ───────────────────────────────────
