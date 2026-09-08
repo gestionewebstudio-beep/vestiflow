@@ -789,8 +789,21 @@ Se una location collegata non esiste più su Shopify:
 ⛔ **«Chiudere conservando la storia» richiede uno storico dei collegamenti delle
 location**, equivalente a `shopify_product_links` e `shopify_variant_links`
 (§8.5): senza, «il collegamento è chiuso» e «il collegamento non è mai esistito»
-sono indistinguibili, ed è esattamente la differenza che impedisce il
-riaggancio automatico.
+sono indistinguibili.
+
+⚠️ **Ma quella distinzione non AUTORIZZA nulla, e la frase qui sopra finiva con «ed è
+esattamente la differenza che impedisce il riaggancio automatico»** — letta di corsa
+suggerisce che, avuto lo storico, agganciare per nome una sede **mai collegata** torni
+lecito. ⛔ **Non lo è, in nessuno dei due casi**: il collegamento lo dichiara una persona,
+e lo storico serve a dire **quale dei due casi è**, non a permettere il primo.
+
+⚠️ **Ed è un errore già commesso**, l'08/09/2026, proprio partendo da questa riga: una
+proposta di tranche prescriveva di «condizionare il riaggancio per nome all'assenza di un
+periodo chiuso» — che avrebbe lasciato l'aggancio automatico su ogni sede mai collegata.
+Correzione e censimento in `docs/DA-FARE.md` §12.
+
+⭐ **Una proposta per nome resta ammessa come AIUTO alla lettura**, mai applicata da sola:
+è la stessa forma già scritta per gli articoli, «proposta per nome/opzioni, mai automatica».
 
 #### 1.13.6 La coppia è STABILE: niente riassegnazioni — deciso il 07/09/2026
 
@@ -2396,14 +2409,28 @@ dichiara dove vive il vincolo che Prisma non può esprimere — usata su `Paymen
 ⚠️ **Finché il backfill non c'è, queste tabelle sono vuote**: nessuna lettura le interroga e
 nessuna scrittura le popola. Il modello è verificato, non ancora in servizio.
 
-⛔ **Un guasto muto che si manifesterà alla PRIMA riga scritta** — misurato l'08/09/2026.
-Le sette tabelle sono **fuori** da backup, purge e cancellazione del tenant, e la loro FK
-verso `tenants` è `ON DELETE RESTRICT`: appena esisterà una riga,
-`DELETE /admin/tenants/:id` fallirà. E per identità e periodi **non basta aggiungerle
-all'ordine di cancellazione**, perché `shopify_storico_non_si_cancella` vieta ogni DELETE:
-va deciso **come** un tenant si cancella quando porta storia remota. Oggi non si vede solo
-perché le tabelle sono vuote — cioè è esattamente il tipo di difetto che si scopre in
-fase 2.
+⛔ **Un guasto muto che si manifesterà alla PRIMA riga scritta** — misurato l'08/09/2026,
+e **più largo di come era stato scritto lo stesso giorno**. Qui c'era «fallirà
+`DELETE /admin/tenants/:id`», come se riguardasse la sola cancellazione amministrativa. La
+causa è una primitiva **condivisa**, `purgeTenantBackupData`, e i suoi chiamanti sono **due**:
+
+```text
+api/src/admin/tenant-delete.util.ts:11                     cancellazione amministrativa
+api/src/tenant/tenant-backup/…-import.service.ts:148       RIPRISTINO di un backup
+```
+
+⚠️ **Quindi alla prima identità scritta si rompe anche il RIPRISTINO di qualunque backup**,
+compreso uno fatto cinque minuti prima: il ripristino purga e reinserisce, e l'ordine di
+cancellazione contiene `products`, `productVariants` e `locations` — che le identità e le
+coppie trattengono con `RESTRICT`.
+
+⛔ **E per identità e periodi non basta aggiungerli all'ordine di cancellazione**, perché
+`shopify_storico_non_si_cancella` vieta ogni DELETE. Le tre operazioni — backup applicativo,
+ripristino, cancellazione del tenant — vanno trattate **separatamente**: la proposta completa,
+con l'effetto sulle esclusioni registrate dopo la data del backup, è in `docs/DA-FARE.md` §10.
+
+⚠️ Oggi non si vede solo perché le tabelle sono vuote — cioè è esattamente il tipo di difetto
+che si scopre in fase 2.
 
 ### 8.5.3 Registro delle consegne webhook — un INBOX, non solo una deduplica
 
