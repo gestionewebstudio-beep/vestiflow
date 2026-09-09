@@ -66,6 +66,18 @@ describe('AdminTenantsService', () => {
 
     const channelSync = { invalidateProfile: vi.fn() };
 
+    const audit = {
+      conRegistro: vi.fn(
+        async (
+          _dati: unknown,
+          operazione: (tx: unknown) => Promise<unknown>,
+          _opzioni?: unknown,
+        ): Promise<void> => {
+          await prisma.$transaction(async (tx: unknown) => operazione(tx));
+        },
+      ),
+    };
+
     const service = new AdminTenantsService(
       prisma as unknown as PrismaService,
       supabase as unknown as SupabaseService,
@@ -74,9 +86,23 @@ describe('AdminTenantsService', () => {
       locationLicensing as unknown as LocationLicensingService,
       channelSync as unknown as ChannelSyncFacade,
       { invalidateTenant: vi.fn() } as never,
+      // ⚠️ Il registro NON e' un finto passivo: `conRegistro` porta la sequenza
+      //    canonica, e uno stub che non esegue l'operazione renderebbe verdi
+      //    prove che non hanno cancellato niente. Qui esegue il callback in una
+      //    finta transazione, come fa quello vero.
+      audit as never,
     );
 
-    return { service, prisma, platformAdmin, supabase, config, locationLicensing, channelSync };
+    return {
+      service,
+      prisma,
+      platformAdmin,
+      supabase,
+      config,
+      locationLicensing,
+      channelSync,
+      audit,
+    };
   }
 
   it('listTenants esclude tenant con utenti platform admin', async () => {
@@ -387,5 +413,54 @@ describe('AdminTenantsService', () => {
     );
     expect(result.licensedLocationCount).toBe(1);
     expect(result.licensedLocationActiveCount).toBe(1);
+  });
+
+  it('deleteTenant conserva timeout e isolamento della transazione', async () => {
+    // ⛔ **Regressione misurata l'08/09/2026**: portando la sequenza del registro
+    //    dentro `PlatformAuditService`, la cancellazione aveva perso
+    //    `timeout: 300_000` e `Serializable`, ereditando i 30 s di default del
+    //    client. Su un tenant grande sarebbe stata interrotta a meta`, e
+    //    nessuna prova se ne sarebbe accorta: in test i dati sono pochi.
+    const { service, prisma, platformAdmin, audit } = createService();
+    platformAdmin.isPlatformAdmin.mockReturnValue(false);
+    prisma.user.findMany.mockResolvedValue([{ email: 'titolare@example.test' }]);
+    prisma.tenant.findUnique.mockResolvedValue({
+      id: 'tenant-1',
+      name: 'Negozio',
+      users: [],
+    });
+    // ⚠️ La tx finta deve avere anche i metodi GREZZI: la cancellazione accende
+    //    con `$executeRawUnsafe` il permesso di riga, e un Proxy che restituisce
+    //    un delegate anche per quelli fallisce dicendo un'altra cosa.
+    const txFinta = new Proxy(
+      {},
+      {
+        get: (_target, chiave) =>
+          typeof chiave === 'string' && chiave.startsWith('$')
+            ? vi.fn().mockResolvedValue(1)
+            : {
+                findMany: vi.fn().mockResolvedValue([]),
+                updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+                deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+                delete: vi.fn().mockResolvedValue({}),
+              },
+      },
+    );
+    prisma.$transaction.mockImplementation(async (callback: (client: unknown) => unknown) =>
+      callback(txFinta),
+    );
+
+    await service.deleteTenant('tenant-1', {
+      tipo: 'utente',
+      userId: 'op-1',
+      name: 'Operatore',
+      email: 'admin@vestiflow.it',
+    } as never);
+
+    expect(audit.conRegistro).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'cancellazione_tenant', entityId: 'tenant-1' }),
+      expect.any(Function),
+      { timeout: 300_000, maxWait: 30_000, isolationLevel: 'Serializable' },
+    );
   });
 });

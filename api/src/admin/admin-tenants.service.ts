@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TenantChannelProfile } from '@prisma/client';
+import { PlatformAuditOperation, TenantChannelProfile } from '@prisma/client';
 
 import type { LocationLicenseSummaryDto } from '../inventory/location-licensing.service';
 import { LocationLicensingService } from '../inventory/location-licensing.service';
@@ -30,6 +30,8 @@ import {
 } from './tenant-profile.util';
 import { TENANT_LICENSED_LOCATION_MIN } from '../common/tenant-location-license.constants';
 import { deleteTenantData } from './tenant-delete.util';
+import { PlatformAuditService } from '../common/audit/platform-audit.service';
+import type { AttoreRegistro } from '../common/audit/platform-audit.types';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { AuthProfileCacheService } from '../auth/auth-profile-cache.service';
 
@@ -45,6 +47,7 @@ export class AdminTenantsService {
     private readonly locationLicensing: LocationLicensingService,
     private readonly channelSync: ChannelSyncFacade,
     private readonly profileCache: AuthProfileCacheService,
+    private readonly audit: PlatformAuditService,
   ) {}
 
   async listTenants(): Promise<TenantSummaryDto[]> {
@@ -194,10 +197,6 @@ export class AdminTenantsService {
       throw new NotFoundException('Cliente non trovato');
     }
 
-    if (dto.channelProfile) {
-      await assertTenantChannelProfileChangeAllowed(this.prisma, tenantId, dto.channelProfile);
-    }
-
     if (dto.licensedLocationCount !== undefined) {
       this.locationLicensing.assertLicensedLocationCount(dto.licensedLocationCount);
     }
@@ -206,6 +205,30 @@ export class AdminTenantsService {
     const locationAddress = locationAddressFromProfile(dto);
 
     await this.prisma.$transaction(async (tx) => {
+      if (dto.channelProfile) {
+        // ⛔ **La verifica sta DENTRO la transazione, e blocca prima la riga.**
+        //    Fuori, decideva su una lettura vecchia: un collegamento Shopify
+        //    che stesse committando in quell'istante non era ancora visibile,
+        //    il cambio a `gestionale` risultava consentito, e restava un tenant
+        //    di solo gestionale **con una connessione Shopify attiva** — cioe`
+        //    l'esatto contrario del vincolo. Misurato dalla prova `K7e`
+        //    l'08/09/2026 (`DA-FARE` §23).
+        //
+        // ⭐ `FOR UPDATE` e` la stessa riga che il collegamento blocca: una
+        //    delle due corse aspetta l'altra, e chi arriva seconda decide su
+        //    dati aggiornati. Se il collegamento ha vinto, qui si trova la
+        //    connessione attiva e il cambio viene rifiutato.
+        await tx.$queryRawUnsafe(
+          `SELECT channel_profile FROM tenants WHERE id = $1::uuid FOR UPDATE`,
+          tenantId,
+        );
+        await assertTenantChannelProfileChangeAllowed(
+          tx as unknown as PrismaService,
+          tenantId,
+          dto.channelProfile,
+        );
+      }
+
       await tx.tenant.update({
         where: { id: tenantId },
         data: {
@@ -260,13 +283,14 @@ export class AdminTenantsService {
     return this.getTenantById(tenantId);
   }
 
-  async deleteTenant(tenantId: string): Promise<void> {
+  async deleteTenant(tenantId: string, attore: AttoreRegistro): Promise<void> {
     await this.assertProvisionedClientTenant(tenantId);
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
       select: {
         id: true,
+        name: true,
         users: { select: { authUserId: true } },
       },
     });
@@ -279,10 +303,28 @@ export class AdminTenantsService {
       .map((user) => user.authUserId)
       .filter((id): id is string => Boolean(id));
 
-    await this.prisma.$transaction(
+    // ⭐ La SEQUENZA CANONICA, quella gia' collaudata dal cestino: tentativo
+    //    prima, cancellazione e riuscita nella STESSA transazione, esito
+    //    negativo solo se si accerta che non ha commesso (§10.2-§10.3).
+    //
+    // ⛔ **La traccia sopravvive al tenant**: `PlatformAuditLog` non ha chiave
+    //    esterna verso `tenants` e sta fuori da `TENANT_BACKUP_MODELS`, quindi
+    //    non rientra nell'ordine di cancellazione e non si autocancella.
+    await this.audit.conRegistro(
+      {
+        tenantId,
+        attore,
+        operation: PlatformAuditOperation.cancellazione_tenant,
+        entityId: tenantId,
+        entityLabel: tenant.name,
+      },
       async (tx) => {
         await deleteTenantData(tx, tenantId);
+        return 'applicata';
       },
+      // ⚠️ Le stesse di prima che la sequenza del registro passasse di qui: la
+      //    cancellazione di un tenant grande dura, e il default del client
+      //    (30 s) la interromperebbe a meta'.
       { timeout: 300_000, maxWait: 30_000, isolationLevel: 'Serializable' },
     );
     this.profileCache.invalidateTenant(tenantId);

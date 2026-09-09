@@ -12,6 +12,8 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
 import { SYNC_DISABLE_FAILED_MESSAGE } from '../shopify/shopify-user-error.util';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
+import { PlatformAuditService } from '../common/audit/platform-audit.service';
+import type { AttoreRegistro } from '../common/audit/platform-audit.types';
 import { ProductsService } from './products.service';
 
 describe('ProductsService', () => {
@@ -44,18 +46,25 @@ describe('ProductsService', () => {
 
   function createService() {
     const prisma = {
+      platformAuditLog: { create: vi.fn() },
       product: {
         findMany: vi.fn(),
-        count: vi.fn(),
+        count: vi.fn().mockResolvedValue(0),
         findFirst: vi.fn(),
         delete: vi.fn(),
         update: vi.fn(),
+        // ⚠️ `updateMany` restituisce `{ count }`, e il cestino ci LEGGE dentro
+        //    per capire se ha modificato qualcosa (08/09/2026). Una mock che
+        //    non lo restituisce non e' «neutra»: fa fallire la destrutturazione
+        //    con un errore che non c'entra niente con la prova.
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         create: vi.fn(),
       },
       productVariant: {
         findFirst: vi.fn(),
         findMany: vi.fn(),
-        count: vi.fn(),
+        count: vi.fn().mockResolvedValue(0),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       stockMovement: { count: vi.fn() },
       $transaction: vi.fn(),
@@ -71,12 +80,24 @@ describe('ProductsService', () => {
             productVariant: {
               ...prisma.productVariant,
               findMany: vi.fn().mockResolvedValue([]),
-              updateMany: vi.fn(),
+              // ⚠️ CONDIVISA con la radice: le prove del cestino osservano
+              //    `prisma.productVariant.updateMany`, e una mock fresca qui
+              //    renderebbe invisibili le chiamate fatte dentro la
+              //    transazione — verdi per assenza di chiamate, non per merito.
+              updateMany: prisma.productVariant.updateMany,
               delete: vi.fn(),
             },
+            platformAuditLog: prisma.platformAuditLog,
             inventoryLevel: { deleteMany: vi.fn() },
             stockMovement: { count: vi.fn().mockResolvedValue(0) },
             $queryRaw: vi.fn().mockResolvedValue([]),
+            // ⚠️ Il cestino chiede a PostgreSQL l'identificativo della propria
+            //    transazione come PRIMA istruzione (`identificaTransazione`).
+            //    Su un client finto quella domanda non ha senso, ma non puo`
+            //    nemmeno restare senza risposta: qui non si sta provando quel
+            //    meccanismo — lo provano le prove di integrazione, sul
+            //    database vero, dove lo xid esiste.
+            $queryRawUnsafe: vi.fn().mockResolvedValue([{ xid: '0' }]),
           })
         : Promise.all(arg as Promise<unknown>[]),
     );
@@ -95,13 +116,22 @@ describe('ProductsService', () => {
       archiveProductOnSyncDisabled: vi.fn().mockResolvedValue({ pushed: true }),
     };
 
+    // Il registro vero: scrive sulla stessa mock di Prisma, cosi' le prove
+    // possono verificare che le righe partano davvero.
+    const audit = new PlatformAuditService(prisma as unknown as PrismaService, prisma as never);
+
     const service = new ProductsService(
       prisma as unknown as PrismaService,
       channelSync as unknown as ChannelSyncFacade,
       taxonomyLocalization as unknown as ShopifyTaxonomyLocalizationService,
+      audit,
+      // ⭐ B4 · lo sgancio dello storico prima di eliminare una variante. Qui il
+      //    database è simulato: le regole vere si provano in integrazione, e
+      //    quello che conta in queste prove è che l'eliminazione non cambi.
+      { sganciaVariante: vi.fn().mockResolvedValue(undefined) } as never,
     );
 
-    return { service, prisma, channelSync };
+    return { service, prisma, channelSync, audit };
   }
 
   it('list pagina prodotti con taxonomy preparata', async () => {
@@ -1318,6 +1348,233 @@ describe('ProductsService', () => {
 
       const data = prisma.product.create.mock.calls[0]![0]!.data;
       expect(data.variants.create[0].sku).toBe('SKU-9-COPIA-2');
+    });
+  });
+
+  // ── CESTINO — i sei criteri approvati l'08/09/2026 ────────────────────────
+  describe('cestino', () => {
+    const utente: AttoreRegistro = {
+      tipo: 'utente',
+      userId: 'user-1',
+      name: 'Mario Rossi',
+      email: 'mario@example.test',
+    };
+
+    it('sposta il prodotto nel cestino scrivendo SOLO le tre colonne', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'prod-1',
+        name: 'Maglietta',
+        deletedAt: null,
+        shopifyProductId: null,
+      });
+
+      await service.moveToTrash(tenantId, 'prod-1', utente, 'doppione');
+
+      const chiamata = prisma.product.updateMany.mock.calls[0]![0]!;
+      // ⭐ Isolamento: il tenant e` nel `where`, non solo nel parametro.
+      expect(chiamata.where).toMatchObject({ id: 'prod-1', tenantId, deletedAt: null });
+      // ⛔ Quantita`, movimenti, impegni e collegamenti restano invariati: le
+      //    chiavi scritte sono esattamente tre.
+      expect(Object.keys(chiamata.data).sort()).toEqual([
+        'deletedAt',
+        'deletedById',
+        'deletionReason',
+      ]);
+      // ⭐ Sul CESTINO si scrive l'id, non l'attore: `deleted_by_id` e` una
+      //    colonna del cestino, che il ripristino azzera. L'attore per esteso
+      //    vive nel REGISTRO, che invece resta.
+      expect(chiamata.data.deletedById).toBe('user-1');
+      expect(chiamata.data.deletionReason).toBe('doppione');
+      // ⭐ Il prodotto nel cestino NON riscrive lo stato delle varianti.
+      expect(prisma.productVariant.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('il motivo e` facoltativo e diventa null', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'prod-1',
+        name: 'Maglietta',
+        deletedAt: null,
+        shopifyProductId: null,
+      });
+
+      await service.moveToTrash(tenantId, 'prod-1', utente);
+
+      expect(prisma.product.updateMany.mock.calls[0]![0]!.data.deletionReason).toBeNull();
+    });
+
+    it('rifiuta un prodotto COLLEGATO a Shopify, e non scrive niente', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'prod-1',
+        deletedAt: null,
+        shopifyProductId: 'gid-1',
+      });
+
+      await expect(service.moveToTrash(tenantId, 'prod-1', utente)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('prodotto inesistente: 404, e nessuna scrittura', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue(null);
+
+      await expect(service.moveToTrash(tenantId, 'prod-1', utente)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    // ⭐ Richiesta ripetuta: non e` un errore, e non riscrive la data originale.
+    it('una seconda richiesta non tocca la data gia` scritta', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'prod-1',
+        deletedAt: new Date('2026-09-01T10:00:00Z'),
+        shopifyProductId: null,
+      });
+
+      await service.moveToTrash(tenantId, 'prod-1', utente);
+
+      expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('ripristina la STESSA anagrafica, Non attiva, senza crearne una nuova', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'prod-1',
+        deletedAt: new Date('2026-09-01T10:00:00Z'),
+      });
+
+      await service.restoreFromTrash(tenantId, 'prod-1', utente);
+
+      const chiamata = prisma.product.updateMany.mock.calls[0]![0]!;
+      expect(chiamata.where).toMatchObject({ id: 'prod-1', tenantId, deletedAt: { not: null } });
+      expect(chiamata.data).toMatchObject({
+        deletedAt: null,
+        deletedById: null,
+        deletionReason: null,
+        // ⛔ Mai `active`: il ripristino non rimette in vendita da solo.
+        status: 'archived',
+      });
+      // ⭐ Nessun doppione: si aggiorna la riga che c'e`.
+      expect(prisma.product.create).not.toHaveBeenCalled();
+      expect(prisma.productVariant.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('ripristinare un prodotto che non e` nel cestino non fa niente', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue({ id: 'prod-1', deletedAt: null });
+
+      await service.restoreFromTrash(tenantId, 'prod-1', utente);
+
+      expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('sposta la VARIANTE nel cestino, senza toccare il prodotto', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findFirst.mockResolvedValue({
+        id: 'var-1',
+        sku: 'SKU-1',
+        deletedAt: null,
+        shopifyVariantId: null,
+        product: { shopifyProductId: null },
+      });
+
+      await service.moveVariantToTrash(tenantId, 'prod-1', 'var-1', utente);
+
+      const chiamata = prisma.productVariant.updateMany.mock.calls[0]![0]!;
+      expect(chiamata.where).toMatchObject({
+        id: 'var-1',
+        productId: 'prod-1',
+        tenantId,
+        deletedAt: null,
+      });
+      expect(Object.keys(chiamata.data).sort()).toEqual([
+        'deletedAt',
+        'deletedById',
+        'deletionReason',
+      ]);
+      expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rifiuta la variante quando il PRODOTTO e` collegato, anche senza id proprio', async () => {
+      const { service, prisma } = createService();
+      // ⚠️ Il caso misurato: `persistShopifyIds` non scrive
+      //    `shopifyVariantId` per le varianti senza SKU.
+      prisma.productVariant.findFirst.mockResolvedValue({
+        id: 'var-1',
+        deletedAt: null,
+        shopifyVariantId: null,
+        product: { shopifyProductId: 'gid-prodotto' },
+      });
+
+      await expect(
+        service.moveVariantToTrash(tenantId, 'prod-1', 'var-1', utente),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.productVariant.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rifiuta la variante con un identificativo remoto proprio', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findFirst.mockResolvedValue({
+        id: 'var-1',
+        deletedAt: null,
+        shopifyVariantId: 'gid-variante',
+        product: { shopifyProductId: null },
+      });
+
+      await expect(
+        service.moveVariantToTrash(tenantId, 'prod-1', 'var-1', utente),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('ripristina la variante Non attiva, senza riattivarla', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findFirst.mockResolvedValue({
+        id: 'var-1',
+        deletedAt: new Date('2026-09-01T10:00:00Z'),
+      });
+
+      await service.restoreVariantFromTrash(tenantId, 'prod-1', 'var-1', utente);
+
+      const chiamata = prisma.productVariant.updateMany.mock.calls[0]![0]!;
+      expect(chiamata.data).toMatchObject({
+        deletedAt: null,
+        deletedById: null,
+        deletionReason: null,
+        lifecycleStatus: 'inactive',
+      });
+    });
+
+    it('variante inesistente: 404', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.restoreVariantFromTrash(tenantId, 'prod-1', 'var-1', utente),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.productVariant.updateMany).not.toHaveBeenCalled();
+    });
+
+    // ⛔ Il cestino NON e` il ripiego dell'eliminazione definitiva: sono due
+    //    comandi, e quello irreversibile non cambia comportamento.
+    it('il cestino non chiama mai la cancellazione fisica', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'prod-1',
+        name: 'Maglietta',
+        deletedAt: null,
+        shopifyProductId: null,
+      });
+
+      await service.moveToTrash(tenantId, 'prod-1', utente);
+
+      expect(prisma.product.delete).not.toHaveBeenCalled();
+      expect(prisma.stockMovement.count).not.toHaveBeenCalled();
     });
   });
 });

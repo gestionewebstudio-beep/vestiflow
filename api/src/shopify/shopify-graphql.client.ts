@@ -200,6 +200,35 @@ export class ShopifyGraphqlClient {
     private readonly rateLimiter: ShopifyRateLimiterService,
   ) {}
 
+  /**
+   * L'IDENTITA' del negozio collegato — `docs/24` §8.5.1, fase 2 di §8.5.8.
+   *
+   * ⭐ **Il GID, non il dominio.** `myshopifyDomain` e' di fatto stabile ma
+   *    resta una stringa: il cambio negozio riscrive `shopDomain`, e da li' non
+   *    si risale al negozio precedente. `gid://shopify/Shop/{id}` e' permanente.
+   *
+   * ⛔ **Serve GraphQL, e non e' un vezzo**: `/shop.json` (REST) restituisce un
+   *    id NUMERICO, e comporre il GID da quel numero significherebbe fabbricare
+   *    un'identita' invece di leggerla — proprio dove l'identita' e' tutto.
+   *    E' la stessa query del preflight del 07/09/2026.
+   *
+   * ⚠️ `myshopifyDomain` si legge e si conserva come **fotografia**: serve a
+   *    riconoscere il negozio a occhio, non a identificarlo.
+   */
+  async getShopIdentity(
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<{ readonly shopGid: string; readonly myshopifyDomain: string | null }> {
+    const data = await this.graphql<{
+      shop: { id: string; myshopifyDomain: string | null } | null;
+    }>(shopDomain, accessToken, `query ShopIdentity { shop { id myshopifyDomain } }`);
+    const shopGid = data.shop?.id?.trim();
+    if (!shopGid) {
+      throw new Error('Shopify non ha restituito l identita del negozio');
+    }
+    return { shopGid, myshopifyDomain: data.shop?.myshopifyDomain?.trim() || null };
+  }
+
   async listTaxonomyCategories(
     shopDomain: string,
     accessToken: string,

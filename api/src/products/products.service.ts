@@ -9,8 +9,11 @@ import {
 import {
   CatalogOrigin,
   Prisma,
+  ProductStatus,
+  PlatformAuditOperation,
   ShopifyCatalogLinkKind,
   TenantChannelProfile,
+  VariantLifecycleStatus,
   type Product,
   type ProductImage,
   type ProductVariant,
@@ -52,6 +55,15 @@ import {
   assertShopifyCatalogDeleteAllowed,
   assertShopifyLinkedDeleteAllowed,
 } from './catalog-origin.util';
+import { assertLocalOnlyTrash } from './product-trash.util';
+import {
+  attoreUserId,
+  type AttoreRegistro,
+  type DatiOperazione,
+  type EsitoOperazione,
+} from '../common/audit/platform-audit.types';
+import { PlatformAuditService } from '../common/audit/platform-audit.service';
+import { ShopifyLinkHistoryService } from '../shopify/shopify-link-history.service';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import {
   assertVariantBarcodeAvailableInTx,
@@ -153,6 +165,8 @@ export class ProductsService {
     private readonly prisma: PrismaService,
     private readonly channelSync: ChannelSyncFacade,
     private readonly taxonomyLocalization: ShopifyTaxonomyLocalizationService,
+    private readonly audit: PlatformAuditService,
+    private readonly storicoShopify: ShopifyLinkHistoryService,
   ) {}
 
   async list(
@@ -961,6 +975,266 @@ export class ProductsService {
     await this.prisma.product.delete({ where: { id } });
   }
 
+  // ── CESTINO — reversibile, e distinto dall'eliminazione definitiva ────────
+  //
+  // ⭐ **Sono due comandi diversi, e devono restare riconoscibili.** Il cestino
+  //    scrive tre colonne e non tocca nient'altro; `delete()` qui sopra rimuove
+  //    la riga e le dipendenze operative. ⛔ Il cestino NON e' il ripiego di
+  //    un'eliminazione rifiutata: se `delete()` rifiuta, rifiuta.
+  //
+  // ⛔ **Nessun effetto inventariale** (`docs/24` §1.3): non si azzera una
+  //    giacenza, non si annulla un impegno, non si crea un movimento. Le uniche
+  //    colonne scritte sono `deletedAt`, `deletedById`, `deletionReason`.
+  //
+  // ⚠️ **La traccia di queste operazioni NON e' permanente**: al ripristino le
+  //    tre colonne si azzerano, e di chi ha spostato nel cestino non resta
+  //    niente. Il registro previsto (`PlatformAuditLog`, `DA-FARE` §10.3) e'
+  //    una DIPENDENZA dichiarata prima dell'attivazione per gli operatori; qui
+  //    non se ne inventa uno parallelo.
+
+  /**
+   * Esegue un'operazione di cestino secondo la sequenza canonica del registro.
+   *
+   * ⭐ **La sequenza vive in `PlatformAuditService.conRegistro`**, non qui:
+   *    dall'08/09/2026 la usa anche la cancellazione amministrativa del tenant,
+   *    e due copie della stessa decisione sono esattamente cio' che
+   *    `regole-qualita` vieta al secondo punto che la applica.
+   *
+   * ⚠️ **L'idempotenza resta di chi chiama**, e sta PRIMA: una richiesta che
+   *    non ha niente da fare non arriva fin qui, e non lascia una traccia
+   *    orfana.
+   */
+  private async conRegistro(
+    dati: DatiOperazione,
+    operazione: (tx: Prisma.TransactionClient) => Promise<EsitoOperazione>,
+  ): Promise<void> {
+    await this.audit.conRegistro(dati, operazione);
+  }
+
+  /**
+   * Sposta un PRODOTTO nel cestino.
+   *
+   * ⚠️ **Non tocca le varianti**: un prodotto nel cestino le nasconde senza
+   *    riscriverne lo stato, e al ripristino ritrovano quello di prima (§1.8).
+   */
+  async moveToTrash(
+    tenantId: string,
+    id: string,
+    attore: AttoreRegistro,
+    reason?: string | null,
+  ): Promise<void> {
+    const product = await this.prisma.product.findFirst({
+      where: { id, tenantId },
+      select: { id: true, name: true, deletedAt: true, shopifyProductId: true },
+    });
+    if (!product) {
+      throw new NotFoundException('Prodotto non trovato');
+    }
+    // Gia' nel cestino: non si riscrive la data originale, e non si registra
+    // niente. Una seconda richiesta non e' un errore e non e' un'operazione.
+    if (product.deletedAt != null) {
+      return;
+    }
+
+    await this.conRegistro(
+      {
+        tenantId,
+        attore,
+        operation: PlatformAuditOperation.cestino_prodotto,
+        entityId: id,
+        entityLabel: product.name,
+        remoteGid: product.shopifyProductId,
+        reason,
+      },
+      async (tx) => {
+        // ⚠️ Si rilegge DENTRO la transazione: il collegamento potrebbe essere
+        //    nato fra la lettura di sopra e questa. ⛔ Non chiude la finestra
+        //    col push (§17): quello scrive gli identificativi DOPO la risposta
+        //    di Shopify, e in mezzo il database non sa ancora niente.
+        const dentro = await tx.product.findFirst({
+          where: { id, tenantId },
+          select: { deletedAt: true, shopifyProductId: true },
+        });
+        // ⛔ La riga non c'e' PIU': questo si e un 404.
+        if (!dentro) {
+          throw new NotFoundException('Prodotto non trovato');
+        }
+        // ⭐ La riga c'e' ed e' gia' nel cestino: NON e' un 404 — corretto
+        //    l'08/09/2026, prima si sollevava «Prodotto non trovato» su un
+        //    prodotto che esiste. E' una richiesta concorrente arrivata seconda.
+        if (dentro.deletedAt != null) {
+          return 'ininfluente';
+        }
+        assertLocalOnlyTrash([dentro.shopifyProductId]);
+        // ⭐ `deletedAt: null` nel `where`: due richieste concorrenti non si
+        //    sovrascrivono a vicenda. ⛔ E il CONTEGGIO non si ignora: se la
+        //    prima ha commesso mentre questa attendeva il lock, qui vale 0 e
+        //    la modifica NON e' di chi sta scrivendo adesso.
+        const { count } = await tx.product.updateMany({
+          where: { id, tenantId, deletedAt: null },
+          data: { deletedAt: new Date(), deletedById: attoreUserId(attore), deletionReason: reason ?? null },
+        });
+        return count > 0 ? 'applicata' : 'ininfluente';
+      },
+    );
+  }
+
+  /**
+   * Riporta un PRODOTTO fuori dal cestino.
+   *
+   * ⭐ Torna **Non attivo**, mai in vendita (§1.8, §7.5): il ripristino non
+   *    riattiva niente da solo, e rimettere in uso e' un comando separato.
+   */
+  async restoreFromTrash(tenantId: string, id: string, attore: AttoreRegistro): Promise<void> {
+    const product = await this.prisma.product.findFirst({
+      where: { id, tenantId },
+      select: { id: true, name: true, deletedAt: true, shopifyProductId: true },
+    });
+    if (!product) {
+      throw new NotFoundException('Prodotto non trovato');
+    }
+    if (product.deletedAt == null) {
+      return;
+    }
+
+    await this.conRegistro(
+      {
+        tenantId,
+        attore,
+        operation: PlatformAuditOperation.ripristino_prodotto,
+        entityId: id,
+        entityLabel: product.name,
+        remoteGid: product.shopifyProductId,
+      },
+      async (tx) => {
+        // ⭐ Si aggiorna la riga che c'e': nessuna creazione, nessun doppione.
+        // ⛔ E il conteggio decide l'esito: se un'altra richiesta ha gia'
+        //    ripristinato, questa non ha ripristinato niente.
+        const { count } = await tx.product.updateMany({
+          where: { id, tenantId, deletedAt: { not: null } },
+          data: {
+            deletedAt: null,
+            deletedById: null,
+            deletionReason: null,
+            status: ProductStatus.archived,
+          },
+        });
+        return count > 0 ? 'applicata' : 'ininfluente';
+      },
+    );
+  }
+
+  /** Sposta una singola VARIANTE nel cestino. */
+  async moveVariantToTrash(
+    tenantId: string,
+    productId: string,
+    variantId: string,
+    attore: AttoreRegistro,
+    reason?: string | null,
+  ): Promise<void> {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, productId, tenantId },
+      select: {
+        id: true,
+        sku: true,
+        deletedAt: true,
+        shopifyVariantId: true,
+        product: { select: { shopifyProductId: true } },
+      },
+    });
+    if (!variant) {
+      throw new NotFoundException('Variante non trovata');
+    }
+    if (variant.deletedAt != null) {
+      return;
+    }
+
+    await this.conRegistro(
+      {
+        tenantId,
+        attore,
+        operation: PlatformAuditOperation.cestino_variante,
+        entityId: variantId,
+        entityLabel: variant.sku,
+        remoteGid: variant.shopifyVariantId,
+        reason,
+      },
+      async (tx) => {
+        const dentro = await tx.productVariant.findFirst({
+          where: { id: variantId, productId, tenantId },
+          select: {
+            deletedAt: true,
+            shopifyVariantId: true,
+            product: { select: { shopifyProductId: true } },
+          },
+        });
+        if (!dentro) {
+          throw new NotFoundException('Variante non trovata');
+        }
+        // ⭐ Gia' nel cestino: richiesta concorrente, non un 404.
+        if (dentro.deletedAt != null) {
+          return 'ininfluente';
+        }
+        // ⚠️ DUE identificativi: una variante senza `shopifyVariantId` puo'
+        //    stare comunque sul canale, se il PRODOTTO e' pubblicato.
+        assertLocalOnlyTrash([dentro.shopifyVariantId, dentro.product.shopifyProductId]);
+        const { count } = await tx.productVariant.updateMany({
+          where: { id: variantId, productId, tenantId, deletedAt: null },
+          data: { deletedAt: new Date(), deletedById: attoreUserId(attore), deletionReason: reason ?? null },
+        });
+        return count > 0 ? 'applicata' : 'ininfluente';
+      },
+    );
+  }
+
+  /**
+   * Riporta una VARIANTE fuori dal cestino.
+   *
+   * ⚠️ Se il PRODOTTO e' a sua volta nel cestino la variante resta nascosta, ed
+   *    e' corretto: sono due assi indipendenti, e ripristinare la variante non
+   *    ripristina il prodotto.
+   */
+  async restoreVariantFromTrash(
+    tenantId: string,
+    productId: string,
+    variantId: string,
+    attore: AttoreRegistro,
+  ): Promise<void> {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, productId, tenantId },
+      select: { id: true, sku: true, deletedAt: true, shopifyVariantId: true },
+    });
+    if (!variant) {
+      throw new NotFoundException('Variante non trovata');
+    }
+    if (variant.deletedAt == null) {
+      return;
+    }
+
+    await this.conRegistro(
+      {
+        tenantId,
+        attore,
+        operation: PlatformAuditOperation.ripristino_variante,
+        entityId: variantId,
+        entityLabel: variant.sku,
+        remoteGid: variant.shopifyVariantId,
+      },
+      async (tx) => {
+        const { count } = await tx.productVariant.updateMany({
+          where: { id: variantId, productId, tenantId, deletedAt: { not: null } },
+          data: {
+            deletedAt: null,
+            deletedById: null,
+            deletionReason: null,
+            lifecycleStatus: VariantLifecycleStatus.inactive,
+          },
+        });
+        return count > 0 ? 'applicata' : 'ininfluente';
+      },
+    );
+  }
+
   /** Verifica disponibilità SKU per la validazione live del form. */
   async checkSkuAvailability(
     tenantId: string,
@@ -1265,6 +1539,23 @@ export class ProductsService {
     }
 
     await tx.inventoryLevel.deleteMany({ where: { variantId } });
+
+    // ── B4 · lo storico Shopify si sgancia PRIMA della riga ────────────────
+    //
+    // ⛔ **Senza questo, l'eliminazione diventa impossibile appena la variante
+    //    ha un'identità**: la FK `shopify_variant_identities_variant_id_…` è
+    //    `ON DELETE RESTRICT`. È la ragione per cui B4 non è separabile da B2 e
+    //    B3 — insieme scrivono e insieme sanno sganciare.
+    //
+    // ⭐ **Non cambia CHI può eliminare né QUANDO**: i controlli restano quelli
+    //    di prima (movimenti di magazzino sopra, permessi a monte). Cambia solo
+    //    che, prima di togliere la riga, la storia del collegamento si chiude
+    //    invece di sparire.
+    //
+    // ⚠️ Su una variante mai collegata non fa niente e non costa una query in
+    //    più del necessario: il servizio esce subito se non trova identità.
+    await this.storicoShopify.sganciaVariante(tx, { tenantId, variantId });
+
     await tx.productVariant.delete({ where: { id: variantId } });
   }
 

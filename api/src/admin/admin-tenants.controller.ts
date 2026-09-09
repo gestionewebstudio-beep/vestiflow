@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../common/auth/authenticated-request';
 import { PlatformAdminGuard } from '../common/platform-admin/platform-admin.guard';
 import { actorFromProfile } from '../tenant-users/tenant-users.types';
+import { attoreDaProfilo } from '../common/audit/platform-audit.types';
 import type { LocationLicenseSummaryDto } from '../inventory/location-licensing.service';
 import { AdminTenantsService } from './admin-tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -61,8 +62,15 @@ export class AdminTenantsController {
   }
 
   @Delete(':id')
-  deleteTenant(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.adminTenants.deleteTenant(id);
+  deleteTenant(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    // ⛔ L'attore viene dal PROFILO AUTENTICATO, mai dal corpo della richiesta:
+    //    `attoreDaProfilo` prende `displayName` come nome ed `email` nel campo
+    //    dedicato. L'email autorizza l'amministratore, non ne sostituisce il
+    //    nome. Le autorizzazioni restano quelle di prima (`PlatformAdminGuard`).
+    return this.adminTenants.deleteTenant(id, attoreDaProfilo(request.appUser));
   }
 
   @Post(':id/grant-location-selection-change')

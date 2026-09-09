@@ -66,9 +66,13 @@ export interface ShopifySyncInventoryDto {
   readonly linkedVariantCount: number;
   readonly linkedLocationCount: number;
   readonly remoteLevelCount: number;
-  /** Disallineamenti rimasti in sospeso e ripubblicati in questa passata. */
+  /** ⭐ Disallineamenti la cui quantità è stata DAVVERO ripubblicata. */
   readonly republishedLevels?: number;
-  /** Disallineamenti ancora in coda: falliti, oppure oltre il tetto per passata. */
+  /** Rifiutati dallo storico: il collegamento non è utilizzabile. */
+  readonly refusedLevels?: number;
+  /** Falliti: il canale ha rifiutato o non ha risposto. */
+  readonly failedLevels?: number;
+  /** Disallineamenti ancora da risolvere dopo la passata. */
   readonly pendingMismatches?: number;
 }
 

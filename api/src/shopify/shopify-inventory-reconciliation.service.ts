@@ -57,12 +57,18 @@ export class ShopifyInventoryReconciliationService {
     const observed = Math.max(0, Math.trunc(shopifyAvailable));
     const level = await this.prisma.inventoryLevel.findUnique({
       where: { variantId_locationId: { variantId: variant.id, locationId: location.id } },
-      select: { onHand: true, committed: true },
+      // ⭐ Come il push: `available` è il numero, gli altri due servono al
+      //    messaggio del disallineamento.
+      select: { available: true, onHand: true, committed: true },
     });
 
     const onHand = level?.onHand ?? 0;
     const committed = level?.committed ?? 0;
-    const expected = computeShopifyPublishableAvailable(onHand, committed, 0);
+    // ⛔ **Qui si RICALCOLAVA `onHand - committed`.** Il confronto e l'invio
+    //    devono partire dallo stesso numero, o la riconciliazione può
+    //    dichiarare allineato ciò che è stato pubblicato in un altro modo.
+    //    Sostituito il 09/09/2026 insieme al push (stessa verifica).
+    const expected = computeShopifyPublishableAvailable(level?.available ?? 0);
     const now = new Date();
 
     const syncState = await this.prisma.shopifyInventorySyncState.upsert({
@@ -110,18 +116,11 @@ export class ShopifyInventoryReconciliationService {
     }
 
     // Caso C — quantità inferiore ma impegni Shopify attivi non ancora allineati.
-    if (observed < expected) {
-      const pending = await this.hasActiveShopifyReservations(
-        tenantId,
-        variant.id,
-        location.id,
+    if (await this.rinvioAttivo(tenantId, variant.id, location.id, observed, expected)) {
+      this.logger.debug(
+        `Riconciliazione differita (${tenantId}): ${variant.sku} osservato ${observed}, atteso ${expected} — impegni attivi`,
       );
-      if (pending) {
-        this.logger.debug(
-          `Riconciliazione differita (${tenantId}): ${variant.sku} osservato ${observed}, atteso ${expected} — impegni attivi`,
-        );
-        return 'deferred';
-      }
+      return 'deferred';
     }
 
     // Caso D — disallineamento non giustificato: VF resta fonte di verità.
@@ -167,6 +166,36 @@ export class ShopifyInventoryReconciliationService {
         mismatchNote: null,
       },
     });
+  }
+
+  /**
+   * Il **rinvio** del Caso C, valutato ADESSO.
+   *
+   * ⭐ **Esiste perché la regola dev'essere una sola.** Il ritentativo delle
+   *    quantità deve poter porre la stessa domanda prima di ripubblicare: senza
+   *    questo metodo, chi ritenta la riscriverebbe altrove, e il giorno in cui
+   *    la condizione cambiasse i due percorsi comincerebbero a rispondere
+   *    diversamente sulla stessa riga.
+   *
+   * ⛔ **La regola NON è cambiata portandola qui**: è il predicato che stava
+   *    dentro `reconcileFromShopifyWebhook`, spostato e basta — quantità
+   *    osservata inferiore all'attesa, e impegni Shopify ancora attivi su quella
+   *    coppia. Chi la vuole cambiare cambia questo metodo, e cambia entrambi.
+   *
+   * ⚠️ **`osservato` a `null` non è un rinvio**: senza un'osservazione non c'è
+   *    il «inferiore all'atteso» da cui il rinvio dipende.
+   */
+  async rinvioAttivo(
+    tenantId: string,
+    variantId: string,
+    locationId: string,
+    osservato: number | null,
+    atteso: number,
+  ): Promise<boolean> {
+    if (osservato === null || osservato >= atteso) {
+      return false;
+    }
+    return this.hasActiveShopifyReservations(tenantId, variantId, locationId);
   }
 
   private async clearMismatch(

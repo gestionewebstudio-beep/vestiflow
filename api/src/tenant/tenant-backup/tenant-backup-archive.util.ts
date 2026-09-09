@@ -5,7 +5,7 @@ import {
   TENANT_BACKUP_ENTITY_FILES,
   TENANT_BACKUP_FORMAT_VERSION,
   TENANT_BACKUP_MIN_FORMAT_VERSION,
-  TENANT_BACKUP_V3_ENTITY_FILES,
+  tenantBackupFileAttesi,
 } from './tenant-backup.constants';
 import type { BackupData } from './tenant-backup-entities.util';
 import type { TenantBackupManifest } from './tenant-backup-manifest.model';
@@ -92,13 +92,14 @@ export async function readTenantBackupArchive(buffer: Buffer, tenantId: string) 
       }
     }
   }
-  const required =
-    manifest.formatVersion === 3 ? TENANT_BACKUP_V3_ENTITY_FILES : TENANT_BACKUP_ENTITY_FILES;
+  // ⭐ UNA sola fonte per i due cancelli: il file richiesto e il conteggio
+  //    richiesto. Erano due condizioni scritte a mano, e un archivio v4
+  //    inciampava in entrambe non appena il formato cresceva (08/09/2026).
+  const attesi = new Set(tenantBackupFileAttesi(manifest.formatVersion));
   const data: BackupData = {};
   for (const key of TENANT_BACKUP_ENTITY_FILES) {
     const entry = entries.get(`data/${key}.json`);
-    if (!entry && required.includes(key))
-      throw new BadRequestException(`File backup mancante: ${key}.`);
+    if (!entry && attesi.has(key)) throw new BadRequestException(`File backup mancante: ${key}.`);
     try {
       data[key] = entry ? parseBackupRows((await entry.buffer()).toString('utf8')) : [];
     } catch {
@@ -106,7 +107,10 @@ export async function readTenantBackupArchive(buffer: Buffer, tenantId: string) 
     }
     const expected = manifest.entityCounts[key];
     if (
-      (manifest.formatVersion >= 4 && expected === undefined) ||
+      // ⛔ Il conteggio si pretende solo per i file che QUELLA versione doveva
+      //    contenere: un v4 non ha `entityCounts.shopifyShops`, e pretenderlo
+      //    rifiutava un archivio perfettamente valido.
+      (manifest.formatVersion >= 4 && attesi.has(key) && expected === undefined) ||
       (expected !== undefined && expected !== data[key]!.length)
     ) {
       throw new BadRequestException(`Conteggio backup non coerente: ${key}.`);

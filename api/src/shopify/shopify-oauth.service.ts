@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -18,6 +19,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
+import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import {
+  conflittoDiConcorrenza,
+  ShopifyShopIdentityService,
+  type EsitoIdentitaNegozio,
+} from './shopify-shop-identity.service';
 import { ShopifyCryptoService } from './shopify-crypto.service';
 import { isShopifyDeliverableAddress } from './shopify-webhook-address.util';
 import {
@@ -48,7 +55,33 @@ export class ShopifyOAuthService {
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyLocationSync: ShopifyLocationSyncService,
+    private readonly shopifyGraphql: ShopifyGraphqlClient,
+    private readonly shopIdentity: ShopifyShopIdentityService,
   ) {}
+
+  /**
+   * L'indirizzo di rifiuto che corrisponde all'esito dell'identita'.
+   *
+   * ⭐ **Si legge DOPO il rollback**: l'esito viene deciso dentro la
+   *    transazione, ma la risposta si compone fuori — quando si e' certi che
+   *    non sia rimasto niente scritto.
+   */
+  private rifiutoDaEsito(esito: EsitoIdentitaNegozio | null, shopDomain: string): string | null {
+    const base = `${this.shopifyConfig.frontendUrl}/app/settings?shopify=`;
+    const negozio = encodeURIComponent(shopDomain);
+    switch (esito?.tipo) {
+      case 'rivendicato_altrove':
+        // ⛔ §8.5.1: lo stesso negozio non puo' appartenere a due aziende.
+        return `${base}shop_owned_elsewhere&shop=${negozio}`;
+      case 'negozio_diverso':
+        // ⛔ Il cambio negozio ha una transazione sua (§8.5.1): non e' qui.
+        return `${base}shop_change_blocked&from=${negozio}&to=${negozio}`;
+      case 'non_acquisita':
+        return `${base}shop_identity_unavailable&shop=${negozio}`;
+      default:
+        return null;
+    }
+  }
 
   async beginAuth(tenantId: string, shopInput: string): Promise<{ authorizeUrl: string }> {
     await assertTenantChannelProfile(this.prisma, tenantId, TenantChannelProfile.shopify);
@@ -104,6 +137,51 @@ export class ShopifyOAuthService {
       throw new BadRequestException('Dominio shop non coerente con lo stato OAuth');
     }
 
+    // ── Il PROFILO CANALE, prima di qualunque chiamata a Shopify ────────────
+    //
+    // ⛔ **Il controllo c'era solo in `beginAuth`**, e fra i due passaggi resta
+    //    una finestra: il cambio profilo e' consentito finche' non c'e' una
+    //    connessione attiva, quindi uno stato OAuth pendente sopravviveva al
+    //    passaggio a `gestionale` e il collegamento si completava lo stesso.
+    //    Misurato l'08/09/2026 (`DA-FARE` §23), corretto lo stesso giorno.
+    //
+    // ⭐ **La regola e' la stessa di `beginAuth`**, non una seconda copia: e' la
+    //    ragione per cui il messaggio e i casi coperti restano allineati.
+    //
+    // ⚠️ **Qui si RISPONDE, non si lancia**: il callback torna dal browser di
+    //    Shopify, e un 400 crudo lascerebbe l'utente su una pagina d'errore
+    //    invece che nelle Impostazioni con un motivo leggibile.
+    // ⛔ **Si cattura la DECISIONE, non il guasto** — corretto dopo che il
+    //    proprietario l'ha rilevato leggendo il codice. Qui c'era un `catch`
+    //    nudo: una lettura fallita per una ragione TECNICA — connessione persa,
+    //    timeout, driver — diventava «canale non abilitato», cioe' una risposta
+    //    di dominio falsa che nascondeva un guasto vero. E chi la leggeva
+    //    andava a cercare il profilo del cliente invece del database.
+    //
+    // ⭐ La discriminante e' il TIPO: `assertTenantChannelProfile` esprime le
+    //    proprie decisioni con `BadRequestException`; qualunque altra cosa non
+    //    e' una decisione, e deve risalire con la sua causa intatta.
+    try {
+      await assertTenantChannelProfile(
+        this.prisma,
+        oauthState.tenantId,
+        TenantChannelProfile.shopify,
+      );
+    } catch (errore: unknown) {
+      if (!(errore instanceof BadRequestException)) {
+        this.logger.error(
+          `OAuth Shopify (${oauthState.tenantId}): lettura del profilo canale fallita per un ` +
+            'motivo tecnico. Il collegamento non prosegue, e l errore non viene mascherato.',
+        );
+        throw errore;
+      }
+      this.logger.warn(
+        `OAuth Shopify (${oauthState.tenantId}): profilo canale non abilitato a Shopify. ` +
+          'Collegamento rifiutato prima di qualunque chiamata al canale.',
+      );
+      return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=channel_not_enabled&shop=${encodeURIComponent(shopDomain)}`;
+    }
+
     const tokenResponse = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -148,41 +226,185 @@ export class ShopifyOAuthService {
       return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=shop_change_blocked&from=${encodeURIComponent(existingCredential.shopDomain)}&to=${encodeURIComponent(shopDomain)}`;
     }
 
-    await this.prisma.$transaction([
-      this.prisma.shopifyCredential.upsert({
-        where: { tenantId },
-        update: { shopDomain, accessTokenEnc: encrypted, scopes },
-        create: { tenantId, shopDomain, accessTokenEnc: encrypted, scopes },
-      }),
-      this.prisma.shopifyOAuthState.delete({ where: { id: oauthState.id } }),
-    ]);
+    // ── L'IDENTITA' del negozio, PRIMA di scrivere qualunque cosa ────────────
+    //
+    // ⭐ **Prima, e non dopo** (fase 2 di §8.5.8): se il negozio risulta gia'
+    //    collegato a un'altra azienda, la connessione va rifiutata SENZA aver
+    //    lasciato una credenziale e senza aver consumato lo stato OAuth. Letta
+    //    dopo, il rifiuto arriverebbe a cose fatte.
+    //
+    // ⛔ **UNA CONNESSIONE NUOVA NON DIVENTA OPERATIVA SENZA IDENTITA'
+    //    VERIFICATA** — corretto l'08/09/2026, ed era un buco vero.
+    //
+    //    Qui c'era scritto «una lettura fallita NON blocca la connessione: si
+    //    collega e si avvisa». Ma con l'identita' non leggibile `registra` non
+    //    veniva chiamata affatto, e con lei spariva **il controllo di
+    //    appartenenza**: un'azienda poteva collegare un negozio gia' di
+    //    un'altra semplicemente perche' la lettura falliva. E l'avviso
+    //    prometteva una sospensione che nessun percorso di sincronizzazione
+    //    applicava — import ed export guardano connessione e permessi, non
+    //    quell'avviso.
+    //
+    // ⚠️ **Tollerare i dati PREESISTENTI non e' autorizzare connessioni nuove**,
+    //    ed e' la distinzione che tiene in piedi la gradualita': una
+    //    connessione legacy senza `shop_id` continua a funzionare — nessuno la
+    //    tocca — ma un tentativo NUOVO senza identita' verificata si rifiuta.
+    //    Il rifiuto non altera in alcun modo la connessione precedente.
+    let identita: { readonly shopGid: string; readonly myshopifyDomain: string | null };
+    try {
+      identita = await this.shopifyGraphql.getShopIdentity(shopDomain, tokenJson.access_token);
+    } catch (error: unknown) {
+      const motivo = error instanceof Error ? error.message : 'lettura identita fallita';
+      this.logger.warn(
+        `OAuth Shopify (${tenantId}): identita negozio non leggibile — ${motivo}. Connessione rifiutata.`,
+      );
+      return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=shop_identity_unavailable&shop=${encodeURIComponent(shopDomain)}`;
+    }
 
+    // ⚠️ **Le chiamate remote sono FINITE**: da qui in poi si scrive soltanto.
+    //    L'ultima sta prima della transazione perche' una chiamata dentro una
+    //    transazione la terrebbe aperta sul tempo della rete.
     const shopInfo = await this.shopifyAdmin.getShop(shopDomain, tokenJson.access_token);
     const now = new Date();
 
-    await this.prisma.shopifyConnection.upsert({
-      where: { tenantId },
-      update: {
-        status: ShopifyConnectionStatus.connected,
-        shopDomain,
-        displayName: shopInfo.name,
-        apiVersion: this.shopifyConfig.apiVersion,
-        scopes,
-        lastConnectedAt: now,
-        lastErrorMessage: null,
-        lastErrorCode: null,
-        lastErrorAt: null,
-      },
-      create: {
-        tenantId,
-        status: ShopifyConnectionStatus.connected,
-        shopDomain,
-        displayName: shopInfo.name,
-        apiVersion: this.shopifyConfig.apiVersion,
-        scopes,
-        lastConnectedAt: now,
-      },
-    });
+    // ── UNA transazione sola: IDENTITA', credenziale, connessione e stato ────
+    //
+    // ⛔ **Erano scritture separate, e l'identita' stava fuori.** Un fallimento
+    //    lasciava la riga di `shopify_shops` in piedi, e un tentativo incompleto
+    //    del tenant A **respingeva il tenant B** che quel negozio lo possiede
+    //    davvero (§22). Ora o si scrive tutto, o non si scrive niente.
+    //
+    // ⭐ `Serializable`, e la scelta e' MISURATA (195 coppie concorrenti sul
+    //    database di prova, 08/09/2026): con `ReadCommitted` due collegamenti
+    //    dello stesso tenant a negozi diversi riuscivano ENTRAMBI, e uno dei
+    //    due «connesso» era falso.
+    let esito: EsitoIdentitaNegozio | null = null;
+    // ⚠️ Il conflitto sul DOMINIO della credenziale non porta un codice: e' una
+    //    `ConflictException` nostra, e va distinta dalle altre — riconoscerla
+    //    dalla classe le comprenderebbe tutte, comprese quelle future.
+    let conflittoDominio = false;
+    /** Il profilo canale e' cambiato mentre il collegamento era in corso. */
+    let profiloNonAbilitato = false;
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          // ⛔ **Il profilo si rilegge QUI DENTRO**, e non e' una ripetizione
+          //    inutile: fra il controllo di prima e questa transazione ci sono
+          //    due chiamate remote, cioe' tutto il tempo che serve al titolare
+          //    per passare a `gestionale`.
+          //
+          // ⛔ **E si BLOCCA la riga, perche' `Serializable` qui NON basta.**
+          //    Avevo scritto che la lettura serializzabile vale da
+          //    prenotazione: e' falso, e la prova `K7e` l'ha dimostrato al
+          //    primo giro — la protezione SSI di PostgreSQL vale solo fra
+          //    transazioni **entrambe** serializzabili, e un `UPDATE` singolo
+          //    non lo e'. Il collegamento si completava lo stesso.
+          //
+          // ⭐ `FOR UPDATE` invece blocca chiunque, a qualunque isolamento: se
+          //    il cambio profilo arriva prima, qui si legge `gestionale` e si
+          //    rifiuta; se arriva dopo, aspetta questo commit e trova una
+          //    connessione attiva — che e' esattamente il caso che
+          //    `assertTenantChannelProfileChangeAllowed` rifiuta.
+          await tx.$queryRawUnsafe(
+            `SELECT channel_profile FROM tenants WHERE id = $1::uuid FOR UPDATE`,
+            tenantId,
+          );
+          try {
+            await assertTenantChannelProfile(
+              tx as unknown as PrismaService,
+              tenantId,
+              TenantChannelProfile.shopify,
+            );
+          } catch (errore: unknown) {
+            // ⛔ Stessa disciplina del controllo iniziale: il flag si alza solo
+            //    per una DECISIONE della regola. Un guasto tecnico qui dentro
+            //    deve uscire come guasto — non come «canale non abilitato».
+            profiloNonAbilitato = errore instanceof BadRequestException;
+            throw errore;
+          }
+
+          esito = await this.shopIdentity.registra(tx, tenantId, identita);
+          if (esito.tipo !== 'registrata') {
+            // ⛔ Si esce ANNULLANDO: un rifiuto non deve lasciare la riga del
+            //    negozio scritta un istante prima.
+            throw new ConflictException(`identita non registrata: ${esito.tipo}`);
+          }
+          const shopId = esito.shopId;
+
+          const credenziale = await tx.shopifyCredential.findUnique({
+            where: { tenantId },
+            select: { shopDomain: true },
+          });
+          if (credenziale && credenziale.shopDomain !== shopDomain) {
+            // ⭐ Il cambio negozio e' gia' stato rifiutato PRIMA della
+            //    transazione (`shop_change_blocked`): se una credenziale su un
+            //    altro dominio compare QUI, e' comparsa nel frattempo — cioe'
+            //    un secondo collegamento dello stesso tenant, simultaneo.
+            conflittoDominio = true;
+            throw new ConflictException('Connessione a un altro negozio gia` in corso');
+          }
+
+          await tx.shopifyCredential.upsert({
+            where: { tenantId },
+            update: { shopDomain, accessTokenEnc: encrypted, scopes },
+            create: { tenantId, shopDomain, accessTokenEnc: encrypted, scopes },
+          });
+          await tx.shopifyConnection.upsert({
+            where: { tenantId },
+            update: {
+              status: ShopifyConnectionStatus.connected,
+              shopDomain,
+              shopId,
+              displayName: shopInfo.name,
+              apiVersion: this.shopifyConfig.apiVersion,
+              scopes,
+              lastConnectedAt: now,
+              lastErrorMessage: null,
+              lastErrorCode: null,
+              lastErrorAt: null,
+            },
+            create: {
+              tenantId,
+              status: ShopifyConnectionStatus.connected,
+              shopDomain,
+              shopId,
+              displayName: shopInfo.name,
+              apiVersion: this.shopifyConfig.apiVersion,
+              scopes,
+              lastConnectedAt: now,
+            },
+          });
+          await tx.shopifyOAuthState.delete({ where: { id: oauthState.id } });
+        },
+        { isolationLevel: 'Serializable' },
+      );
+    } catch (errore: unknown) {
+      // ── Il rollback e' gia' avvenuto: qui si decide COSA DIRE ─────────────
+      if (profiloNonAbilitato) {
+        // ⛔ Il profilo e' passato a solo gestionale mentre il collegamento era
+        //    in corso: la transazione e` rotolata indietro per intero, quindi
+        //    non esiste nessuna connessione nuova su un tenant `gestionale`.
+        this.logger.warn(
+          `OAuth Shopify (${tenantId}): profilo canale non abilitato a Shopify al momento ` +
+            'del salvataggio. Collegamento annullato per intero.',
+        );
+        return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=channel_not_enabled&shop=${encodeURIComponent(shopDomain)}`;
+      }
+      const rifiuto = this.rifiutoDaEsito(esito, shopDomain);
+      if (rifiuto) {
+        return rifiuto;
+      }
+      if (conflittoDominio || conflittoDiConcorrenza(errore)) {
+        // ⭐ Conflitto fra collegamenti simultanei: nulla e' stato scritto, e un
+        //    secondo tentativo puo' riuscire. I codici sono TRE (P2034, 40001,
+        //    23505), misurati — non uno solo, come avevo assunto.
+        this.logger.warn(
+          `OAuth Shopify (${tenantId}): collegamento in conflitto con un altro tentativo simultaneo. Nulla e' stato scritto.`,
+        );
+        return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=connection_conflict&shop=${encodeURIComponent(shopDomain)}`;
+      }
+      throw errore;
+    }
 
     const scopeDiagnostics = buildShopifyScopeDiagnostics(
       this.shopifyConfig.requestedScopes,

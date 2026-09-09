@@ -404,6 +404,68 @@ describe('ShopifyIntegrationPanelComponent', () => {
     });
   });
 
+  /**
+   * ⛔ **Il messaggio DELL'OPERAZIONE, non un errore qualunque nella pagina.**
+   *    Il pannello ha più punti che possono mostrare testo — l'errore di
+   *    connessione, il banner dell'azione, gli avvisi di configurazione — e una
+   *    prova che cercasse il testo ovunque sarebbe verde anche se l'esito
+   *    dell'import comparisse nel posto sbagliato o non comparisse affatto.
+   *    Qui si legge il **banner dell'azione**, per classe.
+   */
+  function messaggioDellAzione(): string {
+    const banner = document.querySelector('.inline-banner .inline-banner__text');
+    return banner?.textContent?.trim() ?? '';
+  }
+
+  it('⛔ import TUTTO FALLITO: il messaggio dell operazione non dice «sincronizzato»', async () => {
+    const user = userEvent.setup();
+    connectionService.syncProducts.mockReturnValue(
+      of({
+        synced: true as const,
+        imported: 0,
+        updated: 0,
+        skipped: 0,
+        remoteProductCount: 2,
+        failed: [
+          { shopifyProductId: '1', message: 'canale non raggiungibile' },
+          { shopifyProductId: '2', message: 'canale non raggiungibile' },
+        ],
+      }),
+    );
+    await setup();
+
+    await user.click(await screen.findByRole('button', { name: /Importa catalogo/i }));
+
+    await waitFor(() => expect(messaggioDellAzione()).toContain('Import non riuscito'));
+    expect(messaggioDellAzione()).not.toContain('sincronizzato');
+  });
+
+  it('⭐ import con SALTATI: il messaggio li nomina e non li chiama errori', async () => {
+    const user = userEvent.setup();
+    connectionService.syncProducts.mockReturnValue(
+      of({
+        synced: true as const,
+        imported: 2,
+        updated: 0,
+        skipped: 3,
+        remoteProductCount: 5,
+        failed: [],
+      }),
+    );
+    await setup();
+
+    await user.click(await screen.findByRole('button', { name: /Importa catalogo/i }));
+
+    await waitFor(() => expect(messaggioDellAzione()).toContain('3 prodotti sono stati saltati'));
+    // ⚠️ L'asserzione è sul modo in cui i saltati sono PRESENTATI, non sulla
+    //    parola: il messaggio dice «non sono errori», quindi cercare la
+    //    sottostringa «errori» lo boccerebbe per la ragione opposta a quella
+    //    voluta. Ciò che non deve comparire è il vocabolario del fallimento.
+    expect(messaggioDellAzione()).toContain('non sono errori');
+    expect(messaggioDellAzione()).not.toContain('falliti');
+    expect(messaggioDellAzione()).not.toContain('con 3 errori');
+  });
+
   it('un errore di sync resta a schermo: non e’ un avviso che scade', async () => {
     const user = userEvent.setup();
     connectionService.syncProducts.mockReturnValue(

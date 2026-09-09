@@ -1,0 +1,22 @@
+-- PlatformAuditOperation: il riaggancio rifiutato.
+--
+-- ⭐ PERCHE'. L'import trova l'anagrafica per colonna-cache (`shopify_product_id`
+--    o `shopify_variant_id` ancora valorizzati), la aggiorna — e' cio' che B5a-bis
+--    ha deciso: gli aggiornamenti consentiti avvengono lo stesso — ma lo storico
+--    RIFIUTA di riagganciarla: collegamento chiuso (nessuna riapertura
+--    automatica, docs/24 §8.5.2), identita' eliminata definitivamente (il GID
+--    non e' riutilizzabile, §11.8) o GID che appartiene a un'altra anagrafica.
+--    Fino al 09/09/2026 quel rifiuto restava in un `logger.warn`.
+--
+-- ⚠️ E' un valore a se', e non `import_*_rifiutato`, perche' li' l'IMPORT e'
+--    rifiutato (niente creato); qui l'import prosegue e a essere rifiutato e' il
+--    solo riaggancio. Una riga «import rifiutato» su un import andato a buon
+--    fine sarebbe una dichiarazione falsa.
+--
+-- ⭐ Il nome e' quello che docs/DA-FARE §10.3 elenca fra le operazioni della
+--    prima tranche («riaggancio_rifiutato»): non e' un nome nuovo. Vale per
+--    prodotto e variante insieme, distinti dal GID remoto.
+--
+-- ⛔ NON applicata al database CONDIVISO.
+
+ALTER TYPE "PlatformAuditOperation" ADD VALUE IF NOT EXISTS 'riaggancio_rifiutato';

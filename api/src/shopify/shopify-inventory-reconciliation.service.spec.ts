@@ -7,14 +7,16 @@ describe('ShopifyInventoryReconciliationService', () => {
   function createService(options: {
     variant?: { id: string; sku: string } | null;
     location?: { id: string } | null;
-    level?: { onHand: number; committed: number } | null;
+    level?: { onHand: number; committed: number; available: number } | null;
     syncState?: { lastPushedAvailable: number | null; lastPushedAt: Date | null };
     activeReservations?: number;
   } = {}) {
     const {
       variant = { id: 'var-1', sku: 'SKU-1' },
       location = { id: 'loc-1' },
-      level = { onHand: 10, committed: 3 },
+      // ⭐ Il Disponibile è quello che la riconciliazione confronta dal
+      //    09/09/2026; giacenza e impegnata restano per il messaggio del Caso D.
+      level = { onHand: 10, committed: 3, available: 7 },
       syncState = { lastPushedAvailable: null, lastPushedAt: null },
       activeReservations = 0,
     } = options;

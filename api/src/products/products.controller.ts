@@ -41,6 +41,8 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { TrashProductDto } from './dto/trash-product.dto';
+import { attoreDaProfilo } from '../common/audit/platform-audit.types';
 import { GenerateSkuDto } from './dto/generate-sku.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
@@ -376,6 +378,73 @@ export class ProductsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.products.delete(tenantId, id);
+  }
+
+  // ── CESTINO ──────────────────────────────────────────────────────────────
+  //
+  // ⭐ **Rotte proprie, e `DELETE :id` non cambia mestiere.** L'eliminazione
+  //    definitiva resta dov'era e con la stessa semantica: chi la chiama oggi
+  //    continua a eliminare, non a spostare nel cestino.
+  //
+  // ⚠️ **Permesso: `catalog.delete` su tutte e quattro.** `docs/24` §7.4 chiede
+  //    un permesso esplicito per eliminare e ripristinare, e ammette di
+  //    RIUSARNE uno. Il cestino e' l'asse dell'eliminazione, e il ripristino ne
+  //    e' l'inverso: separarli darebbe a qualcuno il potere di riportare
+  //    indietro cio' che non poteva mandare avanti. Se un giorno servisse
+  //    distinguerli, e' una riga.
+
+  @Post(':id/trash')
+  @RequirePermissions(TenantPermission.CatalogDelete)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async moveToTrash(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: TrashProductDto,
+  ): Promise<void> {
+    await this.products.moveToTrash(tenantId, id, attoreDaProfilo(user), dto.reason);
+  }
+
+  @Post(':id/restore')
+  @RequirePermissions(TenantPermission.CatalogDelete)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async restoreFromTrash(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.products.restoreFromTrash(tenantId, id, attoreDaProfilo(user));
+  }
+
+  @Post(':id/variants/:variantId/trash')
+  @RequirePermissions(TenantPermission.CatalogDelete)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async moveVariantToTrash(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+    @Body() dto: TrashProductDto,
+  ): Promise<void> {
+    await this.products.moveVariantToTrash(
+      tenantId,
+      id,
+      variantId,
+      attoreDaProfilo(user),
+      dto.reason,
+    );
+  }
+
+  @Post(':id/variants/:variantId/restore')
+  @RequirePermissions(TenantPermission.CatalogDelete)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async restoreVariantFromTrash(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+  ): Promise<void> {
+    await this.products.restoreVariantFromTrash(tenantId, id, variantId, attoreDaProfilo(user));
   }
 
   private assertCsvFile(file: Express.Multer.File | undefined): void {

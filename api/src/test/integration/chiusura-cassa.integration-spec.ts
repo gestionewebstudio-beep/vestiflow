@@ -104,6 +104,23 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
   }, 120_000);
 
   afterEach(async () => {
+    // ⛔ **I cancelli si aprono SEMPRE, prima di qualunque altra cosa.**
+    //
+    //    Cinque prove di questo file trattengono una transazione — che tiene il
+    //    lock sul numeratore documenti — e la rilasciano con `cancello.apri()`
+    //    scritto DOPO alcune asserzioni. Se una di quelle asserzioni cade, il
+    //    cancello non si apre mai e la transazione resta appesa coi propri
+    //    lock: i `beforeEach` successivi si bloccano e vanno in **«Hook timed
+    //    out in 60000ms»**, che è la firma di `DA-FARE` §21-bis.
+    //
+    // ⭐ **Riprodotto l'08/09/2026**: rompendo UNA sola asserzione cadevano
+    //    QUATTRO prove, e fra i motivi c'era proprio l'hook scaduto. Non è la
+    //    causa dell'innesco — è ciò che trasforma un fallimento in un crollo.
+    //
+    // ⚠️ Qui invece di spostare il codice delle prove: aprire un cancello già
+    //    aperto non fa niente (è una `resolve`), quindi le righe che restano
+    //    nelle prove continuano a valere e questa è solo la rete sotto.
+    await liberaCancelliPendenti(prisma);
     await svuota(prisma);
   });
 
@@ -862,6 +879,9 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
  * l'ha bloccata, l'operazione parte libera e la prova accusa il prodotto per
  * un difetto proprio. Misurato il 04/09/2026.
  */
+/** I cancelli creati dalla prova in corso: si aprono comunque a fine prova. */
+const cancelliCreati: Array<() => void> = [];
+
 function apriCancello(): {
   attesa: Promise<void>;
   apri: () => void;
@@ -876,7 +896,40 @@ function apriCancello(): {
   const preso = new Promise<void>((res) => {
     segnalaPresa = res;
   });
+  // ⭐ Si registra da sé: nessuna prova deve ricordarsi di farlo, ed è la
+  //    ragione per cui la rete regge anche per le prove scritte domani.
+  cancelliCreati.push(apri);
   return { attesa, apri, preso, segnalaPresa };
+}
+
+/**
+ * Apre i cancelli rimasti chiusi e aspetta che le transazioni si chiudano.
+ *
+ * ⚠️ **Non basta aprirli**: la transazione ci mette un istante a concludersi, e
+ *    la pulizia che segue chiede un ACCESS EXCLUSIVE che quell'istante non
+ *    concede. Si aspetta lo stato vero, con un tetto.
+ */
+async function liberaCancelliPendenti(prisma: PrismaClient): Promise<void> {
+  const pendenti = cancelliCreati.splice(0);
+  if (pendenti.length === 0) {
+    return;
+  }
+  for (const apri of pendenti) {
+    apri();
+  }
+  for (let tentativo = 0; tentativo < 200; tentativo += 1) {
+    const righe = await prisma.$queryRawUnsafe<{ n: number }[]>(
+      `SELECT count(*)::int AS n
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND state = 'idle in transaction'`,
+    );
+    if ((righe[0]?.n ?? 0) === 0) {
+      return;
+    }
+    await new Promise((risolvi) => setTimeout(risolvi, 25));
+  }
 }
 
 function attendi(ms: number): Promise<void> {

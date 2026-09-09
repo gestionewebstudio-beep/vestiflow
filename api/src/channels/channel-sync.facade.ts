@@ -152,7 +152,7 @@ export class ChannelSyncFacade {
    */
   async pushProductNow(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
     if (!(await this.isShopifyTenant(tenantId))) {
-      return { pushed: false, reason: 'not_connected' };
+      return { pushed: false, outcome: 'saltato', reason: 'not_connected' };
     }
     return this.shopifyProductPush.enqueuePush(tenantId, productId);
   }
@@ -178,7 +178,7 @@ export class ChannelSyncFacade {
     productId: string,
   ): Promise<ShopifyProductPushResult> {
     if (!(await this.isShopifyTenant(tenantId))) {
-      return { pushed: false, reason: 'not_linked' };
+      return { pushed: false, outcome: 'saltato', reason: 'not_linked' };
     }
     return this.shopifyProductPush.archiveOnSyncDisabled(tenantId, productId);
   }

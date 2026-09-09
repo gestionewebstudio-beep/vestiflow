@@ -34,10 +34,24 @@ type MockTx = Record<string, MockDelegate> & {
 
 function createAutoMockTx(): MockTx {
   const delegates = new Map<string, MockDelegate>();
+  const grezzi = new Map<string, ReturnType<typeof vi.fn>>();
   return new Proxy({} as MockTx, {
     get(_target, prop) {
       if (typeof prop !== 'string') {
         return undefined;
+      }
+      // ⚠️ `$executeRawUnsafe` e compagni sono FUNZIONI, non delegate: il
+      //    ripristino dichiara i vincoli differiti e accende il permesso di
+      //    riga cosi', e senza questo ramo il Proxy restituiva un oggetto —
+      //    «tx.$executeRawUnsafe is not a function», che col backup non
+      //    c'entra niente. Sono memoizzate come i delegate.
+      if (prop.startsWith('$')) {
+        let grezzo = grezzi.get(prop);
+        if (!grezzo) {
+          grezzo = vi.fn().mockResolvedValue([]);
+          grezzi.set(prop, grezzo);
+        }
+        return grezzo;
       }
       let delegate = delegates.get(prop);
       if (!delegate) {

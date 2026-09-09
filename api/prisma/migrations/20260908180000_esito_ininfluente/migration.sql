@@ -1,0 +1,24 @@
+-- PlatformAuditOutcome: il quinto esito, `ininfluente`.
+--
+-- ⭐ PERCHE'. Due richieste simultanee di cestino sullo stesso articolo: la
+--    prima applica l'effetto, la seconda lo trova gia' presente. La seconda
+--    non ha FALLITO — niente e' andato storto — non e' stata RIFIUTATA — nessuna
+--    regola ha detto no — e non e' RIUSCITA: non ha cambiato niente, e
+--    attribuirle la modifica direbbe che l'ha fatta lei.
+--
+-- ⛔ Senza questo valore il `tentativo` della seconda richiesta resterebbe
+--    senza esito, e «tentativo senza esito» smetterebbe di significare
+--    «qualcosa e' andato storto» — che e' l'unica cosa che quella forma deve
+--    poter dire (docs/DA-FARE §10.2).
+--
+-- ⚠️ Si scrive DENTRO la transazione, come la riuscita: e' l'esito di
+--    un'operazione che ha commesso senza modificare niente. Il CHECK
+--    `platform_audit_logs_negativo_motivato` non lo tocca, perche' non e' un
+--    esito negativo.
+--
+-- ⚠️ Aggiunto DOPO che la migration del registro era gia' applicata al database
+--    di prova: si aggiunge un valore, non si riscrive il tipo.
+--
+-- ⛔ NON applicata al database CONDIVISO.
+
+ALTER TYPE "PlatformAuditOutcome" ADD VALUE IF NOT EXISTS 'ininfluente';

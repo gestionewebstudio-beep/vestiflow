@@ -21,12 +21,21 @@ import type { ShopifyProductEnrichmentService } from './shopify-product-enrichme
  *    uguali, quindi lì l'errore non si vedrebbe.
  */
 function creaService(existing: Record<string, unknown> | null) {
+  // ⭐ Dal 09/09/2026 (`DA-FARE` §25) l'import è UNA transazione che prende il
+  //    lock e POI legge: `existing`, gli SKU riservati e la scrittura del solo
+  //    Nome Shopify stanno su `tx`. Sul client esterno restano la guardia dello
+  //    spento (`syncSpentaPerRemoto`) e `recordProductImportError` — per questo
+  //    `findFirst` è condiviso e `updateMany` è uno per client: così si vede
+  //    CHI ha scritto.
+  const findFirst = vi.fn().mockResolvedValue(existing);
   const tx = {
     product: {
+      findFirst,
       create: vi.fn().mockResolvedValue({ id: 'prod-1' }),
       update: vi.fn().mockResolvedValue({ id: 'prod-1' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
-    productVariant: { create: vi.fn(), update: vi.fn() },
+    productVariant: { findMany: vi.fn().mockResolvedValue([]), create: vi.fn(), update: vi.fn() },
     productImage: {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
@@ -39,10 +48,9 @@ function creaService(existing: Record<string, unknown> | null) {
 
   const prisma = {
     product: {
-      findFirst: vi.fn().mockResolvedValue(existing),
+      findFirst,
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
-    productVariant: { findMany: vi.fn().mockResolvedValue([]) },
     shopifyConnection: {
       findUnique: vi.fn().mockResolvedValue({ status: 'connected', scopes: ['read_products'] }),
     },
@@ -70,6 +78,14 @@ function creaService(existing: Record<string, unknown> | null) {
       recordApiFailure: vi.fn(),
     } as unknown as ShopifyConnectionService,
     { enrichProduct } as unknown as ShopifyProductEnrichmentService,
+    // ⭐ B2 · lo storico dei collegamenti. Qui il tenant NON ha un negozio
+    //    identificato — è la connessione preesistente non ancora migrata — e
+    //    l'import deve comportarsi esattamente come prima: nessuna scrittura.
+    //    Le regole dello storico si provano sul database, non qui.
+    { negozioDelTenant: vi.fn().mockResolvedValue(null) } as never,
+    // §10.3 · il registro: senza negozio non si arriva mai a un rifiuto, quindi
+    //    qui non deve essere chiamato. Le righe vere si provano sul database.
+    { registraRifiuto: vi.fn() } as never,
   );
 
   return { service, prisma, tx, enrichProduct };
@@ -195,17 +211,24 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»'
     const esito = await service.importProductFromWebhook('tenant-1', PAYLOAD);
 
     expect(esito).toBe('skipped');
-    expect(prisma.product.updateMany).toHaveBeenCalledWith({
+    // ⭐ Il titolo passa, e passa su `tx`: la transazione è il contenitore di
+    //    OGNI import — lock, lettura, decisione — anche quando l'esito è
+    //    `skipped`. Ciò che si esclude è la SCRITTURA del catalogo, non il
+    //    contenitore.
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(tx.product.updateMany).toHaveBeenCalledWith({
       where: { id: 'prod-1', tenantId: 'tenant-1' },
       data: { shopifyTitle: 'Maglia in cotone blu — collezione estate 2026' },
     });
     // ⛔ Il resto del catalogo non si sblocca: nessun import, nessun `name`.
-    expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(tx.product.update).not.toHaveBeenCalled();
+    expect(tx.product.create).not.toHaveBeenCalled();
+    // …e nessun errore registrato sul client esterno.
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
   });
 
   it('e se il titolo remoto è già quello salvato, non si scrive affatto', async () => {
-    const { service, prisma } = creaService({
+    const { service, prisma, tx } = creaService({
       id: 'prod-1',
       name: 'MAGL-COT-BLU',
       shopifyTitle: 'Maglia in cotone blu — collezione estate 2026',
@@ -224,6 +247,7 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»'
 
     await service.importProductFromWebhook('tenant-1', PAYLOAD);
 
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
     expect(prisma.product.updateMany).not.toHaveBeenCalled();
   });
 

@@ -3879,7 +3879,17 @@ enum ShopifyLinkCloseReason {
   remote_delete
   not_found
   operator
+  /// ⚠️ Ammessa SOLO su prodotti e varianti: una sede non si elimina
+  /// definitivamente finche' ha una storia (§1.13.4). L'enum e' condiviso, il
+  /// permesso no, e a imporlo sono i CHECK a lista bianca nella migration.
   shop_change
+  /// ⛔ **Presente nel database dal 07/09/2026 e ASSENTE qui fino all'08/09**:
+  /// il tipo PostgreSQL ha cinque valori, Prisma ne dichiarava quattro.
+  /// Non e' una divergenza innocua — una riga con questo valore fa fallire
+  /// OGNI lettura Prisma di quella tabella, export del backup compreso, con
+  /// «Value 'local_delete' not found in enum». Trovata scrivendo la prova di
+  /// un'esclusione dopo il backup. Nessuna migration: il tipo ce l'ha gia'.
+  local_delete
 }
 
 /// Identita' IMMUTABILE di un negozio Shopify, separata dalla connessione

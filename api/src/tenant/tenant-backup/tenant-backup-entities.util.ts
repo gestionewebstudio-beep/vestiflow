@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import {
   TENANT_BACKUP_DEFERRED_FIELDS,
   TENANT_BACKUP_DELETE_ORDER,
+  TENANT_BACKUP_DELETE_ORDER_COMPLETO,
   TENANT_BACKUP_ENTITY_FILES,
   TENANT_BACKUP_MODELS,
   type TenantBackupEntityFile,
@@ -165,6 +166,60 @@ export function validateBackupReferences(
   }
 }
 
+/**
+ * Le righe di giacenza dell'archivio devono tornare: `available = onHand − committed`.
+ *
+ * ⛔ **Il ripristino è un percorso applicativo, e il pacchetto arriva dal
+ *    cliente.** Fino al 09/09/2026 il cancello guardava la STRUTTURA — campi
+ *    sconosciuti, righe di un altro negozio, identità duplicate — e non i
+ *    NUMERI: una riga `{"onHand": 5}` senza `available` passava e nasceva con
+ *    lo zero di schema, cioè con l'invariante rotta e in silenzio. Non si può
+ *    dichiarare l'invariante protetto dai percorsi applicativi e poi accettare
+ *    un archivio che lo viola.
+ *
+ * ⭐ **Si esegue PRIMA della purga e di ogni scrittura**, come tutta la
+ *    validazione: un archivio incoerente lascia il tenant esattamente com'era.
+ *
+ * ⛔ **Non ricalcola, non azzera, non corregge.** Un archivio che non torna si
+ *    rifiuta. «Sistemarlo» significherebbe decidere quale dei tre numeri è
+ *    quello vero, e nessuno può saperlo dall'esterno: il Disponibile sbagliato
+ *    e la Giacenza sbagliata hanno la stessa faccia.
+ *
+ * ⚠️ **Il messaggio nomina variante e sede**, e i numeri: chi lo legge deve
+ *    poter aprire il file e guardare la riga giusta. Si nominano le prime tre —
+ *    un elenco di mille righe non è un messaggio d'errore — e il totale c'è.
+ *
+ * ⚠️ **Nessuna regola di conversione fra i formati**: `inventoryLevels` esiste
+ *    dal v3 con la stessa forma (`TENANT_BACKUP_V3_ENTITY_FILES`) e l'export
+ *    scrive sempre tutti gli scalari, quindi il cancello non chiede niente che
+ *    un archivio legittimo più vecchio non abbia già.
+ */
+export function validateInventoryCoherence(data: BackupData): void {
+  const rotte: string[] = [];
+  for (const row of data.inventoryLevels ?? []) {
+    const dove = `variante ${String(row['variantId'] ?? '?')} @ sede ${String(row['locationId'] ?? '?')}`;
+    const numeri = ['onHand', 'committed', 'available'].map((campo) => row[campo]);
+    if (!numeri.every((value) => typeof value === 'number' && Number.isInteger(value))) {
+      rotte.push(`${dove}: Giacenza, Impegnata o Disponibile assenti o non interi`);
+      continue;
+    }
+    const [onHand, committed, available] = numeri as [number, number, number];
+    if (available !== onHand - committed) {
+      rotte.push(
+        `${dove}: Disponibile ${available}, atteso ${onHand - committed} ` +
+          `(Giacenza ${onHand} − Impegnata ${committed})`,
+      );
+    }
+  }
+  if (rotte.length > 0) {
+    throw new BadRequestException(
+      `Giacenze incoerenti nel backup (${rotte.length}): ${rotte.slice(0, 3).join('; ')}` +
+        `${rotte.length > 3 ? '; …' : ''}. Il Disponibile deve valere Giacenza − Impegnata. ` +
+        'Ripristino annullato: nessun dato è stato modificato.',
+    );
+  }
+}
+
 /** Questi riferimenti storici non hanno FK: l'assenza è lecita, il tenant altrui no. */
 export async function assertHistoricalReferenceTenants(
   tx: Prisma.TransactionClient,
@@ -236,6 +291,16 @@ export async function purgeTenantBackupData(
   tx: Prisma.TransactionClient,
   tenantId: string,
   preserveUserId?: string,
+  /**
+   * ⛔ **`includiStorico` lo passa SOLO la cancellazione del tenant.** Per il
+   *    ripristino lo storico non si tocca (§10.1 S2): passarlo li' vorrebbe
+   *    dire cancellare la storia dei collegamenti a ogni ripristino, che e' il
+   *    difetto che l'ordine ridotto esiste per impedire.
+   *
+   * ⚠️ Da solo non basta comunque: senza il permesso di riga acceso, i trigger
+   *    rifiutano lo stesso. Sono due chiavi, e servono entrambe.
+   */
+  opzioni?: { readonly includiStorico?: boolean },
 ): Promise<void> {
   await assertNoIncomingTenantReferences(tx, tenantId);
   await tx.shopifyOAuthState.deleteMany({ where: { tenantId } });
@@ -249,7 +314,10 @@ export async function purgeTenantBackupData(
       data: Object.fromEntries(fields.map((field) => [field, null])),
     });
   }
-  for (const key of TENANT_BACKUP_DELETE_ORDER) {
+  const ordine = opzioni?.includiStorico
+    ? TENANT_BACKUP_DELETE_ORDER_COMPLETO
+    : TENANT_BACKUP_DELETE_ORDER;
+  for (const key of ordine) {
     await backupDelegate(tx, key).deleteMany({
       where: {
         ...backupTenantWhere(key, tenantId),

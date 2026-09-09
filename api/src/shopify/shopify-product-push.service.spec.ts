@@ -112,6 +112,11 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
         buildMetafields: vi.fn().mockResolvedValue([]),
       } as unknown as ShopifyCategoryMetafieldsService,
       shopifyGraphql as unknown as ShopifyGraphqlClient,
+      // ⭐ B3 · idem: tenant senza negozio identificato, push invariato.
+      { negozioDelTenant: vi.fn().mockResolvedValue(null) } as never,
+      // ⚠️ 26.7 · il registro dei rifiuti. Qui non riceve mai niente: senza
+      //    negozio identificato le guardie dello storico non partono affatto.
+      { registraRifiuto: vi.fn() } as never,
     );
 
     return { service, shopifyAdmin, shopifyGraphql, prisma };
@@ -367,7 +372,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
       const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-      expect(result).toEqual({ pushed: true });
+      expect(result).toEqual({ pushed: true, outcome: 'completato' });
       expect(shopifyGraphql.setProductStatus).toHaveBeenCalledWith(
         'shop.myshopify.com',
         'shpat_test',
@@ -387,7 +392,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
       const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-      expect(result).toEqual({ pushed: false, reason: 'not_linked' });
+      expect(result).toEqual({ pushed: false, outcome: 'saltato', reason: 'not_linked' });
       expect(shopifyGraphql.setProductStatus).not.toHaveBeenCalled();
     });
 
@@ -448,7 +453,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toEqual({ pushed: true });
+        expect(result).toEqual({ pushed: true, outcome: 'completato' });
         // Nessun annullamento: il flag NON viene riacceso.
         expect(prisma.product.updateMany).not.toHaveBeenCalled();
       });
@@ -466,7 +471,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toEqual({ pushed: false, reason: 'shopify_error' });
+        expect(result).toMatchObject({ pushed: false, outcome: 'fallito', reason: 'shopify_error' });
         const [chiamata] = prisma.product.updateMany.mock.calls as [
           [{ where: Record<string, unknown>; data: Record<string, unknown> }],
         ];
@@ -489,7 +494,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toEqual({ pushed: false, reason: 'shopify_error' });
+        expect(result).toMatchObject({ pushed: false, outcome: 'fallito', reason: 'shopify_error' });
         const [chiamata] = prisma.product.updateMany.mock.calls as [
           [{ data: Record<string, unknown> }],
         ];
@@ -531,7 +536,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toEqual({ pushed: false, reason: 'shopify_error' });
+        expect(result).toMatchObject({ pushed: false, outcome: 'fallito', reason: 'shopify_error' });
         expect(shopifyGraphql.setProductStatus).not.toHaveBeenCalled();
         const [chiamata] = prisma.product.updateMany.mock.calls as [
           [{ data: Record<string, unknown> }],
@@ -546,7 +551,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toEqual({ pushed: false, reason: 'not_linked' });
+        expect(result).toEqual({ pushed: false, outcome: 'saltato', reason: 'not_linked' });
         expect(shopifyGraphql.setProductStatus).not.toHaveBeenCalled();
         // Il flag resta spento: non c'è niente in vendita da cui proteggersi.
         expect(prisma.product.updateMany).not.toHaveBeenCalled();

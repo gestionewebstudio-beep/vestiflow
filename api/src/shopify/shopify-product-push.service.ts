@@ -1,6 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable, Logger } from '@nestjs/common';
 import {
   CatalogOrigin,
+  PlatformAuditActor,
+  PlatformAuditOperation,
   ProductStatus,
   ShopifyCatalogLinkKind,
   ShopifyConnectionStatus,
@@ -9,12 +13,23 @@ import {
   type Product,
   type ProductVariant,
 } from '@prisma/client';
+import { PlatformAuditService } from '../common/audit/platform-audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import {
+  gidArticoloInventario,
+  gidProdotto,
+  gidVariante,
+  ShopifyLinkHistoryService,
+} from './shopify-link-history.service';
 import { productChannelFields } from './shopify-product-payload.util';
 import { SYNC_DISABLE_FAILED_MESSAGE } from './shopify-user-error.util';
-import { describeUnmatchedVariants, matchOrphanVariants } from './shopify-variant-match.util';
+import {
+  describeUnmatchedVariants,
+  matchOrphanVariants,
+  type VariantMatched,
+} from './shopify-variant-match.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { minorToShopifyDecimal, legacyIdFromGid, toShopifyGid } from './shopify-money.util';
 import {
@@ -51,12 +66,121 @@ type ProductOptionRow = { readonly name: string; readonly values: readonly strin
 export type ShopifyProductPushSkipReason =
   'not_connected' | 'missing_write_products_scope' | 'archived' | 'sync_disabled' | 'not_linked';
 
+/**
+ * 26.2 · **com'è andata davvero**, in una parola.
+ *
+ * ⛔ **Prima esisteva solo `pushed: boolean`, e mentiva.** `pushProduct`
+ *    rileggeva lo stato del prodotto e rispondeva `pushed: false` SOLO se
+ *    trovava `error` — ma `markPushFailed` scrive `out_of_sync` su un prodotto
+ *    collegato, che è il caso normale. Un push fallito rispondeva quindi
+ *    «riuscito» (misurato il 09/09/2026, `collaudo-ciclo-utilizzo` S7).
+ *
+ * ⭐ **Quattro esiti distinti**, come chiesto: avvio, completamento,
+ *    aggiornamento parziale, fallimento — più i due rifiuti, che non sono
+ *    fallimenti tecnici e non vanno confusi con essi.
+ *
+ * ```text
+ *   avviato      il lavoro è partito e finirà dopo (pulsante «Sincronizza»)
+ *   completato   tutto ciò che doveva arrivare su Shopify è arrivato
+ *   parziale     il prodotto sì, ALCUNE varianti no: escluse dallo storico
+ *   rifiutato    lo storico vieta quel collegamento: NESSUNA scrittura remota
+ *   fallito      errore tecnico: rete, rate limit, campo rifiutato, ambiguità
+ *   saltato      una precondizione manca (non connesso, sync spenta, archiviato)
+ * ```
+ */
+export type ShopifyPushOutcome =
+  | 'avviato'
+  | 'completato'
+  | 'parziale'
+  | 'rifiutato'
+  | 'fallito'
+  | 'saltato';
+
 export interface ShopifyProductPushResult {
+  /**
+   * ⚠️ **Vero solo se il push è arrivato INTERO** (o è appena partito). Un
+   *    aggiornamento parziale è `false`: le varianti escluse non sono su
+   *    Shopify, e dichiararlo sincronizzato sarebbe la bugia di 26.2.
+   */
   readonly pushed: boolean;
-  readonly reason?: ShopifyProductPushSkipReason | 'shopify_error';
+  readonly outcome: ShopifyPushOutcome;
+  readonly reason?: ShopifyProductPushSkipReason | 'shopify_error' | 'collegamento_escluso';
+  /** Il motivo per esteso: le varianti escluse per nome, o la regola che ha rifiutato. */
+  readonly detail?: string;
   /** Metafield categoria e refresh metadata proseguono in background (evita timeout gateway). */
   readonly followUpInBackground?: boolean;
 }
+
+/** Una variante che il push NON ha aggiornato perché lo storico lo vieta (26.7). */
+interface VarianteEsclusa {
+  readonly variantId: string;
+  readonly sku: string | null;
+  readonly gid: string;
+  readonly tipo: string;
+  readonly motivo: string;
+}
+
+/** Un costo d'acquisto che non è arrivato a Shopify, con il motivo tecnico. */
+interface CostoNonRiuscito {
+  readonly sku: string | null;
+  readonly motivo: string;
+}
+
+/**
+ * Il motivo che l'operatore legge sul prodotto quando un COSTO non è arrivato.
+ *
+ * ⭐ **Si distingue da un'esclusione dello storico**, e la frase lo dice: qui
+ *    non c'è nessuna regola applicata, c'è una scrittura remota che è caduta.
+ */
+function descriviCostiFalliti(falliti: readonly CostoNonRiuscito[]): string | null {
+  if (falliti.length === 0) {
+    return null;
+  }
+  const elenco = falliti
+    .map((costo) => `${costo.sku ?? 'variante senza SKU'} (${costo.motivo})`)
+    .join(', ');
+  return (
+    `Costo d'acquisto non aggiornato su Shopify per ${falliti.length} variante/i — ${elenco}. ` +
+    'Il resto della scheda è stato inviato.'
+  );
+}
+
+/**
+ * Il motivo che l'operatore legge sul prodotto: **quali** varianti sono rimaste
+ * fuori e **perché**, non un generico «sync non completata».
+ *
+ * ⭐ Le varianti si nominano con lo SKU — che è ciò con cui l'operatore le
+ *    riconosce — e il GID resta come ripiego per quelle che non ce l'hanno.
+ */
+function descriviEscluse(escluse: readonly VarianteEsclusa[]): string | null {
+  if (escluse.length === 0) {
+    return null;
+  }
+  const elenco = escluse
+    .map((variante) => `${variante.sku ?? variante.gid} (${variante.tipo})`)
+    .join(', ');
+  return (
+    `Aggiornamento parziale: ${escluse.length} variante/i non sono state inviate a Shopify ` +
+    `perché il collegamento non è utilizzabile — ${elenco}. ` +
+    'Il prodotto e le altre varianti sono stati aggiornati.'
+  );
+}
+
+/** L'esito del lavoro vero, che `pushProduct` traduce senza rileggere lo stato. */
+type EsitoLavoro =
+  | { readonly esito: 'completato' }
+  | { readonly esito: 'gia_in_corso' }
+  | {
+      readonly esito: 'parziale';
+      readonly motivo: string;
+      /** Se il parziale nasce dallo storico (varianti escluse) o da un guasto tecnico. */
+      readonly collegamentoEscluso: boolean;
+    }
+  | { readonly esito: 'fallito'; readonly motivo: string };
+// ⚠️ **Il RIFIUTO non è un esito del lavoro**, e non compare qui: lo storico si
+//    interroga PRIMA di iniziare, in `evaluatePushGuard`, così il prodotto non
+//    passa nemmeno per `syncing` e nessuna chiamata parte. Lo traduce
+//    `esitoDelRifiuto`.
 
 // ⛔ Qui vivevano `ShopifyProductDeleteSkipReason` e `ShopifyProductDeleteResult`,
 //    il vocabolario con cui il codice descriveva l'esito di una cancellazione
@@ -81,22 +205,71 @@ export class ShopifyProductPushService {
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
     private readonly shopifyCategoryMetafields: ShopifyCategoryMetafieldsService,
     private readonly shopifyGraphql: ShopifyGraphqlClient,
+    private readonly storico: ShopifyLinkHistoryService,
+    private readonly registro: PlatformAuditService,
   ) {}
 
   async pushProduct(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
-    const guard = await this.evaluatePushGuard(tenantId, productId);
+    // ⭐ La correlazione nasce all'INGRESSO dell'operazione, non riga per riga:
+    //    un push è un'operazione sola, e le sue righe di registro si ritrovano
+    //    insieme (§10.3).
+    const correlationId = randomUUID();
+    const guard = await this.evaluatePushGuard(tenantId, productId, correlationId);
     if (!guard.ok) {
-      return { pushed: false, reason: guard.reason };
+      return this.esitoDelRifiuto(guard);
     }
 
     await this.markProductSyncing(productId);
-    await this.executePushWork(tenantId, productId);
+    const lavoro = await this.executePushWork(tenantId, productId, correlationId);
 
-    const status = await this.readProductSyncStatus(productId);
-    if (status === ShopifySyncStatus.error) {
-      return { pushed: false, reason: 'shopify_error' };
+    return this.esitoDelLavoro(lavoro);
+  }
+
+  /**
+   * 26.2 · l'esito di `executePushWork`, tradotto nel contratto pubblico.
+   *
+   * ⛔ **Non si rilegge più lo stato del prodotto per dedurlo.** Era la causa
+   *    del difetto: `out_of_sync` è lo stato giusto per un prodotto collegato
+   *    che va riallineato, e da fuori è indistinguibile da un successo con
+   *    avvertimento. Il lavoro sa com'è andata: lo dice.
+   */
+  private esitoDelLavoro(lavoro: EsitoLavoro): ShopifyProductPushResult {
+    switch (lavoro.esito) {
+      case 'completato':
+        return { pushed: true, outcome: 'completato' };
+      case 'gia_in_corso':
+        return { pushed: true, outcome: 'avviato', followUpInBackground: true };
+      case 'parziale':
+        return {
+          pushed: false,
+          outcome: 'parziale',
+          reason: lavoro.collegamentoEscluso ? 'collegamento_escluso' : 'shopify_error',
+          detail: lavoro.motivo,
+        };
+      case 'fallito':
+        return { pushed: false, outcome: 'fallito', reason: 'shopify_error', detail: lavoro.motivo };
     }
-    return { pushed: true };
+  }
+
+  /** L'esito di una precondizione mancante, distinguendo il rifiuto dal salto. */
+  private esitoDelRifiuto(guard: {
+    readonly ok: false;
+    readonly reason: ShopifyProductPushSkipReason | 'shopify_error' | 'collegamento_escluso';
+    readonly motivo?: string;
+  }): ShopifyProductPushResult {
+    if (guard.reason === 'collegamento_escluso') {
+      return {
+        pushed: false,
+        outcome: 'rifiutato',
+        reason: 'collegamento_escluso',
+        detail: guard.motivo,
+      };
+    }
+    return {
+      pushed: false,
+      outcome: guard.reason === 'shopify_error' ? 'fallito' : 'saltato',
+      reason: guard.reason,
+    };
   }
 
   /**
@@ -104,21 +277,24 @@ export class ShopifyProductPushService {
    * Usato dal pulsante «Sincronizza con Shopify» nel dettaglio prodotto.
    */
   async enqueuePush(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
-    const guard = await this.evaluatePushGuard(tenantId, productId);
+    const correlationId = randomUUID();
+    const guard = await this.evaluatePushGuard(tenantId, productId, correlationId);
     if (!guard.ok) {
-      return { pushed: false, reason: guard.reason };
+      return this.esitoDelRifiuto(guard);
     }
 
     const lockKey = this.pushLockKey(tenantId, productId);
     if (this.pushInFlight.has(lockKey)) {
       this.logger.debug(`Push Shopify già in corso (${tenantId}/${productId})`);
-      return { pushed: true, followUpInBackground: true };
+      return { pushed: true, outcome: 'avviato', followUpInBackground: true };
     }
 
     await this.markProductSyncing(productId);
-    void this.executePushWork(tenantId, productId);
+    void this.executePushWork(tenantId, productId, correlationId);
 
-    return { pushed: true, followUpInBackground: true };
+    // ⚠️ «avviato», non «completato»: da qui l'esito vero lo dice il PRODOTTO —
+    //    stato e `shopifyLastError`, che il dettaglio rilegge finito il lavoro.
+    return { pushed: true, outcome: 'avviato', followUpInBackground: true };
   }
 
   private pushLockKey(tenantId: string, productId: string): string {
@@ -128,9 +304,14 @@ export class ShopifyProductPushService {
   private async evaluatePushGuard(
     tenantId: string,
     productId: string,
+    correlationId: string,
   ): Promise<
     | { readonly ok: true }
-    | { readonly ok: false; readonly reason: ShopifyProductPushSkipReason | 'shopify_error' }
+    | {
+        readonly ok: false;
+        readonly reason: ShopifyProductPushSkipReason | 'shopify_error' | 'collegamento_escluso';
+        readonly motivo?: string;
+      }
   > {
     const connection = await this.prisma.shopifyConnection.findUnique({
       where: { tenantId },
@@ -156,7 +337,13 @@ export class ShopifyProductPushService {
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
-      select: { id: true, status: true, shopifySyncEnabled: true },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        shopifySyncEnabled: true,
+        shopifyProductId: true,
+      },
     });
     if (!product) {
       return { ok: false, reason: 'shopify_error' };
@@ -174,7 +361,151 @@ export class ShopifyProductPushService {
       return { ok: false, reason: 'sync_disabled' };
     }
 
+    // ── 26.7 · lo STORICO, prima di usare qualunque identificativo ─────────
+    const escluso = await this.collegamentoDelProdottoEscluso(tenantId, product, correlationId);
+    if (escluso) {
+      return { ok: false, reason: 'collegamento_escluso', motivo: escluso };
+    }
+
     return { ok: true };
+  }
+
+  /**
+   * 26.7 · il push può usare il collegamento di QUESTO prodotto?
+   *
+   * ⛔ **Si interroga lo storico, non la colonna-cache.** La cache è una copia
+   *    che può restare indietro: dopo un ripristino da backup dice ancora
+   *    «collegato» mentre il periodo è chiuso da un pezzo. Fidarsi di lei
+   *    significa scrivere su Shopify attraverso un collegamento escluso — il
+   *    difetto misurato il 09/09/2026 (`S8`).
+   *
+   * ⭐ **Due domande diverse, secondo che la cache ci sia o no:**
+   *
+   * ```text
+   *   cache PRESENTE   quel GID si può ancora usare per questa anagrafica?
+   *   cache ASSENTE    questa anagrafica si può pubblicare da zero?
+   * ```
+   *
+   * ⚠️ **Nessuno storico non significa esclusione**: una connessione non ancora
+   *    migrata non ha `shopify_shops`, e il push resta quello di sempre. Lo
+   *    stesso vale per l'articolo mai collegato, che si pubblica come sempre.
+   *
+   * ⛔ **E uno storico VECCHIO chiuso non blocca un collegamento ATTUALE
+   *    valido**: la domanda si fa sul GID corrente, non sull'anagrafica.
+   */
+  private async collegamentoDelProdottoEscluso(
+    tenantId: string,
+    product: {
+      readonly id: string;
+      readonly name: string;
+      readonly shopifyProductId: string | null;
+    },
+    correlationId: string,
+  ): Promise<string | null> {
+    const shopId = await this.storico.negozioDelTenant(this.prisma, tenantId);
+    if (!shopId) {
+      return null;
+    }
+
+    if (product.shopifyProductId) {
+      const uso = await this.storico.collegamentoUsabileProdotto(this.prisma, {
+        shopId,
+        shopifyProductGid: gidProdotto(product.shopifyProductId),
+        productId: product.id,
+      });
+      if (uso.tipo === 'utilizzabile') {
+        return null;
+      }
+      await this.rifiutoARegistro(tenantId, shopId, correlationId, {
+        operation: PlatformAuditOperation.riaggancio_rifiutato,
+        entityId: product.id,
+        entityLabel: product.name,
+        remoteGid: gidProdotto(product.shopifyProductId),
+        detail: `${uso.tipo}: ${uso.motivo}`,
+      });
+      await this.markPushRifiutato(product.id, uso.motivo);
+      return uso.motivo;
+    }
+
+    const pubblicazione = await this.storico.puoPubblicareDaZero(this.prisma, {
+      shopId,
+      productId: product.id,
+    });
+    if (pubblicazione.tipo === 'si_pubblica') {
+      return null;
+    }
+    await this.rifiutoARegistro(tenantId, shopId, correlationId, {
+      operation: PlatformAuditOperation.ripubblicazione_rifiutata,
+      entityId: product.id,
+      entityLabel: product.name,
+      remoteGid: null,
+      detail: `ha_storia: ${pubblicazione.motivo}`,
+    });
+    await this.markPushRifiutato(product.id, pubblicazione.motivo);
+    return pubblicazione.motivo;
+  }
+
+  /**
+   * L'esito di un push RIFIUTATO dallo storico, sul prodotto.
+   *
+   * ⭐ **Il motivo deve essere leggibile dove l'operatore guarda**: la scheda
+   *    prodotto mostra `shopifyLastError`, ed è lì che deve trovare perché
+   *    «Sincronizza» non ha fatto niente. Senza, il pulsante sembrerebbe rotto.
+   *
+   * ⛔ **`out_of_sync`, mai `error`**: non è un guasto tecnico. L'articolo è
+   *    semplicemente disallineato e resterà tale finché non lo si riaggancia o
+   *    ripubblica — due comandi espliciti, nessuno dei quali è questo.
+   */
+  private async markPushRifiutato(productId: string, motivo: string): Promise<void> {
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        shopifySyncStatus: ShopifySyncStatus.out_of_sync,
+        shopifyLastError: `Sincronizzazione rifiutata: ${motivo}`.slice(0, 500),
+      },
+    });
+  }
+
+  /**
+   * §10.3 · la riga di registro di un rifiuto del PUSH.
+   *
+   * ⭐ **Attore `push`**, mai una persona: chi ha premuto il pulsante ha chiesto
+   *    una sincronizzazione, non questo rifiuto — che è una regola applicata dal
+   *    processo. La correlazione è quella dell'ingresso.
+   *
+   * ⛔ **Non fa fallire il push in silenzio**: se la riga non si scrive,
+   *    l'eccezione risale e il push cade dicendolo. Un rifiuto senza traccia è
+   *    esattamente ciò che §10.3 vieta.
+   */
+  private async rifiutoARegistro(
+    tenantId: string,
+    shopId: string,
+    correlationId: string,
+    dati: {
+      readonly operation: PlatformAuditOperation;
+      readonly entityId: string | null;
+      readonly entityLabel: string;
+      readonly remoteGid: string | null;
+      readonly detail: string;
+    },
+  ): Promise<void> {
+    const negozio = await this.prisma.shopifyShop.findUnique({
+      where: { id: shopId },
+      select: { shopGid: true },
+    });
+    await this.registro.registraRifiuto(
+      {
+        tenantId,
+        attore: { tipo: PlatformAuditActor.push },
+        operation: dati.operation,
+        shopGid: negozio?.shopGid ?? null,
+        entityId: dati.entityId,
+        entityLabel: dati.entityLabel.slice(0, 200),
+        remoteGid: dati.remoteGid,
+      },
+      dati.detail,
+      correlationId,
+    );
   }
 
   private async markProductSyncing(productId: string): Promise<void> {
@@ -184,18 +515,20 @@ export class ShopifyProductPushService {
     });
   }
 
-  private async readProductSyncStatus(productId: string): Promise<ShopifySyncStatus | null> {
-    const row = await this.prisma.product.findUnique({
-      where: { id: productId },
-      select: { shopifySyncStatus: true },
-    });
-    return row?.shopifySyncStatus ?? null;
-  }
+  // ⛔ Qui viveva `readProductSyncStatus`, con cui `pushProduct` DEDUCEVA l'esito
+  //    rileggendo lo stato del prodotto. Rimosso con 26.2: quella lettura non
+  //    poteva distinguere un successo con avvertimento da un fallimento —
+  //    `markPushFailed` scrive `out_of_sync` su un prodotto collegato, cioè lo
+  //    stesso valore del successo parziale. L'esito lo dichiara ora il lavoro.
 
-  private async executePushWork(tenantId: string, productId: string): Promise<void> {
+  private async executePushWork(
+    tenantId: string,
+    productId: string,
+    correlationId: string,
+  ): Promise<EsitoLavoro> {
     const lockKey = this.pushLockKey(tenantId, productId);
     if (this.pushInFlight.has(lockKey)) {
-      return;
+      return { esito: 'gia_in_corso' };
     }
     this.pushInFlight.add(lockKey);
 
@@ -205,14 +538,15 @@ export class ShopifyProductPushService {
         include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
       });
       if (!product || product.status === ProductStatus.archived) {
+        const motivo = 'Push Shopify interrotto: prodotto non più disponibile.';
         await this.prisma.product.update({
           where: { id: productId },
           data: {
             shopifySyncStatus: ShopifySyncStatus.out_of_sync,
-            shopifyLastError: 'Push Shopify interrotto: prodotto non più disponibile.',
+            shopifyLastError: motivo,
           },
         });
-        return;
+        return { esito: 'fallito', motivo };
       }
 
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
@@ -222,13 +556,17 @@ export class ShopifyProductPushService {
       // ⚠️ La CREAZIONE resta sul REST finché la Tranche 2 non porta productSet:
       //    non è una funzione nuova su quel percorso, è quella di sempre.
       let shopifyProductLegacyId: string;
+      let escluse: readonly VarianteEsclusa[] = [];
       if (product.shopifyProductId) {
-        shopifyProductLegacyId = await this.updateLinkedProductViaGraphql(
+        const aggiornamento = await this.updateLinkedProductViaGraphql(
           tenantId,
           product,
           shopDomain,
           accessToken,
+          correlationId,
         );
+        shopifyProductLegacyId = aggiornamento.legacyId;
+        escluse = aggiornamento.escluse;
       } else {
         const payload = this.buildShopifyProductPayload(product);
         const shopifyProduct = await this.shopifyAdmin.createProduct(
@@ -282,9 +620,24 @@ export class ShopifyProductPushService {
         product.shopifyTaxonomyCategoryId,
         product.shopifyCategoryMetafields,
       );
-      await this.pushVariantCosts(shopDomain, accessToken, product.variants);
+      // ⛔ Anche il COSTO è una scrittura remota: le varianti escluse restano
+      //    fuori anche da qui, o il collegamento vietato verrebbe usato lo stesso.
+      const esclusi = new Set(escluse.map((variante) => variante.variantId));
+      const costiFalliti = await this.pushVariantCosts(
+        shopDomain,
+        accessToken,
+        product.variants.filter((variante) => !esclusi.has(variante.id)),
+      );
 
-      const syncWarning = [taxonomyWarning, categoryMetafieldsWarning, verifyWarning]
+      const avvisoEscluse = descriviEscluse(escluse);
+      const avvisoCosti = descriviCostiFalliti(costiFalliti);
+      const syncWarning = [
+        avvisoEscluse,
+        avvisoCosti,
+        taxonomyWarning,
+        categoryMetafieldsWarning,
+        verifyWarning,
+      ]
         .filter((entry): entry is string => Boolean(entry?.trim()))
         .join(' ');
 
@@ -305,10 +658,27 @@ export class ShopifyProductPushService {
       this.logger.log(
         `Prodotto Shopify sincronizzato (${tenantId}): ${product.name} → ${shopifyProductLegacyId}`,
       );
+      // ⭐ 26.2 · un aggiornamento PARZIALE non è un completamento. Il prodotto
+      //    è arrivato, qualcosa d'altro no: le varianti escluse dallo storico,
+      //    oppure la categoria e i metafield. Chi legge l'esito deve saperlo, e
+      //    chi legge il prodotto trova il motivo in `shopifyLastError`.
+      //
+      // ⚠️ **La causa NON si confonde**: un'esclusione dello storico è una
+      //    regola applicata, un avvertimento di categoria è un guasto tecnico.
+      //    Portano lo stesso esito parziale con motivi diversi.
+      if (syncWarning) {
+        return {
+          esito: 'parziale',
+          motivo: syncWarning,
+          collegamentoEscluso: escluse.length > 0,
+        };
+      }
+      return { esito: 'completato' };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore push prodotto Shopify';
       this.logger.warn(`Push prodotto Shopify fallito (${tenantId}/${productId}): ${message}`);
       await this.markPushFailed(productId, message);
+      return { esito: 'fallito', motivo: message };
     } finally {
       this.pushInFlight.delete(lockKey);
     }
@@ -367,7 +737,7 @@ export class ShopifyProductPushService {
       // ⭐ Mai collegato: non c'è niente da archiviare, e lo spegnimento vale
       //    da solo. Nessuna chiamata a Shopify, e nessun annullamento.
       if (!product?.shopifyProductId) {
-        return { pushed: false, reason: 'not_linked' };
+        return { pushed: false, outcome: 'saltato', reason: 'not_linked' };
       }
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
       await this.shopifyGraphql.setProductStatus(
@@ -378,12 +748,12 @@ export class ShopifyProductPushService {
       );
       await this.markPushSucceeded(productId);
       this.logger.log(`Prodotto Shopify archiviato a sync spento (${tenantId}): ${product.name}`);
-      return { pushed: true };
+      return { pushed: true, outcome: 'completato' };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Archiviazione Shopify fallita';
       this.logger.warn(`Archiviazione Shopify fallita (${tenantId}/${productId}): ${message}`);
       await this.undoSyncDisable(tenantId, productId, message);
-      return { pushed: false, reason: 'shopify_error' };
+      return { pushed: false, outcome: 'fallito', reason: 'shopify_error', detail: message };
     }
   }
 
@@ -397,11 +767,20 @@ export class ShopifyProductPushService {
     product: ProductWithVariants,
     shopDomain: string,
     accessToken: string,
-  ): Promise<string> {
+    correlationId: string,
+  ): Promise<{ readonly legacyId: string; readonly escluse: readonly VarianteEsclusa[] }> {
     const legacyId = product.shopifyProductId as string;
     const productGid = toShopifyGid('Product', legacyId);
+    const shopId = await this.storico.negozioDelTenant(this.prisma, tenantId);
 
-    const abbinate = await this.linkOrphanVariants(product, productGid, shopDomain, accessToken);
+    const orfane = await this.linkOrphanVariants(
+      product,
+      productGid,
+      shopDomain,
+      accessToken,
+      shopId,
+      correlationId,
+    );
     const shopifyTitle = await this.ensureOnlineTitle(product, productGid, shopDomain, accessToken);
 
     // I campi vengono dalla funzione comune col REST: qui si aggiunge solo l'id.
@@ -410,20 +789,52 @@ export class ShopifyProductPushService {
       ...productChannelFields({ ...product, shopifyTitle }),
     });
 
+    // ── 26.7 · le varianti GIÀ IN CACHE passano dallo storico ──────────────
+    // ⛔ La colonna `shopifyVariantId` è una copia che può restare indietro: da
+    //    sola autorizzerebbe a scrivere su un GID il cui periodo è chiuso.
+    const escluse: VarianteEsclusa[] = [...orfane.escluse];
     const compareAt =
       product.compareAtPriceMinor == null ? null : Number(product.compareAtPriceMinor);
-    const inputs = product.variants.flatMap((variant) => {
-      const remoteId = variant.shopifyVariantId ?? abbinate.get(variant.id) ?? null;
+    const inputs: ReturnType<typeof variantBulkInput>[] = [];
+    for (const variant of product.variants) {
+      const remoteId = variant.shopifyVariantId ?? orfane.abbinate.get(variant.id) ?? null;
       if (!remoteId) {
-        return [];
+        continue;
       }
-      return [
+      // ⭐ Le orfane appena abbinate sono già passate dallo storico dentro
+      //    `linkOrphanVariants`: non si interroga due volte.
+      if (variant.shopifyVariantId && shopId) {
+        const uso = await this.storico.collegamentoUsabileVariante(this.prisma, {
+          shopId,
+          shopifyVariantGid: gidVariante(remoteId),
+          variantId: variant.id,
+        });
+        if (uso.tipo !== 'utilizzabile') {
+          escluse.push({
+            variantId: variant.id,
+            sku: variant.sku,
+            gid: gidVariante(remoteId),
+            tipo: uso.tipo,
+            motivo: uso.motivo,
+          });
+          this.logger.warn(`Push Shopify: variante esclusa — ${uso.motivo}`);
+          await this.rifiutoARegistro(tenantId, shopId, correlationId, {
+            operation: PlatformAuditOperation.riaggancio_rifiutato,
+            entityId: variant.id,
+            entityLabel: variant.sku ?? product.name,
+            remoteGid: gidVariante(remoteId),
+            detail: `${uso.tipo}: ${uso.motivo}`,
+          });
+          continue;
+        }
+      }
+      inputs.push(
         variantBulkInput(
           toShopifyGid('ProductVariant', remoteId),
           variantChannelFields(variant, compareAt),
         ),
-      ];
-    });
+      );
+    }
     if (inputs.length > 0) {
       await this.shopifyGraphql.bulkUpdateVariants(shopDomain, accessToken, productGid, inputs);
     }
@@ -435,7 +846,7 @@ export class ShopifyProductPushService {
       shopDomain,
       accessToken,
     );
-    return legacyId;
+    return { legacyId, escluse };
   }
 
   /**
@@ -449,9 +860,14 @@ export class ShopifyProductPushService {
     productGid: string,
     shopDomain: string,
     accessToken: string,
-  ): Promise<ReadonlyMap<string, string>> {
+    shopId: string | null,
+    correlationId: string,
+  ): Promise<{
+    readonly abbinate: ReadonlyMap<string, string>;
+    readonly escluse: readonly VarianteEsclusa[];
+  }> {
     if (!product.variants.some((variant) => !variant.shopifyVariantId)) {
-      return new Map();
+      return { abbinate: new Map(), escluse: [] };
     }
     const remote = await this.shopifyGraphql.listProductVariants(
       shopDomain,
@@ -459,17 +875,61 @@ export class ShopifyProductPushService {
       productGid,
     );
     const esito = matchOrphanVariants(product.variants, remote);
+    // ⛔ **L'ambiguità NON è un'esclusione, e non va nascosta come tale**: zero o
+    //    più corrispondenze fermano il push con un errore che le nomina, come
+    //    prima di 26.7. Confonderla con un rifiuto dello storico farebbe passare
+    //    per «regola applicata» un abbinamento che nessuno ha saputo decidere.
     if (esito.nonAbbinate.length > 0) {
       throw new Error(
         `Varianti non abbinabili su Shopify — ${describeUnmatchedVariants(esito.nonAbbinate)}`,
       );
+    }
+    // ── 26.7 · il filtro sta DOPO la scelta, e non prima ───────────────────
+    // ⛔ **Togliere il candidato vietato dall'elenco prima di scegliere sarebbe
+    //    il difetto**: `matchOrphanVariants` prova SKU, poi barcode, poi
+    //    opzioni — senza il candidato giusto la variante ripiegherebbe in
+    //    silenzio su un altro, cioè si aggancerebbe alla variante sbagliata.
+    //    Si sceglie come sempre, e poi si scarta la scelta vietata.
+    const consentite: VariantMatched[] = [];
+    const escluse: VarianteEsclusa[] = [];
+    for (const match of esito.abbinate) {
+      const variantLegacyId = legacyIdFromGid(match.remote.id);
+      const uso = shopId
+        ? await this.storico.collegamentoUsabileVariante(this.prisma, {
+            shopId,
+            shopifyVariantGid: gidVariante(variantLegacyId),
+            variantId: match.localId,
+          })
+        : ({ tipo: 'utilizzabile' } as const);
+      if (uso.tipo === 'utilizzabile') {
+        consentite.push(match);
+        continue;
+      }
+      const variante = product.variants.find((riga) => riga.id === match.localId);
+      escluse.push({
+        variantId: match.localId,
+        sku: variante?.sku ?? null,
+        gid: gidVariante(variantLegacyId),
+        tipo: uso.tipo,
+        motivo: uso.motivo,
+      });
+      this.logger.warn(`Push Shopify: riaggancio della variante rifiutato — ${uso.motivo}`);
+      if (shopId) {
+        await this.rifiutoARegistro(product.tenantId, shopId, correlationId, {
+          operation: PlatformAuditOperation.riaggancio_rifiutato,
+          entityId: match.localId,
+          entityLabel: variante?.sku ?? product.name,
+          remoteGid: gidVariante(variantLegacyId),
+          detail: `${uso.tipo}: ${uso.motivo}`,
+        });
+      }
     }
     // Gli id si salvano NUMERICI, come quelli già presenti: webhook e push
     // inventario li leggono in quella forma. La conversione a GID avviene
     // sempre all'uscita, con `toShopifyGid`.
     const abbinate = new Map<string, string>();
     await this.prisma.$transaction(
-      esito.abbinate.map((match) => {
+      consentite.map((match) => {
         const variantLegacyId = legacyIdFromGid(match.remote.id);
         abbinate.set(match.localId, variantLegacyId);
         return this.prisma.productVariant.update({
@@ -483,7 +943,7 @@ export class ShopifyProductPushService {
         });
       }),
     );
-    return abbinate;
+    return { abbinate, escluse };
   }
 
   /**
@@ -871,11 +1331,27 @@ export class ShopifyProductPushService {
     }
   }
 
+  /**
+   * I costi d'acquisto verso Shopify, uno per variante.
+   *
+   * ⭐ **Il try/catch per variante resta, e non è una svista**: un costo che non
+   *    arriva non deve impedire agli altri di partire. Quello che cambia con
+   *    26.2 è che il fallimento **esce di qui**: restituito a chi chiama, non
+   *    lasciato in un `logger.warn` che nessuno rilegge.
+   *
+   * ⛔ **Prima il push si dichiarava `completato` con i costi caduti**, e il
+   *    prodotto finiva `synced`: l'operatore vedeva «tutto a posto» su un
+   *    articolo il cui costo su Shopify era quello di prima.
+   *
+   * ⚠️ Valori, direzione e regole del costo non cambiano: stesso campo, stessa
+   *    conversione, stesso zero canonico per il costo assente.
+   */
   private async pushVariantCosts(
     shopDomain: string,
     accessToken: string,
     variants: ProductWithVariants['variants'],
-  ): Promise<void> {
+  ): Promise<readonly CostoNonRiuscito[]> {
+    const falliti: CostoNonRiuscito[] = [];
     for (const variant of variants) {
       // ⛔ Qui il costo assente faceva saltare il push. Non esiste più: un
       // costo canonico zero è `0.00`, ed è quello che il canale deve leggere.
@@ -892,8 +1368,10 @@ export class ShopifyProductPushService {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push costo fallito';
         this.logger.warn(`Costo variante ${variant.sku} non sincronizzato: ${message}`);
+        falliti.push({ sku: variant.sku, motivo: message });
       }
     }
+    return falliti;
   }
 
   private normalizeOptions(raw: unknown): ProductOptionRow[] {
@@ -970,7 +1448,10 @@ export class ShopifyProductPushService {
         .map((variant) => [variant.sku!.toLowerCase(), variant]),
     );
 
-    const variantUpdates = product.variants.flatMap((variant) => {
+    // ⚠️ L'abbinamento è quello di sempre — per SKU, e le varianti senza SKU
+    //    restano scollegate — ma il risultato serve ora a DUE scritture: le
+    //    colonne-cache e lo storico. Si calcola una volta.
+    const abbinate = product.variants.flatMap((variant) => {
       // Varianti senza SKU locale (facoltativo alla creazione) non sono
       // abbinabili per codice al risultato Shopify: restano senza
       // shopifyVariantId collegato finche' non ricevono uno SKU.
@@ -981,28 +1462,92 @@ export class ShopifyProductPushService {
       if (!shopifyVariant) {
         return [];
       }
-      return [
-        this.prisma.productVariant.update({
-          where: { id: variant.id },
-          data: {
-            shopifyVariantId: String(shopifyVariant.id),
-            shopifyInventoryItemId: String(shopifyVariant.inventory_item_id),
-          },
-        }),
-      ];
+      return [{ varianteId: variant.id, remota: shopifyVariant }];
     });
 
-    await this.prisma.$transaction([
-      this.prisma.product.update({
+    // ⛔ **Transazione INTERATTIVA, non più un array di operazioni.** Lo storico
+    //    va scritto nella stessa transazione delle colonne-cache, e per farlo
+    //    servono letture in mezzo (l'identità, il periodo attivo) che la forma
+    //    a batch non consente.
+    //
+    // ⚠️ Le colonne-cache si scrivono ESATTAMENTE come prima: stessa allowlist,
+    //    stessi valori, stesso ordine. Cambia solo il contenitore.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.update({
         where: { id: product.id },
         data: {
           shopifyProductId: String(shopifyProduct.id),
           catalogOrigin: CatalogOrigin.vestiflow,
           shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
         },
-      }),
-      ...variantUpdates,
-    ]);
+      });
+      for (const abbinata of abbinate) {
+        await tx.productVariant.update({
+          where: { id: abbinata.varianteId },
+          data: {
+            shopifyVariantId: String(abbinata.remota.id),
+            shopifyInventoryItemId: String(abbinata.remota.inventory_item_id),
+          },
+        });
+      }
+
+      // ── B3 · lo storico, sullo stesso prodotto appena pubblicato ────────
+      await this.registraStorico(tx, product, shopifyProduct.id, abbinate);
+    });
+  }
+
+  /**
+   * B3 · identità e periodo per un prodotto pubblicato da VestiFlow.
+   *
+   * ⭐ **Lo stesso servizio dell'import**, non una seconda implementazione: la
+   *    differenza fra pubblicare e importare è da che parte arriva il GID, non
+   *    che cosa si scrive nello storico.
+   *
+   * ⛔ **Non fa fallire la pubblicazione**: il prodotto su Shopify a quel punto
+   *    esiste già, e un errore qui lascerebbe l'operatore convinto che la
+   *    pubblicazione non sia avvenuta. Si registra e si prosegue.
+   */
+  private async registraStorico(
+    tx: Prisma.TransactionClient,
+    product: ProductWithVariants,
+    shopifyProductId: number,
+    abbinate: readonly {
+      readonly varianteId: string;
+      readonly remota: { readonly id: number; readonly inventory_item_id: number };
+    }[],
+  ): Promise<void> {
+    const shopId = await this.storico.negozioDelTenant(tx, product.tenantId);
+    if (!shopId) {
+      // Connessione non ancora migrata: nessuno storico, push invariato.
+      return;
+    }
+
+    const esito = await this.storico.registraProdotto(tx, {
+      tenantId: product.tenantId,
+      shopId,
+      productId: product.id,
+      shopifyProductGid: gidProdotto(shopifyProductId),
+    });
+    if (esito.tipo !== 'registrato') {
+      this.logger.warn(
+        `Storico Shopify non scritto per il prodotto pubblicato ${shopifyProductId}: ` +
+          `${esito.tipo}. La pubblicazione resta valida.`,
+      );
+      return;
+    }
+
+    for (const abbinata of abbinate) {
+      await this.storico.registraVariante(tx, {
+        tenantId: product.tenantId,
+        shopId,
+        productIdentityId: esito.identityId,
+        productLinkId: esito.linkId,
+        productId: product.id,
+        variantId: abbinata.varianteId,
+        shopifyVariantGid: gidVariante(abbinata.remota.id),
+        shopifyInventoryItemGid: gidArticoloInventario(abbinata.remota.inventory_item_id),
+      });
+    }
   }
 }
 

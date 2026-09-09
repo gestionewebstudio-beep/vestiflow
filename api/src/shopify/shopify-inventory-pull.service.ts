@@ -27,9 +27,13 @@ export interface ShopifyInventoryPullResult {
   readonly linkedVariantCount: number;
   readonly linkedLocationCount: number;
   readonly remoteLevelCount: number;
-  /** Disallineamenti rimasti in sospeso e ripubblicati in questa passata. */
+  /** ⭐ Disallineamenti la cui quantità è stata DAVVERO ripubblicata. */
   readonly republishedLevels: number;
-  /** Disallineamenti ancora in coda dopo la passata: falliti od oltre il tetto. */
+  /** Rifiutati dallo storico: il collegamento non è utilizzabile (26.8). */
+  readonly refusedLevels: number;
+  /** Falliti: il canale ha rifiutato o non ha risposto. */
+  readonly failedLevels: number;
+  /** Disallineamenti ancora da risolvere dopo la passata, ricontati. */
   readonly pendingMismatches: number;
 }
 
@@ -157,7 +161,10 @@ export class ShopifyInventoryPullService {
     let republish: InventoryRepublishResult = {
       pending: 0,
       attempted: 0,
-      succeeded: 0,
+      republished: 0,
+      unchanged: 0,
+      refused: 0,
+      failed: 0,
       remaining: 0,
     };
     try {
@@ -170,7 +177,7 @@ export class ShopifyInventoryPullService {
     await this.shopifyConnection.touchSync(tenantId);
 
     this.logger.log(
-      `Import giacenze Shopify (${tenantId}): +${imported} ~${updated} =${unchanged} skip=${skipped} remote=${remoteLevelCount} ripubblicate=${republish.succeeded} in-coda=${republish.remaining}`,
+      `Import giacenze Shopify (${tenantId}): +${imported} ~${updated} =${unchanged} skip=${skipped} remote=${remoteLevelCount} ripubblicate=${republish.republished} rifiutate=${republish.refused} fallite=${republish.failed} in-coda=${republish.remaining}`,
     );
 
     return {
@@ -181,7 +188,12 @@ export class ShopifyInventoryPullService {
       linkedVariantCount: inventoryItemIds.length,
       linkedLocationCount: shopifyLocationIds.length,
       remoteLevelCount,
-      republishedLevels: republish.succeeded,
+      // ⭐ Solo gli invii CONFERMATI: era `succeeded`, che contava anche ciò
+      //    che non era partito. Le altre classi viaggiano a parte, così il
+      //    messaggio a schermo può dire perché una riga resta in coda.
+      republishedLevels: republish.republished,
+      refusedLevels: republish.refused,
+      failedLevels: republish.failed,
       pendingMismatches: republish.remaining,
     };
   }

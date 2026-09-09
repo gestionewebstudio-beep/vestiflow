@@ -389,10 +389,17 @@ export class ProductDetailComponent {
         next: ({ result, product }) => {
           this.syncingShopify.set(false);
           if (!result.pushed) {
+            // ⭐ 26.7 · un collegamento che lo storico non autorizza NON è un
+            //    problema di connessione: dirlo così manderebbe l'operatore a
+            //    controllare i permessi mentre la causa è il collegamento
+            //    chiuso, e il motivo arriva già scritto dall'API.
             this.shopifySyncMessage.set(
               result.reason === 'sync_disabled'
                 ? 'Sincronizzazione disattivata per questo prodotto: attiva «Sincronizza con Shopify» per allinearlo.'
-                : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+                : result.reason === 'collegamento_escluso'
+                  ? (result.detail ??
+                    'Sincronizzazione rifiutata: il collegamento con Shopify non è utilizzabile.')
+                  : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
             );
           } else if (product?.shopify?.status === ShopifySyncStatus.Synced) {
             this.shopifySyncMessage.set('Sincronizzazione Shopify completata.');

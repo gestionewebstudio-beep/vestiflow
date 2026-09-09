@@ -17,6 +17,8 @@ import { ShopifyInventoryRepublishService } from './shopify-inventory-republish.
 import { ShopifyMissingOrdersService } from './shopify-missing-orders.service';
 import { ShopifyLocationSyncService } from './shopify-location-sync.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyLinkHistoryService } from './shopify-link-history.service';
+import { ShopifyShopIdentityService } from './shopify-shop-identity.service';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
 import { ShopifyProductEnrichmentService } from './shopify-product-enrichment.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
@@ -46,6 +48,11 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
     ShopifyRateLimiterService,
     ShopifyConnectionService,
     ShopifyOAuthService,
+    ShopifyShopIdentityService,
+    // ⭐ B2-B3-B4 · lo storico dei collegamenti, scritto da import, push ed
+    //    eliminazione: un servizio solo, esportato perché lo usa anche
+    //    `ProductsService` per sganciare prima di eliminare una variante.
+    ShopifyLinkHistoryService,
     ShopifyLocationSyncService,
     ShopifyInventoryPullService,
     ShopifyCustomersPullService,
@@ -68,6 +75,7 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
   ],
   exports: [
     ShopifyConnectionService,
+    ShopifyLinkHistoryService,
     ShopifyInventoryPushService,
     ShopifyInventoryReconciliationService,
     ShopifyProductPushService,

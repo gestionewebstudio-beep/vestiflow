@@ -57,12 +57,26 @@ describe('AdminTenantsController', () => {
     expect(adminTenants.updateTenant).toHaveBeenCalledWith('tenant-1', dto);
   });
 
-  it('deleteTenant delega al service', async () => {
+  it('deleteTenant passa l attore preso dal PROFILO, non dalla richiesta', async () => {
     adminTenants.deleteTenant.mockResolvedValue(undefined);
+    const request = {
+      appUser: {
+        id: 'op-1',
+        email: 'admin@vestiflow.it',
+        displayName: 'Operatore Piattaforma',
+      },
+    };
 
-    await controller.deleteTenant('tenant-1');
+    await controller.deleteTenant('tenant-1', request as never);
 
-    expect(adminTenants.deleteTenant).toHaveBeenCalledWith('tenant-1');
+    // ⭐ `displayName` come nome, `email` nel campo dedicato: l'email autorizza
+    //    l'amministratore, non ne sostituisce il nome (§10.2).
+    expect(adminTenants.deleteTenant).toHaveBeenCalledWith('tenant-1', {
+      tipo: 'utente',
+      userId: 'op-1',
+      name: 'Operatore Piattaforma',
+      email: 'admin@vestiflow.it',
+    });
   });
 
   it('grantLocationSelectionChange delega al service', async () => {
