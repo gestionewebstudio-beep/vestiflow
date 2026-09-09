@@ -604,6 +604,164 @@ model TenantUserAuditLog {
   @@map("tenant_user_audit_logs")
 }
 
+/// CHI ha agito: una persona, oppure un processo — `docs/DA-FARE` §10.3.
+///
+/// ⭐ La distinzione e' un requisito, non una comodita': «autore umano o
+/// processo» e' la prima delle tre precisazioni con cui §10.3 estende le nove
+/// voci di `docs/24` §7.4.
+enum PlatformAuditActor {
+  utente
+  webhook
+  pull
+  push
+  backfill
+}
+
+/// CHE COSA si e' tentato. ⭐ Cresce: ogni percorso che entra nel registro
+/// aggiunge il proprio valore, e la migration che lo aggiunge e' il momento in
+/// cui si decide che quell'operazione va tracciata.
+enum PlatformAuditOperation {
+  cestino_prodotto
+  ripristino_prodotto
+  cestino_variante
+  ripristino_variante
+  /// ⭐ La cancellazione amministrativa di un'azienda (§10.2). ⚠️ La riga NON
+  /// ha chiave esterna verso `tenants` e non sta in `TENANT_BACKUP_MODELS`:
+  /// e' l'unico modo perche' la traccia sopravviva all'operazione che descrive.
+  cancellazione_tenant
+  /// ⭐ Un import da Shopify che NON ha creato l'articolo perche' lo storico lo
+  /// vieta (B5-B6, `docs/24` §11.8): eliminato definitivamente, gia' collegato,
+  /// collegamento chiuso. ⛔ Fino al 09/09/2026 il motivo stava solo in un
+  /// `logger.warn`, che il riavvio perde — e §10.3 esclude espressamente il
+  /// solo log tecnico. L'attore e' `pull` o `webhook`, mai una persona.
+  import_prodotto_rifiutato
+  /// Lo stesso, per la singola variante: il rifiuto e' per variante, e il
+  /// prodotto intorno si aggiorna come sempre.
+  import_variante_rifiutata
+  /// ⭐ Un percorso operativo — import o push — ha trovato l'anagrafica per
+  /// COLONNA-CACHE ma lo storico ha rifiutato di usare quel collegamento:
+  /// periodo chiuso (nessuna riapertura automatica, `docs/24` §8.5.2), identita'
+  /// eliminata definitivamente (il GID non e' riutilizzabile, §11.8) o GID di
+  /// un'altra anagrafica. E' il nome che `docs/DA-FARE` §10.3 elenca fin
+  /// dall'inizio. L'attore dice da dove: `webhook`/`pull` oppure `push`.
+  ///
+  /// ⛔ **Qui c'era scritto che l'aggiornamento dell'anagrafica NON e'
+  /// rifiutato**, e che si registrava il rifiuto del solo riaggancio: era il
+  /// comportamento fino al 09/09/2026 (B5a-bis). **Superato da 26.7**: un
+  /// collegamento chiuso non autorizza il passaggio automatico degli
+  /// aggiornamenti, quindi l'import salta l'anagrafica e il push non scrive.
+  riaggancio_rifiutato
+  /// ⭐ 26.7 · il push avrebbe PUBBLICATO DA ZERO un articolo che su questo
+  /// negozio ha gia' una storia: nessuna cache, ma un'identita' con periodo
+  /// chiuso o eliminata definitivamente. La ripubblicazione e' un comando
+  /// esplicito che crea identificativi NUOVI (`docs/24` §11.9) e il riaggancio
+  /// e' un altro comando ancora (§8.5.2): «Sincronizza» non e' ne' l'uno ne'
+  /// l'altro. ⚠️ Non e' `riaggancio_rifiutato`: li' un GID c'era, qui no.
+  ripubblicazione_rifiutata
+}
+
+/// COM'E' andata.
+///
+/// ⛔ I quattro valori non sono simmetrici, e la sequenza canonica di §10.2
+/// spiega perche': `tentativo` si scrive PRIMA e da solo, `riuscita` DENTRO la
+/// transazione dell'operazione, `rifiutata` e `fallita` FUORI e dopo un
+/// rollback accertato. Un'operazione conclusa lascia `tentativo` + UN solo
+/// esito; un'interruzione puo' lasciare il solo `tentativo`, e non si inventa
+/// un esito per far quadrare un conteggio.
+enum PlatformAuditOutcome {
+  tentativo
+  riuscita
+  rifiutata
+  fallita
+  /// ⭐ **L'operazione non aveva niente da fare** — aggiunto l'08/09/2026.
+  ///
+  /// Due richieste simultanee di cestino: la prima applica, la seconda trova
+  /// l'effetto gia' presente. La seconda NON ha fallito (niente e' andato
+  /// storto), NON e' stata rifiutata (nessuna regola ha detto no) e NON e'
+  /// riuscita (non ha cambiato niente: attribuirle la modifica sarebbe
+  /// falso). Senza questo valore il suo `tentativo` resterebbe senza esito, e
+  /// «tentativo senza esito» smetterebbe di significare «qualcosa e' andato
+  /// storto».
+  ///
+  /// ⚠️ Si scrive DENTRO la transazione, come la riuscita: e' l'esito di
+  /// un'operazione che ha commesso senza modificare niente.
+  ininfluente
+}
+
+/// Il registro UNICO delle operazioni — `docs/DA-FARE` §10.3.
+///
+/// ⭐ **E' di PIATTAFORMA, non del tenant**, e questa e' la proprieta' che lo
+/// distingue da `TenantUserAuditLog`: quello porta
+/// `tenant Tenant @relation(onDelete: Cascade)` e sparisce insieme al proprio
+/// tenant, che e' esattamente cio' che qui non deve accadere.
+///
+/// ⛔ **Nessuna relazione verso `Tenant` ne' verso `User`**, e non e' una
+/// dimenticanza:
+///
+/// - obbligatoria e senza `onDelete`, Prisma emette `RESTRICT`: la
+///   cancellazione del tenant fallirebbe;
+/// - con `onDelete: Cascade`, la traccia sparirebbe con lui;
+/// - **opzionale**, il default di Prisma e' `SET NULL`: la riga
+///   sopravvivrebbe con il tenant AZZERATO — l'esito peggiore, perche' non
+///   fallisce niente e non sparisce niente, ma resta una traccia che non dice
+///   piu' quale cliente e' stato cancellato.
+///
+/// L'identita' del tenant e dell'attore vive quindi come **testo**, che e' la
+/// stessa forma gia' scelta da `TenantUserAuditLog` per attore e bersaglio.
+///
+/// ⛔ **Append-only per STRUTTURA**, come `CashSessionDeviceChange`: nessun
+/// `updatedAt`, nessuna rotta e nessun metodo che modifichi o cancelli. La
+/// guardia `check:registro-append-only` fa fallire il lint se qualcuno ne
+/// scrive uno.
+///
+/// ⛔ **Fuori da `TENANT_BACKUP_MODELS`**, e va tenuto fuori: la' dentro
+/// `purgeTenantBackupData` lo cancellerebbe — nel ripristino oltre che nella
+/// cancellazione — e ogni archivio v4 esistente diventerebbe irripristinabile,
+/// perche' l'import esige `entityCounts` per ogni chiave dichiarata.
+model PlatformAuditLog {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// ⭐ Lega `tentativo` ed esito: senza, sono due fatti che nessuno sa accoppiare.
+  correlationId String @map("correlation_id") @db.Uuid
+
+  /// Il tenant come TESTO: la riga deve restare leggibile dopo la sua cancellazione.
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Il negozio, quando l'operazione ne ha uno. ⚠️ `null` finche' la fase 2
+  /// (§8.5.8) non acquisisce lo `shop_gid`: oggi nessun percorso lo conosce.
+  shopGid String? @map("shop_gid")
+
+  actor       PlatformAuditActor
+  /// Valorizzati solo quando `actor = utente`. Snapshot testuali, nessuna FK.
+  actorUserId String?            @map("actor_user_id") @db.Uuid
+  actorName   String?            @map("actor_name")
+  actorEmail  String?            @map("actor_email")
+
+  operation PlatformAuditOperation
+  outcome   PlatformAuditOutcome
+
+  /// L'entita' toccata, come snapshot: l'identificativo locale resta leggibile
+  /// anche dopo che la riga e' stata eliminata definitivamente.
+  entityId    String? @map("entity_id") @db.Uuid
+  entityLabel String? @map("entity_label")
+  /// L'identificativo remoto, quando c'e' (§10.3: «GID remoto»).
+  remoteGid   String? @map("remote_gid")
+
+  /// La causale dichiarata da chi agisce, distinta dal motivo tecnico sotto.
+  reason String?
+  /// ⭐ Su `rifiutata` e `fallita`: la regola o il vincolo che ha deciso, per
+  /// nome. ⛔ Mai credenziali, mai il payload di un webhook: di quello si
+  /// registra la CORRELAZIONE, non il contenuto (`regole-sicurezza`).
+  detail String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([correlationId], map: "platform_audit_logs_correlation_idx")
+  @@index([tenantId, createdAt], map: "platform_audit_logs_tenant_created_idx")
+  @@index([entityId, createdAt], map: "platform_audit_logs_entity_created_idx")
+  @@map("platform_audit_logs")
+}
+
 model Store {
   id        String   @id @default(uuid()) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid

@@ -18,6 +18,7 @@ import { StoreSalesModule } from './store-sales/store-sales.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { TikTokModule } from './tiktok/tiktok.module';
 import { validateEnv } from './config/env.validation';
+import { PlatformAuditModule } from './common/audit/platform-audit.module';
 import { PlatformAdminModule } from './common/platform-admin/platform-admin.module';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -41,6 +42,7 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     // Rate limiting globale (anti brute-force / DoS). 300 req/min per IP:
     // sufficiente per un operatore di gestionale, blocca abusi automatizzati.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    PlatformAuditModule,
     PlatformAdminModule,
     PrismaModule,
     SupportSessionModule,
