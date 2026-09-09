@@ -363,11 +363,17 @@ shopify_error                    errore inghiottito
 no. `mismatchDetected` non è esposto da nessuna API né da nessuna schermata (zero
 consumatori fuori dai due servizi che lo scrivono).
 
-### 7c · La scorta di sicurezza è un parametro morto
+### 7c · La scorta di sicurezza è un parametro morto — ✅ RIMOSSO il 09/09/2026
 
-`shopify-publishable-available.util.ts:13` accetta `safetyStock`; **entrambi** i chiamanti
-passano `0` cablato, e non esiste colonna nello schema. Per chi vende lo stesso pezzo in
-negozio e online è l'unica difesa contro l'oversell dell'ultimo pezzo.
+`shopify-publishable-available.util.ts:13` accettava `safetyStock`; **entrambi** i chiamanti
+passavano `0` cablato, e non esisteva colonna nello schema. Per chi vende lo stesso pezzo in
+negozio e online sarebbe l'unica difesa contro l'oversell dell'ultimo pezzo.
+
+⭐ **Il parametro è stato tolto**, non valorizzato: `docs/24` §10.5 aveva già escluso la
+scorta dalla formula il 02/09, e un parametro che nessuno passa è un comando che non comanda.
+La funzione oggi riceve il Disponibile del gestionale e restituisce `max(0, available)`.
+⚠️ **La difesa contro l'oversell resta un problema aperto**, e toglierne il segnaposto non lo
+chiude: quando si deciderà di averla, sarà una decisione con la sua colonna e la sua UI.
 
 ### 7d · Gli SKU importati vengono riscritti, e poi ripubblicati su Shopify
 

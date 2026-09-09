@@ -414,9 +414,19 @@ Per collegare un **dominio Shopify diverso** (es. da `negozio-a.myshopify.com` a
 
 1. **Impostazioni → Integrazione Shopify → Cambia negozio**
 2. Leggi l’**anteprima** (conteggio prodotti, clienti, ordini, location collegati a Shopify)
-3. Scegli se **rimuovere i dati importati da Shopify** prima del cambio (consigliato per evitare mix tra due negozi)
+3. Scegli se **rimuovere i dati importati da Shopify** prima del cambio — vedi il riquadro qui sotto prima di decidere
 4. Conferma digitando il **dominio attuale** del negozio
 5. Al termine: riconnetti il **nuovo** negozio con **Connetti Shopify**
+
+> **La rimozione dei dati NON è consigliata.** Qui c’era scritto «consigliato per
+> evitare mix tra due negozi»: quel consiglio è superato. Rimuovere i dati è
+> **irreversibile** e cancella prodotti, clienti, ordini di vendita e sedi già
+> importati; il mix fra due negozi si evita in altro modo. Rimuovili solo se hai
+> davvero bisogno di ripartire da zero sul canale online.
+>
+> **Cosa fare invece:** cambia negozio **senza** rimuovere i dati. I prodotti
+> restano in VestiFlow e conservano la loro storia; quelli che erano pubblicati
+> sul vecchio negozio non risultano più collegati e vanno ripubblicati sul nuovo.
 
 **Disconnetti e rimuovi dati** (senza cambiare subito negozio):
 
@@ -428,6 +438,46 @@ Per collegare un **dominio Shopify diverso** (es. da `negozio-a.myshopify.com` a
 > **Attenzione:** la rimozione dati è **irreversibile** in VestiFlow. I prodotti su Shopify Admin **non** vengono cancellati automaticamente; VestiFlow elimina solo la copia locale e i collegamenti sync.
 
 **Disconnetti Shopify** (semplice): scollega l’app e mantiene prodotti, clienti e ordini già importati in sola lettura locale. Utile per una pausa temporanea, non per cambiare negozio.
+
+### Se il collegamento viene rifiutato
+
+> **Stato: implementato, non ancora rilasciato.** Vale da quando questa versione
+> sarà installata; oggi, sulla versione in uso, il rifiuto non compare.
+
+| Messaggio                                     | Perché                                                                                                  | Cosa fare                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Il negozio è già collegato a un’altra azienda | Lo stesso negozio Shopify non può essere collegato a due aziende VestiFlow                              | Scollegalo dall’altra azienda, oppure collega un negozio diverso                        |
+| Sei già connesso a un altro negozio           | La connessione punta a un negozio diverso da quello che stai collegando                                 | Usa **Cambia negozio**, che è la procedura prevista                                     |
+| Identità del negozio non disponibile          | VestiFlow non è riuscito a leggere da Shopify l’identificativo del negozio                              | **Il collegamento non viene creato.** Riprova più tardi                                 |
+| Collegamento in conflitto, riprova            | Due collegamenti sono partiti nello stesso momento — di solito due schede aperte, o due persone insieme | **Riprova**: il primo è andato a buon fine, il secondo no. Nessun dato è rimasto a metà |
+| Il canale non è abilitato per questa azienda  | L’azienda è configurata come **Solo gestionale**: Shopify non è previsto per lei                        | Chiedi all’assistenza VestiFlow di abilitare il profilo Shopify, poi ricollega          |
+
+⚠️ **Un rifiuto non lascia niente a metà**: se il collegamento viene rifiutato, nessuna
+credenziale viene salvata e la connessione precedente resta **esattamente com’era**.
+
+⭐ **Vale anche a metà strada.** Il collegamento salva identità del negozio, credenziali e
+connessione **in un colpo solo**: se qualcosa cade dopo il primo salvataggio, non resta
+nessuna riga a metà. Un tentativo fallito non «prenota» il negozio, e chi ha diritto a
+collegarlo può farlo subito dopo.
+
+⚠️ **Se invece compare un errore generico, e non uno dei messaggi qui sopra**, si tratta di un
+guasto tecnico — non di un rifiuto. È voluto che si veda: un problema di sistema non viene
+mascherato da uno dei rifiuti sopra, perché ti manderebbe a cercare la causa nel posto
+sbagliato. Riprova, e se si ripete segnalalo all'assistenza: **nulla è stato collegato e nulla
+è stato modificato.**
+
+⛔ **Un negozio nuovo non si collega senza identità verificata.** Qui c’era scritto che, se
+l’identificativo non si leggeva, «il negozio resta collegato»: era sbagliato, ed è stato
+corretto. Senza identità certa VestiFlow non saprebbe distinguere un negozio da un altro — e
+non potrebbe accorgersi che quel negozio è già di qualcun altro.
+
+⚠️ **Chi è già collegato non è toccato**: le connessioni esistenti continuano a funzionare
+come prima, anche se non hanno l’identificativo. Il controllo vale per i collegamenti **nuovi**.
+
+⚠️ **Se una azienda viene eliminata definitivamente da VestiFlow**, il suo negozio Shopify
+torna collegabile a un’altra azienda, ma **solo con una nuova autorizzazione esplicita**: non
+vengono trasferiti automaticamente dati, credenziali o collegamenti. Una semplice
+disconnessione **non** libera il negozio.
 
 ### Durante un'operazione di sync
 
@@ -1444,7 +1494,7 @@ Se vedi _«Modifica consentita una sola volta…»_, seleziona le nuove sedi e s
 
 ### Devo cambiare negozio Shopify (altro dominio)
 
-Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**. Segui la procedura guidata e, se indicato, rimuovi i dati importati prima di collegare il nuovo shop.
+Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**. Segui la procedura guidata e **non rimuovere i dati importati**, salvo tu voglia davvero ripartire da zero sul canale online: la rimozione è irreversibile. Vedi «Cambiare negozio Shopify o rimuovere i dati importati».
 
 ### Ho eliminato un prodotto ma resta su Shopify (o viceversa)
 

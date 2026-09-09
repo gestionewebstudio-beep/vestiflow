@@ -456,10 +456,23 @@ disallineamento non giustificato, **VestiFlow resta fonte di verità** e program
 Il calo fatto dalla cassa viene quindi annullato **anche su Shopify**. L'errore non resta
 locale: si propaga al canale.
 
-L'unica cosa che lo trattiene è il «Caso C»: se su quella variante e sede esistono altri
-impegni Shopify attivi (per esempio da ordini online in corso), la riconciliazione viene
-**differita** invece di ripubblicare. È un rinvio, non una soluzione — la giacenza resta
-comunque sbagliata da entrambe le parti.
+⛔ **Qui c'era «l'unica cosa che lo trattiene è il Caso C», e non era vero** — misurato il
+09/09/2026. A trattenere sono **due** cose diverse, e la seconda nessuno l'aveva scritta:
+
+| Che cosa trattiene                       | Quando                                                                                                                                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| il **Caso C**                            | su quella variante e sede ci sono altri impegni Shopify attivi: la riconciliazione **differisce** invece di ripubblicare                                                      |
+| ⭐ il confronto con l'**ultimo inviato** | VestiFlow aveva già pubblicato quel numero con successo: il push risponde «invariata» e **non parte niente**. È il caso descritto qui sopra — 10 pubblicato, 10 da pubblicare |
+
+Nessuna delle due è una soluzione: la giacenza resta comunque sbagliata da entrambe le parti.
+
+⚠️ **E la seconda è stata rimossa dal percorso di RECUPERO il 09/09/2026** (`DA-FARE` §27.6),
+che ripubblica proprio nel caso a valori uguali: era l'unico modo di correggere il
+disallineamento vero — Shopify modificato a mano — e sullo stesso stato su disco non c'è
+niente che distingua i due. ⛔ **Il recupero scrive quindi un avviso nominato** ogni volta che
+alza la quantità su Shopify: chi legge il registro può risalire alla coppia, e il buco smette
+di propagarsi in silenzio. Chiuderlo davvero significa registrare lo scarico degli ordini nati
+già evasi, che è lavoro di questo documento, non della sincronizzazione.
 
 **Il buco raddoppia quindi il danno da solo**: non scarica, e poi fa risalire la giacenza
 anche sul canale. E non è un difetto del Caso D — lo stesso meccanismo, quando il movimento
@@ -510,6 +523,172 @@ Una rassicurazione utile, già verificata: un ordine importato come storico che 
 modificato su Shopify **non** verrebbe scaricato in ritardo. L'evento `fulfilled` non porta
 un suffisso di dedupe, quindi la sua chiave è stabile e la seconda occorrenza viene
 riconosciuta come duplicata e ignorata.
+
+### ⏸ RICOGNIZIONE MIRATA — 09/09/2026, sola lettura del codice
+
+> **Mandato**: verificare la CAUSA nel percorso applicativo reale, distinguendo quattro casi.
+> Nessuna implementazione, nessuna prova eseguita. ⛔ E un'avvertenza del proprietario che
+> vincola tutto: **non dedurre che ogni ordine importato già evaso debba produrre uno scarico —
+> si scaricherebbe due volte una vendita storica.**
+
+#### 1 · Il disegno PRECEDENTE, e il suo stato oggi
+
+`docs/02` §4.6 e §4.7 contengono una risposta alla domanda delle giacenze iniziali, e questo
+documento non le citava:
+
+|                              |                                                                                                                                                                                                                                                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§4.6 — il saldo iniziale** | è la quantità **`available`** letta per variante e per sede **al momento del passaggio**, non `on_hand`, e **nasce da un documento di apertura**. «In cambio non serve importare storico, ricostruire impegni, generare corrispettivi retroattivi **o gestire vecchi fulfillment**» |
+| **§4.7 — il confine**        | «Gli ordini creati **prima** del passaggio non entrano in VestiFlow. **Mai, e senza eccezioni automatiche.**» Il confine usa la **data di creazione dell'ordine su Shopify**                                                                                                        |
+
+##### ⛔ Ma NON è una regola in vigore, ed è una correzione a questa stessa ricognizione
+
+⚠️ **Qui avevo scritto «la regola GIÀ APPROVATA» e «nel disegno approvato il caso C3 non
+esiste».** Sbagliato, e corretto il 09/09/2026 su indicazione del proprietario: la decisione
+sulle giacenze iniziali è **riaperta**.
+
+Il raccordo con `docs/24`, in breve. **Non sono scenari diversi: è lo stesso, e le divergenze
+sono due — una di stato e una di portata.**
+
+|             |                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stato**   | `docs/24` §0-bis, «Ciò che NON è deciso», **riaperto il 02/09/2026**, elenca le «giacenze iniziali per sede al primo allineamento» fra i punti aperti; §12.0 (07/09/2026) approva **solo le due direzioni delle anagrafiche** e dichiara che «importare le anagrafiche **non autorizza a sommare né a sovrascrivere quantità**»; §12.9 ripete il contenuto di §4.6 ma lo marca «⏸ APERTA… resta la proposta precedente, **non una decisione**» |
+| **Portata** | `docs/02` §4 descrive **una sola direzione**, Shopify → VestiFlow. §12.0 ne approva **due**, e per «parto da VestiFlow» §12.9 chiede l'opposto: «VestiFlow **non viene azzerato** dai valori provvisori Shopify». La formula di §4.6 non può quindi valere per entrambe                                                                                                                                                                        |
+
+⭐ **Sul MERITO i due documenti non litigano**: §12.9 cita §4.6 «secondo la decisione
+esistente». Litigano su **se sia in vigore** — e prevale la dichiarazione più recente del
+proprietario, che è quella di riapertura (`docs/24` §0, scala dei conflitti, punto 1).
+
+⛔ **Nessuna delle due è stata modificata per farle tornare**: qui si registra la divergenza,
+non la si risolve. E la conseguenza per questa ricognizione è netta: **la domanda «un ordine
+storico è già compreso nelle giacenze?» non ha oggi una risposta approvata** — né dal codice,
+che non ha il confine, né dai documenti, che l'hanno riaperta.
+
+#### 2 · Il comportamento OSSERVABILE nel codice
+
+⛔ **Il confine di §4.7 non è implementato, e nemmeno il documento di apertura.** Verificato:
+
+```text
+listAllOrders   /orders.json?status=any&limit=250&since_id=…     nessun filtro di data
+pullOrders      nessun confine, nessun checkpoint
+ShopifyConnection   lastConnectedAt · lastSyncAt · webhooksActivatedAt …
+                    ⛔ nessuna data di PASSAGGIO, nessun checkpoint ordini
+```
+
+Quindi **tutto lo storico che Shopify restituisce entra**, e per i tenant che oggi hanno dati
+**da dove vengano le loro giacenze non è scritto da nessuna parte**.
+
+La catena che porta al mancato scarico è di **due righe**, entrambe deliberate:
+
+| #   | Dove                                         | Che cosa fa                                                                                                                                                            |
+| --- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `online-order-lifecycle.service.ts:150-157`  | l'ordine è già `fulfilled` quando l'evento arriva — la testata è stata scritta un istante prima da `shopify-sync.service.ts:221-223` — quindi **nessun impegno nasce** |
+| 2   | `online-sale-fulfillment.service.ts:225-230` | `if (!reservation) continue`: senza impegno da consumare **non si scarica**, e i tre effetti sotto (consumo, delta, movimento) si saltano                              |
+
+⛔ **Il ramo 2 non è una svista: è la protezione di C3**, dichiarata nel commento di classe
+(`:79-82`) e fissata da due prove. **Non va rimosso, va discriminato.**
+
+#### 3 · Le EVIDENZE esistono — e qui correggo una mia affermazione
+
+⛔ **Avevo scritto che «il criterio non è memorizzato da nessuna parte». È falso**, e
+l'avvertenza del proprietario era fondata. La domanda «questa vendita di canale ha prodotto uno
+scarico?» **ha già risposta oggi**, per vendita e per riga:
+
+| Evidenza                                                                              | Dove                                                                                                                |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `OnlineSale.inventoryStatus` — `unloaded` · `partially_unloaded` · `not_applied`      | scritto in `online-sale-fulfillment.service.ts:281-291`, esposto dall'API e mostrato come colonna «Stato magazzino» |
+| lo `StockMovement` con `sourceDocumentType = online_sale` — il **fatto**, non un flag | `:258-277`, scritto nella stessa transazione del delta                                                              |
+| `@@unique(sourceDocumentType, sourceLineId)`                                          | **al massimo un movimento per riga**: protezione strutturale contro il doppio scarico                               |
+| `OnlineSaleLine.reservationId` nullo                                                  | la riga che non aveva impegno                                                                                       |
+| impegni: si consumano, **non si cancellano** (`consumed`)                             | «zero righe» distingue «mai nato» da «nato e consumato»                                                             |
+
+⚠️ **Ma è la domanda VICINA, non quella che decide.** Sapere che una vendita non ha prodotto un
+movimento non dice se la merce è già scesa per un'altra via — cioè se quell'ordine è già dentro
+le giacenze iniziali. **Quella risposta non c'è**, e non perché manchi un campo: manca il fatto,
+perché manca il confine.
+
+#### 4 · Accertato, e ipotesi
+
+| Caso                                | Esito                                                                                                                                                                                                                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **C1** aperto e poi evaso           | ✅ **funziona**: impegno alla creazione, consumo e scarico all'evasione                                                                                                                                                                                                               |
+| **C2** nasce già evaso              | ⛔ **comportamento accertato**: nessun impegno, nessun movimento, `not_applied`. ⚠️ **Che sia un difetto NON è dimostrato dal codice**: è lo stesso percorso che per C3 è voluto, e nulla nei dati dice quale dei due si stia guardando                                               |
+| **C3** storico importato            | ⛔ **accertato indistinguibile da C2**: stessa funzione, stessa firma, `isNew` vero in entrambi                                                                                                                                                                                       |
+| **C4** riconsegna e import ripetuto | ✅ **protetti su tre strati**: chiave di dedupe dell'evento, `OnlineSale.salesOrderId` unico, vincolo unico sul movimento. ⚠️ **Eventi fuori ordine: ipotesi non riprodotta** — un `orders/create` in ritardo riscriverebbe la testata a `unfulfilled` senza confrontare `updated_at` |
+
+⛔ **Tre cose trovate strada facendo, tutte verificate, che non erano in questo documento:**
+
+1. **L'interfaccia non tace: AFFERMA.** `not_applied` si legge **«Nessuno scarico (storico)»**
+   (`sales-order-labels.util.ts:70`). A chi guarda una vendita POS di stamattina l'app dichiara
+   che è storia. Una segnalazione sbagliata è peggio di nessuna segnalazione.
+2. **Il caso totalmente mancato è l'unico NON segnalato**: `requiresReview` si accende solo su
+   `partially_unloaded` (`:293`), mai su `not_applied`. Resta una riga di log.
+3. ⛔ **L'asimmetria del reso è ATTIVA OGGI.** `applyRestockAfterSaleTx` **non consulta**
+   `inventoryStatus` (`:375-445`): un ordine mai scaricato, se poi viene reso con rientro,
+   produce un movimento **positivo** e alza la giacenza di merce mai uscita dai libri. È
+   l'immagine speculare del buco, e va risolta **insieme** a esso o si producono due errori di
+   segno opposto sullo stesso ordine.
+
+#### 5 · Il rimedio minimo — e perché la provenienza da sola non basta
+
+La proposta della sezione precedente — far viaggiare la **provenienza** fino al ramo che salta
+lo scarico — resta la forma giusta e additiva. ⚠️ **Ma tre cose la vincolano, e nessuna era
+scritta:**
+
+- ⛔ **non può passare dalla riesecuzione dell'evento `fulfilled`**: la sua chiave è senza
+  suffisso ed è già consumata anche dagli ordini che non hanno prodotto nulla;
+- ⛔ **deve passare da `sourceLineId = OnlineSaleLine.id`**, per ereditare il vincolo unico che
+  è oggi l'unica protezione strutturale contro il doppio scarico;
+- ⛔ **c'è una SECONDA porta verso «nessun impegno»**: `if (!event.locationId …) return`
+  (`lifecycle:142-144`), oggi mascherata dal ripiego alfabetico sulla prima sede licenziata —
+  che `docs/24` §12.4 **vieta** e che va tolto. Chi chiude C2 senza chiudere questa riapre il
+  buco da un'altra porta, in silenzio e per una causa diversa.
+
+⚠️ **E la discriminante temporale, se la si preferisse alla provenienza, ha un buco**: quando
+il payload non porta `fulfillments[]`, la data di evasione ripiega sull'istante dell'import — e
+il confronto «è di adesso?» si autoconferma proprio sugli ordini più sospetti.
+
+⭐ **Un intervento indipendente e a rischio zero, che non decide niente**: accendere
+`requiresReview` anche su `not_applied` e correggere l'etichetta che dichiara «(storico)» ciò
+che non è stato verificato. Rende visibile l'insieme delle candidate a chi dovrà decidere.
+
+#### 6 · ⛔ LA DECISIONE MANCANTE, e qui ci si ferma
+
+> **Non è stabilito se un ordine storico sia già compreso nelle giacenze iniziali. La decisione
+> è APERTA sui documenti e assente dal codice: mancano tutt'e due, non solo l'esecuzione.**
+
+Un disegno precedente c'è ed è preciso (`docs/02` §4.6, §4.7), ma è **riaperto** da `docs/24`
+§0-bis e §12.0 (vedi §1 qui sopra). E non esiste in `api/src` **niente** che lo realizzi: non il
+documento di apertura, non il confine, non l'istante di riferimento. Finché quel confine non
+esiste, la domanda «questa vendita è già dentro?» non ha risposta **per nessun ordine**, e
+qualunque scarico automatico degli ordini già evasi rischia il doppio scarico.
+
+⚠️ **Un confine sugli ordini chiuderebbe C3 alla fonte e renderebbe banale il rimedio di C2** —
+senza storico in ingresso, «nessun impegno» tornerebbe ad avere un solo significato. ⛔ **Ma
+non si può dedurne l'autorizzazione**: la scelta delle giacenze iniziali è dichiarata aperta, e
+il confine ne è una conseguenza, non una premessa indipendente.
+
+#### 7 · Le prove necessarie — nessuna eseguita
+
+Base comune: variante V, sede L, `onHand 10 · committed 0 · available 10`; Shopify `10`;
+ultimo inviato `10`. Stato finale come **giacenza · impegni · movimenti · quantità remota**.
+
+| #       | Prova                                                                         | Atteso                                                                                                                                                      |
+| ------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0**  | misura in sola lettura: vendite online per stato magazzino, con canale e date | nulla cambia — dice se il rischio è di due righe o di duecento                                                                                              |
+| **P1**  | **C1** di controllo: ordine aperto, poi evaso                                 | creazione `10 · 1 · 0 · 9`; evasione `9 · 0 · 1 · 9`, `unloaded`                                                                                            |
+| **P2**  | **C2**: vendita POS che nasce evasa                                           | **oggi** `10 · 0 · 0 · 9`, `not_applied`, nessuna segnalazione — **dopo** `9 · 0 · 1 · 9`, `unloaded`, e nessuna ripubblicazione al rialzo                  |
+| **P3**  | **C2 ripetuto**: due sincronizzazioni dopo P2                                 | identico a P2 in entrambi gli scenari. Qualunque incremento = la deduplica non copre                                                                        |
+| **P4**  | **C3**: ordine con evasione di mesi prima, dal pull                           | `10 · 0 · 0 · invariato`, `not_applied`, **prima e dopo**. È la prova che il rimedio non ha allargato il perimetro                                          |
+| **P5**  | **C4a**: stesso evento consegnato tre volte                                   | **un solo** movimento, una sola vendita, giacenza ferma dopo la prima                                                                                       |
+| **P6**  | **C4b**: `orders/create` vecchio consegnato dopo l'evasione                   | nessun impegno nuovo, nessun movimento nuovo, giacenza ferma                                                                                                |
+| **P7**  | **C2 misto**: due righe, una con SKU non mappato                              | **dopo**: 1 movimento, `partially_unloaded`, `requiresReview` acceso                                                                                        |
+| **P8**  | **sede non collegata**                                                        | **oggi**: scarico sulla sede sbagliata. **Senza il ripiego**: nessun impegno, nessun movimento — serve a decidere cosa deve succedere al posto del silenzio |
+| **P9**  | **reso su vendita mai scaricata**                                             | **oggi** `onHand 11` con un movimento di rientro di merce mai uscita — **dopo** `onHand 10`                                                                 |
+| **P10** | **ripubblicazione** dopo P2                                                   | **dopo**: i due valori coincidono a 9, nessun invio al rialzo                                                                                               |
+
+⚠️ **Ogni prova innescata da Shopify va eseguita dall'ambiente pubblicato**: vale come prova del
+difetto, **non** come collaudo del ramo.
 
 ### La domanda da portare al collega che lavora sulla cassa
 

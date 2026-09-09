@@ -274,11 +274,43 @@ Modificabile: anagrafica, **profilo canale** (se nessuna integrazione attiva), *
 
 Da questa pagina (e dalla tabella clienti) puoi avviare **Apri gestionale (assistenza)** — vedi [§1 Sessione assistenza](#sessione-assistenza-al-gestionale-cliente).
 
-Per cambiare profilo canale con integrazione già connessa: il cliente deve **disconnettere** Shopify o TikTok da Impostazioni prima.
+Per cambiare profilo canale con integrazione già connessa: il cliente deve **disconnettere** Shopify o TikTok da Impostazioni prima. Se provi a cambiarlo lo stesso, il salvataggio viene **rifiutato** con _«Disconnetti Shopify dalle impostazioni del cliente prima di cambiare profilo canale»_: nessun dato viene toccato, e puoi riprovare dopo la disconnessione.
+
+**Se il cliente sta collegando Shopify proprio in quel momento** _(implementato, non ancora rilasciato)_: le due operazioni non possono più incrociarsi lasciando uno stato incoerente. Una delle due passa e l'altra viene rifiutata — non esiste il caso di un cliente **Solo gestionale** che si ritrova una connessione Shopify attiva.
+
+| Chi arriva prima            | Che cosa vedi tu                      | Che cosa vede il cliente                                                       |
+| --------------------------- | ------------------------------------- | ------------------------------------------------------------------------------ |
+| il **cambio di profilo**    | il profilo cambia                     | il collegamento è rifiutato: _«Il canale non è abilitato»_, oppure _«riprova»_ |
+| il **collegamento Shopify** | rifiuto: «Disconnetti Shopify… prima» | il negozio risulta collegato normalmente                                       |
+
+⚠️ In entrambi i casi **niente resta a metà**: il collegamento rifiutato non lascia credenziali né connessione, e il cambio di profilo rifiutato non modifica nulla del cliente.
 
 ### Eliminazione tenant (zona pericolosa)
 
 In **Modifica cliente**, pannello **Zona pericolosa → Elimina cliente**: rimuove tenant, dati negozio, utenti e integrazioni. Operazione **irreversibile** con dialog di conferma.
+
+**Chi può farla:** solo l’amministratore di piattaforma (email in `PLATFORM_ADMIN_EMAILS`). Il
+titolare del cliente **non** può eliminare la propria azienda.
+
+**Che cosa resta dopo:**
+
+|                                |                                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| i dati dell’azienda            | ⛔ rimossi, e non si recuperano se non da un backup fatto prima                                                                                                    |
+| la **traccia dell’operazione** | ✅ resta: chi ha eliminato, quando, quale azienda — e sopravvive all’azienda stessa                                                                                |
+| il negozio Shopify collegato   | torna collegabile ad **un’altra** azienda, ma solo con una **nuova autorizzazione esplicita**: nessun trasferimento automatico di dati, credenziali o collegamenti |
+
+> **Stato: implementato nel ramo, non ancora rilasciato.** La registrazione della traccia e la
+> rimozione dello storico dei collegamenti Shopify valgono da quando questa versione sarà
+> installata. Sulla versione in uso oggi l’eliminazione funziona come prima.
+
+**Se viene rifiutata:** l’azienda **non** viene toccata — l’eliminazione e la sua traccia
+riescono o falliscono insieme. Un’eliminazione lasciata a metà non è uno stato possibile.
+Se il rifiuto si ripete, va segnalato invece che ritentato: il messaggio dice quale vincolo
+ha fermato l’operazione.
+
+⚠️ **Prima di eliminare, fai un backup del cliente** (Impostazioni → Backup, dal lato
+cliente). È l’unica strada di recupero, e va fatta prima: dopo non c’è.
 
 ### API
 
@@ -471,6 +503,32 @@ Modulo `ShopifyShopChangeService` + wizard FE `shopify-shop-change-wizard`.
 **OAuth guard:** tentativo di collegare un dominio diverso da quello attivo senza purge precedente → errore esplicito (evita fork silenzioso tra shop).
 
 **Cosa NON cancella il purge:** ordini fornitori (salvo blocker se legati a location Shopify), anagrafica tenant (**Sede fisica**), utenti tenant, movimenti non legati a entità Shopify rimosse.
+
+> ⛔ **Non consigliare più il purge come passo normale del cambio negozio.** La guida utente
+> lo consigliava «per evitare mix tra due negozi»: quel consiglio è stato corretto. Il purge
+> è irreversibile e cancella catalogo, clienti, ordini di vendita e sedi collegate.
+>
+> **Stato: deciso, non ancora implementato.** La gestione non distruttiva del cambio negozio —
+> i collegamenti si **chiudono** invece di cancellare i dati — è approvata (`docs/24` §8.5.1)
+> ma **non è nel prodotto**: oggi il purge fa ancora quello che ha sempre fatto. Finché non
+> sarà implementata, la risposta all’utente è «cambia negozio senza rimuovere i dati», non
+> «usa la nuova procedura».
+
+### Backup e ripristino con lo storico dei collegamenti
+
+> **Stato: implementato nel ramo, non ancora rilasciato.**
+
+|                                      |                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| **formato**                          | i pacchetti passano alla versione 5; quelli **v3 e v4 restano ripristinabili** |
+| **storico dei collegamenti Shopify** | ✅ incluso nell’export; al ripristino **non viene mai cancellato**             |
+| **esclusioni decise dopo il backup** | ✅ **non vengono sovrascritte**: vince quello che c’è nel database             |
+| **recupero su database vuoto**       | ✅ lo storico torna, comprese le identità già escluse                          |
+
+**Se il ripristino viene rifiutato**, il messaggio nomina la causa — un articolo ancora
+collegato che manca dal pacchetto, un identificativo remoto già assegnato, un valore che non
+combacia. ⛔ **Non viene applicato niente a metà**: o riesce tutto, o il database resta com’era.
+La risposta è correggere il pacchetto o l’incongruenza indicata, non ritentare.
 
 ### Eliminazione prodotto
 
