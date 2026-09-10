@@ -9427,7 +9427,7 @@ caso, come già successo una volta in §31.19.
 | `tsc` app e prove     | pulito                                                                |
 | commit / push         | **nessuno**: l'albero resta locale                                    |
 
-##### ⛔ Prima di un push: che cosa attiva un deploy — misurato
+##### ⛔ Prima di un push: che cosa attiva un deploy — e che cosa resta NON VERIFICATO
 
 ⭐ **Nessuno dei tre workflow GitHub fa deploy.** `ci.yml` e `security.yml`
 scattano su `main` e `develop` ma sono solo verifiche; `db-backup.yml` gira a
@@ -9447,10 +9447,40 @@ docs/00-DECISIONI    «non e' deducibile dal repository ... lo sa solo il
 dell'immagine**, contro il database **condiviso**. Non c'è un passo da
 autorizzare: è il comando di avvio del contenitore.
 
-| Ramo      | Deploy automatico                          | Che cosa si sa                                                                                                                                |
-| --------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `develop` | ⭐ **no**, per quanto il repository mostri | nessun file di piattaforma lo nomina                                                                                                          |
-| `main`    | ⛔ **non determinabile dai file**          | l'aggancio ramo→Railway vive solo nel cruscotto; la documentazione **testimonia** che Railway serve `main`, sullo stesso database di sviluppo |
+###### ⛔ I filtri di GitHub Actions dimostrano SOLO il comportamento di quei workflow
+
+⭐ **Questo si sa, ed è definitivo:** `on: push: branches: [main, develop]` non può
+agganciare un ramo che non si chiama così. Un push su un ramo di lavoro non fa
+partire `ci.yml` né `security.yml`, e nessuno dei tre workflow contiene comunque
+un passo di deploy.
+
+⛔ **E qui finisce quello che si sa.** Un workflow che non parte non dice niente
+su che cosa faccia **Railway**, che non passa da GitHub Actions: guarda il
+repository per conto suo, con una configurazione che vive **solo nel cruscotto**.
+
+| Ramo           | Che cosa dimostrano i file                                                                                                 | Deploy               |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| ramo di lavoro | nessun workflow lo aggancia                                                                                                | ⏸ **non verificato** |
+| `develop`      | nessun file di piattaforma lo nomina                                                                                       | ⏸ **non verificato** |
+| `main`         | nessun file dichiara il ramo; la documentazione **testimonia** che Railway serve `main`, sullo stesso database di sviluppo | ⏸ **non verificato** |
+
+⚠️ **«Non verificato» non è «non esiste», ed è tutta la differenza.** Il
+repository non contiene la configurazione di deploy: quindi da qui **non si può**
+concludere che un ramo non ne abbia una. Lo dice il documento stesso —
+`docs/00-DECISIONI`, «non è deducibile dal repository … lo sa solo il cruscotto del
+fornitore».
+
+⛔ **E un argomento che avevo usato NON regge, e va scritto perché non torni:**
+«il ramo non esisteva ancora su origin, quindi nessun servizio poteva essere
+agganciato». È un ragionamento sbagliato in due modi — una configurazione può
+nominare un ramo prima che esista, e le distribuzioni per PR o per pattern non
+chiedono che il ramo ci fosse prima. L'assenza di un ramo remoto non dimostra
+l'assenza di automazioni.
+
+⭐ **L'unica verifica che chiude la domanda è sulla PIATTAFORMA**: aprire il
+cruscotto Railway e leggere, per ogni servizio, quale ramo segue e se
+l'auto-deploy è acceso. Finché non è fatta, la voce resta ⏸ e nessun push verso
+`main` o `develop` va dato per innocuo.
 
 ⛔ **E il carico va misurato, non stimato.** Misurato l'11/09/2026 su
 `feature/shopify-link-history`, **dopo `git fetch`**:
