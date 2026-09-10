@@ -34,8 +34,11 @@ import type { ShopifyWebhookStatusResult } from './shopify-webhook-status.servic
 import { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
 import type { ShopifyInventoryPullResult } from './shopify-inventory-pull.service';
-import { ShopifyInventoryAlignService, istanteRipresa } from './shopify-inventory-align.service';
-import type { EsitoAllineamento } from './shopify-inventory-align.service';
+import { ShopifyInventoryAlignService } from './shopify-inventory-align.service';
+import type {
+  BloccoAllineamento,
+  PosizioneAllineamento,
+} from './shopify-inventory-align.service';
 import { ShopifyInventoryRepublishService } from './shopify-inventory-republish.service';
 import type { InventoryRepublishResult } from './shopify-inventory-republish.service';
 import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
@@ -256,23 +259,27 @@ export class ShopifyController {
    *    chi può pubblicare le giacenze può allinearle.
    */
   /**
-   * ⭐ **Il corpo è facoltativo, e porta una cosa sola**: l'istante da cui
-   *    questa OPERAZIONE è cominciata, ripreso dall'esito precedente.
+   * Un BLOCCO del controllo. Il pulsante li incatena finché `fine` non è vero.
    *
-   * ⛔ **Senza, ogni pressione è un'operazione nuova** — giusto per la prima,
-   *    sbagliato per la seconda: il conto di ciò che non si è ancora verificato
-   *    ripartirebbe da tutto il perimetro, e non arriverebbe mai a zero.
+   * ⭐ **Il corpo è facoltativo e porta una POSIZIONE**, non l'identità di
+   *    un'operazione: `prossimo` dell'esito precedente. Senza, si comincia dal
+   *    principio — che è esattamente cosa deve fare una pressione nuova.
+   *
+   * ⛔ **Il server non conserva niente fra un blocco e l'altro.** Se la catena
+   *    si interrompe non c'è niente da dichiarare concluso: chi ha premuto lo
+   *    vede, e ripreme.
+   *
+   * ⚠️ **Ogni blocco è limitato in lavoro, non in tempo**: al massimo
+   *    duecento coppie esaminate e cinquanta scritte. Quanto duri dipende da
+   *    quanto risponde il canale, che da qui non si controlla.
    */
   @Post('sync/inventory/align')
   @RequireAnyPermissions(SHOPIFY_INVENTORY_SYNC_PERMISSIONS)
   async alignInventory(
     @CurrentTenant() tenantId: string,
-    @Body() body?: { readonly operazioneIniziataAlle?: string },
-  ): Promise<{ aligned: true } & EsitoAllineamento> {
-    const result = await this.inventoryAlign.allinea(
-      tenantId,
-      istanteRipresa(body?.operazioneIniziataAlle),
-    );
+    @Body() body?: { readonly prossimo?: PosizioneAllineamento | null },
+  ): Promise<{ aligned: true } & BloccoAllineamento> {
+    const result = await this.inventoryAlign.allinea(tenantId, body?.prossimo ?? undefined);
     return { aligned: true, ...result };
   }
 

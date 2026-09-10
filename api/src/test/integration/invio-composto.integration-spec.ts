@@ -15,6 +15,12 @@ import { StoreSalesService } from '../../store-sales/store-sales.service';
 import { applyCommittedDelta } from '../../order-reservations/committed-delta.util';
 import { applyInventoryDelta } from '../../inventory/inventory-level-delta.util';
 import { ShopifyInventoryAlignService } from '../../shopify/shopify-inventory-align.service';
+import type {
+  BloccoAllineamento,
+  CoppiaNonAllineata,
+  MotivoNonAllineata,
+  PosizioneAllineamento,
+} from '../../shopify/shopify-inventory-align.service';
 import { ShopifyInventoryPushService } from '../../shopify/shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from '../../shopify/shopify-inventory-reconciliation.service';
 import { ShopifyInventoryRepublishService } from '../../shopify/shopify-inventory-republish.service';
@@ -1268,6 +1274,49 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       return new ShopifyInventoryAlignService(prisma as never, nuovoEsecutore() as never);
     }
 
+    /** Quante coppie il blocco ha lasciato non allineate con QUEL motivo. */
+    function conMotivo(blocco: BloccoAllineamento, motivo: MotivoNonAllineata): number {
+      return blocco.nonAllineate.filter((riga) => riga.motivo === motivo).length;
+    }
+
+    /**
+     * IL GIRO COMPLETO: incatena i blocchi come fa il pulsante.
+     *
+     * ⭐ **È la forma in cui il comando si usa davvero**: una pressione, blocchi
+     *    automatici, elenco finale. Un blocco solo non è un'operazione.
+     *
+     * ⚠️ Il tetto sui blocchi non è una protezione del comando: è la rete della
+     *    prova, perché un ciclo che non converge non deve girare per sempre.
+     */
+    async function giroCompleto(
+      fabbrica: () => ShopifyInventoryAlignService = allineatore,
+      tettoBlocchi = 20,
+    ) {
+      let prossimo: PosizioneAllineamento | undefined;
+      let blocchi = 0;
+      let esaminate = 0;
+      let allineate = 0;
+      let giaAllineate = 0;
+      let totale = 0;
+      let fine = false;
+      const nonAllineate: CoppiaNonAllineata[] = [];
+      while (blocchi < tettoBlocchi) {
+        const blocco = await fabbrica().allinea(IDS.tenantA, prossimo);
+        esaminate += blocco.esaminate;
+        allineate += blocco.allineate;
+        giaAllineate += blocco.giaAllineate;
+        nonAllineate.push(...blocco.nonAllineate);
+        totale = blocco.totale;
+        blocchi += 1;
+        if (blocco.fine) {
+          fine = true;
+          break;
+        }
+        prossimo = blocco.prossimo ?? undefined;
+      }
+      return { totale, esaminate, allineate, giaAllineate, nonAllineate, fine, blocchi };
+    }
+
     /** Crea `quante` coppie collegate su una sede, col canale a `remotoIniziale`. */
     async function coppieInMassa(quante: number, locationId: string, sedeRemota: string) {
       const prodotto = await prisma.product.create({
@@ -1456,10 +1505,10 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
 
       expect(esito.totale).toBe(2);
       expect(esito.allineate).toBe(1);
-      expect(esito.escluse).toBe(1);
-      // ⛔ Una sola coppia ha la base: l'altra resta da allineare.
-      expect(esito.senzaBase).toBe(1);
-      expect(esito.restano).toBe(1);
+      // ⛔ L'altra sede resta NON allineata, e l'elenco dice quale e perché.
+      expect(esito.nonAllineate).toHaveLength(1);
+      expect(esito.nonAllineate[0]?.locationId).toBe(IDS.locA2);
+      expect(esito.nonAllineate[0]?.motivo).toBe('livello_non_disponibile');
 
       const conBase = await prisma.shopifyInventorySyncState.count({
         where: { tenantId: IDS.tenantA, variantId, localPendingDelta: { not: null } },
@@ -1479,8 +1528,7 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       const esito = await allineatore().allinea(IDS.tenantA);
 
       expect(esito.allineate).toBe(1);
-      expect(esito.fallite).toBe(0);
-      expect(esito.escluse).toBe(0);
+      expect(esito.nonAllineate).toEqual([]);
       // ⭐ Il canale porta ora il valore di VestiFlow. Mai il contrario: il
       //    Disponibile locale non si è mosso di un pezzo.
       expect(remoto()).toBe(10);
@@ -1492,8 +1540,9 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       expect(dopoAllineamento.localPendingDelta).toBe(0);
       expect(dopoAllineamento.channelAcquiredDelta).toBe(0);
       expect(dopoAllineamento.pendingKey).toBeNull();
-      // ⭐ E non resta lavoro in coda: la riga è pulita.
-      expect(esito.restano).toBe(0);
+      // ⭐ E il controllo si è concluso: nessuna coppia non allineata.
+      expect(esito.nonAllineate).toEqual([]);
+      expect(esito.fine).toBe(true);
 
       // ── 4 · REGIME CONTINUO · vendita al banco → si manda il meno ─────
       await prisma.$transaction(async (tx) => {
@@ -1567,7 +1616,7 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       //    e lo abbiamo LETTO.
       expect((await stato()).localPendingDelta).toBe(0);
       expect((await stato()).lastPushedAvailable).toBe(10);
-      expect(esito.restano).toBe(0);
+      expect(esito.nonAllineate).toEqual([]);
     });
 
     it('⭐ RIPRENDERE non duplica: la seconda passata non riscrive', async () => {
@@ -1627,14 +1676,12 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
 
       const esito = await allineatore().allinea(IDS.tenantA);
 
-      expect({
-        totale: esito.totale,
-        allineate: esito.allineate,
-        escluse: esito.escluse,
-        fallite: esito.fallite,
-      }).toEqual({ totale: 1, allineate: 0, escluse: 1, fallite: 0 });
+      expect({ totale: esito.totale, allineate: esito.allineate }).toEqual({
+        totale: 1,
+        allineate: 0,
+      });
       expect(remoto()).toBe(7);
-      expect(esito.restano).toBe(1);
+      expect(conMotivo(esito, 'permesso_mancante')).toBe(1);
     });
 
     it('⛔ una coppia che il canale non riconosce è FALLITA, non allineata', async () => {
@@ -1661,12 +1708,13 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         totale: esito.totale,
         allineate: esito.allineate,
         giaAllineate: esito.giaAllineate,
-        escluse: esito.escluse,
-        fallite: esito.fallite,
-      }).toEqual({ totale: 1, allineate: 0, giaAllineate: 0, escluse: 0, fallite: 1 });
+      }).toEqual({ totale: 1, allineate: 0, giaAllineate: 0 });
       expect(remoto()).toBe(7);
-      // ⛔ E resta contata fra quelle da allineare: non è stata dichiarata a posto.
-      expect(esito.restano).toBe(1);
+      // ⛔ E resta nell'elenco: non è stata dichiarata a posto.
+      expect(esito.nonAllineate).toHaveLength(1);
+      // ⭐ **Errore di LETTURA**: la risoluzione è fallita prima di prenotare
+      //    qualunque scrittura, quindi non c'è niente di incerto da riconciliare.
+      expect(esito.nonAllineate[0]?.motivo).toBe('errore_di_lettura');
     });
 
     it('⛔ il canale che si muove fra lettura e scrittura FERMA l allineamento', async () => {
@@ -1691,7 +1739,7 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       ).allinea(IDS.tenantA);
 
       expect(esito.allineate).toBe(0);
-      expect(esito.fallite).toBe(1);
+      expect(conMotivo(esito, 'divergenza_accertata')).toBe(1);
       // ⛔ Il canale è rimasto dove si era mosso: nessuna sovrascrittura.
       expect(remoto()).toBe(4);
       const dopoIlFallimento = await stato();
@@ -1705,8 +1753,8 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       //    lavoro esiste. Ha una prova sua (`2-bis`).
       expect(dopoIlFallimento.localPendingDelta).toBeNull();
       expect(dopoIlFallimento.lastPushedAvailable).toBeNull();
-      // ⛔ E la coppia resta nel lavoro residuo.
-      expect(esito.senzaBase).toBe(1);
+      // ⛔ E la coppia resta nell'elenco delle non allineate.
+      expect(esito.nonAllineate).toHaveLength(1);
     });
 
     it('⭐ per SEDE: due magazzini, esiti distinti, una chiamata sola', async () => {
@@ -1734,15 +1782,16 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       const esito = await allineatore().allinea(IDS.tenantA);
 
       expect(esito.allineate).toBe(2);
-      expect(esito.perSede).toHaveLength(2);
+      expect(esito.esaminate).toBe(2);
       expect(remoto()).toBe(10);
       expect(negozio.quantitaRemota(inventoryItemId, SEDE_REMOTA_2)).toBe(4);
-      // ⭐ Gli esiti sono distinguibili per sede, com'è stato chiesto.
-      for (const sede of esito.perSede) {
-        expect(sede.allineate).toBe(1);
-        expect(sede.locationName).toBeTruthy();
-      }
-      expect(esito.restano).toBe(0);
+      // ⭐ **Una chiamata sola ha raggiunto due magazzini.**
+      //
+      // ⚠️ Il riepilogo per sede non c'è più, e non è una perdita: la sede
+      //    sta su OGNI riga dell'elenco delle non allineate, che è dove
+      //    serviva distinguerle. Qui non ce ne sono.
+      expect(esito.nonAllineate).toEqual([]);
+      expect(esito.fine).toBe(true);
     });
 
     /**
@@ -1770,27 +1819,33 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         const esito = await allineatore2().allinea(IDS.tenantA);
 
         expect(esito.giaAllineate).toBe(50);
-        // ⭐ Le dieci che differiscono sono state raggiunte nella STESSA passata.
+        // ⭐ Le dieci che differiscono sono state raggiunte nello STESSO blocco.
         expect(esito.allineate).toBe(10);
-        expect(esito.restano).toBe(0);
+        expect(esito.nonAllineate).toEqual([]);
       });
 
-      it('⛔ 1b · oltre il tetto di scansione, chi non ha la base viene PRIMA', async () => {
-        // ⛔ **Con un catalogo più grande del tetto di scansione l'ordinamento
-        //    torna a decidere tutto**: se le già inizializzate venissero prima,
-        //    le duecento esaminate sarebbero tutte roba a posto e le coppie
-        //    senza base non verrebbero raggiunte mai.
+      it('⭐ 1b · oltre il primo blocco, il giro raggiunge comunque tutti', async () => {
+        // ⛔ **Qui l'ordinamento decideva tutto**: con un catalogo più grande del
+        //    blocco, chi finiva oltre il duecentesimo posto poteva non essere
+        //    raggiunto mai, e la prova dipendeva da quale ordine capitava.
+        //
+        // ⭐ **Adesso non decide più niente**: una pressione attraversa il
+        //    perimetro INTERO a blocchi, quindi l'ordine è indifferente e la
+        //    copertura è per costruzione.
         await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
         await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
         // 205 con base e già a posto, più 5 senza base da inizializzare.
         await coppieConBase(205, IDS.locA1, SEDE_REMOTA, 999);
         await coppieInMassa(5, IDS.locA1, SEDE_REMOTA);
 
-        const esito = await allineatore2().allinea(IDS.tenantA);
+        const giro = await giroCompleto(allineatore2);
 
-        // ⭐ Le cinque senza base sono in testa, quindi vengono fatte subito.
-        expect(esito.allineate).toBe(5);
-        expect(esito.senzaBase).toBe(0);
+        // ⭐ Tutte e cinque, e in più di un blocco: il giro non si ferma.
+        expect(giro.allineate).toBe(5);
+        expect(giro.giaAllineate).toBe(205);
+        expect(giro.blocchi).toBeGreaterThan(1);
+        expect(giro.fine).toBe(true);
+        expect(giro.nonAllineate).toEqual([]);
       });
 
       it('⛔ 1 · 120 coppie su due sedi: piu passate le raggiungono TUTTE', async () => {
@@ -1806,21 +1861,13 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         await coppieInMassa(70, IDS.locA1, SEDE_REMOTA);
         await coppieInMassa(50, IDS.locA2, SEDE_REMOTA_2);
 
-        let allineate = 0;
-        let passate = 0;
-        while (passate < 12) {
-          const esito = await allineatore2().allinea(IDS.tenantA);
-          allineate += esito.allineate;
-          passate += 1;
-          if (esito.restano === 0) {
-            break;
-          }
-        }
+        const giro = await giroCompleto(allineatore2);
 
-        // ⭐ Tutte e 120, e in piu' di una passata: il tetto c'e' e si supera.
-        expect(allineate).toBe(120);
-        expect(passate).toBeGreaterThan(1);
-        expect(passate).toBeLessThan(12);
+        // ⭐ Tutte e 120, in piu' blocchi: il tetto delle scritture c'e', e il
+        //    giro lo attraversa da solo — senza chiedere un altro clic.
+        expect(giro.allineate).toBe(120);
+        expect(giro.blocchi).toBeGreaterThan(1);
+        expect(giro.fine).toBe(true);
         const senzaBase = await prisma.shopifyInventorySyncState.count({
           where: { tenantId: IDS.tenantA, localPendingDelta: null },
         });
@@ -1846,7 +1893,7 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         expect(dopo.lastPushedAvailable).toBe(10);
         expect(dopo.localPendingDelta).toBe(0);
         expect(dopo.channelAcquiredDelta).toBe(0);
-        expect(esito.restano).toBe(0);
+        expect(esito.nonAllineate).toEqual([]);
 
         // ⭐ E da qui il regime continuo funziona: una vendita viaggia.
         await prisma.$transaction(async (tx) => {
@@ -1954,13 +2001,12 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
 
         const esito = await allineatore2().allinea(IDS.tenantA);
 
-        expect(esito.fallite).toBe(1);
         expect(esito.allineate).toBe(0);
-        // ⭐ Il lavoro residuo dell'OPERAZIONE include cio' che e' fallito.
-        expect(esito.restano).toBeGreaterThanOrEqual(1);
-        // ⚠️ E resta distinto dall'avanzamento della partenza, che qui e' finito:
-        //    quella coppia la base ce l'ha gia'.
-        expect(esito.senzaBase).toBe(0);
+        // ⭐ L'elenco include cio' che e' fallito, col motivo giusto: una
+        //    scrittura era stata PRENOTATA, quindi il suo esito e' incerto —
+        //    non e' un errore di lettura, e non si riprova di iniziativa.
+        expect(esito.nonAllineate).toHaveLength(1);
+        expect(esito.nonAllineate[0]?.motivo).toBe('scrittura_esito_incerto');
       });
     });
 
@@ -1992,19 +2038,14 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         // Sede A2: 5 coppie che hanno bisogno di essere corrette.
         await coppieConBase(5, IDS.locA2, SEDE_REMOTA_2, 0);
 
-        let allineate = 0;
-        let passate = 0;
-        while (passate < 8) {
-          const esito = await allineatore3().allinea(IDS.tenantA);
-          allineate += esito.allineate;
-          passate += 1;
-          if (allineate >= 5) {
-            break;
-          }
-        }
+        const giro = await giroCompleto(allineatore3);
 
-        // ⭐ Le cinque della SECONDA sede vengono raggiunte.
-        expect(allineate).toBe(5);
+        // ⭐ Le cinque della SECONDA sede vengono raggiunte: il giro attraversa
+        //    il perimetro INTERO, quindi l'ordine fra le sedi non decide piu' chi
+        //    viene servito e chi no.
+        expect(giro.allineate).toBe(5);
+        expect(giro.giaAllineate).toBe(205);
+        expect(giro.fine).toBe(true);
         expect(negozio.quantitaRemota('8770020000', SEDE_REMOTA_2)).toBe(5);
       });
 
@@ -2034,15 +2075,15 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
 
         const esito = await allineatore3(graphql).allinea(IDS.tenantA);
 
-        expect(esito.fallite).toBe(1);
+        expect(conMotivo(esito, 'divergenza_accertata')).toBe(1);
         const dopo = await stato();
         // ⭐ **La riga NON è entrata nel regime nuovo**: l'allineamento non è
         //    riuscito, e l'ultimo confermato di prima è ancora quello.
         expect(dopo.localPendingDelta).toBeNull();
         expect(dopo.channelAcquiredDelta).toBeNull();
         expect(dopo.lastPushedAvailable).toBe(10);
-        // ⛔ E resta contata fra quelle da fare.
-        expect(esito.senzaBase).toBe(1);
+        // ⛔ E resta nell'elenco delle non allineate.
+        expect(esito.nonAllineate).toHaveLength(1);
       });
 
       it('⭐ 2-ter · con un tentativo ancora APERTO i contatori restano', async () => {
@@ -2159,10 +2200,10 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         negozio.guastaProssima('setInventoryQuantities');
         const secondo = await allineatore3().allinea(IDS.tenantA);
 
-        expect(secondo.fallite).toBe(1);
-        expect(secondo.senzaBase).toBe(1);
-        // ⛔ Non 2: la stessa coppia non si conta due volte.
-        expect(secondo.restano).toBe(1);
+        // ⛔ Non 2: la stessa coppia non si conta due volte, ed e' esaminata
+        //    una volta sola nel giro.
+        expect(secondo.nonAllineate).toHaveLength(1);
+        expect(secondo.nonAllineate[0]?.motivo).toBe('scrittura_esito_incerto');
       });
 
       it('⛔ 3 · «non serve scrivere» non deve SOPRAVVIVERE al ricalcolo', async () => {
@@ -2284,10 +2325,9 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
 
         const esito = await allineatore3().allinea(IDS.tenantA);
 
-        expect(esito.escluse).toBe(1);
-        expect(esito.senzaBase).toBe(0);
-        // ⭐ Non è stata allineata: resta lavoro, e il numero deve dirlo.
-        expect(esito.restano).toBe(1);
+        // ⭐ Non è stata allineata, e l'elenco lo dice con il motivo.
+        expect(esito.nonAllineate).toHaveLength(1);
+        expect(esito.nonAllineate[0]?.motivo).toBe('permesso_mancante');
       });
 
       it('⛔ A · dopo un rifiuto CON movimento: non «pronta», e C non resta NULL', async () => {
@@ -2333,9 +2373,9 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         expect(dopo.localPendingDelta).toBe(-1);
         // ⭐ **E `C` non resta NULL**: i due contatori vivono o muoiono insieme.
         expect(dopo.channelAcquiredDelta).toBe(0);
-        // ⛔ L'allineamento NON è riuscito: la coppia resta da riprendere.
+        // ⛔ L'allineamento NON è riuscito: la coppia resta nell'elenco.
         expect(esito.allineate).toBe(0);
-        expect(esito.restano).toBeGreaterThanOrEqual(1);
+        expect(esito.nonAllineate).toHaveLength(1);
 
         // ⭐ **E le acquisizioni successive restano registrate**: è la
         //    conseguenza che il `C` a NULL avrebbe fatto sparire.
@@ -2383,27 +2423,33 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         // 5 coppie già pronte, che differiscono dal canale.
         await coppieConBase(5, IDS.locA1, SEDE_REMOTA, 0);
 
-        let allineate = 0;
-        let passate = 0;
-        while (passate < 10) {
-          const esito = await allineatore3().allinea(IDS.tenantA);
-          allineate += esito.allineate;
-          passate += 1;
-          if (allineate >= 5) {
-            break;
-          }
-        }
+        const giro = await giroCompleto(allineatore3);
 
-        // ⭐ Le cinque pronte vengono raggiunte: la rotazione le porta in testa.
-        expect(allineate).toBe(5);
+        // ⭐ **Le cinque pronte vengono raggiunte lo stesso**, e non perche' una
+        //    priorita' le porti in testa: perche' il giro non si ferma prima della
+        //    fine del perimetro. Duecento coppie stabilmente non risolvibili non
+        //    possono piu' affamare nessuno.
+        expect(giro.allineate).toBe(5);
+        expect(giro.fine).toBe(true);
+        // ⭐ E le duecentocinque restano nell'elenco, nominate: errore di LETTURA,
+        //    non scrittura incerta — la risoluzione fallisce prima di prenotare
+        //    qualunque cosa, quindi non c'e' niente di sospeso da riconciliare.
+        expect(conMotivo(giro as never, 'errore_di_lettura')).toBe(205);
+        // ⭐ **E il conto torna**: ogni coppia esaminata e' finita in uno dei tre
+        //    esiti, nessuna e' sparita e nessuna e' stata contata due volte.
+        expect(giro.allineate + giro.giaAllineate + giro.nonAllineate.length).toBe(
+          giro.esaminate,
+        );
+        expect(giro.esaminate).toBe(giro.totale);
       });
 
-      it('⛔ C · il residuo non può dire ZERO se non si è controllato tutto', async () => {
-        // ⛔ **Con 300 coppie già inizializzate, le prime 200 uguali al canale**,
-        //    la prima passata le dichiara «già allineate», nessuna fallisce, e
-        //    il residuo diceva `0` — mentre cento non erano state nemmeno
-        //    lette. `interrotto: true` segnala il limite, ma non rende corretto
-        //    quel numero.
+      it('⛔ C · un BLOCCO non è un\u0027operazione: il perimetro non è finito', async () => {
+        // ⛔ **Qui il comando poteva dire «zero da fare» avendone lette 200 su
+        //    300.** Il difetto non era il conteggio: era che una passata si
+        //    dichiarava conclusa senza aver attraversato il perimetro.
+        //
+        // ⭐ Adesso un blocco dice soltanto **dove si è fermato**, e `fine` è
+        //    vero solo quando il perimetro è finito davvero.
         await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
         await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
         // ⚠️ **Tutte e trecento UGUALI al canale**: così nessuna scrittura
@@ -2412,16 +2458,21 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         //    sarebbe l'ordine degli uuid — cioè il caso.
         await coppieConBase(300, IDS.locA1, SEDE_REMOTA, 999);
 
-        const esito = await allineatore3().allinea(IDS.tenantA);
+        const blocco = await allineatore3().allinea(IDS.tenantA);
 
-        expect(esito.interrotto).toBe(true);
-        expect(esito.giaAllineate).toBe(200);
-        // ⭐ **Cento non sono state guardate, e il numero deve dirlo.**
-        expect(esito.nonEsaminate).toBe(100);
-        // ⚠️ **Ma non entrano in `restano`**, e i due non si sommano: «non
-        //    l'ho guardata» e «so che non è a posto» sono cose diverse, e
-        //    sommarle contava due volte le stesse coppie. Vedi `F`.
-        expect(esito.restano).toBe(0);
+        expect(blocco.esaminate).toBe(200);
+        expect(blocco.giaAllineate).toBe(200);
+        expect(blocco.totale).toBe(300);
+        // ⛔ **Il blocco NON si dichiara concluso**, e dice da dove riprendere.
+        expect(blocco.fine).toBe(false);
+        expect(blocco.prossimo).not.toBeNull();
+
+        // ⭐ Il giro completo, che è ciò che fa una pressione, le attraversa
+        //    tutte e trecento — senza chiedere niente a nessuno.
+        const giro = await giroCompleto(allineatore3);
+        expect(giro.esaminate).toBe(300);
+        expect(giro.fine).toBe(true);
+        expect(giro.nonAllineate).toEqual([]);
       });
 
       it('⛔ D · il vecchio confermato NON certifica una partenza fallita', async () => {
@@ -2486,124 +2537,92 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         const finale = await stato();
         expect(finale.lastPushedAvailable).toBe(9);
         expect(finale.localPendingDelta).toBe(0);
-        expect(esito.restano).toBe(0);
+        expect(esito.nonAllineate).toEqual([]);
       });
 
-      it('⭐ E · il residuo CONVERGE: 120 senza base, fino a zero', async () => {
-        // ⛔ **Il residuo sommava insiemi che si sovrappongono**: con 120 coppie
-        //    senza base e 50 allineate, le altre 70 sono le STESSE sia come non
-        //    pronte sia come non esaminate — e il numero diceva 140.
+      it('⭐ E · 120 senza base: un giro solo le porta TUTTE dentro', async () => {
+        // ⛔ **Qui il residuo sommava insiemi che si sovrappongono**, e servivano
+        //    più pressioni per arrivare in fondo.
+        //
+        // ⭐ Adesso una pressione basta: il tetto delle scritture chiude il
+        //    blocco, non il controllo.
         await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
         await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
         await coppieInMassa(120, IDS.locA1, SEDE_REMOTA);
 
-        const primo = await allineatore3().allinea(IDS.tenantA);
-        expect(primo.allineate).toBe(50);
-        // ⭐ Settanta, non centoquaranta: sono le stesse coppie.
-        expect(primo.restano).toBe(70);
+        const giro = await giroCompleto(allineatore3);
 
-        let passate = 1;
-        let ultimo = primo;
-        while (passate < 8 && (ultimo.restano > 0 || ultimo.nonEsaminate > 0)) {
-          ultimo = await allineatore3().allinea(IDS.tenantA);
-          passate += 1;
-        }
-
-        // ⭐ **Converge**: il ciclo finisce da sé, e a zero non c'è più lavoro.
-        expect(ultimo.restano).toBe(0);
-        expect(ultimo.nonEsaminate).toBe(0);
-        expect(passate).toBeLessThan(8);
+        // ⭐ **Un giro, tutte e 120**, e nessuna anomalia in coda.
+        expect(giro.allineate).toBe(120);
+        expect(giro.nonAllineate).toEqual([]);
+        expect(giro.fine).toBe(true);
+        // ⭐ **In piu' blocchi**: 120 scritture non stanno in un tetto da 50, e
+        //    il giro li attraversa da solo — senza chiedere un altro clic.
+        expect(giro.blocchi).toBeGreaterThanOrEqual(3);
       });
 
       it('⭐ F · «mai guardate» scende a zero anche senza lavoro da fare', async () => {
-        // ⛔ **«Non esaminate in questa passata» non convergeva**: con 300
-        //    coppie e un tetto di 200, ogni passata ne guardava duecento
-        //    diverse e ne lasciava fuori cento — il numero restava cento per
-        //    sempre, anche dopo averle controllate tutte.
+        // ⛔ **Qui il conto delle non esaminate non convergeva mai**, perché era
+        //    relativo alla passata invece che al perimetro.
+        //
+        // ⭐ Adesso la domanda non si pone: il giro attraversa tutto e il
+        //    cursore garantisce che nessuna coppia sia saltata né rivista.
         await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
         await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
         await coppieConBase(300, IDS.locA1, SEDE_REMOTA, 999);
 
-        const primo = await allineatore3().allinea(IDS.tenantA);
-        expect(primo.giaAllineate).toBe(200);
-        // ⭐ Cento non sono state guardate NEMMENO UNA VOLTA, e il numero lo dice.
-        expect(primo.nonEsaminate).toBe(100);
-        // ⚠️ Ma non c'è lavoro NOTO: i due numeri dicono cose diverse.
-        expect(primo.restano).toBe(0);
+        const giro = await giroCompleto(allineatore3);
 
-        // ⛔ **Senza ripassare l'istante è un'operazione NUOVA**, e il conto
-        //    riparte: questa passata ne guarda duecento e ne lascia fuori
-        //    cento — sempre cento, a ogni pressione, per sempre.
-        const senzaIstante = await allineatore3().allinea(IDS.tenantA);
-        expect(senzaIstante.nonEsaminate).toBe(100);
+        // ⭐ Tutte e trecento esaminate una volta sola, e il giro si chiude.
+        expect(giro.esaminate).toBe(300);
+        expect(giro.giaAllineate).toBe(300);
+        expect(giro.fine).toBe(true);
+        expect(giro.nonAllineate).toEqual([]);
 
-        // ⭐ **Ripassandolo, invece, il giro si CHIUDE**: fra la prima e la
-        //    seconda passata la rotazione ha toccato tutte e trecento.
-        const secondo = await allineatore3().allinea(
-          IDS.tenantA,
-          primo.operazioneIniziataAlle,
-        );
-        expect(secondo.nonEsaminate).toBe(0);
-        expect(secondo.restano).toBe(0);
-        expect(secondo.interrotto).toBe(false);
+        // ⛔ **E una pressione NUOVA riparte da capo**, senza cursore: è il
+        //    comportamento voluto, non una ripetizione inutile.
+        const nuovo = await allineatore3().allinea(IDS.tenantA);
+        expect(nuovo.esaminate).toBe(200);
+        expect(nuovo.fine).toBe(false);
       });
 
-      it('⛔ G · al SECONDO uso, «mai guardate» dichiara finito troppo presto', async () => {
-        // ⛔ **Il difetto.** Al secondo uso di Allinea ogni riga porta già un
-        //    `last_attempt_at` — dall'allineamento di prima o dalla coda del
-        //    ritentativo. `nonEsaminate` guardava `IS NULL`, quindi nasceva a
-        //    **zero**; e con le prime duecento uguali al canale nemmeno
-        //    `restano` aveva qualcosa da dire, perché le righe delle altre
-        //    cento non dicono niente di sbagliato: nessuno le ha guardate.
+      it('⭐ G · al SECONDO uso il giro copre tutto, comunque siano messe le righe', async () => {
+        // ⛔ **Il difetto di prima.** Al secondo uso di Allinea ogni riga porta
+        //    già un `last_attempt_at`, e il conto delle «mai guardate» nasceva a
+        //    ZERO: il comando si dichiarava finito con cento coppie mai lette,
+        //    e proprio quelle disallineate.
         //
-        // ⛔ **Due zeri, e il chiamante si ferma** — mentre le cento non viste
-        //    sono proprio quelle disallineate.
+        // ⭐ **Adesso non si deduce più niente da una data**: il giro attraversa
+        //    il perimetro per cursore, quindi lo stato pregresso delle righe non
+        //    può più far finire il controllo in anticipo.
         await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
         await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
         const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000);
         // Le prime 200 in ordine di rotazione sono a posto; le ultime 100 no.
         await coppieConBase(300, IDS.locA1, SEDE_REMOTA, 200, ieri);
 
-        const primo = await allineatore3().allinea(IDS.tenantA);
+        const giro = await giroCompleto(allineatore3);
 
-        expect(primo.giaAllineate).toBe(200);
-        expect(primo.allineate).toBe(0);
-        // ⭐ **Il residuo non ha niente da dire, e non è un difetto suo**: le
-        //    righe delle cento non viste sono in ordine. È l'altro numero che
-        //    deve parlare.
-        expect(primo.restano).toBe(0);
-        // ⛔ **Qui c'era ZERO**: erano tutte già state esaminate una volta.
-        expect(primo.nonEsaminate).toBe(100);
-        // ⭐ E il chiamante ha un segnale solo da guardare per non fermarsi.
-        expect(primo.interrotto).toBe(true);
-
-        // ── il chiamante PROSEGUE, ripassando l'istante ──────────────────
-        let ultimo = primo;
-        let passate = 1;
-        let allineate = primo.allineate;
-        while (passate < 8 && (ultimo.interrotto || ultimo.restano > 0)) {
-          ultimo = await allineatore3().allinea(IDS.tenantA, primo.operazioneIniziataAlle);
-          allineate += ultimo.allineate;
-          passate += 1;
-        }
-
-        // ⭐ **Si ferma perché ha controllato tutto**, non perché i numeri sono
-        //    andati a zero da soli.
-        expect(ultimo.nonEsaminate).toBe(0);
-        expect(ultimo.restano).toBe(0);
-        expect(ultimo.interrotto).toBe(false);
+        // ⭐ **Si ferma perché ha controllato tutto**, non perché un numero è
+        //    andato a zero da sé.
+        expect(giro.esaminate).toBe(300);
+        expect(giro.fine).toBe(true);
+        expect(giro.nonAllineate).toEqual([]);
         // ⭐ E le cento disallineate sono state DAVVERO corrette.
-        expect(allineate).toBe(100);
+        expect(giro.allineate).toBe(100);
+        expect(giro.giaAllineate).toBe(200);
         expect(negozio.quantitaRemota('8' + SEDE_REMOTA + '0299', SEDE_REMOTA)).toBe(5);
         expect(negozio.quantitaRemota('8' + SEDE_REMOTA + '0200', SEDE_REMOTA)).toBe(5);
       });
 
-      it('⛔ H · una coppia FALLITA non sparisce dal residuo alla passata dopo', async () => {
-        // ⛔ **Il difetto.** L'elenco delle coppie da riprendere si ricostruisce
-        //    a ogni chiamata. Una coppia già inizializzata che fallisce entra
-        //    nel residuo della passata che l'ha vista; alla passata dopo — che
-        //    per rotazione ne guarda altre — non c'è più, e `restano` tornava
-        //    a **zero** mentre quella coppia era ancora da correggere.
+      it('⭐ H · una coppia RIFIUTATA resta nell elenco finale del giro', async () => {
+        // ⛔ **Il difetto di prima.** L'elenco delle coppie da riprendere si
+        //    ricostruiva a ogni chiamata: una coppia già inizializzata che
+        //    falliva spariva dal residuo alla passata dopo, e tornava
+        //    indistinguibile da una allineata.
+        //
+        // ⭐ **Adesso l'elenco è del GIRO**, e il giro è una pressione sola:
+        //    quella coppia ci resta, con il suo motivo, fino alla consegna.
         await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
         await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
         const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -2615,36 +2634,25 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         // ⭐ È l'UNICA che chiede una scrittura, quindi il rifiuto è suo.
         negozio.rispondiConUserError('INVALID_LOCATION');
 
-        const primo = await allineatore3().allinea(IDS.tenantA);
+        const giro = await giroCompleto(allineatore3);
 
-        expect(primo.fallite).toBe(1);
-        expect(primo.giaAllineate).toBe(199);
-        expect(primo.restano).toBe(1);
-
-        // ── seconda passata: la rotazione guarda ALTRE coppie ────────────
-        //    Esecutore nuovo, nessun rifiuto iniettato, e nessuna di quelle
-        //    che tocca ha qualcosa che non va.
-        const secondo = await allineatore3().allinea(IDS.tenantA, primo.operazioneIniziataAlle);
-
-        expect(secondo.fallite).toBe(0);
-        expect(secondo.allineate).toBe(0);
-        // ⛔ **Qui c'era ZERO.** La coppia è ancora disallineata, e la sua riga
-        //    lo dice: il residuo si legge da lì, non dall'elenco di adesso.
-        expect(secondo.restano).toBe(1);
+        // ⭐ **La coppia rifiutata è nell\u0027elenco finale, una volta sola**, con
+        //    il motivo nominato e la sede che la identifica.
+        expect(giro.esaminate).toBe(300);
+        expect(giro.giaAllineate).toBe(299);
+        expect(giro.fine).toBe(true);
+        expect(giro.nonAllineate).toHaveLength(1);
+        expect(giro.nonAllineate[0]?.motivo).toBe('richiesta_rifiutata');
+        expect(giro.nonAllineate[0]?.sede).toBeTruthy();
+        expect(giro.nonAllineate[0]?.articolo).toBeTruthy();
+        // ⛔ **E il canale NON è stato toccato**: il rifiuto non si aggira.
         expect(negozio.quantitaRemota(itemRotto, SEDE_REMOTA)).toBe(1);
 
-        // ── si prosegue fino alla FINE dell'operazione ───────────────────
-        let ultimo = secondo;
-        let passate = 2;
-        while (passate < 8 && (ultimo.interrotto || ultimo.restano > 0)) {
-          ultimo = await allineatore3().allinea(IDS.tenantA, primo.operazioneIniziataAlle);
-          passate += 1;
-        }
-
-        // ⭐ **I numeri vanno a zero perché il lavoro è stato risolto**, e si
-        //    verifica sul canale, non sul riepilogo.
-        expect(ultimo.restano).toBe(0);
-        expect(ultimo.nonEsaminate).toBe(0);
+        // ⭐ **Una pressione nuova riparte da capo**, e senza il rifiuto
+        //    iniettato la corregge: la gestione manuale è questa.
+        const dopo = await giroCompleto(allineatore3);
+        expect(dopo.nonAllineate).toEqual([]);
+        expect(dopo.fine).toBe(true);
         expect(negozio.quantitaRemota(itemRotto, SEDE_REMOTA)).toBe(5);
         const riparata = await prisma.shopifyInventorySyncState.findFirst({
           where: { tenantId: IDS.tenantA, variant: { shopifyInventoryItemId: itemRotto } },
@@ -2652,6 +2660,212 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         expect(riparata?.mismatchDetected).toBe(false);
         expect(riparata?.lastPushedAvailable).toBe(5);
       });
+
+      /**
+       * LE QUATTRO VERIFICHE sul comando a blocchi — 11/09/2026.
+       *
+       * ⭐ Chieste una per una dal proprietario: sono i punti in cui un giro a
+       *    blocchi può perdere lavoro o mentire sulla propria conclusione.
+       */
+      describe('il giro a blocchi', () => {
+        /** Le coppie del perimetro nell'ordine ESATTO in cui il giro le attraversa. */
+        async function perimetroOrdinato() {
+          return prisma.inventoryLevel.findMany({
+            where: {
+              tenantId: IDS.tenantA,
+              location: { shopifyLocationId: { not: null } },
+              variant: {
+                shopifyVariantId: { not: null },
+                product: { shopifySyncEnabled: true },
+              },
+            },
+            orderBy: [{ locationId: 'asc' }, { variantId: 'asc' }],
+            select: { locationId: true, variantId: true },
+          });
+        }
+
+        it('⭐ K1 · il cursore punta all ULTIMA esaminata, anche col tetto raggiunto', async () => {
+          // ⛔ **È il punto in cui un giro a blocchi perde lavoro.** Se il cursore
+          //    puntasse alla fine del blocco SELEZIONATO invece che all'ultima
+          //    coppia davvero esaminata, le coppie fra il tetto delle scritture e
+          //    la fine del blocco verrebbero saltate — e nessuno se ne
+          //    accorgerebbe, perché il giro finirebbe lo stesso.
+          await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
+          await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
+          // 120 coppie che chiedono TUTTE una scrittura: il tetto scatta a 50,
+          // molto prima dei 200 del blocco.
+          await coppieInMassa(120, IDS.locA1, SEDE_REMOTA);
+          const ordinate = await perimetroOrdinato();
+
+          const blocco = await allineatore3().allinea(IDS.tenantA);
+
+          // ⭐ Il blocco si è fermato sulle SCRITTURE, non sulla scansione.
+          expect(blocco.esaminate).toBe(50);
+          expect(blocco.allineate).toBe(50);
+          expect(blocco.fine).toBe(false);
+          // ⭐ **E il cursore è la cinquantesima**, non la duecentesima.
+          expect(blocco.prossimo).toEqual({
+            locationId: ordinate[49]!.locationId,
+            variantId: ordinate[49]!.variantId,
+          });
+
+          // ⭐ Il blocco dopo riprende dalla CINQUANTUNESIMA: niente saltato.
+          const secondo = await allineatore3().allinea(IDS.tenantA, blocco.prossimo ?? undefined);
+          expect(secondo.esaminate).toBe(50);
+
+          // ⭐ E il giro intero copre tutte e 120, una volta sola ciascuna.
+          const giro = await giroCompleto(allineatore3);
+          expect(giro.esaminate + 100).toBe(220);
+          const senzaBase = await prisma.shopifyInventorySyncState.count({
+            where: { tenantId: IDS.tenantA, localPendingDelta: null },
+          });
+          expect(senzaBase).toBe(0);
+        });
+
+        it('⛔ K2 · un errore nel mezzo NON fa dichiarare concluso il giro', async () => {
+          // ⛔ **La regola è: se si interrompe, non è completato.** Un giro che
+          //    accumulasse i blocchi riusciti e poi dicesse «fatto» sarebbe la
+          //    bugia peggiore di tutte — l'operatore andrebbe a leggere un elenco
+          //    parziale credendolo completo.
+          await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
+          await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
+          await coppieConBase(300, IDS.locA1, SEDE_REMOTA, 999);
+
+          const primo = await allineatore3().allinea(IDS.tenantA);
+          expect(primo.esaminate).toBe(200);
+          expect(primo.fine).toBe(false);
+
+          // ── il blocco successivo MUORE a metà ──────────────────────────
+          let restanti = 5;
+          const arrestato = new ShopifyInventoryAlignService(
+            prismaCheSiArresta(() => (restanti -= 1) === 0) as never,
+            nuovoEsecutore() as never,
+          );
+          await expect(
+            arrestato.allinea(IDS.tenantA, primo.prossimo ?? undefined),
+          ).rejects.toThrow('arresto simulato');
+
+          // ⭐ **Niente si dichiara concluso**: chi ha premuto non ha mai visto
+          //    `fine`, e l'unica cosa vera è che il controllo è incompleto.
+          expect(primo.fine).toBe(false);
+
+          // ⭐ E una pressione NUOVA riparte dal principio, come concordato.
+          const nuovo = await allineatore3().allinea(IDS.tenantA);
+          expect(nuovo.esaminate).toBe(200);
+          expect(nuovo.fine).toBe(false);
+          const giro = await giroCompleto(allineatore3);
+          expect(giro.esaminate).toBe(300);
+          expect(giro.fine).toBe(true);
+        });
+
+        it('⛔ K3 · risposta PERSA dopo la scrittura: il tentativo persistente regge', async () => {
+          // ⛔ **È il caso in cui un giro può fare danno.** La scrittura è
+          //    arrivata, il canale è cambiato, e la risposta si è persa: chi non
+          //    distingue «non ho scritto» da «non so» riprova, e applica due volte
+          //    lo stesso effetto.
+          await senzaBase();
+          negozio.impostaQuantitaRemota(inventoryItemId, SEDE_REMOTA, 7);
+          // ⭐ L'effetto viene APPLICATO, e a mancare è solo la conferma.
+          negozio.perdiProssimaRisposta('setInventoryQuantities');
+
+          const giro = await giroCompleto(allineatore3);
+
+          // ⭐ Il canale HA ricevuto il valore.
+          expect(remoto()).toBe(10);
+          // ⛔ Ma non si dichiara allineata: non lo sappiamo.
+          expect(giro.allineate).toBe(0);
+          expect(giro.nonAllineate).toHaveLength(1);
+          expect(giro.nonAllineate[0]?.motivo).toBe('scrittura_esito_incerto');
+          // ⭐ **Il tentativo resta APERTO sulla riga**: è ciò che impedisce al
+          //    giro dopo di aprirne uno nuovo e indipendente.
+          const sospeso = await stato();
+          expect(sospeso.pendingKey).not.toBeNull();
+          expect(sospeso.lastPushedAvailable).toBeNull();
+
+          // ── una pressione nuova: si RIPRENDE quel tentativo, non se ne apre
+          //    un altro. Il canale non si muove di un pezzo.
+          const scrittePrima = negozio.quantitaMandate.length;
+          const dopo = await giroCompleto(allineatore3);
+
+          expect(remoto()).toBe(10);
+          expect(negozio.quantitaMandate.length).toBeGreaterThanOrEqual(scrittePrima);
+          expect(dopo.nonAllineate).toEqual([]);
+          const risolto = await stato();
+          expect(risolto.pendingKey).toBeNull();
+          expect(risolto.lastPushedAvailable).toBe(10);
+        });
+
+        it('⛔ K4 · quantità che cambiano DURANTE il giro: le protezioni reggono', async () => {
+          // ⛔ **Un giro lungo attraversa un canale vivo.** Se il confronto
+          //    cedesse per far «finire» il controllo, l'allineamento
+          //    sovrascriverebbe una vendita appena avvenuta su Shopify.
+          await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
+          await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
+          await coppieInMassa(3, IDS.locA1, SEDE_REMOTA);
+          const bersaglio = `${SEDE_REMOTA}0001`;
+
+          const graphql = negozio.graphql();
+          const letturaVera = graphql.getRemoteLevelAtLocation;
+          let mosso = false;
+          graphql.getRemoteLevelAtLocation = (async (...args: unknown[]) => {
+            const letto = await letturaVera(...(args as Parameters<typeof letturaVera>));
+            // ⭐ Il canale si muove SOTTO il giro, su una coppia sola.
+            if (!mosso && args.some((a) => a === bersaglio)) {
+              mosso = true;
+              negozio.impostaQuantitaRemota(bersaglio, SEDE_REMOTA, 4);
+            }
+            return letto;
+          }) as typeof letturaVera;
+
+          const giro = await giroCompleto(() =>
+            new ShopifyInventoryAlignService(prisma as never, nuovoEsecutore(graphql) as never),
+          );
+
+          // ⭐ **Il confronto ha respinto quella scrittura**, e le altre due sono
+          //    passate: il giro finisce, e l'anomalia resta dichiarata.
+          expect(giro.fine).toBe(true);
+          expect(giro.allineate).toBe(2);
+          expect(giro.nonAllineate).toHaveLength(1);
+          expect(giro.nonAllineate[0]?.motivo).toBe('divergenza_accertata');
+          // ⛔ E il canale è rimasto dove si era mosso: nessuna sovrascrittura.
+          expect(negozio.quantitaRemota(bersaglio, SEDE_REMOTA)).toBe(4);
+        });
+
+        /**
+         * Un client che si ARRESTA subito dopo `segnaEsaminata`.
+         *
+         * ⭐ Riproduce il punto esatto: la marcatura è andata a buon fine e il
+         *    processo muore prima del controllo.
+         */
+        function prismaCheSiArresta(deveArrestarsi: () => boolean) {
+          const delegato = prisma.shopifyInventorySyncState;
+          const sostituto = new Proxy(delegato as object, {
+            get(bersaglio, chiave) {
+              if (chiave === 'upsert') {
+                return async (argomenti: never) => {
+                  const esito = await delegato.upsert(argomenti);
+                  if (deveArrestarsi()) {
+                    throw new Error('arresto simulato dopo segnaEsaminata');
+                  }
+                  return esito;
+                };
+              }
+              const valore = Reflect.get(bersaglio, chiave);
+              return typeof valore === 'function' ? valore.bind(delegato) : valore;
+            },
+          });
+          return new Proxy(prisma as object, {
+            get(bersaglio, chiave) {
+              if (chiave === 'shopifyInventorySyncState') {
+                return sostituto;
+              }
+              const valore = Reflect.get(bersaglio, chiave);
+              return typeof valore === 'function' ? valore.bind(prisma) : valore;
+            },
+          });
+        }
+      });
+
     });
   });
 });

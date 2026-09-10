@@ -57,6 +57,73 @@ export interface ShopifySyncProductsDto {
   readonly failed: readonly { readonly shopifyProductId: string; readonly message: string }[];
 }
 
+/** Perché una coppia non risulta allineata. Gli stessi nomi del server. */
+export type MotivoNonAllineataDto =
+  | 'livello_non_disponibile'
+  | 'collegamento_escluso'
+  | 'base_non_stabilita'
+  | 'richiesta_rifiutata'
+  | 'divergenza_accertata'
+  | 'errore_di_lettura'
+  | 'scrittura_esito_incerto'
+  | 'negozio_non_connesso'
+  | 'permesso_mancante'
+  | 'sincronizzazione_spenta'
+  | 'variante_non_collegata'
+  | 'sede_non_collegata'
+  | 'stato_cambiato'
+  | 'rinvio_attivo';
+
+/** Una riga dell’elenco finale: articolo, variante, sede e motivo. */
+export interface CoppiaNonAllineataDto {
+  readonly variantId: string;
+  readonly locationId: string;
+  readonly articolo: string;
+  readonly codiceArticolo: string | null;
+  readonly variante: string;
+  readonly sku: string | null;
+  readonly sede: string;
+  readonly motivo: MotivoNonAllineataDto;
+  readonly dettaglio: string;
+}
+
+/** Dove il blocco si è fermato: si ripassa per avere il successivo. */
+export interface PosizioneAllineamentoDto {
+  readonly locationId: string;
+  readonly variantId: string;
+}
+
+/** La risposta di UN blocco del controllo. */
+export interface ShopifyAlignBloccoDto {
+  readonly aligned: true;
+  readonly totale: number;
+  readonly esaminate: number;
+  readonly allineate: number;
+  readonly giaAllineate: number;
+  readonly nonAllineate: readonly CoppiaNonAllineataDto[];
+  readonly prossimo: PosizioneAllineamentoDto | null;
+  readonly fine: boolean;
+}
+
+/**
+ * L’avanzamento del controllo, aggiornato dopo OGNI blocco.
+ *
+ * ⛔ **`completo` è vero solo quando il perimetro è stato attraversato tutto.**
+ *    Se la catena dei blocchi si interrompe — rete caduta, scheda chiusa, un
+ *    blocco in errore — l’ultimo avanzamento resta con `completo: false`, e
+ *    l’elenco che porta è **parziale**. Va detto a chi guarda, non lasciato
+ *    intendere: un elenco parziale scambiato per finale è la bugia peggiore
+ *    che questo comando possa raccontare.
+ */
+export interface AvanzamentoAllineamentoDto {
+  readonly totale: number;
+  readonly esaminate: number;
+  readonly allineate: number;
+  readonly giaAllineate: number;
+  readonly nonAllineate: readonly CoppiaNonAllineataDto[];
+  readonly completo: boolean;
+}
+
 export interface ShopifySyncInventoryDto {
   readonly synced: true;
   readonly imported: number;

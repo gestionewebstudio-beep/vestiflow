@@ -1,210 +1,210 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-// `Prisma` serve come VALORE, non solo come tipo: compone l'elenco delle
-// coppie toccate dentro una sola COUNT, invece di contarle a parte e poi
-// sommarle a insiemi che si sovrappongono.
+import { Injectable, Logger } from '@nestjs/common';
+// `Prisma` serve come VALORE, non solo come tipo: compone la clausola del
+// cursore, che c'è solo dai blocchi successivi al primo.
 import { Prisma } from '@prisma/client';
 
+import { variantLabel } from '../common/variant-label.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import type { ShopifyInventoryPushResult } from './shopify-inventory-push.service';
 
 /**
- * Quante SCRITTURE al massimo per passata.
+ * Quante SCRITTURE al massimo per BLOCCO.
  *
  * ⭐ **Lo stesso motivo della coda del ritentativo**: l'Admin API è a quota, e un
- *    catalogo intero svuotato tutto insieme se la mangia. Il resto si riprende
- *    alla passata dopo, e **quante restano viene DETTO** — un tetto silenzioso
- *    si legge come «ho finito», che è la conclusione sbagliata.
+ *    catalogo intero svuotato tutto insieme se la mangia.
+ *
+ * ⛔ **Non è più un limite dell'OPERAZIONE, e la differenza è tutta qui.** Prima
+ *    fermava il comando e chiedeva un altro clic; ora chiude il blocco e basta:
+ *    il pulsante chiede il blocco successivo da sé. Il tetto continua a
+ *    proteggere la quota per richiesta, e ha smesso di essere un limite di ciò
+ *    che una pressione può controllare — **senza alzarne il numero**.
  */
 const ALIGN_WRITE_LIMIT = 50;
 
 /**
- * Quante coppie si ESAMINANO al massimo per passata.
+ * Quante coppie si ESAMINANO al massimo per blocco.
  *
- * ⛔ **Non è un secondo tetto per prudenza: è il rimedio a un blocco misurato.**
- *    Con un tetto solo, le coppie GIÀ allineate lo consumavano come quelle da
- *    scrivere: con settanta coppie su una sede e cinquanta di tetto, la passata
- *    dopo ne trovava venti da fare e trenta già a posto, riempiva il tetto e
- *    **non passava mai alla sede successiva**.
- *
- * ⭐ **Il tetto che protegge la quota è quello delle SCRITTURE**: una coppia già
- *    allineata costa una lettura, non una scrittura, e non deve comprare il
- *    diritto di fermare la passata.
+ * ⭐ **È la misura del blocco, non un tetto**: tiene corta ogni richiesta, così
+ *    nessuna rischia di scadere, e il giro completo si fa con più richieste
+ *    invece che con una lunga.
  */
 const ALIGN_SCAN_LIMIT = 200;
 
-/** L'esito per una sede, distinguibile dalle altre. */
-export interface EsitoSedeAllineamento {
-  readonly locationId: string;
-  readonly locationName: string;
-  /** Coppie a cui il valore di VestiFlow è stato scritto sul canale. */
-  readonly allineate: number;
-  /** Coppie che portavano già quel valore: nessuna scrittura, nessuna quota. */
-  readonly giaAllineate: number;
-  /**
-   * Coppie che NON si possono allineare in sicurezza, e non è un guasto:
-   * variante non collegata, sincronizzazione spenta, collegamento escluso,
-   * sede non mappata, tentativo aperto con esito ignoto.
-   *
-   * ⛔ **Non sono «allineate»**, e non devono contarsi come tali.
-   */
-  readonly escluse: number;
-  /** Coppie su cui il canale ha rifiutato o la chiamata è fallita. */
-  readonly fallite: number;
-}
+/** Perché una coppia NON risulta allineata. Ogni voce ha un nome suo. */
+export type MotivoNonAllineata =
+  | 'livello_non_disponibile'
+  | 'collegamento_escluso'
+  | 'base_non_stabilita'
+  | 'richiesta_rifiutata'
+  | 'divergenza_accertata'
+  | 'errore_di_lettura'
+  | 'scrittura_esito_incerto'
+  | 'negozio_non_connesso'
+  | 'permesso_mancante'
+  | 'sincronizzazione_spenta'
+  | 'variante_non_collegata'
+  | 'sede_non_collegata'
+  | 'stato_cambiato'
+  | 'rinvio_attivo';
 
-export interface EsitoAllineamento {
-  /** Coppie che il comando considera nel proprio perimetro. */
-  readonly totale: number;
-  readonly allineate: number;
-  readonly giaAllineate: number;
-  readonly escluse: number;
-  readonly fallite: number;
-  /**
-   * Il LAVORO RESIDUO dell'OPERAZIONE: coppie che non risultano a posto.
-   *
-   * ⭐ **Comprende ciò che è FALLITO o ESCLUSO**, non solo ciò che non è mai
-   *    partito: una coppia già pronta che fallisce — o che non si può toccare —
-   *    va ripresa.
-   *
-   * ⛔ **E si legge dallo STATO DELLE RIGHE, non dall'elenco di questa
-   *    passata.** Qui c'era `senzaBase + le fallite di adesso`, e una coppia
-   *    già inizializzata che falliva **spariva dal residuo alla passata
-   *    dopo**: l'elenco si ricostruisce a ogni chiamata, e alla seconda passata
-   *    la rotazione guarda altre coppie. Il numero tornava a zero mentre quella
-   *    coppia era ancora da correggere.
-   *
-   * ⭐ **Le colonne che lo dicono ESISTONO GIÀ**, e non ne servono di nuove:
-   *    `mismatch_detected` (il canale ha rifiutato), `local_push_pending`
-   *    (lavoro non trasmesso), `pending_key` (tentativo aperto, esito ignoto),
-   *    `local_pending_delta` diverso da zero (scostamento ancora da mandare) e
-   *    l'assenza di base. Più le coppie che QUESTA passata ha lasciato indietro
-   *    senza lasciare traccia sulla riga — le escluse per struttura.
-   *
-   * ⛔ **Non somma `nonEsaminate`, e prima lo faceva.** Gli insiemi si
-   *    sovrappongono: 120 coppie senza base di cui 50 allineate lasciano 70 che
-   *    sono **le stesse** sia come non pronte sia come non esaminate — e il
-   *    numero diceva 140. Qui si contano coppie DISTINTE.
-   *
-   * ⭐ **Converge**: ripremendo scende, e a zero non c'è più lavoro noto.
-   */
-  readonly restano: number;
-  /**
-   * Quante coppie NON sono ancora PRONTE per la sincronizzazione continua.
-   *
-   * ⭐ **«Pronta» vuol dire due cose insieme**: i contatori esistono *e* c'è un
-   *    ultimo valore confermato. I contatori nascono alla presa, il confermato
-   *    solo alla conferma: guardare un solo criterio dava per buona una coppia
-   *    che non ha mai pubblicato niente.
-   *
-   * ⚠️ **È un numero diverso da `restano`**, e vanno letti insieme: a partenza
-   *    finita questo va a zero e ci resta, mentre `restano` risale ogni volta
-   *    che un allineamento fallisce.
-   */
-  readonly senzaBase: number;
-  /**
-   * Quante coppie NON sono ancora state VERIFICATE in questa OPERAZIONE.
-   *
-   * ⛔ **Senza questo numero il residuo poteva dire ZERO mentre il lavoro
-   *    c'era**: con trecento coppie già inizializzate e un tetto di scansione a
-   *    duecento, le prime duecento risultano «già allineate», nessuna fallisce,
-   *    e le altre cento non sono state nemmeno lette.
-   *
-   * ⛔ **Ma NON è «non esaminate in questa passata», e la differenza è che
-   *    quello non convergeva**: ogni passata ne guarda duecento diverse e ne
-   *    lascia fuori cento, quindi il numero restava cento per sempre — anche
-   *    dopo averle controllate tutte.
-   *
-   * ⛔ **E nemmeno «mai esaminate» basta**, che è quello che c'era: al SECONDO
-   *    uso di Allinea ogni riga porta già un `last_attempt_at`, quindi il numero
-   *    nasce a **zero** — e con `restano` a zero il chiamante si ferma senza aver
-   *    guardato le cento che il tetto ha lasciato fuori. «Già vista una volta,
-   *    mesi fa» non è «verificata adesso».
-   *
-   * ⭐ **Il metro è `operazioneIniziataAlle`**: una coppia è verificata se la
-   *    rotazione l'ha toccata DOPO l'inizio dell'operazione. Scende a ogni
-   *    passata e arriva a zero quando la rotazione ha fatto il giro completo.
-   *
-   * ⚠️ **Va letto INSIEME a `restano`**, e i due non si sommano: dicono cose
-   *    diverse — «non l'ho ancora guardata» e «so che non è a posto».
-   *    L'operazione è finita quando sono **entrambi** a zero.
-   */
-  readonly nonEsaminate: number;
-  /**
-   * L'istante che identifica l'OPERAZIONE: si RIPASSA alla chiamata dopo.
-   *
-   * ⭐ **È tutto ciò che serve a distinguere «guardata» da «guardata ADESSO»**,
-   *    e riusa la colonna che già fa ruotare la coda (`last_attempt_at`):
-   *    nessuna coda nuova, nessuna colonna nuova, nessun registro di avanzamento.
-   *
-   * ⚠️ **Chi non lo ripassa comincia un'operazione NUOVA**, ed è il
-   *    comportamento giusto per la prima pressione del pulsante.
-   */
-  readonly operazioneIniziataAlle: Date;
-  /**
-   * ⭐ Se resta lavoro da GUARDARE, o un tetto ha fermato la passata.
-   *
-   * ⛔ **Non è più «il tetto di scansione è stato riempito»**: con un perimetro
-   *    più grande del tetto quella condizione era vera **per sempre**, e un
-   *    chiamante che ci si fermasse non si sarebbe fermato mai.
-   */
-  readonly interrotto: boolean;
-  readonly perSede: readonly EsitoSedeAllineamento[];
+/**
+ * La frase che l'operatore legge accanto alla riga.
+ *
+ * ⛔ **«Livello non disponibile» e «errore di lettura» sono due voci diverse, e
+ *    devono restarlo.** La prima è un'ASSENZA constatata — non c'è un livello da
+ *    allineare; la seconda è un esito IGNOTO. Fuse in una sola, chi legge non
+ *    saprebbe se il canale ha detto «non ce l'ho» o non ha detto niente, e sono
+ *    due rimedi diversi.
+ *
+ * ⛔ **E «errore di lettura» non è «scrittura con esito incerto».** Nel primo
+ *    caso non è partito niente e ripetere è innocuo; nel secondo una scrittura
+ *    può essere andata a segno, e riprovarla di iniziativa è il doppio effetto
+ *    che la chiave di idempotenza esiste per impedire.
+ *
+ * ⚠️ **E non si dice di quale LATO manchi il livello.** Il motivo è uno solo e
+ *    dice quello che si sa: inventare un lato sarebbe una frase precisa e non
+ *    verificata.
+ */
+const DETTAGLIO: Record<MotivoNonAllineata, string> = {
+  livello_non_disponibile:
+    'Livello non disponibile, coppia non allineata. Nessuna quantità è stata scritta ' +
+    'e nessuna è stata dedotta: non è una divergenza delle quantità.',
+  collegamento_escluso:
+    'Lo storico dei collegamenti vieta di usare questo identificativo Shopify per questa variante.',
+  base_non_stabilita:
+    'La partenza controllata non è ancora avvenuta su questa coppia: non c’è un valore confermato da cui partire.',
+  richiesta_rifiutata:
+    'Il canale ha rifiutato la richiesta, e non per le quantità: va verificato il collegamento.',
+  divergenza_accertata:
+    'Il canale ha rifiutato la scrittura perché porta una quantità diversa da quella attesa. Serve una decisione.',
+  errore_di_lettura:
+    'Il canale non ha risposto alla lettura: nessuna scrittura è stata tentata, e la ' +
+    'coppia resta com’era.',
+  scrittura_esito_incerto:
+    'Una scrittura è stata tentata e non si sa se abbia avuto effetto: il tentativo resta ' +
+    'aperto e verrà ripreso con la stessa chiave, mai con una nuova.',
+  negozio_non_connesso: 'Il negozio Shopify non risulta connesso.',
+  permesso_mancante: 'Manca il permesso di scrittura sull’inventario Shopify.',
+  sincronizzazione_spenta: 'La sincronizzazione è spenta per questo articolo.',
+  variante_non_collegata: 'La variante non è collegata a Shopify.',
+  sede_non_collegata: 'La sede non è mappata su una sede Shopify.',
+  stato_cambiato:
+    'La coppia si è mossa sotto la lettura per più giri: nessuna scrittura è partita.',
+  rinvio_attivo: 'Il recupero è rinviato: ci sono ordini aperti sul canale.',
+};
+
+/** Come si legge un esito del push che non è né allineato né già allineato. */
+const MOTIVO_PER_ESITO: Record<string, MotivoNonAllineata> = {
+  not_connected: 'negozio_non_connesso',
+  missing_write_inventory_scope: 'permesso_mancante',
+  sync_disabled: 'sincronizzazione_spenta',
+  variant_not_linked: 'variante_non_collegata',
+  location_not_linked: 'sede_non_collegata',
+  collegamento_escluso: 'collegamento_escluso',
+  base_assente: 'base_non_stabilita',
+  richiesta_rifiutata: 'richiesta_rifiutata',
+  divergenza_accertata: 'divergenza_accertata',
+  level_not_found: 'livello_non_disponibile',
+  // ⛔ Questi DUE arrivano solo dopo che una scrittura è stata prenotata: il
+  //    tentativo resta aperto, e ripeterlo è mestiere della chiave, non nostro.
+  tentativo_in_corso: 'scrittura_esito_incerto',
+  tentativo_incerto: 'scrittura_esito_incerto',
+  stato_cambiato: 'stato_cambiato',
+  rinvio_attivo: 'rinvio_attivo',
+};
+
+/** Gli esiti che hanno consumato una scrittura, riuscita o rifiutata che sia. */
+const HA_SCRITTO = new Set(['shopify_error', 'richiesta_rifiutata', 'divergenza_accertata']);
+
+/** Una coppia che il controllo NON ha potuto allineare, con il suo perché. */
+export interface CoppiaNonAllineata {
+  readonly variantId: string;
+  readonly locationId: string;
+  readonly articolo: string;
+  readonly codiceArticolo: string | null;
+  readonly variante: string;
+  readonly sku: string | null;
+  readonly sede: string;
+  readonly motivo: MotivoNonAllineata;
+  readonly dettaglio: string;
 }
 
 /**
- * Legge l'istante di ripresa che il chiamante ripassa, o `undefined`.
+ * Dove il blocco si è fermato: si ripassa per avere il blocco successivo.
  *
- * ⭐ **È il solo modo per proseguire un'operazione già cominciata**: senza,
- *    ogni pressione del pulsante è una partenza da capo, e il conto delle
- *    coppie non ancora verificate riparte da tutto il perimetro.
- *
- * ⛔ **Un valore illeggibile si RIFIUTA, non si ignora.** Ignorandolo si
- *    comincerebbe un'operazione nuova senza dirlo, e il chiamante crederebbe
- *    di star proseguendo la propria: è il silenzio che questo lavoro combatte.
+ * ⭐ **È una POSIZIONE, non l'identità di un'operazione.** Non conserva niente
+ *    fra una pressione e l'altra: un clic nuovo riparte senza cursore, cioè con
+ *    un controllo nuovo e completo.
  */
-export function istanteRipresa(valore: unknown): Date | undefined {
-  if (valore === undefined || valore === null || valore === '') {
-    return undefined;
-  }
-  const letto = typeof valore === 'string' ? new Date(valore) : new Date(Number.NaN);
-  if (Number.isNaN(letto.getTime())) {
-    throw new BadRequestException(
-      "operazioneIniziataAlle non è un istante leggibile: si ripassa quello dell'esito precedente.",
-    );
-  }
-  return letto;
+export interface PosizioneAllineamento {
+  readonly locationId: string;
+  readonly variantId: string;
 }
 
-/** Una coppia da esaminare, con ciò che serve a classificarla. */
+/** Il risultato di UN blocco. Il pulsante li incatena fino a `fine`. */
+export interface BloccoAllineamento {
+  /** Quante coppie il comando considera in tutto: serve all'avanzamento. */
+  readonly totale: number;
+  readonly esaminate: number;
+  readonly allineate: number;
+  readonly giaAllineate: number;
+  /**
+   * Le coppie non allineate di QUESTO blocco, con articolo, variante, sede e
+   * motivo.
+   *
+   * ⭐ **Nessuna anomalia si perde**, e non serve un tetto: ogni coppia è
+   *    esaminata una volta sola in tutto il giro, quindi chi incatena i blocchi
+   *    ottiene l'elenco completo — e ogni singola risposta resta piccola.
+   */
+  readonly nonAllineate: readonly CoppiaNonAllineata[];
+  /** Da dove riprendere. `null` quando il perimetro è finito. */
+  readonly prossimo: PosizioneAllineamento | null;
+  /** ⭐ Vero SOLO quando il perimetro è stato attraversato tutto. */
+  readonly fine: boolean;
+}
+
+/** Una coppia da esaminare, con ciò che serve a nominarla nell'elenco. */
 interface CoppiaDaAllineare {
   readonly variantId: string;
   readonly locationId: string;
-  readonly locationName: string;
-  /** ⭐ PRONTA = contatori **e** ultimo confermato. Un solo criterio non basta. */
-  readonly pronta: boolean;
+  readonly sede: string;
+  readonly articolo: string;
+  readonly codiceArticolo: string | null;
+  readonly sku: string | null;
+  readonly optionValues: unknown;
 }
 
 /**
  * IL RIALLINEAMENTO DELLE DISPONIBILITÀ — VestiFlow → Shopify.
  *
- * ⭐ **È il «tasto Allinea» di §31.-1**, e il suo primo uso è la **partenza
- *    controllata**: una coppia senza base la riceve qui. ⛔ Nessun altro
- *    percorso la stabilisce — in particolare non il primo push ordinario.
+ * ⭐ **È il «tasto Allinea» di §31.-1**: una pressione avvia un controllo
+ *    COMPLETO del perimetro, lavorato a blocchi. Il suo primo uso è la
+ *    **partenza controllata**: una coppia senza base la riceve qui. ⛔ Nessun
+ *    altro percorso la stabilisce — in particolare non il primo push ordinario.
+ *
+ * ⛔ **Un blocco NON è un'operazione.** Il comando non conserva niente fra una
+ *    pressione e l'altra: nessuna coda, nessun registro di avanzamento, nessuna
+ *    colonna di stato. Chi preme incatena i blocchi seguendo `prossimo`, e
+ *    quando la catena si interrompe **non c'è niente da dichiarare concluso** —
+ *    il clic dopo riparte da capo.
+ *
+ * ⛔ **Non sostituisce il recupero automatico.** Gli invii pendenti, i tentativi
+ *    incerti e gli ordini mancanti restano mestiere della coda del ritentativo e
+ *    della sincronizzazione continua: questo è il gesto manuale, non il loro
+ *    rimpiazzo.
  *
  * ⛔ **Tocca SOLO le quantità.** La preparazione del catalogo — import da
  *    Shopify o pubblicazione verso Shopify — è un'operazione distinta e
- *    preesistente: le coppie non ancora collegate escono da qui come
- *    **escluse**, non come allineate.
+ *    preesistente: le coppie non ancora collegate escono da qui nell'elenco
+ *    delle non allineate, col loro motivo.
  *
  * ⛔ **Non acquisisce ordini, e non deve** (§31.-1). Gli ordini arrivano per la
  *    loro strada: Allinea corregge le disponibilità.
  *
- * ⭐ **L'avanzamento non ha un registro suo: è lo stato delle righe.** Una
- *    coppia già allineata porta il canale sullo stesso valore, quindi alla
- *    passata dopo esce come «già allineata» senza scrivere. Ne discende che
- *    **riprendere non duplica gli effetti** — l'idempotenza è per riga, non per
- *    esecuzione.
+ * ⭐ **Riprendere non duplica gli effetti**: una coppia già allineata porta il
+ *    canale sullo stesso valore, quindi esce come «già allineata» senza
+ *    scrivere. L'idempotenza è per riga, non per esecuzione.
  */
 @Injectable()
 export class ShopifyInventoryAlignService {
@@ -216,75 +216,37 @@ export class ShopifyInventoryAlignService {
   ) {}
 
   /**
-   * Allinea le disponibilità dell'azienda corrente su tutte le sue sedi
-   * collegate.
+   * Allinea UN BLOCCO del perimetro, su tutte le sedi collegate.
    *
-   * ⭐ **Una chiamata sola, e una selezione sola su TUTTE le sedi.**
+   * ⭐ **Una selezione sola su TUTTE le sedi**, in ordine stabile: il blocco
+   *    successivo riprende esattamente dove questo si è fermato.
    *
-   * ⛔ **Qui c'era un ciclo per sede con la capienza spartita in ordine**, e la
-   *    rotazione valeva solo *dentro* una sede: con duecentocinque coppie sulla
-   *    prima, ogni passata riempiva il tetto di scansione lì e si interrompeva —
-   *    la seconda sede non veniva raggiunta **mai**. Con una selezione unica
-   *    l'ordinamento decide fra tutte le coppie del tenant, e la rotazione
-   *    attraversa le sedi come attraversa le righe.
+   * ⛔ **L'ordine NON è più `last_attempt_at`, e non può esserlo**: il giro
+   *    stesso lo riscrive mentre avanza, quindi rimescolerebbe le pagine e
+   *    qualche coppia verrebbe saltata o rivista. Con `(sede, variante)` — che è
+   *    unico per riga — la copertura è completa **per costruzione**, e ogni
+   *    coppia è toccata **una volta sola**: è anche il modo in cui le anomalie
+   *    non vengono ritentate all'infinito dentro la stessa operazione.
+   *
+   * ⚠️ `last_attempt_at` si continua a SCRIVERE: serve alla rotazione della coda
+   *    del ritentativo, che non è questo comando e non cambia.
    */
-  async allinea(tenantId: string, operazioneIniziataAlle?: Date): Promise<EsitoAllineamento> {
-    // ⭐ **L'istante dell'OPERAZIONE, che dura più di una passata.** Chi lo
-    //    ripassa prosegue la stessa operazione; chi non lo passa ne comincia
-    //    una nuova — la prima pressione del pulsante.
-    //
-    // ⚠️ **Un istante nel FUTURO si riporta ad adesso**, e non è pedanteria:
-    //    con un istante avanti nessuna riga risulterebbe mai verificata, il
-    //    residuo non scenderebbe e il chiamante girerebbe per sempre.
-    const adesso = new Date();
-    const dalle =
-      operazioneIniziataAlle && operazioneIniziataAlle < adesso ? operazioneIniziataAlle : adesso;
-    const coppie = await this.coppieDaAllineare(tenantId, ALIGN_SCAN_LIMIT);
-
-    const perSede = new Map<string, { nome: string; e: EsitoSedeAllineamento }>();
-    const registra = (
-      coppia: CoppiaDaAllineare,
-      campo: keyof Pick<
-        EsitoSedeAllineamento,
-        'allineate' | 'giaAllineate' | 'escluse' | 'fallite'
-      >,
-    ) => {
-      const voce = perSede.get(coppia.locationId) ?? {
-        nome: coppia.locationName,
-        e: {
-          locationId: coppia.locationId,
-          locationName: coppia.locationName,
-          allineate: 0,
-          giaAllineate: 0,
-          escluse: 0,
-          fallite: 0,
-        },
-      };
-      perSede.set(coppia.locationId, {
-        nome: voce.nome,
-        e: { ...voce.e, [campo]: voce.e[campo] + 1 },
-      });
-    };
+  async allinea(tenantId: string, da?: PosizioneAllineamento): Promise<BloccoAllineamento> {
+    const coppie = await this.coppieDaAllineare(tenantId, da, ALIGN_SCAN_LIMIT);
 
     let scritture = 0;
     let esaminate = 0;
-    /**
-     * Le coppie che questa passata NON ha portato a termine: fallite o escluse.
-     *
-     * ⛔ **Si raccolgono per identità e si ricontano DOPO**, sullo stato che la
-     *    passata ha lasciato: una coppia può entrare non pronta e uscirne
-     *    pronta — è il caso del rifiuto con un movimento nella finestra, che
-     *    lascia `L` valorizzato e il vecchio `P` al suo posto. Contandola
-     *    all'ingresso sarebbe sfuggita a entrambi i numeri, e il residuo
-     *    avrebbe detto zero mentre l'allineamento era fallito.
-     */
-    const daRiprendere: { variantId: string; locationId: string }[] = [];
+    let allineate = 0;
+    let giaAllineate = 0;
+    let ultima: PosizioneAllineamento | null = null;
+    const nonAllineate: CoppiaNonAllineata[] = [];
 
     for (const coppia of coppie) {
       if (scritture >= ALIGN_WRITE_LIMIT) {
         break;
       }
       esaminate += 1;
+      ultima = { locationId: coppia.locationId, variantId: coppia.variantId };
       await this.segnaEsaminata(tenantId, coppia.variantId, coppia.locationId);
 
       let esito: ShopifyInventoryPushResult;
@@ -295,11 +257,16 @@ export class ShopifyInventoryAlignService {
           coppia.locationId,
         );
       } catch (error: unknown) {
-        // Un guasto su una coppia non ferma le altre: sono indipendenti.
-        registra(coppia, 'fallite');
-        scritture += 1;
-        daRiprendere.push({ variantId: coppia.variantId, locationId: coppia.locationId });
+        // ⭐ Un guasto su una coppia non ferma le altre: sono indipendenti, e
+        //    l'esito ignoto è una voce dell'elenco come le altre.
         const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+        // ⛔ **Anche qui la domanda è se una scrittura fosse PRENOTATA**: un
+        //    guasto prima della lettura e uno dopo la prenotazione non si
+        //    rimediano allo stesso modo.
+        nonAllineate.push(
+          this.voce(coppia, await this.letturaOScritturaIncerta(tenantId, coppia)),
+        );
+        scritture += 1;
         this.logger.warn(
           `Allineamento non riuscito (${tenantId}) variante ${coppia.variantId} @ ` +
             `${coppia.locationId}: ${message}`,
@@ -308,138 +275,156 @@ export class ShopifyInventoryAlignService {
       }
 
       if (esito.pushed) {
-        registra(coppia, 'allineate');
+        allineate += 1;
         scritture += 1;
       } else if (esito.reason === 'unchanged') {
-        registra(coppia, 'giaAllineate');
-      } else if (
-        esito.reason === 'shopify_error' ||
-        esito.reason === 'richiesta_rifiutata' ||
-        esito.reason === 'divergenza_accertata'
-      ) {
-        registra(coppia, 'fallite');
-        scritture += 1;
-        daRiprendere.push({ variantId: coppia.variantId, locationId: coppia.locationId });
+        giaAllineate += 1;
       } else {
-        // ⛔ **Tutto il resto è ESCLUSO, non allineato**: non collegata,
-        //    sincronizzazione spenta, sede non mappata, collegamento escluso,
-        //    tentativo aperto con esito ignoto, livello sparito.
-        registra(coppia, 'escluse');
-        // ⛔ **E se era già pronta, resta lavoro**: qui c'era il buco per cui
-        //    una coppia esclusa spariva dal residuo.
-        daRiprendere.push({ variantId: coppia.variantId, locationId: coppia.locationId });
+        nonAllineate.push(this.voce(coppia, await this.motivoDi(tenantId, coppia, esito.reason)));
+        if (esito.reason !== undefined && HA_SCRITTO.has(esito.reason)) {
+          scritture += 1;
+        }
       }
     }
 
-    const totale = await this.contaPerimetro(tenantId);
-    const senzaBase = await this.contaNonPronte(tenantId);
-    // ⭐ **Il residuo si conta sullo STATO, in una query sola.** Le coppie che
-    //    questa passata ha lasciato indietro entrano nella stessa COUNT: così
-    //    una coppia insieme senza base e fallita vale UNO, e quella che ha
-    //    fallito una passata fa non sparisce perché stavolta non l'abbiamo
-    //    guardata — la sua riga lo dice ancora.
-    const restano = await this.contaNonAPosto(tenantId, daRiprendere);
-    // ⭐ **E ciò che questa OPERAZIONE non ha ancora verificato**: non «si è
-    //    mai guardato», che al secondo uso di Allinea nasce a zero.
-    const nonEsaminate = await this.contaNonVerificate(tenantId, dalle);
-    const voci = [...perSede.values()].map((v) => v.e);
-    const somma = (scegli: (s: EsitoSedeAllineamento) => number) =>
-      voci.reduce((acc, s) => acc + scegli(s), 0);
+    // ⭐ **Il perimetro è finito solo se il blocco è stato consumato TUTTO e la
+    //    selezione ne aveva meno del tetto**: se ne aveva esattamente quanti il
+    //    tetto, ce ne possono essere altri, e si chiede un blocco in più che
+    //    tornerà vuoto. Una richiesta di troppo, mai una coppia di meno.
+    const bloccoConsumato = esaminate === coppie.length;
+    const perimetroFinito = bloccoConsumato && coppie.length < ALIGN_SCAN_LIMIT;
+    const prossimo = perimetroFinito ? null : (ultima ?? (da ?? null));
 
-    const esito: EsitoAllineamento = {
+    const totale = await this.contaPerimetro(tenantId);
+    const blocco: BloccoAllineamento = {
       totale,
-      allineate: somma((s) => s.allineate),
-      giaAllineate: somma((s) => s.giaAllineate),
-      escluse: somma((s) => s.escluse),
-      fallite: somma((s) => s.fallite),
-      // ⛔ **Non si somma `nonEsaminate`**: gli insiemi si sovrappongono, e una
-      //    coppia insieme non pronta e non esaminata veniva contata due volte.
-      //    I due numeri si leggono accanto, non addizionati.
-      restano,
-      senzaBase,
-      nonEsaminate,
-      operazioneIniziataAlle: dalle,
-      // ⛔ **Non è più «ho riempito il tetto»**: con trecento coppie e un tetto
-      //    di duecento quella condizione restava vera a ogni passata, per
-      //    sempre. Adesso dice quello che il chiamante deve sapere: **resta
-      //    qualcosa da guardare**, e a giro completo si spegne.
-      interrotto: scritture >= ALIGN_WRITE_LIMIT || nonEsaminate > 0,
-      perSede: voci,
+      esaminate,
+      allineate,
+      giaAllineate,
+      nonAllineate,
+      prossimo,
+      fine: prossimo === null,
     };
 
     this.logger.log(
-      `Allineamento disponibilità (${tenantId}): ${esito.allineate} allineate, ` +
-        `${esito.giaAllineate} già allineate, ${esito.escluse} escluse, ${esito.fallite} fallite ` +
-        `su ${esito.totale} coppie (${esaminate} esaminate); ${esito.restano} da riprendere ` +
-        `(${esito.senzaBase} non ancora pronte, ${esito.nonEsaminate} non verificate ` +
-        `in questa operazione)` +
-        (esito.interrotto
-          ? " — operazione NON conclusa: ripremere ripassando l'istante di inizio"
-          : ''),
+      `Allineamento disponibilità (${tenantId}): blocco di ${esaminate} coppie su ${totale} — ` +
+        `${allineate} allineate, ${giaAllineate} già allineate, ${nonAllineate.length} non allineate` +
+        (blocco.fine ? ' — perimetro completato' : ' — il controllo prosegue col blocco successivo'),
     );
-    return esito;
+    return blocco;
+  }
+
+  /** La riga dell'elenco, con il nome delle cose e la frase che la spiega. */
+  private voce(coppia: CoppiaDaAllineare, motivo: MotivoNonAllineata): CoppiaNonAllineata {
+    return {
+      variantId: coppia.variantId,
+      locationId: coppia.locationId,
+      articolo: coppia.articolo,
+      codiceArticolo: coppia.codiceArticolo,
+      variante: variantLabel(coppia.optionValues),
+      sku: coppia.sku,
+      sede: coppia.sede,
+      motivo,
+      dettaglio: DETTAGLIO[motivo],
+    };
   }
 
   /**
-   * Le coppie da esaminare, su TUTTE le sedi collegate, in ordine di priorità.
+   * Che cosa scrivere nell'elenco, dato l'esito del push.
    *
-   * ```text
-   *    1  chi NON e' ancora PRONTA va per prima      la partenza avanza
-   *    2  poi la meno recentemente ESAMINATA         l uso ricorrente ruota
-   * ```
+   * ⛔ **Su `level_not_found` non si indaga di quale lato manchi il livello.**
+   *    Il motivo è uno solo — «livello non disponibile» — e dice quello che si sa
+   *    davvero. Inventare un lato sarebbe una frase precisa e non verificata.
    *
-   * ⚠️ È la stessa rotazione del ritentativo (`last_attempt_at`, scritto PRIMA
-   *    di tentare): un meccanismo già collaudato, non uno nuovo.
-   *
-   * ⛔ **PRONTA vuol dire contatori E ultimo confermato**, e deve essere lo
-   *    stesso criterio del conteggio: con due criteri diversi una coppia poteva
-   *    risultare «con base» qui e «senza base» là, e finire contata due volte.
+   * ⛔ **`shopify_error` invece copre DUE esiti opposti**, e confonderli è
+   *    pericoloso: se non è partita nessuna scrittura, ripetere è innocuo; se una
+   *    scrittura è stata prenotata, può essere andata a segno. La differenza non
+   *    si deduce: **si legge**, ed è un fatto già scritto sulla riga — un
+   *    tentativo aperto (`pendingKey`) significa che una scrittura era prenotata.
    */
-  private async coppieDaAllineare(tenantId: string, tetto: number): Promise<CoppiaDaAllineare[]> {
+  private async motivoDi(
+    tenantId: string,
+    coppia: CoppiaDaAllineare,
+    reason: string | undefined,
+  ): Promise<MotivoNonAllineata> {
+    const noto = reason ? MOTIVO_PER_ESITO[reason] : undefined;
+    if (noto) {
+      return noto;
+    }
+    return this.letturaOScritturaIncerta(tenantId, coppia);
+  }
+
+  /**
+   * Errore di LETTURA, o scrittura con esito INCERTO? Lo dice la riga.
+   *
+   * ⭐ **Un tentativo aperto è una scrittura PRENOTATA**: la chiave, il valore e
+   *    la destinazione sono sulla riga, e il canale può averla applicata. Senza
+   *    tentativo aperto non è partito niente.
+   *
+   * ⚠️ Si legge **solo** su questo ramo, che è raro: una lettura indicizzata per
+   *    coppia guasta, non per coppia esaminata.
+   */
+  private async letturaOScritturaIncerta(
+    tenantId: string,
+    coppia: CoppiaDaAllineare,
+  ): Promise<MotivoNonAllineata> {
+    const riga = await this.prisma.shopifyInventorySyncState.findUnique({
+      where: {
+        tenantId_variantId_locationId: {
+          tenantId,
+          variantId: coppia.variantId,
+          locationId: coppia.locationId,
+        },
+      },
+      select: { pendingKey: true },
+    });
+    return riga?.pendingKey ? 'scrittura_esito_incerto' : 'errore_di_lettura';
+  }
+
+  /**
+   * Il blocco successivo di coppie, su TUTTE le sedi collegate.
+   *
+   * ⭐ **Ordine stabile e totale** — `(sede, variante)` è unico per riga — e
+   *    cursore per chiave, non per scostamento: niente salta e niente si ripete
+   *    nemmeno se nel frattempo qualcosa entra o esce dal perimetro.
+   */
+  private async coppieDaAllineare(
+    tenantId: string,
+    da: PosizioneAllineamento | undefined,
+    tetto: number,
+  ): Promise<CoppiaDaAllineare[]> {
+    const dopo = da
+      ? Prisma.sql`AND (l.location_id, l.variant_id) > (${da.locationId}::uuid, ${da.variantId}::uuid)`
+      : Prisma.empty;
     return this.prisma.$queryRaw<CoppiaDaAllineare[]>`
       SELECT l.variant_id AS "variantId",
              l.location_id AS "locationId",
-             loc.name AS "locationName",
-             (s.local_pending_delta IS NOT NULL AND s.last_pushed_available IS NOT NULL)
-               AS "pronta"
+             loc.name AS "sede",
+             p.name AS "articolo",
+             p.article_code AS "codiceArticolo",
+             v.sku AS "sku",
+             v.option_values AS "optionValues"
         FROM inventory_levels l
         JOIN product_variants v ON v.id = l.variant_id
         JOIN products p ON p.id = v.product_id
         JOIN locations loc ON loc.id = l.location_id
-        LEFT JOIN shopify_inventory_sync_states s
-               ON s.tenant_id = l.tenant_id
-              AND s.variant_id = l.variant_id
-              AND s.location_id = l.location_id
        WHERE l.tenant_id = ${tenantId}::uuid
          AND loc.shopify_location_id IS NOT NULL
          AND v.shopify_variant_id IS NOT NULL
          AND p.shopify_sync_enabled = TRUE
-       -- ⛔ **Qui c'era «le non pronte per prime», e AFFAMAVA le altre.** Con
-       --    duecento coppie stabilmente escluse — varianti che il canale non
-       --    risolve — quelle occupavano tutte le posizioni a ogni passata: la
-       --    rotazione avveniva DENTRO il gruppo prioritario, e le coppie pronte
-       --    da correggere non arrivavano mai. È lo stesso blocco di testa già
-       --    pagato nella coda del ritentativo.
-       --
-       -- ⭐ **Basta la rotazione, che è anche la priorità giusta**: chi non è
-       --    mai stata esaminata ha \`last_attempt_at\` NULL e sta in testa —
-       --    quindi alla prima passata vengono comunque le coppie nuove — e chi
-       --    è stata guardata scende, qualunque sia stato l'esito.
-       ORDER BY s.last_attempt_at ASC NULLS FIRST,
-                l.location_id ASC,
-                l.variant_id ASC
+         ${dopo}
+       ORDER BY l.location_id ASC, l.variant_id ASC
        LIMIT ${tetto}`;
   }
 
   /**
    * Segna che questa coppia è stata ESAMINATA adesso.
    *
-   * ⭐ **Si scrive PRIMA di tentare, e qualunque sia l'esito**: è ciò che fa
-   *    ruotare la coda. Dopo sarebbe peggio — un guasto a metà lascerebbe la
-   *    coppia in testa per sempre.
+   * ⛔ **Non serve ad Allinea, e si scrive lo stesso**: serve alla rotazione
+   *    della **coda del ritentativo**, che ordina per questa colonna. Toglierla
+   *    qui lascerebbe le righe toccate da Allinea in testa a quella coda.
    *
-   * ⚠️ **Un `upsert`, perché la riga può non esistere ancora**: senza, una
-   *    coppia mai toccata resterebbe in testa a ogni passata.
+   * ⚠️ **Un `upsert`, perché la riga può non esistere ancora.**
    */
   private async segnaEsaminata(
     tenantId: string,
@@ -451,100 +436,6 @@ export class ShopifyInventoryAlignService {
       create: { tenantId, variantId, locationId, lastAttemptAt: new Date() },
       update: { lastAttemptAt: new Date() },
     });
-  }
-
-  /**
-   * Quante coppie del perimetro NON risultano a posto, adesso.
-   *
-   * ⛔ **Una COUNT sola, e non tre numeri sommati.** Sommando insiemi che si
-   *    sovrappongono una coppia senza base e fallita valeva due; contando
-   *    coppie distinte vale una.
-   *
-   * ⭐ **Le condizioni sono quelle che le colonne GIÀ dicono**, e ognuna si
-   *    spegne solo quando il lavoro è stato fatto o verificato:
-   *
-   * ```text
-   *   base assente          la partenza controllata non è avvenuta
-   *   mismatch_detected     il canale ha rifiutato: serve riconciliazione
-   *   local_push_pending    c'è un aggiornamento locale non trasmesso
-   *   pending_key           un tentativo è rimasto aperto: esito ignoto
-   *   local_pending_delta   scostamento locale ancora da mandare
-   * ```
-   *
-   * ⚠️ **Più le coppie che questa passata ha lasciato indietro**: le escluse
-   *    per struttura — collegamento escluso, negozio non connesso — non
-   *    scrivono niente sulla riga, quindi l'unico posto dove esistono è
-   *    l'elenco di adesso. Le altre le ritrova la riga, anche passate dopo.
-   */
-  private async contaNonAPosto(
-    tenantId: string,
-    coppie: readonly { readonly variantId: string; readonly locationId: string }[],
-  ): Promise<number> {
-    const toccate =
-      coppie.length === 0
-        ? Prisma.empty
-        : Prisma.sql`OR (l.variant_id, l.location_id) IN (${Prisma.join(
-            coppie.map((c) => Prisma.sql`(${c.variantId}::uuid, ${c.locationId}::uuid)`),
-          )})`;
-    const righe = await this.prisma.$queryRaw<{ n: bigint }[]>`
-      SELECT COUNT(*) AS n
-        FROM inventory_levels l
-        JOIN product_variants v ON v.id = l.variant_id
-        JOIN products p ON p.id = v.product_id
-        JOIN locations loc ON loc.id = l.location_id
-        LEFT JOIN shopify_inventory_sync_states s
-               ON s.tenant_id = l.tenant_id
-              AND s.variant_id = l.variant_id
-              AND s.location_id = l.location_id
-       WHERE l.tenant_id = ${tenantId}::uuid
-         AND loc.shopify_location_id IS NOT NULL
-         AND v.shopify_variant_id IS NOT NULL
-         AND p.shopify_sync_enabled = TRUE
-         AND (
-              s.local_pending_delta IS NULL
-           OR s.last_pushed_available IS NULL
-           OR s.mismatch_detected = TRUE
-           OR s.local_push_pending = TRUE
-           OR s.pending_key IS NOT NULL
-           OR COALESCE(s.local_pending_delta, 0) <> 0
-           ${toccate}
-         )`;
-    return Number(righe[0]?.n ?? 0);
-  }
-
-  /**
-   * Quante coppie questa OPERAZIONE non ha ancora verificato.
-   *
-   * ⛔ **Non è «mai esaminate»**, e la differenza è il difetto che questo
-   *    metodo chiude: al secondo uso di Allinea ogni riga porta già un
-   *    `last_attempt_at`, quindi quel conto nasce a zero — e dichiara conclusa
-   *    un'operazione che non ha guardato le coppie lasciate fuori dal tetto.
-   *
-   * ⛔ **E non è «non esaminate in questa PASSATA»**, che non convergerebbe:
-   *    ogni passata ne guarda duecento diverse e ne lascia fuori cento, quindi
-   *    il numero resterebbe cento per sempre.
-   *
-   * ⭐ **È relativo all'ISTANTE dell'operazione**: scende a ogni passata,
-   *    perché la rotazione tocca ogni volta coppie diverse, e arriva a zero
-   *    quando ha fatto il giro completo.
-   */
-  private async contaNonVerificate(tenantId: string, dalle: Date): Promise<number> {
-    const righe = await this.prisma.$queryRaw<{ mai: bigint }[]>`
-      SELECT COUNT(*) AS mai
-        FROM inventory_levels l
-        JOIN product_variants v ON v.id = l.variant_id
-        JOIN products p ON p.id = v.product_id
-        JOIN locations loc ON loc.id = l.location_id
-        LEFT JOIN shopify_inventory_sync_states s
-               ON s.tenant_id = l.tenant_id
-              AND s.variant_id = l.variant_id
-              AND s.location_id = l.location_id
-       WHERE l.tenant_id = ${tenantId}::uuid
-         AND loc.shopify_location_id IS NOT NULL
-         AND v.shopify_variant_id IS NOT NULL
-         AND p.shopify_sync_enabled = TRUE
-         AND (s.last_attempt_at IS NULL OR s.last_attempt_at < ${dalle})`;
-    return Number(righe[0]?.mai ?? 0);
   }
 
   /** Quante coppie il comando considera, in tutto: è il denominatore. */
@@ -559,34 +450,5 @@ export class ShopifyInventoryAlignService {
         },
       },
     });
-  }
-
-  /**
-   * Quante coppie NON sono ancora pronte per la sincronizzazione continua.
-   *
-   * ⛔ **Per COPPIA, non per variante.** Un filtro annidato sulla variante non
-   *    sa di quale sede si parli: una variante pronta sul magazzino A
-   *    risulterebbe a posto anche sul B.
-   *
-   * ⛔ **E con lo STESSO criterio della selezione**: contatori e ultimo
-   *    confermato insieme.
-   */
-  private async contaNonPronte(tenantId: string): Promise<number> {
-    const righe = await this.prisma.$queryRaw<{ mancanti: bigint }[]>`
-      SELECT COUNT(*) AS mancanti
-        FROM inventory_levels l
-        JOIN product_variants v ON v.id = l.variant_id
-        JOIN products p ON p.id = v.product_id
-        JOIN locations loc ON loc.id = l.location_id
-        LEFT JOIN shopify_inventory_sync_states s
-               ON s.tenant_id = l.tenant_id
-              AND s.variant_id = l.variant_id
-              AND s.location_id = l.location_id
-       WHERE l.tenant_id = ${tenantId}::uuid
-         AND loc.shopify_location_id IS NOT NULL
-         AND v.shopify_variant_id IS NOT NULL
-         AND p.shopify_sync_enabled = TRUE
-         AND (s.local_pending_delta IS NULL OR s.last_pushed_available IS NULL)`;
-    return Number(righe[0]?.mancanti ?? 0);
   }
 }

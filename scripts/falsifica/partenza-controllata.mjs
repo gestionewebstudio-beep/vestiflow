@@ -36,18 +36,11 @@ const guasti = [
     filtro: 'primo Allinea RIFIUTATO',
   },
   {
-    nome: 'E - il residuo torna a sommare insiemi che si sovrappongono',
+    nome: 'E - il tetto delle scritture torna a FERMARE il controllo',
     file: ALIGN,
-    da: '      restano,\n      senzaBase,',
-    a: '      restano: senzaBase + nonEsaminate,\n      senzaBase,',
-    filtro: 'il residuo CONVERGE',
-  },
-  {
-    nome: 'F - «non verificate» torna a contare la singola passata',
-    file: ALIGN,
-    da: '    const nonEsaminate = await this.contaNonVerificate(tenantId, dalle);',
-    a: '    const nonEsaminate = Math.max(0, (await this.contaPerimetro(tenantId)) - esaminate);',
-    filtro: 'scende a zero anche senza lavoro',
+    da: '    const prossimo = perimetroFinito ? null : (ultima ?? (da ?? null));',
+    a: '    const prossimo =\n      perimetroFinito || scritture >= ALIGN_WRITE_LIMIT ? null : (ultima ?? (da ?? null));',
+    filtro: 'un giro solo le porta TUTTE dentro',
   },
 ];
 

@@ -208,4 +208,122 @@ describe('ShopifyConnectionService (HTTP)', () => {
     const result = await promise;
     expect(result.purged.products).toBe(10);
   });
+
+  describe('allineaDisponibilita — una pressione, blocchi automatici', () => {
+    /** Un blocco come lo manda il server. */
+    function blocco(sovrascrivi: Partial<Record<string, unknown>> = {}) {
+      return {
+        aligned: true,
+        totale: 300,
+        esaminate: 200,
+        allineate: 0,
+        giaAllineate: 200,
+        nonAllineate: [],
+        prossimo: { locationId: 'loc-1', variantId: 'var-200' },
+        fine: false,
+        ...sovrascrivi,
+      };
+    }
+
+    function riga(motivo: string, sede = 'Magazzino 1') {
+      return {
+        variantId: 'var-x',
+        locationId: 'loc-1',
+        articolo: 'Maglia cotone',
+        codiceArticolo: 'ART-1',
+        variante: 'M · Rosso',
+        sku: 'SKU-1',
+        sede,
+        motivo,
+        dettaglio: 'una frase',
+      };
+    }
+
+    it('⭐ incatena i blocchi da sé: chi preme non preme una seconda volta', async () => {
+      const avanzamenti: { esaminate: number; completo: boolean }[] = [];
+      const finito = new Promise<void>((risolvi) => {
+        service.allineaDisponibilita().subscribe({
+          next: (a) => avanzamenti.push({ esaminate: a.esaminate, completo: a.completo }),
+          complete: () => risolvi(),
+        });
+      });
+
+      // ── primo blocco: nessun cursore, e non è finito ──────────────────
+      const primo = httpMock.expectOne(`${API_BASE}/shopify/sync/inventory/align`);
+      expect(primo.request.method).toBe('POST');
+      expect(primo.request.body).toEqual({ prossimo: null });
+      primo.flush(blocco());
+
+      // ── secondo blocco: parte DA SOLO, col cursore del primo ──────────
+      const secondo = httpMock.expectOne(`${API_BASE}/shopify/sync/inventory/align`);
+      expect(secondo.request.body).toEqual({
+        prossimo: { locationId: 'loc-1', variantId: 'var-200' },
+      });
+      secondo.flush(blocco({ esaminate: 100, giaAllineate: 100, prossimo: null, fine: true }));
+
+      await finito;
+
+      // ⭐ Due avanzamenti, uno per blocco: l'operatore vede il giro procedere.
+      expect(avanzamenti).toEqual([
+        { esaminate: 200, completo: false },
+        { esaminate: 300, completo: true },
+      ]);
+    });
+
+    it('⭐ l elenco delle non allineate si ACCUMULA, e non ne perde nessuna', async () => {
+      const promessa = new Promise<{ nonAllineate: readonly { motivo: string }[] }>((risolvi) => {
+        let ultimo: never;
+        service.allineaDisponibilita().subscribe({
+          next: (a) => (ultimo = a as never),
+          complete: () => risolvi(ultimo),
+        });
+      });
+
+      httpMock
+        .expectOne(`${API_BASE}/shopify/sync/inventory/align`)
+        .flush(blocco({ nonAllineate: [riga('livello_non_disponibile')] }));
+      httpMock.expectOne(`${API_BASE}/shopify/sync/inventory/align`).flush(
+        blocco({
+          nonAllineate: [riga('divergenza_accertata', 'Magazzino 2')],
+          prossimo: null,
+          fine: true,
+        }),
+      );
+
+      const finale = await promessa;
+      // ⭐ Tutte e due, da blocchi diversi: l'elenco finale è completo.
+      expect(finale.nonAllineate.map((r) => r.motivo)).toEqual([
+        'livello_non_disponibile',
+        'divergenza_accertata',
+      ]);
+    });
+
+    it('⛔ se la catena si INTERROMPE, non si dichiara completo', async () => {
+      const avanzamenti: { esaminate: number; completo: boolean }[] = [];
+      let fallito = false;
+      const finito = new Promise<void>((risolvi) => {
+        service.allineaDisponibilita().subscribe({
+          next: (a) => avanzamenti.push({ esaminate: a.esaminate, completo: a.completo }),
+          error: () => {
+            fallito = true;
+            risolvi();
+          },
+          complete: () => risolvi(),
+        });
+      });
+
+      httpMock.expectOne(`${API_BASE}/shopify/sync/inventory/align`).flush(blocco());
+      // ── il secondo blocco cade ────────────────────────────────────────
+      httpMock
+        .expectOne(`${API_BASE}/shopify/sync/inventory/align`)
+        .flush('rete caduta', { status: 503, statusText: 'Service Unavailable' });
+
+      await finito;
+
+      expect(fallito).toBe(true);
+      // ⛔ **L'unico avanzamento visto NON è completo**, e chi guarda deve
+      //    leggere «operazione incompleta»: l'elenco che porta è parziale.
+      expect(avanzamenti).toEqual([{ esaminate: 200, completo: false }]);
+    });
+  });
 });

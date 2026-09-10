@@ -8790,7 +8790,7 @@ gia' verificati — non li riapre e non ne dipende.
 
 #### 31.16 · ✅ LA PARTENZA CONTROLLATA — implementata e collaudata il 10/09/2026
 
-> ⚠️ **Venti difetti trovati DOPO, in sei letture: §31.17, §31.18, §31.19, §31.20, §31.21 e §31.22.** Le ultime tre di §31.22 sono APERTE. Quanto segue resta valido
+> ⚠️ **Venti difetti trovati DOPO, in sei letture: §31.17-§31.22.** ⭐ E il comando è stato RIFATTO in §31.23 — un clic, un controllo completo a blocchi: dove le sezioni divergono, vince §31.23. Quanto segue resta valido
 > nel disegno, ma due punti sono stati corretti — la base si stabilisce anche quando
 > le quantita' coincidono, e i contatori nascono alla presa. Dove le due sezioni
 > divergono, vince §31.17.
@@ -9649,11 +9649,27 @@ si ripreme finche'   interrotto        resta lavoro da GUARDARE
 si legge alla fine   restano           che cosa non e' a posto, e non lo sara' da se'
 ```
 
-##### Dove sta la riproduzione — NEL REPOSITORY
+##### ✅ Le riproduzioni sono state CHIUSE dal rifacimento — 11/09/2026
 
-⭐ Le tre prove (`I`, `I-bis`, `J`) **non sono nella suite**, perché oggi sarebbero
-rosse: una suite rossa la si impara a ignorare, e il primo difetto vero passa
-inosservato. Ma **sono versionate**, in `api/src/test/riproduzioni/`:
+⭐ **I difetti che `I`, `I-bis` e `J` riproducevano non esistono più**, e non
+perché siano stati corretti uno per uno: §31.23 ha tolto il meccanismo da cui
+nascevano tutti e tre — l'operazione spalmata su più pressioni, con «verificata»
+dedotta da una data.
+
+```text
+I      un arresto fra la marcatura e il controllo   -> K2, e la copertura e'
+                                                       per costruzione, non dedotta
+I-bis  la coda del ritentativo marca la stessa data -> nessuna data decide piu' niente
+J      l'esclusione sparisce fra le passate         -> non ci sono piu' passate:
+                                                       l'elenco e' del giro
+```
+
+⛔ **La cartella `api/src/test/riproduzioni/` è stata RIMOSSA**, e non è una
+perdita: conservare riproduzioni di difetti impossibili avrebbe insegnato a
+diffidare della cartella. Al loro posto ci sono `K1`-`K4` **dentro la suite**,
+verdi, che misurano i rischi equivalenti del modello nuovo.
+
+⚠️ Quella cartella conteneva:
 
 ```text
 README.md                            che cosa riproduce ognuna, e come si eseguono
@@ -9667,6 +9683,145 @@ raccoglie, quindi non possono risultare verdi per sbaglio.
 
 ⭐ **Rientrano insieme al rimedio**: chi chiude il difetto le innesta, le vede
 diventare verdi e le lascia dentro.
+
+#### 31.23 · ⭐ ALLINEA È UN GESTO SOLO — il giro a blocchi — 11/09/2026
+
+> **Un clic avvia un controllo COMPLETO del perimetro, lavorato a blocchi
+> automatici, e consegna l'elenco delle non allineate. Le anomalie non
+> impediscono di concludere e non si ritentano dentro la stessa operazione. Un
+> clic nuovo avvia un controllo nuovo.**
+>
+> _Deciso dal proprietario l'11/09/2026._
+
+##### ⛔ Che cosa cade, e perché era di troppo
+
+⛔ **Qui il comando era un'operazione spalmata su PIÙ pressioni**, e da lì veniva
+tutto il resto: l'istante da riportare indietro, il conto delle «non verificate»,
+il residuo che doveva convergere, e le due colonne di stato che stavo per
+proporre in §31.22.
+
+⭐ **Se un clic è un'operazione intera, il risultato deve sopravvivere solo alla
+durata di una chiamata.** Vive in memoria mentre il comando gira. Non è una coda
+e non è un registro: è l'accumulatore di un'esecuzione.
+
+```text
+tolti   operazioneIniziataAlle · restano · senzaBase · nonEsaminate · interrotto
+        contaNonAPosto · contaNonVerificate · contaNonPronte · perSede
+aggiunti  un cursore di lettura, e i motivi con un nome
+```
+
+⛔ **Nessuna colonna nuova, nessuna migration.** Il servizio è più piccolo di
+prima.
+
+##### ⭐ Un clic, blocchi automatici, cursore
+
+```text
+premo Allinea
+   -> POST sync/inventory/align            nessun cursore: si parte
+   <- blocco: esaminate, allineate, non allineate[], prossimo
+   -> POST sync/inventory/align  {prossimo}
+   <- ... prossimo: null                   il perimetro e' finito
+consegna l'elenco completo
+```
+
+⭐ **Il tetto delle scritture (50) non ferma più il controllo: chiude il blocco.**
+Il pulsante chiede il successivo da sé. Il tetto continua a proteggere la quota
+per richiesta e ha smesso di essere un limite di ciò che una pressione può
+controllare — **senza alzarne il numero**.
+
+⛔ **L'ordine di scansione NON è più `last_attempt_at`, e non può esserlo**: il
+giro stesso lo riscrive mentre avanza, quindi rimescolerebbe le pagine e qualche
+coppia verrebbe saltata o rivista. Con `(sede, variante)` — unico per riga — la
+copertura è **per costruzione**, e ogni coppia è toccata **una volta sola**: è
+anche il modo in cui le anomalie non si ritentano all'infinito.
+
+⚠️ `last_attempt_at` **si continua a scrivere**: serve alla rotazione della coda
+del ritentativo, che non è questo comando e non cambia.
+
+##### ⛔ Il cursore è l'ULTIMA ESAMINATA, non la fine del blocco
+
+```text
+120 coppie che chiedono tutte una scrittura
+il blocco si ferma alla 50a per il tetto, non alla 200a per la scansione
+   cursore = la 50a          ✅ il blocco dopo riprende dalla 51a
+   cursore = la 200a         ⛔ settanta coppie saltate, e il giro finisce lo stesso
+```
+
+⭐ È il punto in cui un giro a blocchi perde lavoro **senza che nessuno se ne
+accorga**, perché finirebbe comunque. Prova `K1`, falsificata due volte.
+
+##### ⛔ Se si interrompe, NON è completato
+
+⭐ **`fine` lo dice il server**, e solo per il blocco che ha chiuso il perimetro.
+Il pulsante dichiara completo solo dopo averlo ricevuto: scheda chiusa, rete
+caduta, blocco in errore — l'ultimo avanzamento resta `completo: false` e
+l'elenco che porta è **parziale**.
+
+⚠️ **Un elenco parziale scambiato per finale è la bugia peggiore** che questo
+comando possa raccontare: l'operatore andrebbe a gestire a mano un elenco che non
+contiene tutto.
+
+⭐ Al clic successivo si riparte **senza cursore**, cioè con un controllo nuovo.
+Ripassare una coppia già a posto è innocuo: esce come «già allineata» senza
+scrivere.
+
+##### ⭐ I motivi hanno un NOME, e due coppie di distinzioni non si perdono
+
+L'elenco porta **articolo, codice, variante, SKU, sede e motivo**, con una frase
+che lo spiega.
+
+###### ⛔ «Livello non disponibile» ≠ errore di lettura
+
+|                             |                                                                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **livello non disponibile** | non c'è un livello da allineare. Nessuna quantità scritta, **nessuna dedotta**, `mismatch_detected` **non** si accende — quindi la coppia non entra nella coda del ritentativo |
+| **errore di lettura**       | il canale non ha risposto: esito ignoto                                                                                                                                        |
+
+⚠️ **E non si dice di quale LATO manchi il livello.** Avevo proposto una
+rilettura per distinguerlo; il proprietario l'ha respinta: il motivo dice quello
+che si sa, e inventare un lato sarebbe una frase precisa e non verificata.
+
+###### ⛔ Errore di lettura ≠ scrittura con esito incerto
+
+```text
+errore di lettura           non e' partito niente: ripetere e' innocuo
+scrittura esito incerto     una scrittura era PRENOTATA: puo' essere andata a segno
+```
+
+⭐ **La differenza non si deduce: si LEGGE.** È un fatto già scritto sulla riga —
+un tentativo aperto (`pendingKey`) significa che una scrittura era prenotata.
+Ripeterla di iniziativa è il doppio effetto che la chiave di idempotenza esiste
+per impedire.
+
+##### Che cosa NON cambia
+
+⛔ **La sincronizzazione continua non si tocca**: il push service è invariato.
+Restano confronto remoto, chiave di idempotenza, collegamenti esclusi, pausa,
+tentativi incerti, `NULL` come guardia, registro dei rifiuti.
+
+⛔ **E il pulsante non sostituisce il recupero automatico**: invii pendenti,
+tentativi incerti e ordini mancanti restano mestiere della coda del ritentativo.
+Questo è il gesto manuale, non il loro rimpiazzo.
+
+##### Le prove, e i due limiti dichiarati
+
+`K1` cursore all'ultima esaminata · `K2` un errore nel mezzo non dichiara
+concluso · `K3` risposta persa dopo la scrittura, tentativo persistente che regge
+· `K4` quantità cambiate durante il giro, confronto che respinge.
+
+⚠️ **Non si dichiara garantita l'assenza di scadenze in base al numero di
+righe.** Ogni blocco è limitato nel **lavoro** — 200 esaminate, 50 scritte — non
+nel tempo: quanto duri dipende da quanto risponde il canale, che da qui non si
+governa. Il limite serve proprio ai casi in cui il canale è lento.
+
+⏸ **Il perimetro può cambiare mentre il giro avanza** (una variante collegata nel
+frattempo): la scansione copre il perimetro che attraversa.
+
+⏸ **La parte VISIVA del pulsante non è fatta**, ed è dichiarata: il collegamento
+— il servizio che incatena i blocchi, accumula l'elenco e non dichiara completo
+ciò che non lo è — c'è ed è provato. Quello che manca è il comando nel pannello
+Shopify con l'avanzamento e l'elenco a pagine, **e va guardato a schermo**: una
+resa visiva non la dimostra nessuna suite.
 
 #### 31.13-bis · ⏸ La proposta originale — resta per la parte sulle righe esistenti
 
