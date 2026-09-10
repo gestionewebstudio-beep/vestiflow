@@ -1,0 +1,241 @@
+
+      /**
+       * Un client che si ARRESTA subito dopo `segnaEsaminata`.
+       *
+       * ⭐ **Riproduce il punto esatto**: l'upsert che scrive `last_attempt_at`
+       *    è già andato a buon fine, e il processo muore prima di
+       *    `riallineaCoppia`. È l'ordine dichiarato dal ciclo — si marca PRIMA
+       *    di tentare — quindi lo stato che resta è «guardata» senza controllo.
+       */
+      function prismaCheSiArresta(deveArrestarsi: () => boolean) {
+        const delegato = prisma.shopifyInventorySyncState;
+        const sostituto = new Proxy(delegato as object, {
+          get(bersaglio, chiave) {
+            if (chiave === 'upsert') {
+              return async (argomenti: never) => {
+                const esito = await delegato.upsert(argomenti);
+                if (deveArrestarsi()) {
+                  throw new Error('arresto simulato dopo segnaEsaminata');
+                }
+                return esito;
+              };
+            }
+            const valore = Reflect.get(bersaglio, chiave);
+            return typeof valore === 'function' ? valore.bind(delegato) : valore;
+          },
+        });
+        return new Proxy(prisma as object, {
+          get(bersaglio, chiave) {
+            if (chiave === 'shopifyInventorySyncState') {
+              return sostituto;
+            }
+            const valore = Reflect.get(bersaglio, chiave);
+            return typeof valore === 'function' ? valore.bind(prisma) : valore;
+          },
+        });
+      }
+
+      /** La variante di massa all'indice dato, con la sua riga di stato. */
+      function itemDiMassa(indice: number): string {
+        return '8' + SEDE_REMOTA + String(indice).padStart(4, '0');
+      }
+
+      async function varianteDiMassa(indice: number) {
+        return prisma.productVariant.findFirstOrThrow({
+          where: { tenantId: IDS.tenantA, shopifyInventoryItemId: itemDiMassa(indice) },
+        });
+      }
+
+      /**
+       * CHIUDE il collegamento di una variante, per il percorso reale.
+       *
+       * ⭐ Registra identità e periodo con il servizio vero, poi chiude il
+       *    periodo: è lo stato che il push legge quando risponde
+       *    `collegamento_escluso`.
+       */
+      async function chiudiCollegamento(indice: number): Promise<string> {
+        const variante = await varianteDiMassa(indice);
+        const negozioRiga = await prisma.shopifyShop.findFirstOrThrow({
+          where: { tenantId: IDS.tenantA },
+        });
+        await prisma.$transaction(async (tx) => {
+          const prodotto = await storico.registraProdotto(tx as never, {
+            tenantId: IDS.tenantA,
+            shopId: negozioRiga.id,
+            productId: variante.productId,
+            shopifyProductGid: 'gid://shopify/Product/' + itemDiMassa(indice),
+          });
+          if (prodotto.tipo !== 'registrato') {
+            throw new Error('prodotto non registrato: ' + prodotto.tipo);
+          }
+          const esito = await storico.registraVariante(tx as never, {
+            tenantId: IDS.tenantA,
+            shopId: negozioRiga.id,
+            productIdentityId: prodotto.identityId,
+            productLinkId: prodotto.linkId,
+            productId: variante.productId,
+            variantId: variante.id,
+            shopifyVariantGid: variante.shopifyVariantId!,
+            shopifyInventoryItemGid: 'gid://shopify/InventoryItem/' + itemDiMassa(indice),
+          });
+          if (esito !== 'registrato') {
+            throw new Error('variante non registrata: ' + esito);
+          }
+        });
+        await prisma.$executeRawUnsafe(
+          "UPDATE shopify_variant_links l" +
+            "   SET status = 'unlinked', close_reason = 'operator'," +
+            "       closed_at = GREATEST(now(), linked_at), updated_at = now()" +
+            "  FROM shopify_variant_identities i" +
+            " WHERE l.identity_id = i.id AND i.variant_id = $1::uuid AND l.status = 'active'",
+          variante.id,
+        );
+        return variante.id;
+      }
+
+      it('⛔ I · un ARRESTO fra «l\'ho guardata» e il controllo', async () => {
+        // ⛔ **`last_attempt_at` si scrive PRIMA del tentativo**, ed è giusto
+        //    così: è ciò che fa ruotare la coda anche quando il tentativo
+        //    muore. Ma allora quella data dice «l'ho guardata», non «l'ho
+        //    verificata» — e l'operazione la conta come verificata.
+        await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
+        await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
+        const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // 250 coppie: solo l'ULTIMA in rotazione è disallineata.
+        await coppieConBase(250, IDS.locA1, SEDE_REMOTA, 249, ieri);
+        const inizio = new Date();
+
+        const primo = await allineatore3().allinea(IDS.tenantA, inizio);
+        expect(primo.giaAllineate).toBe(200);
+        // ⭐ **La premessa del rimedio, misurata**: una coppia esaminata e
+        //    conclusa lascia una data di conferma; una solo marcata no.
+        expect(
+          await prisma.shopifyInventorySyncState.count({
+            where: { tenantId: IDS.tenantA, lastPushedAt: { not: null } },
+          }),
+        ).toBe(200);
+
+        // ── la passata dopo si ARRESTA sulla cinquantesima marcatura ───────
+        //    Cioè subito dopo aver marcato la coppia 249, e prima di guardarla.
+        let restanti = 50;
+        const arrestato = new ShopifyInventoryAlignService(
+          prismaCheSiArresta(() => (restanti -= 1) === 0) as never,
+          nuovoEsecutore() as never,
+        );
+        await expect(arrestato.allinea(IDS.tenantA, inizio)).rejects.toThrow('arresto simulato');
+
+        // ⭐ Lo stato che resta: marcata, mai controllata, ancora disallineata.
+        const rimasta = await prisma.shopifyInventorySyncState.findFirstOrThrow({
+          where: { tenantId: IDS.tenantA, variant: { shopifyInventoryItemId: itemDiMassa(249) } },
+        });
+        expect(rimasta.lastAttemptAt!.getTime()).toBeGreaterThanOrEqual(inizio.getTime());
+        expect(rimasta.lastPushedAt).toBeNull();
+        expect(negozio.quantitaRemota(itemDiMassa(249), SEDE_REMOTA)).toBe(1);
+
+        // ── si riparte: ESECUTORE NUOVO, stesso istante dell'operazione ────
+        const ripresa = await allineatore3().allinea(IDS.tenantA, inizio);
+
+        // ⛔ **Quella coppia NON è stata verificata**, e il conto deve dirlo.
+        expect(ripresa.nonEsaminate).toBeGreaterThan(0);
+        expect(ripresa.interrotto).toBe(true);
+
+        // ── e l'operazione arriva davvero fino in fondo ────────────────────
+        let ultimo = ripresa;
+        let passate = 0;
+        while (passate < 8 && ultimo.interrotto) {
+          ultimo = await allineatore3().allinea(IDS.tenantA, inizio);
+          passate += 1;
+        }
+        expect(ultimo.nonEsaminate).toBe(0);
+        // ⭐ **La prova non è il numero: è il canale.**
+        expect(negozio.quantitaRemota(itemDiMassa(249), SEDE_REMOTA)).toBe(5);
+      });
+
+      it('⛔ I-bis · la coda del ritentativo marca la data senza il controllo di Allinea', async () => {
+        // ⛔ **Due processi scrivono `last_attempt_at`**: l'allineamento e la
+        //    coda del ritentativo, che gira in coda a ogni import giacenze.
+        //    La coda la scrive PRIMA di tentare e i suoi tentativi non fanno
+        //    il controllo che fa Allinea: quella data non può quindi valere
+        //    come «verificata dall'operazione».
+        await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
+        await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
+        const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        await coppieConBase(250, IDS.locA1, SEDE_REMOTA, 249, ieri);
+        // ⭐ L'ultima è disallineata ED è in coda al ritentativo.
+        await prisma.shopifyInventorySyncState.updateMany({
+          where: { tenantId: IDS.tenantA, variant: { shopifyInventoryItemId: itemDiMassa(249) } },
+          data: { localPushPending: true },
+        });
+        const inizio = new Date();
+
+        const primo = await allineatore3().allinea(IDS.tenantA, inizio);
+        expect(primo.giaAllineate).toBe(200);
+
+        // ── la coda del ritentativo passa di lì, e la MARCA ────────────────
+        await new ShopifyInventoryRepublishService(
+          prisma as never,
+          nuovoEsecutore() as never,
+        ).retryPending(IDS.tenantA);
+
+        const dopoCoda = await prisma.shopifyInventorySyncState.findFirstOrThrow({
+          where: { tenantId: IDS.tenantA, variant: { shopifyInventoryItemId: itemDiMassa(249) } },
+        });
+        expect(dopoCoda.lastAttemptAt!.getTime()).toBeGreaterThanOrEqual(inizio.getTime());
+        // ⚠️ Ma il canale è ancora disallineato: il controllo di Allinea non
+        //    l'ha fatto nessuno.
+        expect(negozio.quantitaRemota(itemDiMassa(249), SEDE_REMOTA)).toBe(1);
+
+        // ── l'operazione prosegue, con esecutore nuovo e stesso istante ────
+        let ultimo = await allineatore3().allinea(IDS.tenantA, inizio);
+        let passate = 0;
+        while (passate < 8 && ultimo.interrotto) {
+          ultimo = await allineatore3().allinea(IDS.tenantA, inizio);
+          passate += 1;
+        }
+
+        expect(ultimo.nonEsaminate).toBe(0);
+        // ⭐ **E il canale deve essere stato corretto DA ALLINEA.**
+        expect(negozio.quantitaRemota(itemDiMassa(249), SEDE_REMOTA)).toBe(5);
+      });
+
+      it('⛔ J · una coppia ESCLUSA resta distinguibile dopo il giro completo', async () => {
+        // ⛔ **Un collegamento chiuso non scrive niente sulla riga di stato**:
+        //    la coppia ha base, contatori a zero e nessun marcatore. Oggi entra
+        //    nel residuo solo perché l'elenco della passata l'ha vista — e alla
+        //    passata dopo, che per rotazione ne guarda altre, sparisce.
+        await prisma.inventoryLevel.deleteMany({ where: { tenantId: IDS.tenantA } });
+        await prisma.shopifyInventorySyncState.deleteMany({ where: { tenantId: IDS.tenantA } });
+        const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // Tutte allineate: nessuna scrittura, nessun altro marcatore in giro.
+        await coppieConBase(300, IDS.locA1, SEDE_REMOTA, 999, ieri);
+        // ⭐ L'ULTIMA della prima passata, così la seconda non la incontra.
+        await chiudiCollegamento(199);
+        const inizio = new Date();
+
+        const primo = await allineatore3().allinea(IDS.tenantA, inizio);
+
+        expect(primo.escluse).toBe(1);
+        expect(primo.giaAllineate).toBe(199);
+        expect(primo.restano).toBe(1);
+
+        // ── seconda passata: la rotazione guarda ALTRE coppie ──────────────
+        const secondo = await allineatore3().allinea(IDS.tenantA, inizio);
+
+        expect(secondo.escluse).toBe(0);
+        // ⛔ **Qui c'era ZERO**: l'esclusione era sparita dal risultato, e la
+        //    coppia era indistinguibile da una allineata.
+        expect(secondo.restano).toBe(1);
+
+        // ── il giro completo non deve cancellarla ──────────────────────────
+        let ultimo = secondo;
+        let passate = 0;
+        while (passate < 8 && ultimo.interrotto) {
+          ultimo = await allineatore3().allinea(IDS.tenantA, inizio);
+          passate += 1;
+        }
+
+        expect(ultimo.nonEsaminate).toBe(0);
+        // ⭐ **A operazione conclusa resta dichiarata**: una coppia esclusa non
+        //    e' una coppia allineata, e il riepilogo non la puo' perdere.
+        expect(ultimo.restano).toBe(1);
+      });
