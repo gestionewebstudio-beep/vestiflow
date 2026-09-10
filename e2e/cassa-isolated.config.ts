@@ -13,7 +13,8 @@ if (
 /** Solo frontend E2E, nessun avvio API, nessun riuso di servizi del proprietario. */
 export default defineConfig({
   testDir: '.',
-  testMatch: /(cassa-render-window|cassa-performance|cassa-mobile|cassa|filtri-colonna)\.spec\.ts$/,
+  testMatch:
+    /(cassa-render-window|cassa-performance|cassa-mobile|cassa|filtri-colonna|allinea-pannello)\.spec\.ts$/,
   workers: 1,
   retries: 0,
   timeout: 120_000,

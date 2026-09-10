@@ -454,6 +454,14 @@
 
 /* ── Allinea giacenze: avanzamento ed elenco delle non allineate ────── */
 .shopify-integration__allinea {
+  /* ⛔ **Il contenitore e' una COLONNA, e un pulsante ci si stira dentro.**
+     Visto a schermo: «Allinea giacenze su Shopify» prendeva tutta la fascia e
+     smetteva di leggersi come un pulsante, mentre i comandi sopra sono a
+     contenuto. ⚠️ `align-self` non servirebbe: l'host di `app-button` e'
+     `display: contents`, quindi in colonna ci sta il `<button>` interno — e si
+     configura col suo punto di regolazione, non raggiungendolo da fuori. */
+  --button-inline-size: fit-content;
+
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
