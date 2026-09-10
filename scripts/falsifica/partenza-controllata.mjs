@@ -1,0 +1,55 @@
+/**
+ * Falsifica le prove della PARTENZA CONTROLLATA — `docs/DA-FARE.md` §31.20.
+ *
+ *   node scripts/falsifica/partenza-controllata.mjs
+ *
+ * ⚠️ Serve il database di prova sacrificabile, non il condiviso:
+ *   npm run db:test:up --prefix api  &&  npm run prisma:deploy:test --prefix api
+ */
+import { autoprova, dentroApi, falsificaTutti } from './falsifica.mjs';
+
+const PUSH = dentroApi('src/shopify/shopify-inventory-push.service.ts');
+const ALIGN = dentroApi('src/shopify/shopify-inventory-align.service.ts');
+const PROVA = 'src/test/integration/invio-composto.integration-spec.ts';
+
+const strumentoSano = autoprova({ file: PUSH, ancora: 'const GIRI_PRESA = 3;', prova: PROVA });
+
+const guasti = [
+  {
+    nome: 'D1 - il vecchio confermato torna a certificare una partenza fallita',
+    file: PUSH,
+    da: `             last_pushed_available = CASE
+               WHEN pending_ha_inizializzato = TRUE`,
+    a: `             last_pushed_available = CASE
+               WHEN FALSE`,
+    filtro: 'NON certifica una partenza fallita',
+  },
+  {
+    nome: 'D2 - il confermato si azzera SEMPRE, anche senza lavoro rimasto',
+    file: PUSH,
+    da: `             last_pushed_available = CASE
+               WHEN pending_ha_inizializzato = TRUE
+                    AND NOT (`,
+    a: `             last_pushed_available = CASE
+               WHEN pending_ha_inizializzato = TRUE
+                    OR NOT (`,
+    filtro: 'primo Allinea RIFIUTATO',
+  },
+  {
+    nome: 'E - il residuo torna a sommare insiemi che si sovrappongono',
+    file: ALIGN,
+    da: '      restano,\n      senzaBase,',
+    a: '      restano: senzaBase + nonEsaminate,\n      senzaBase,',
+    filtro: 'il residuo CONVERGE',
+  },
+  {
+    nome: 'F - «non verificate» torna a contare la singola passata',
+    file: ALIGN,
+    da: '    const nonEsaminate = await this.contaNonVerificate(tenantId, dalle);',
+    a: '    const nonEsaminate = Math.max(0, (await this.contaPerimetro(tenantId)) - esaminate);',
+    filtro: 'scende a zero anche senza lavoro',
+  },
+];
+
+const tutti = falsificaTutti(guasti, PROVA);
+process.exit(tutti && strumentoSano ? 0 : 1);
