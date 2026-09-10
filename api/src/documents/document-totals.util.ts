@@ -42,7 +42,5 @@ export function formatDocumentReference(
 ): string {
   const paddedNumber = String(number).padStart(4, '0');
   const trimmedSeries = (series ?? '').trim();
-  return trimmedSeries
-    ? `${prefix}-${trimmedSeries}-${paddedNumber}`
-    : `${prefix}-${paddedNumber}`;
+  return trimmedSeries ? `${prefix}-${trimmedSeries}-${paddedNumber}` : `${prefix}-${paddedNumber}`;
 }

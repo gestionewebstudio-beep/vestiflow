@@ -19,14 +19,14 @@ describe('deleteTenantData', () => {
           //    dicendo un'altra cosa.
           if (typeof model === 'string' && model.startsWith('$')) return eseguiGrezzo;
           return {
-          findMany: vi.fn().mockResolvedValue([]),
-          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-          deleteMany:
-            model === 'paymentMethodCode' || model === 'vatNature'
-              ? vi.fn(() => {
-                  throw new Error('Global catalog touched');
-                })
-              : deleteMany,
+            findMany: vi.fn().mockResolvedValue([]),
+            updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+            deleteMany:
+              model === 'paymentMethodCode' || model === 'vatNature'
+                ? vi.fn(() => {
+                    throw new Error('Global catalog touched');
+                  })
+                : deleteMany,
             delete: deleteOne,
           };
         },

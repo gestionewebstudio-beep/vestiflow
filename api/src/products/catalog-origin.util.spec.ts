@@ -79,5 +79,4 @@ describe('catalog-origin.util', () => {
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
   });
-
 });

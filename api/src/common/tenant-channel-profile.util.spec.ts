@@ -49,7 +49,9 @@ describe('tenant-channel-profile.util', () => {
 
       const prismaMismatch = {
         tenant: {
-          findUnique: vi.fn().mockResolvedValue({ channelProfile: TenantChannelProfile.gestionale }),
+          findUnique: vi
+            .fn()
+            .mockResolvedValue({ channelProfile: TenantChannelProfile.gestionale }),
         },
       };
       await expect(
