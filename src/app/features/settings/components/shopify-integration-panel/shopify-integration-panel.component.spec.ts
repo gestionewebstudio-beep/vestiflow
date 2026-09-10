@@ -1,7 +1,7 @@
 import { provideRouter } from '@angular/router';
 import { render, screen, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
@@ -43,6 +43,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
     checkWebhooks: vi.fn(),
     registerMissingWebhooks: vi.fn(),
     clearErrors: vi.fn(),
+    allineaDisponibilita: vi.fn(),
   };
 
   beforeEach(() => {
@@ -476,5 +477,172 @@ describe('ShopifyIntegrationPanelComponent', () => {
     await user.click(await screen.findByRole('button', { name: /Importa catalogo/i }));
 
     expect(await screen.findByText('Shopify non risponde.')).toBeVisible();
+  });
+
+  /**
+   * ALLINEA GIACENZE — il comportamento del pannello.
+   *
+   * ⭐ Il servizio incatena i blocchi; qui si misura che cosa VEDE chi preme:
+   *    un gesto solo, l'avanzamento senza numeri inventati, e la differenza fra
+   *    un controllo concluso e uno interrotto.
+   */
+  describe('Allinea giacenze', () => {
+    function avanzamento(sovrascrivi: Partial<Record<string, unknown>> = {}) {
+      return {
+        totale: 300,
+        esaminate: 200,
+        allineate: 3,
+        giaAllineate: 197,
+        nonAllineate: [],
+        completo: false,
+        ...sovrascrivi,
+      };
+    }
+
+    function nonAllineata(indice: number, motivo = 'livello_non_disponibile') {
+      return {
+        variantId: `var-${indice}`,
+        locationId: 'loc-1',
+        articolo: `Articolo ${indice}`,
+        codiceArticolo: `ART-${indice}`,
+        variante: 'M · Rosso',
+        sku: `SKU-${indice}`,
+        sede: 'Magazzino 1',
+        motivo,
+        dettaglio: 'una frase lunga',
+      };
+    }
+
+    const pulsante = () => screen.getByRole('button', { name: /Allinea giacenze su Shopify/i });
+
+    it('⭐ una pressione sola: il servizio si chiama una volta e i blocchi li incatena lui', async () => {
+      connectionService.allineaDisponibilita.mockReturnValue(
+        of(avanzamento({ esaminate: 300, completo: true })),
+      );
+      await setup();
+
+      await userEvent.click(pulsante());
+
+      // ⭐ Una chiamata: chi preme non preme una seconda volta per proseguire.
+      expect(connectionService.allineaDisponibilita).toHaveBeenCalledTimes(1);
+      expect(await screen.findByText(/Controllo completato/)).toBeVisible();
+      // ⭐ Il riepilogo finale: allineate, gia' corrette, non allineate.
+      expect(screen.getByText('Allineate')).toBeVisible();
+      expect(screen.getByText('Già corrette')).toBeVisible();
+      expect(screen.getByText('Non allineate')).toBeVisible();
+    });
+
+    it('⭐ l avanzamento conta le COPPIE esaminate, e non inventa percentuali', async () => {
+      const blocchi = new Subject<unknown>();
+      connectionService.allineaDisponibilita.mockReturnValue(blocchi.asObservable());
+      await setup();
+
+      await userEvent.click(pulsante());
+      blocchi.next(avanzamento({ esaminate: 200 }));
+
+      const stato = await screen.findByText(/Controllo in corso/);
+      expect(stato.textContent).toContain('200');
+      expect(stato.textContent).toContain('300');
+      // ⛔ Nessuna percentuale: sarebbe un numero che nessuno ha misurato.
+      expect(stato.textContent).not.toContain('%');
+      blocchi.complete();
+    });
+
+    it('⛔ durante l operazione il pulsante e SPENTO', async () => {
+      const blocchi = new Subject<unknown>();
+      connectionService.allineaDisponibilita.mockReturnValue(blocchi.asObservable());
+      await setup();
+
+      await userEvent.click(pulsante());
+      blocchi.next(avanzamento());
+
+      await waitFor(() => expect(pulsante()).toBeDisabled());
+
+      blocchi.next(avanzamento({ esaminate: 300, completo: true }));
+      blocchi.complete();
+      await waitFor(() => expect(pulsante()).toBeEnabled());
+    });
+
+    it('⛔ se il controllo si INTERROMPE, non si dichiara completato', async () => {
+      const blocchi = new Subject<unknown>();
+      connectionService.allineaDisponibilita.mockReturnValue(blocchi.asObservable());
+      await setup();
+
+      await userEvent.click(pulsante());
+      blocchi.next(avanzamento({ nonAllineate: [nonAllineata(1)] }));
+      blocchi.error(new Error('rete caduta'));
+
+      // ⛔ **«Controllo incompleto», e l'elenco e' dichiarato parziale.**
+      expect(await screen.findByText(/Controllo incompleto/)).toBeVisible();
+      expect(screen.getByText(/parziale/)).toBeVisible();
+      expect(screen.queryByText(/Controllo completato/)).toBeNull();
+      // ⭐ E quello che si era gia' raccolto NON sparisce.
+      expect(screen.getByText('Articolo 1')).toBeVisible();
+    });
+
+    it('⭐ l elenco delle non allineate e PAGINATO, e non perde righe', async () => {
+      const righe = Array.from({ length: 25 }, (_, i) => nonAllineata(i + 1));
+      connectionService.allineaDisponibilita.mockReturnValue(
+        of(avanzamento({ esaminate: 300, completo: true, nonAllineate: righe })),
+      );
+      await setup();
+
+      await userEvent.click(pulsante());
+
+      // ⭐ Prima pagina: venti righe, e il conteggio dice VENTICINQUE.
+      expect(await screen.findByText('Articolo 1')).toBeVisible();
+      expect(screen.getByText('Articolo 20')).toBeVisible();
+      expect(screen.queryByText('Articolo 21')).toBeNull();
+      expect(screen.getByText('25')).toBeVisible();
+      expect(screen.getByText(/Pagina 1 di 2/)).toBeVisible();
+
+      await userEvent.click(screen.getByRole('button', { name: /Successiva/i }));
+
+      // ⭐ Seconda pagina: le cinque rimaste. Nessuna anomalia persa.
+      expect(await screen.findByText('Articolo 21')).toBeVisible();
+      expect(screen.getByText('Articolo 25')).toBeVisible();
+      expect(screen.queryByText('Articolo 1')).toBeNull();
+    });
+
+    it('⭐ ogni riga porta articolo, variante, sede e MOTIVO', async () => {
+      connectionService.allineaDisponibilita.mockReturnValue(
+        of(
+          avanzamento({
+            esaminate: 300,
+            completo: true,
+            nonAllineate: [nonAllineata(7, 'scrittura_esito_incerto')],
+          }),
+        ),
+      );
+      await setup();
+
+      await userEvent.click(pulsante());
+
+      expect(await screen.findByText('Articolo 7')).toBeVisible();
+      expect(screen.getByText('M · Rosso')).toBeVisible();
+      expect(screen.getByText('Magazzino 1')).toBeVisible();
+      // ⛔ «Scrittura con esito incerto» NON e' «errore di lettura»: sono due
+      //    voci diverse, e chi legge deve poterle distinguere.
+      expect(screen.getByText('Scrittura con esito incerto')).toBeVisible();
+    });
+
+    it('⭐ un clic NUOVO avvia un controllo nuovo, e riparte dal principio', async () => {
+      connectionService.allineaDisponibilita.mockReturnValue(
+        of(avanzamento({ esaminate: 300, completo: true, nonAllineate: [nonAllineata(1)] })),
+      );
+      await setup();
+
+      await userEvent.click(pulsante());
+      expect(await screen.findByText('Articolo 1')).toBeVisible();
+
+      connectionService.allineaDisponibilita.mockReturnValue(
+        of(avanzamento({ esaminate: 300, completo: true, nonAllineate: [] })),
+      );
+      await userEvent.click(pulsante());
+
+      // ⭐ Il controllo e' NUOVO: l'elenco di prima non sopravvive.
+      await waitFor(() => expect(screen.queryByText('Articolo 1')).toBeNull());
+      expect(connectionService.allineaDisponibilita).toHaveBeenCalledTimes(2);
+    });
   });
 });

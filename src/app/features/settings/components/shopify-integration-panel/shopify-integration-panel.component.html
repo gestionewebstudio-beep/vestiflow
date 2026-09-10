@@ -453,6 +453,102 @@
           Sincronizza location
         </app-button>
       </div>
+
+      <div class="shopify-integration__allinea">
+        <p class="shopify-integration__bulk-sync-hint">
+          Il controllo confronta ogni coppia articolo/sede con Shopify e vi riporta il valore di
+          VestiFlow. Una pressione basta: prosegue da sé a blocchi e, alla fine, elenca le coppie
+          che non è riuscito ad allineare.
+        </p>
+        <app-button
+          variant="secondary"
+          loadingIndicator="icon"
+          [loading]="allineaInCorso()"
+          [disabled]="
+            allineaInCorso() ||
+            shopifyBulkSyncBusy() ||
+            syncLocationsLoading() ||
+            syncWebhooksLoading() ||
+            disconnectLoading()
+          "
+          (click)="allineaGiacenze()"
+        >
+          @if (allineaInCorso()) {
+            <i class="pi pi-sync" aria-hidden="true"></i>
+          }
+          Allinea giacenze su Shopify
+        </app-button>
+
+        @if (allineaAvanzamento(); as avanzamento) {
+          <p class="shopify-integration__allinea-stato" role="status">
+            @if (allineaInCorso()) {
+              Controllo in corso — {{ avanzamento.esaminate }} di {{ avanzamento.totale }}
+              coppie esaminate
+            } @else if (allineaCompleto()) {
+              Controllo completato — {{ avanzamento.esaminate }} coppie esaminate
+            } @else {
+              <strong class="shopify-integration__allinea-incompleto">
+                Controllo incompleto
+              </strong>
+              — si è interrotto dopo {{ avanzamento.esaminate }} coppie su {{ avanzamento.totale }}.
+              L’elenco qui sotto è parziale.
+            }
+          </p>
+
+          <dl class="shopify-integration__facts">
+            <div class="shopify-integration__fact">
+              <dt>Allineate</dt>
+              <dd>{{ avanzamento.allineate }}</dd>
+            </div>
+            <div class="shopify-integration__fact">
+              <dt>Già corrette</dt>
+              <dd>{{ avanzamento.giaAllineate }}</dd>
+            </div>
+            <div class="shopify-integration__fact">
+              <dt>Non allineate</dt>
+              <dd>{{ avanzamento.nonAllineate.length }}</dd>
+            </div>
+          </dl>
+
+          @if (avanzamento.nonAllineate.length > 0) {
+            <ul class="shopify-integration__allinea-elenco">
+              @for (riga of allineaRighePagina(); track riga.variantId + riga.locationId) {
+                <li class="shopify-integration__allinea-riga">
+                  <span class="shopify-integration__allinea-articolo">{{ riga.articolo }}</span>
+                  <span class="shopify-integration__allinea-variante">
+                    {{ riga.variante || riga.sku || riga.codiceArticolo || '—' }}
+                  </span>
+                  <span class="shopify-integration__allinea-sede">{{ riga.sede }}</span>
+                  <span class="shopify-integration__allinea-motivo" [title]="riga.dettaglio">
+                    {{ etichettaMotivo(riga.motivo) }}
+                  </span>
+                </li>
+              }
+            </ul>
+            @if (allineaPagine() > 1) {
+              <div class="shopify-integration__allinea-pagine">
+                <app-button
+                  variant="ghost"
+                  [disabled]="allineaPagina() === 0"
+                  (click)="allineaPaginaPrecedente()"
+                >
+                  Precedente
+                </app-button>
+                <span class="shopify-integration__allinea-pagina-corrente">
+                  Pagina {{ allineaPagina() + 1 }} di {{ allineaPagine() }}
+                </span>
+                <app-button
+                  variant="ghost"
+                  [disabled]="allineaPagina() >= allineaPagine() - 1"
+                  (click)="allineaPaginaSuccessiva()"
+                >
+                  Successiva
+                </app-button>
+              </div>
+            }
+          }
+        }
+      </div>
     </div>
 
     <div

@@ -43,7 +43,9 @@ import {
   formatShopifyOrdersSyncFeedback,
   formatShopifyProductsSyncFeedback,
 } from '@domain/channels/shopify/models/shopify-sync-feedback.util';
+import { etichettaMotivoAllineamento } from '@domain/channels/shopify/models/shopify-allinea-motivo.util';
 import type {
+  AvanzamentoAllineamentoDto,
   ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
@@ -151,6 +153,12 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly syncInventoryLoading = signal(false);
   protected readonly syncCustomersLoading = signal(false);
   protected readonly syncOrdersLoading = signal(false);
+
+  // ── Allinea giacenze: una pressione, blocchi automatici ─────────────
+  protected readonly allineaInCorso = signal(false);
+  protected readonly allineaAvanzamento = signal<AvanzamentoAllineamentoDto | null>(null);
+  protected readonly allineaInterrotto = signal(false);
+  protected readonly allineaPagina = signal(0);
   protected readonly clearErrorsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
@@ -380,8 +388,46 @@ export class ShopifyIntegrationPanelComponent {
       this.syncProductsLoading() ||
       this.syncInventoryLoading() ||
       this.syncCustomersLoading() ||
-      this.syncOrdersLoading(),
+      this.syncOrdersLoading() ||
+      // ⭐ Anche il controllo di allineamento occupa il canale: gli altri
+      //    comandi restano spenti finché non finisce.
+      this.allineaInCorso(),
   );
+
+  /** Quante righe per pagina nell’elenco delle non allineate. */
+  private readonly allineaPerPagina = 20;
+
+  protected readonly allineaPagine = computed(() => {
+    const righe = this.allineaAvanzamento()?.nonAllineate.length ?? 0;
+    return Math.max(1, Math.ceil(righe / this.allineaPerPagina));
+  });
+
+  /**
+   * La pagina corrente dell’elenco.
+   *
+   * ⭐ **Si pagina la VISTA, non il risultato**: l’elenco accumulato resta
+   *    intero, e nessuna anomalia si perde per strada.
+   */
+  protected readonly allineaRighePagina = computed(() => {
+    const righe = this.allineaAvanzamento()?.nonAllineate ?? [];
+    const da = this.allineaPagina() * this.allineaPerPagina;
+    return righe.slice(da, da + this.allineaPerPagina);
+  });
+
+  /**
+   * ⛔ **«Completo» lo dice il SERVER**, e solo per il blocco che ha chiuso il
+   *    perimetro. Non si deduce dal fatto che la catena si è fermata.
+   */
+  protected readonly allineaCompleto = computed(
+    () => !this.allineaInCorso() && this.allineaAvanzamento()?.completo === true,
+  );
+
+  /** ⛔ Interrotto: l’elenco che si vede è PARZIALE, e va detto. */
+  protected readonly allineaIncompleto = computed(
+    () => !this.allineaInCorso() && this.allineaInterrotto(),
+  );
+
+  protected readonly etichettaMotivo = etichettaMotivoAllineamento;
 
   protected readonly showClearShopifyErrors = computed(() => {
     const conn = this.connection();
@@ -607,6 +653,50 @@ export class ShopifyIntegrationPanelComponent {
           this.connectError.set(extractErrorMessage(err));
         },
       });
+  }
+
+  /**
+   * ALLINEA LE GIACENZE: una pressione, un controllo COMPLETO del perimetro.
+   *
+   * ⭐ **Chi preme non preme una seconda volta**: i blocchi si incatenano nel
+   *    servizio, e qui si aggiorna l’avanzamento a ogni blocco.
+   *
+   * ⛔ **Se la catena si interrompe non si dichiara concluso niente**, e
+   *    l’elenco mostrato viene marcato PARZIALE. Una pressione nuova riparte
+   *    dal principio: è il comportamento voluto, non uno spreco.
+   */
+  protected allineaGiacenze(): void {
+    if (this.allineaInCorso() || this.shopifyBulkSyncBusy()) {
+      return;
+    }
+
+    this.allineaInCorso.set(true);
+    this.allineaInterrotto.set(false);
+    this.allineaAvanzamento.set(null);
+    this.allineaPagina.set(0);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .allineaDisponibilita()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (avanzamento) => this.allineaAvanzamento.set(avanzamento),
+        error: (err: unknown) => {
+          this.allineaInCorso.set(false);
+          this.allineaInterrotto.set(true);
+          this.connectError.set(extractErrorMessage(err));
+        },
+        complete: () => this.allineaInCorso.set(false),
+      });
+  }
+
+  protected allineaPaginaPrecedente(): void {
+    this.allineaPagina.update((pagina) => Math.max(0, pagina - 1));
+  }
+
+  protected allineaPaginaSuccessiva(): void {
+    this.allineaPagina.update((pagina) => Math.min(this.allineaPagine() - 1, pagina + 1));
   }
 
   protected syncShopifyCustomers(): void {
