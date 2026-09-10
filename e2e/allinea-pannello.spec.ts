@@ -213,19 +213,17 @@ test('⭐ giro completo: avanzamento, cursore, elenco paginato', async ({ page }
   await expect(page.getByText('Già corrette', { exact: true })).toBeVisible();
   await expect(page.getByText('Non allineate', { exact: true })).toBeVisible();
 
-  // ── 5 · l'elenco è PAGINATO e non perde righe ───────────────────────────
+  // ── 5 · l'elenco porta TUTTE le anomalie, in un riquadro che scorre ─────
   await expect(page.getByText('Maglia cotone 1', { exact: true })).toBeVisible();
-  await expect(page.getByText('Maglia cotone 20', { exact: true })).toBeVisible();
-  await expect(page.getByText('Maglia cotone 21', { exact: true })).toBeHidden();
-  await expect(page.getByText(/Pagina 1 di 2/)).toBeVisible();
-  await page.screenshot({ path: `${SCATTI}/03-elenco-pagina-1.png` });
+  await expect(page.getByText('Maglia cotone 25', { exact: true })).toBeAttached();
+  // ⛔ Nessun comando di impaginazione: non c'e' niente da sfogliare.
+  await expect(page.getByRole('button', { name: /Successiva/i })).toHaveCount(0);
+  await page.screenshot({ path: `${SCATTI}/03-elenco-intero.png` });
 
-  await page.getByRole('button', { name: /Successiva/i }).click();
-  await expect(page.getByText('Maglia cotone 21', { exact: true })).toBeVisible();
+  // ⭐ E l'ultima riga si RAGGIUNGE scorrendo il riquadro.
+  await page.getByText('Maglia cotone 25', { exact: true }).scrollIntoViewIfNeeded();
   await expect(page.getByText('Maglia cotone 25', { exact: true })).toBeVisible();
-  await expect(page.getByText('Maglia cotone 1', { exact: true })).toBeHidden();
-  await expect(page.getByText(/Pagina 2 di 2/)).toBeVisible();
-  await page.screenshot({ path: `${SCATTI}/04-elenco-pagina-2.png` });
+  await page.screenshot({ path: `${SCATTI}/04-elenco-in-fondo.png` });
 });
 
 test('⛔ interruzione: «Controllo incompleto» e risultati parziali conservati', async ({

@@ -483,6 +483,9 @@
   font-weight: var(--font-weight-bold);
 }
 
+/* ⭐ Le anomalie ci sono TUTTE: a contenere l'ingombro pensa il riquadro,
+   che scorre. Paginare ne nasconderebbe una parte, ed e' proprio per
+   guardarle insieme che questo elenco esiste. */
 .shopify-integration__allinea-elenco {
   display: flex;
   flex-direction: column;
@@ -490,6 +493,8 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  max-block-size: var(--table-scroll-max-h);
+  overflow-y: auto;
 }
 
 .shopify-integration__allinea-riga {
@@ -522,16 +527,4 @@
 
 .shopify-integration__allinea-motivo {
   color: var(--color-warning);
-}
-
-.shopify-integration__allinea-pagine {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.shopify-integration__allinea-pagina-corrente {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
 }

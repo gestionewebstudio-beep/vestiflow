@@ -158,7 +158,6 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly allineaInCorso = signal(false);
   protected readonly allineaAvanzamento = signal<AvanzamentoAllineamentoDto | null>(null);
   protected readonly allineaInterrotto = signal(false);
-  protected readonly allineaPagina = signal(0);
   protected readonly clearErrorsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
@@ -394,26 +393,14 @@ export class ShopifyIntegrationPanelComponent {
       this.allineaInCorso(),
   );
 
-  /** Quante righe per pagina nell’elenco delle non allineate. */
-  private readonly allineaPerPagina = 20;
-
-  protected readonly allineaPagine = computed(() => {
-    const righe = this.allineaAvanzamento()?.nonAllineate.length ?? 0;
-    return Math.max(1, Math.ceil(righe / this.allineaPerPagina));
-  });
-
   /**
-   * La pagina corrente dell’elenco.
-   *
-   * ⭐ **Si pagina la VISTA, non il risultato**: l’elenco accumulato resta
-   *    intero, e nessuna anomalia si perde per strada.
+   * ⛔ **L’elenco NON si pagina, e non è una dimenticanza.** La regola decisa
+   *    del progetto è «nessun tetto di righe: un elenco mostra TUTTE le righe»,
+   *    e la ragione vale qui più che altrove — un elenco di anomalie che ne
+   *    mostra venti su cinquecento non è verificabile, ed è proprio per
+   *    guardarle tutte insieme che esiste. A contenere l’ingombro pensa il
+   *    riquadro, che scorre.
    */
-  protected readonly allineaRighePagina = computed(() => {
-    const righe = this.allineaAvanzamento()?.nonAllineate ?? [];
-    const da = this.allineaPagina() * this.allineaPerPagina;
-    return righe.slice(da, da + this.allineaPerPagina);
-  });
-
   /**
    * ⛔ **«Completo» lo dice il SERVER**, e solo per il blocco che ha chiuso il
    *    perimetro. Non si deduce dal fatto che la catena si è fermata.
@@ -673,7 +660,6 @@ export class ShopifyIntegrationPanelComponent {
     this.allineaInCorso.set(true);
     this.allineaInterrotto.set(false);
     this.allineaAvanzamento.set(null);
-    this.allineaPagina.set(0);
     this.clearActionFeedback();
     this.connectError.set(null);
 
@@ -689,14 +675,6 @@ export class ShopifyIntegrationPanelComponent {
         },
         complete: () => this.allineaInCorso.set(false),
       });
-  }
-
-  protected allineaPaginaPrecedente(): void {
-    this.allineaPagina.update((pagina) => Math.max(0, pagina - 1));
-  }
-
-  protected allineaPaginaSuccessiva(): void {
-    this.allineaPagina.update((pagina) => Math.min(this.allineaPagine() - 1, pagina + 1));
   }
 
   protected syncShopifyCustomers(): void {

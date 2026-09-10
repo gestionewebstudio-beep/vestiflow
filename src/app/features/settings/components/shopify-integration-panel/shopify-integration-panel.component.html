@@ -512,7 +512,7 @@
 
           @if (avanzamento.nonAllineate.length > 0) {
             <ul class="shopify-integration__allinea-elenco">
-              @for (riga of allineaRighePagina(); track riga.variantId + riga.locationId) {
+              @for (riga of avanzamento.nonAllineate; track riga.variantId + riga.locationId) {
                 <li class="shopify-integration__allinea-riga">
                   <span class="shopify-integration__allinea-articolo">{{ riga.articolo }}</span>
                   <span class="shopify-integration__allinea-variante">
@@ -525,27 +525,6 @@
                 </li>
               }
             </ul>
-            @if (allineaPagine() > 1) {
-              <div class="shopify-integration__allinea-pagine">
-                <app-button
-                  variant="ghost"
-                  [disabled]="allineaPagina() === 0"
-                  (click)="allineaPaginaPrecedente()"
-                >
-                  Precedente
-                </app-button>
-                <span class="shopify-integration__allinea-pagina-corrente">
-                  Pagina {{ allineaPagina() + 1 }} di {{ allineaPagine() }}
-                </span>
-                <app-button
-                  variant="ghost"
-                  [disabled]="allineaPagina() >= allineaPagine() - 1"
-                  (click)="allineaPaginaSuccessiva()"
-                >
-                  Successiva
-                </app-button>
-              </div>
-            }
           }
         }
       </div>

@@ -580,7 +580,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
       expect(screen.getByText('Articolo 1')).toBeVisible();
     });
 
-    it('⭐ l elenco delle non allineate e PAGINATO, e non perde righe', async () => {
+    it('⭐ l elenco porta TUTTE le anomalie, senza paginazione', async () => {
       const righe = Array.from({ length: 25 }, (_, i) => nonAllineata(i + 1));
       connectionService.allineaDisponibilita.mockReturnValue(
         of(avanzamento({ esaminate: 300, completo: true, nonAllineate: righe })),
@@ -589,19 +589,15 @@ describe('ShopifyIntegrationPanelComponent', () => {
 
       await userEvent.click(pulsante());
 
-      // ⭐ Prima pagina: venti righe, e il conteggio dice VENTICINQUE.
+      // ⭐ **Tutte e venticinque, insieme**: un elenco di anomalie che ne
+      //    mostra una parte non e' verificabile, ed e' per guardarle insieme
+      //    che esiste. A contenere l'ingombro pensa il riquadro, che scorre.
       expect(await screen.findByText('Articolo 1')).toBeVisible();
       expect(screen.getByText('Articolo 20')).toBeVisible();
-      expect(screen.queryByText('Articolo 21')).toBeNull();
-      expect(screen.getByText('25')).toBeVisible();
-      expect(screen.getByText(/Pagina 1 di 2/)).toBeVisible();
-
-      await userEvent.click(screen.getByRole('button', { name: /Successiva/i }));
-
-      // ⭐ Seconda pagina: le cinque rimaste. Nessuna anomalia persa.
-      expect(await screen.findByText('Articolo 21')).toBeVisible();
       expect(screen.getByText('Articolo 25')).toBeVisible();
-      expect(screen.queryByText('Articolo 1')).toBeNull();
+      expect(screen.getByText('25')).toBeVisible();
+      // ⛔ E nessun comando di impaginazione: non c'e' niente da sfogliare.
+      expect(screen.queryByRole('button', { name: /Successiva/i })).toBeNull();
     });
 
     it('⭐ ogni riga porta articolo, variante, sede e MOTIVO', async () => {
