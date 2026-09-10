@@ -18,10 +18,12 @@ describe('buildCorrispettiviWhere', () => {
   // ORIGINE, che è un fatto della vendita. Shopify POS compare come vendita
   // fisica/POS, non viene escluso — la scelta la fa il filtro di ambito.
   it('ambito e canale restringono le origini, insieme', () => {
-    expect(buildCorrispettiviWhere(tenantId, { ambito: 'fisico_pos', canale: 'shopify' }).source)
-      .toEqual({ in: [PrismaSource.shopify_pos] });
-    expect(buildCorrispettiviWhere(tenantId, { ambito: 'online', canale: 'shopify' }).source)
-      .toEqual({ in: [PrismaSource.shopify_online] });
+    expect(
+      buildCorrispettiviWhere(tenantId, { ambito: 'fisico_pos', canale: 'shopify' }).source,
+    ).toEqual({ in: [PrismaSource.shopify_pos] });
+    expect(
+      buildCorrispettiviWhere(tenantId, { ambito: 'online', canale: 'shopify' }).source,
+    ).toEqual({ in: [PrismaSource.shopify_online] });
   });
 
   it('canale Shopify con ambito libero prende ecommerce e POS', () => {
@@ -136,8 +138,9 @@ describe('buildCorrispettiviRefundWhere', () => {
     expect(buildCorrispettiviRefundWhere(tenantId, { ambito: 'online' }).order).toEqual({
       source: { in: [PrismaSource.shopify_online] },
     });
-    expect(buildCorrispettiviRefundWhere(tenantId, { ambito: 'fisico_pos', canale: 'shopify' }).order)
-      .toEqual({ source: { in: [PrismaSource.shopify_pos] } });
+    expect(
+      buildCorrispettiviRefundWhere(tenantId, { ambito: 'fisico_pos', canale: 'shopify' }).order,
+    ).toEqual({ source: { in: [PrismaSource.shopify_pos] } });
     // Anche qui il filtro resta: una rettifica su un ordine che non è un
     // corrispettivo non è un corrispettivo negativo.
     const senzaFiltri = buildCorrispettiviRefundWhere(tenantId, {}).order as {

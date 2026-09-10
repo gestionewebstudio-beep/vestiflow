@@ -117,15 +117,13 @@ describe('OAuth Shopify — identita del negozio (B1)', () => {
           ),
     };
     const shopIdentity = {
-      registra: vi
-        .fn()
-        .mockResolvedValue(
-          opzioni.esitoRegistrazione ?? {
-            tipo: 'registrata',
-            shopId: 'shop-1',
-            shopGid: 'gid://shopify/Shop/9930001',
-          },
-        ),
+      registra: vi.fn().mockResolvedValue(
+        opzioni.esitoRegistrazione ?? {
+          tipo: 'registrata',
+          shopId: 'shop-1',
+          shopGid: 'gid://shopify/Shop/9930001',
+        },
+      ),
     };
 
     const service = new ShopifyOAuthService(
@@ -230,7 +228,7 @@ describe('OAuth Shopify — identita del negozio (B1)', () => {
     //    timeout, driver — usciva come «canale non abilitato». Una risposta di
     //    dominio FALSA, che manda a controllare il profilo del cliente mentre il
     //    guasto e' nel database, e che sparisce dai log come un rifiuto normale.
-    const guastoTecnico = Object.assign(new Error("connessione al database persa"), {
+    const guastoTecnico = Object.assign(new Error('connessione al database persa'), {
       code: 'P1001',
     });
 
@@ -365,7 +363,10 @@ describe('OAuth Shopify — identita del negozio (B1)', () => {
     //    coppie concorrenti sul database di prova sono usciti tre codici
     //    distinti, e mai `P2002`.
     const forme = [
-      { nome: 'P2034 di Prisma', errore: Object.assign(new Error('write conflict'), { code: 'P2034' }) },
+      {
+        nome: 'P2034 di Prisma',
+        errore: Object.assign(new Error('write conflict'), { code: 'P2034' }),
+      },
       {
         nome: 'P2010 con 40001 (serialization_failure)',
         errore: Object.assign(new Error('serialize'), {

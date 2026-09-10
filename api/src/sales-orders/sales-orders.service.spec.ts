@@ -96,7 +96,7 @@ describe('SalesOrdersService', () => {
 
   // Annullato: gli impegni sono stati rilasciati e non esiste vendita online,
   // perché non è uscito niente da nessun magazzino. Il vuoto è la verità.
-  it("list lascia la location vuota su un ordine annullato", async () => {
+  it('list lascia la location vuota su un ordine annullato', async () => {
     const prisma = createPrismaMock();
     prisma.salesOrder.findMany.mockResolvedValue([
       { id: 'order-3', orderNumber: '1003', onlineSale: null, reservations: [] },
@@ -128,6 +128,8 @@ describe('SalesOrdersService', () => {
     prisma.salesOrder.findFirst.mockResolvedValue(null);
     const service = new SalesOrdersService(prisma as unknown as PrismaService);
 
-    await expect(service.getById(tenantId, 'missing', testOwnerUser())).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getById(tenantId, 'missing', testOwnerUser())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

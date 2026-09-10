@@ -192,16 +192,16 @@ describe('VatCodesService', () => {
   describe('update', () => {
     it('impedisce di togliere isDefault senza un altro predefinito', async () => {
       prisma.vatCode.findFirst.mockResolvedValue(vatCodeRow({ isDefault: true }));
-      await expect(
-        service.update(tenantId, 'vc-1', { isDefault: false }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      await expect(service.update(tenantId, 'vc-1', { isDefault: false })).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
     });
 
     it('impedisce di disattivare il Codice IVA predefinito', async () => {
       prisma.vatCode.findFirst.mockResolvedValue(vatCodeRow({ isDefault: true }));
-      await expect(
-        service.update(tenantId, 'vc-1', { isActive: false }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      await expect(service.update(tenantId, 'vc-1', { isActive: false })).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
     });
 
     it('aggiorna i campi forniti e restituisce il codice aggiornato', async () => {
@@ -221,9 +221,9 @@ describe('VatCodesService', () => {
 
     it('lancia NotFoundException se il codice non esiste per il tenant', async () => {
       prisma.vatCode.findFirst.mockResolvedValue(null);
-      await expect(service.update(tenantId, 'missing', { description: 'x' })).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.update(tenantId, 'missing', { description: 'x' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('verifica la disponibilità del nuovo codice solo se cambia', async () => {
@@ -278,19 +278,19 @@ describe('VatCodesService', () => {
   });
 
   describe('delete', () => {
-    it('blocca l\'eliminazione del Codice IVA predefinito', async () => {
+    it("blocca l'eliminazione del Codice IVA predefinito", async () => {
       prisma.vatCode.findFirst.mockResolvedValue(vatCodeRow({ isDefault: true }));
       await expect(service.delete(tenantId, 'vc-1')).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('blocca l\'eliminazione se usato in una riga documento', async () => {
+    it("blocca l'eliminazione se usato in una riga documento", async () => {
       prisma.vatCode.findFirst.mockResolvedValue(vatCodeRow());
       prisma.documentLine.count.mockResolvedValue(1);
       await expect(service.delete(tenantId, 'vc-1')).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.vatCode.delete).not.toHaveBeenCalled();
     });
 
-    it('blocca l\'eliminazione se assegnato come predefinito su articoli', async () => {
+    it("blocca l'eliminazione se assegnato come predefinito su articoli", async () => {
       prisma.vatCode.findFirst.mockResolvedValue(vatCodeRow());
       prisma.documentLine.count.mockResolvedValue(0);
       prisma.product.count.mockResolvedValue(2);
@@ -312,7 +312,9 @@ describe('VatCodesService', () => {
   describe('getDefault', () => {
     it('restituisce il Codice IVA esplicitamente predefinito e attivo', async () => {
       prisma.vatCode.count.mockResolvedValue(1); // seedIfEmpty: già popolato, skip seed
-      prisma.vatCode.findFirst.mockResolvedValueOnce(vatCodeRow({ id: 'vc-default', isDefault: true }));
+      prisma.vatCode.findFirst.mockResolvedValueOnce(
+        vatCodeRow({ id: 'vc-default', isDefault: true }),
+      );
 
       const result = await service.getDefault(tenantId);
 
@@ -360,7 +362,11 @@ describe('VatCodesService', () => {
         expect.objectContaining({
           data: expect.arrayContaining(
             VAT_CODE_SEED.map((entry) =>
-              expect.objectContaining({ tenantId, code: entry.code, ratePercent: entry.ratePercent }),
+              expect.objectContaining({
+                tenantId,
+                code: entry.code,
+                ratePercent: entry.ratePercent,
+              }),
             ),
           ),
         }),

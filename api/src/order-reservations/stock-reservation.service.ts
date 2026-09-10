@@ -11,6 +11,7 @@ import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyCommittedDelta } from './committed-delta.util';
+import { origineDaCanaleOrdine } from '../inventory/inventory-level-delta.util';
 
 /**
  * Nota dell'evento di aggiornamento: dice CHE COSA è cambiato, perché su un
@@ -202,6 +203,7 @@ export class StockReservationService {
       reservation.variantId,
       reservation.locationId,
       -reservation.remainingQuantity,
+      origineDaCanaleOrdine(reservation.channel),
     );
 
     this.logger.debug(
@@ -253,6 +255,7 @@ export class StockReservationService {
         reservation.variantId,
         reservation.locationId,
         reservation.quantity,
+        origineDaCanaleOrdine(reservation.channel),
       );
     }
   }
@@ -340,6 +343,7 @@ export class StockReservationService {
       line.variantId,
       params.locationId,
       line.quantity,
+      origineDaCanaleOrdine(params.channel),
     );
   }
 
@@ -414,8 +418,16 @@ export class StockReservationService {
         current.variantId,
         current.locationId,
         -currentRemaining,
+        origineDaCanaleOrdine(current.channel),
       );
-      await applyCommittedDelta(tx, tenantId, line.variantId, locationId, line.quantity);
+      await applyCommittedDelta(
+        tx,
+        tenantId,
+        line.variantId,
+        locationId,
+        line.quantity,
+        origineDaCanaleOrdine(current.channel),
+      );
       return;
     }
 
@@ -427,6 +439,7 @@ export class StockReservationService {
       line.variantId,
       locationId,
       line.quantity - currentRemaining,
+      origineDaCanaleOrdine(current.channel),
     );
   }
 
@@ -461,6 +474,7 @@ export class StockReservationService {
       reservation.variantId,
       reservation.locationId,
       -reservation.remainingQuantity,
+      origineDaCanaleOrdine(reservation.channel),
     );
 
     this.logger.debug(

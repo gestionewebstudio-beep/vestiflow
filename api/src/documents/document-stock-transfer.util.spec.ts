@@ -33,6 +33,8 @@ function createTx() {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn().mockResolvedValue({ onHand: 10, available: 10 }),
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     stockMovement: { create: vi.fn().mockResolvedValue({}) },
   };
 }
@@ -65,7 +67,7 @@ describe('document-stock-transfer.util (fallback legacy aggregato)', () => {
     expect(result.deltas).toEqual([{ sku: 'SKU-1', delta: -3 }]);
   });
 
-  it('reverseDocumentStockTransfer: storna l\'intera quantità verso l\'origine', async () => {
+  it("reverseDocumentStockTransfer: storna l'intera quantità verso l'origine", async () => {
     const tx = createTx();
 
     const result = await reverseDocumentStockTransfer(tx as never, {

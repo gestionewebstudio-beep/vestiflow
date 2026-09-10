@@ -67,7 +67,7 @@ describe('computeVatLineAmounts — costi netti (§11.2, §15.1)', () => {
     expect(amounts.reverseChargeVatMinor).toBe(0);
   });
 
-  it('applica lo sconto riga prima dell\'IVA (§15)', () => {
+  it("applica lo sconto riga prima dell'IVA (§15)", () => {
     const amounts = computeVatLineAmounts({
       enteredUnitCostMinor: 10000,
       costEntryMode: 'vat_excluded',

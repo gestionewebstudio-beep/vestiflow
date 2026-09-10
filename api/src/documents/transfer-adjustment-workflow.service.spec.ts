@@ -54,6 +54,8 @@ function createPrismaMock() {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     inventorySerial: {
       create: vi.fn(),
       deleteMany: vi.fn(),
@@ -215,9 +217,9 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       existingTransferDocument({ status: DocumentStatus.draft }),
     );
 
-    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.saveTransfer(tenantId, transferDto(), testOwnerUser()),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('rifiuta se il documento è annullato', async () => {
@@ -226,9 +228,9 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       existingTransferDocument({ status: DocumentStatus.cancelled }),
     );
 
-    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.saveTransfer(tenantId, transferDto(), testOwnerUser()),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('upsert riga per id: la riga esistente viene aggiornata, mai duplicata', async () => {
@@ -466,9 +468,9 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
       existingAdjustmentDocument({ status: DocumentStatus.draft }),
     );
 
-    await expect(service.saveAdjustment(tenantId, adjustmentDto(), testOwnerUser())).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.saveAdjustment(tenantId, adjustmentDto(), testOwnerUser()),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('crea un movimento per riga con sourceLineId e direzione di testata', async () => {

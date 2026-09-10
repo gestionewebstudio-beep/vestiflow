@@ -88,9 +88,9 @@ describe('StoreSaleLookupService — la giacenza è quella della propria sede', 
       permissions: [TenantPermission.InventoryViewAllLocations],
     });
 
-    await expect(service.lookupItems(TENANT, query(SEDE_ALTRUI), supervisore)).resolves.toHaveLength(
-      1,
-    );
+    await expect(
+      service.lookupItems(TENANT, query(SEDE_ALTRUI), supervisore),
+    ).resolves.toHaveLength(1);
   });
 
   it('consente qualunque sede a chi ha accesso a tutte le sedi', async () => {

@@ -264,13 +264,9 @@ describe('ShopifyShopChangeService', () => {
     });
   });
 
-
-
   it('preview segnala ordini fornitore aperti', async () => {
     const { service, prisma } = createService();
-    prisma.supplierOrder.findMany.mockResolvedValue([
-      { id: 'po-1', reference: 'OF-2026-0001' },
-    ]);
+    prisma.supplierOrder.findMany.mockResolvedValue([{ id: 'po-1', reference: 'OF-2026-0001' }]);
 
     const preview = await service.preview(tenantId);
 
@@ -287,5 +283,4 @@ describe('ShopifyShopChangeService', () => {
       }),
     );
   });
-
 });

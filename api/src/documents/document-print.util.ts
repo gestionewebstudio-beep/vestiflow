@@ -76,12 +76,7 @@ export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentType[] = (
 ).filter((type) => HAS_PRINTED_SHEET[type]);
 
 export type DocumentPrintKind =
-  | 'transfer'
-  | 'goods_receipt'
-  | 'purchase_invoice'
-  | 'sales'
-  | 'stock'
-  | 'generic';
+  'transfer' | 'goods_receipt' | 'purchase_invoice' | 'sales' | 'stock' | 'generic';
 
 /**
  * Quale testata mette il foglio: decide SOLO i dati di contesto (fornitore,

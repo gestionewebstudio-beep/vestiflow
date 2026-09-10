@@ -291,7 +291,7 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»'
       variants: [],
     };
 
-    it('⛔ PULL MASSIVO: l\'arricchimento non viene chiamato, e nessun errore viene registrato', async () => {
+    it("⛔ PULL MASSIVO: l'arricchimento non viene chiamato, e nessun errore viene registrato", async () => {
       const { service, prisma, enrichProduct, tx } = creaService(spento);
 
       const esito = await service.pullCatalog('tenant-1');

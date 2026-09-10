@@ -66,6 +66,8 @@ function createPrismaMock() {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     inventorySerial: {
       create: vi.fn(),
       deleteMany: vi.fn(),
@@ -1109,9 +1111,9 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
   function linkableReceipt(overrides: Record<string, unknown> = {}) {
     return {
       id: '44444444-4444-4444-8444-444444444444',
-        // Senza questo campo la fixture era CIECA alla sede: nessun test
-        // poteva dimostrare isolamento, qualunque cosa facesse il codice.
-        locationId: 'loc-mia',
+      // Senza questo campo la fixture era CIECA alla sede: nessun test
+      // poteva dimostrare isolamento, qualunque cosa facesse il codice.
+      locationId: 'loc-mia',
       type: DocumentType.goods_receipt,
       status: DocumentStatus.confirmed,
       supplierId: 'sup-1',
@@ -1380,7 +1382,13 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
       invoiceDto({
         id: 'inv-1',
         lines: [
-          { id: 'riga-1', description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 },
+          {
+            id: 'riga-1',
+            description: 'Trasporto',
+            netMinor: 1_500,
+            vatRatePercent: 22,
+            vatMinor: 330,
+          },
         ],
       }),
       soloFatture(),
@@ -1416,7 +1424,13 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
       invoiceDto({
         id: 'inv-1',
         lines: [
-          { id: 'riga-2', description: 'Resta', netMinor: 1_000, vatRatePercent: 22, vatMinor: 220 },
+          {
+            id: 'riga-2',
+            description: 'Resta',
+            netMinor: 1_000,
+            vatRatePercent: 22,
+            vatMinor: 220,
+          },
         ],
       }),
       soloFatture(),
@@ -1462,7 +1476,6 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     expect(prisma.documentLine.update).not.toHaveBeenCalled();
     expect(prisma.documentLine.create).toHaveBeenCalled();
   });
-
 
   /**
    * ⭐ **Il Codice IVA della riga economica, e perché non è un dettaglio.**
@@ -1515,8 +1528,9 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
       soloFatture(),
     );
 
-    const riga = (prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> })
-      .data;
+    const riga = (
+      prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+    ).data;
     expect(riga.vatCodeId).toBe(REVERSE_CHARGE.id);
     expect(riga.vatSnapshot).toMatchObject({
       code: '22R',
@@ -1570,7 +1584,9 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
       tenantId,
       type: DocumentType.supplier_invoice,
       status: DocumentStatus.confirmed,
-      lines: [{ id: 'riga-1', lineNumber: 1, vatCodeId: 'vat-vecchio', vatSnapshot: snapshotDiIeri }],
+      lines: [
+        { id: 'riga-1', lineNumber: 1, vatCodeId: 'vat-vecchio', vatSnapshot: snapshotDiIeri },
+      ],
     };
     prisma.document.findFirst.mockResolvedValue(esistente);
     prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
@@ -1581,7 +1597,13 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
         id: 'inv-1',
         // ⛔ Nessun `vatCodeId`: il client dichiara «non l'ho toccato».
         lines: [
-          { id: 'riga-1', description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 },
+          {
+            id: 'riga-1',
+            description: 'Trasporto',
+            netMinor: 1_500,
+            vatRatePercent: 22,
+            vatMinor: 330,
+          },
         ],
       }),
       soloFatture(),
@@ -1609,12 +1631,12 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
       soloFatture(),
     );
 
-    const riga = (prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> })
-      .data;
+    const riga = (
+      prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+    ).data;
     expect(riga.vatCodeId).toBeNull();
     expect(riga.vatSnapshot).toEqual({ ratePercent: 10 });
   });
-
 
   /**
    * ⭐ **La modalità importi della registrazione: netta o ivata, e si persiste.**
@@ -1686,158 +1708,156 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     );
   });
 
+  /**
+   * ⛔ **Un arrivo di sede altrui non si include, e non si fa nemmeno
+   * interrogare.**
+   *
+   * `linkedGoodsReceiptId` arriva dall'API validato come solo UUID. Prima del
+   * 28/08/2026 gli arrivi erano risolti con `where: { tenantId, id: { in } }`
+   * e l'unica guardia che vedeva l'utente controllava il **permesso di
+   * famiglia**, non la sede.
+   *
+   * ⚠️ **E la fixture era strutturalmente cieca:** `linkableReceipt` non
+   * aveva un campo `locationId`, ed entrambi gli utenti di prova hanno
+   * `hasAllLocationsAccess: true`. Un test così non può dimostrare isolamento
+   * per sede — qualunque cosa faccia il codice, resta verde.
+   */
+  describe('la sede dell’arrivo incluso', () => {
+    const SEDE_MIA = 'loc-mia';
+    const SEDE_ALTRUI = 'loc-altrui';
 
-    /**
-     * ⛔ **Un arrivo di sede altrui non si include, e non si fa nemmeno
-     * interrogare.**
-     *
-     * `linkedGoodsReceiptId` arriva dall'API validato come solo UUID. Prima del
-     * 28/08/2026 gli arrivi erano risolti con `where: { tenantId, id: { in } }`
-     * e l'unica guardia che vedeva l'utente controllava il **permesso di
-     * famiglia**, non la sede.
-     *
-     * ⚠️ **E la fixture era strutturalmente cieca:** `linkableReceipt` non
-     * aveva un campo `locationId`, ed entrambi gli utenti di prova hanno
-     * `hasAllLocationsAccess: true`. Un test così non può dimostrare isolamento
-     * per sede — qualunque cosa faccia il codice, resta verde.
-     */
-    describe('la sede dell’arrivo incluso', () => {
-      const SEDE_MIA = 'loc-mia';
-      const SEDE_ALTRUI = 'loc-altrui';
-
-      /** Utente davvero limitato a UNA sede: è il punto di tutto il blocco. */
-      const limitatoAllaMiaSede = () =>
-        testClerkUser({
-          assignedLocationIds: [SEDE_MIA],
-          permissions: [
-            'doc.purchase_invoice.view',
-            'doc.purchase_invoice.manage',
-            'doc.goods_receipt.view',
-            'doc.goods_receipt.manage',
-          ],
-        });
-
-      const dtoConArrivo = () =>
-        invoiceDto({
-          lines: [
-            {
-              description: 'Riga',
-              quantity: 1,
-              unitPriceMinor: 10000,
-              linkedGoodsReceiptId: linkableReceipt().id,
-            } as never,
-          ],
-        });
-
-      const esitoDi = (p: Promise<unknown>): Promise<unknown> =>
-        p.then(
-          () => null,
-          (errore: unknown) => errore,
-        );
-
-      it('✅ arrivo della propria sede: il gate di sede non rifiuta', async () => {
-        const { service } = createService(prisma);
-        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_MIA })]);
-        mockSavedInvoice();
-
-        const esito = await esitoDi(
-          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
-        );
-
-        expect(esito).not.toBeInstanceOf(ForbiddenException);
+    /** Utente davvero limitato a UNA sede: è il punto di tutto il blocco. */
+    const limitatoAllaMiaSede = () =>
+      testClerkUser({
+        assignedLocationIds: [SEDE_MIA],
+        permissions: [
+          'doc.purchase_invoice.view',
+          'doc.purchase_invoice.manage',
+          'doc.goods_receipt.view',
+          'doc.goods_receipt.manage',
+        ],
       });
 
-      it('⛔ stesso tenant, arrivo di sede fuori ambito: RIFIUTATO', async () => {
-        const { service } = createService(prisma);
-        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
-        mockSavedInvoice();
-
-        await expect(
-          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
-        ).rejects.toBeInstanceOf(ForbiddenException);
+    const dtoConArrivo = () =>
+      invoiceDto({
+        lines: [
+          {
+            description: 'Riga',
+            quantity: 1,
+            unitPriceMinor: 10000,
+            linkedGoodsReceiptId: linkableReceipt().id,
+          } as never,
+        ],
       });
 
-      it('⛔ e la fattura non si crea: nessun effetto parziale', async () => {
-        const { service } = createService(prisma);
-        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
-        mockSavedInvoice();
-
-        await expect(
-          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
-        ).rejects.toBeInstanceOf(ForbiddenException);
-
-        expect(prisma.document.create).not.toHaveBeenCalled();
-      });
-
-      it('✅ chi ha inventory.view_all_locations include qualunque sede', async () => {
-        const { service } = createService(prisma);
-        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
-        mockSavedInvoice();
-        const supervisore = testClerkUser({
-          assignedLocationIds: [SEDE_MIA],
-          permissions: [
-            'doc.purchase_invoice.view',
-            'doc.purchase_invoice.manage',
-            'doc.goods_receipt.view',
-            'doc.goods_receipt.manage',
-            TenantPermission.InventoryViewAllLocations,
-          ],
-        });
-
-        const esito = await esitoDi(
-          service.savePurchaseInvoice(tenantId, dtoConArrivo(), supervisore),
-        );
-
-        expect(esito).not.toBeInstanceOf(ForbiddenException);
-      });
-
-
-      /**
-       * ⭐ **Ogni condizione che segue rivela qualcosa, non solo «già
-       * collegato».**
-       *
-       * Misurato falsificando: spostando la guardia dopo tipo, fornitore e
-       * annullamento, la sola prova sull'oracolo restava verde — perché il suo
-       * arrivo supera quei tre controlli. Servono tutti e quattro i casi, o la
-       * rete protegge un ordine solo su quattro.
-       *
-       * I messaggi che questi controlli producono dicono, nell'ordine: che il
-       * documento non è un arrivo merce; che appartiene a un altro fornitore;
-       * che è annullato. Tutte informazioni su un documento che il richiedente
-       * non può vedere.
-       */
-      it.each([
-        ['tipo sbagliato', { type: DocumentType.supplier_invoice }],
-        ['altro fornitore', { supplierId: 'sup-altro' }],
-        ['annullato', { status: DocumentStatus.cancelled }],
-        ['già collegato', { purchaseInvoiceLinks: [{ purchaseInvoiceId: 'altra' }] }],
-      ])(
-        '⛔ arrivo fuori ambito e %s: risponde 403, senza rivelare la condizione',
-        async (_caso, extra) => {
-          const { service } = createService(prisma);
-          prisma.document.findMany.mockResolvedValue([
-            linkableReceipt({ locationId: SEDE_ALTRUI, ...extra }),
-          ]);
-          mockSavedInvoice();
-
-          await expect(
-            service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
-          ).rejects.toBeInstanceOf(ForbiddenException);
-        },
+    const esitoDi = (p: Promise<unknown>): Promise<unknown> =>
+      p.then(
+        () => null,
+        (errore: unknown) => errore,
       );
 
-      // ⚠️ Comportamento PRESERVATO: un arrivo senza sede non ha nulla da
-      // confrontare. Non è una decisione presa qui.
-      it('arrivo senza sede: passa, policy preservata', async () => {
+    it('✅ arrivo della propria sede: il gate di sede non rifiuta', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_MIA })]);
+      mockSavedInvoice();
+
+      const esito = await esitoDi(
+        service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+      );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('⛔ stesso tenant, arrivo di sede fuori ambito: RIFIUTATO', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+      mockSavedInvoice();
+
+      await expect(
+        service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('⛔ e la fattura non si crea: nessun effetto parziale', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+      mockSavedInvoice();
+
+      await expect(
+        service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(prisma.document.create).not.toHaveBeenCalled();
+    });
+
+    it('✅ chi ha inventory.view_all_locations include qualunque sede', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+      mockSavedInvoice();
+      const supervisore = testClerkUser({
+        assignedLocationIds: [SEDE_MIA],
+        permissions: [
+          'doc.purchase_invoice.view',
+          'doc.purchase_invoice.manage',
+          'doc.goods_receipt.view',
+          'doc.goods_receipt.manage',
+          TenantPermission.InventoryViewAllLocations,
+        ],
+      });
+
+      const esito = await esitoDi(
+        service.savePurchaseInvoice(tenantId, dtoConArrivo(), supervisore),
+      );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
+    });
+
+    /**
+     * ⭐ **Ogni condizione che segue rivela qualcosa, non solo «già
+     * collegato».**
+     *
+     * Misurato falsificando: spostando la guardia dopo tipo, fornitore e
+     * annullamento, la sola prova sull'oracolo restava verde — perché il suo
+     * arrivo supera quei tre controlli. Servono tutti e quattro i casi, o la
+     * rete protegge un ordine solo su quattro.
+     *
+     * I messaggi che questi controlli producono dicono, nell'ordine: che il
+     * documento non è un arrivo merce; che appartiene a un altro fornitore;
+     * che è annullato. Tutte informazioni su un documento che il richiedente
+     * non può vedere.
+     */
+    it.each([
+      ['tipo sbagliato', { type: DocumentType.supplier_invoice }],
+      ['altro fornitore', { supplierId: 'sup-altro' }],
+      ['annullato', { status: DocumentStatus.cancelled }],
+      ['già collegato', { purchaseInvoiceLinks: [{ purchaseInvoiceId: 'altra' }] }],
+    ])(
+      '⛔ arrivo fuori ambito e %s: risponde 403, senza rivelare la condizione',
+      async (_caso, extra) => {
         const { service } = createService(prisma);
-        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: null })]);
+        prisma.document.findMany.mockResolvedValue([
+          linkableReceipt({ locationId: SEDE_ALTRUI, ...extra }),
+        ]);
         mockSavedInvoice();
 
-        const esito = await esitoDi(
+        await expect(
           service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
-        );
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      },
+    );
 
-        expect(esito).not.toBeInstanceOf(ForbiddenException);
-      });
+    // ⚠️ Comportamento PRESERVATO: un arrivo senza sede non ha nulla da
+    // confrontare. Non è una decisione presa qui.
+    it('arrivo senza sede: passa, policy preservata', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: null })]);
+      mockSavedInvoice();
+
+      const esito = await esitoDi(
+        service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+      );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
     });
+  });
 });

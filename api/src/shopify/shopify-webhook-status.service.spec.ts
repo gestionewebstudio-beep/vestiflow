@@ -27,16 +27,20 @@ describe('ShopifyWebhookStatusService', () => {
     subscriptions: readonly { topic: string; address: string }[],
     options: { readonly configuredAddress?: string | null; readonly credential?: unknown } = {},
   ) {
-    const listWebhooks = vi.fn().mockResolvedValue(subscriptions.map((s, i) => ({ id: `${i}`, ...s })));
+    const listWebhooks = vi
+      .fn()
+      .mockResolvedValue(subscriptions.map((s, i) => ({ id: `${i}`, ...s })));
     const recordWebhooksObserved = vi.fn().mockResolvedValue(new Date('2026-08-08T17:00:00.000Z'));
 
     const prisma = {
       shopifyCredential: {
-        findUnique: vi.fn().mockResolvedValue(
-          options.credential === undefined
-            ? { shopDomain: 'shop.myshopify.com', accessTokenEnc: 'cifrato' }
-            : options.credential,
-        ),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue(
+            options.credential === undefined
+              ? { shopDomain: 'shop.myshopify.com', accessTokenEnc: 'cifrato' }
+              : options.credential,
+          ),
       },
     };
 
@@ -45,7 +49,9 @@ describe('ShopifyWebhookStatusService', () => {
       { recordWebhooksObserved } as unknown as ShopifyConnectionService,
       {
         webhookUrl:
-          options.configuredAddress === undefined ? CONFIGURED : (options.configuredAddress ?? undefined),
+          options.configuredAddress === undefined
+            ? CONFIGURED
+            : (options.configuredAddress ?? undefined),
       } as unknown as ShopifyConfigService,
       { decrypt: vi.fn().mockReturnValue('token') } as unknown as ShopifyCryptoService,
       prisma as unknown as PrismaService,
@@ -108,9 +114,7 @@ describe('ShopifyWebhookStatusService', () => {
   });
 
   it('sottoscrizioni verso un altro indirizzo: consegnano altrove, e si vede', async () => {
-    const { service } = createService(
-      ALL_TOPICS.map((topic) => ({ topic, address: LOCALHOST })),
-    );
+    const { service } = createService(ALL_TOPICS.map((topic) => ({ topic, address: LOCALHOST })));
 
     const result = await service.check('tenant-1');
 

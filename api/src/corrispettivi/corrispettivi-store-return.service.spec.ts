@@ -129,7 +129,8 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('elenco: la Vendita è +100,00 e il Reso è −30,00', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query());
+      query(),
+    );
 
     expect(righe).toHaveLength(2);
     const vendita = righe.find((r) => r.documentId === 'doc-vendita');
@@ -150,7 +151,8 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('usa il vocabolario che esiste già: Tipo = Reso', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query());
+      query(),
+    );
     const reso = righe.find((r) => r.documentId === 'doc-reso');
 
     expect(reso?.refundKind).toBe('return_with_restock');
@@ -166,7 +168,8 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
     const righe = await corrispettivi.buildRegisterRows(TENANT, query());
     const csv = await new CorrispettiviExportService(prisma, corrispettivi).exportAccountantCsv(
       TENANT,
-      query());
+      query(),
+    );
 
     // Il file va al commercialista: un campo che si chiama «interno» non ci va.
     expect(JSON.stringify(righe)).not.toContain('Causale reso');
@@ -177,7 +180,8 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('resta nell’origine della Vendita al banco: non ne nasce una nuova', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query());
+      query(),
+    );
 
     // ⚠️ Se il Reso avesse un'origine propria, chi filtra «Vendita al banco»
     // vedrebbe le vendite al LORDO delle rettifiche che le abbattono.
@@ -187,7 +191,8 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('entra UNA volta sola', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query());
+      query(),
+    );
 
     expect(righe.filter((r) => r.documentId === 'doc-reso')).toHaveLength(1);
     expect(new Set(righe.map((r) => r.rowId)).size).toBe(righe.length);
@@ -211,9 +216,10 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   });
 
   it('al riepilogo gli importi arrivano POSITIVI: là si sottraggono', async () => {
-    const riepilogo = await new CorrispettiviService(
-      prismaConBanco({ vendite: [] }),
-    ).getSummary(TENANT, query());
+    const riepilogo = await new CorrispettiviService(prismaConBanco({ vendite: [] })).getSummary(
+      TENANT,
+      query(),
+    );
 
     // Se il Reso arrivasse negativo al livello che poi sottrae, il netto
     // SALIREBBE: −(−3000) = +3000 invece di −3000.
@@ -226,7 +232,8 @@ describe('il Reso al banco rispetta i filtri', () => {
   it('Tutti: ci sono entrambe', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ tipi: ['all'] }));
+      query({ tipi: ['all'] }),
+    );
     expect(righe).toHaveLength(2);
   });
 
@@ -278,14 +285,16 @@ describe('il Reso al banco rispetta i filtri', () => {
   it('Solo resi: c’è, ed è l’altra metà della stessa distinzione', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ tipi: ['returns'] }));
+      query({ tipi: ['returns'] }),
+    );
     expect(righe.map((r) => r.documentId)).toEqual(['doc-reso']);
   });
 
   it('resi + rimborsi insieme: c’è', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ tipi: ['returns', 'refunds'] }));
+      query({ tipi: ['returns', 'refunds'] }),
+    );
     expect(righe.map((r) => r.documentId)).toEqual(['doc-reso']);
   });
 
@@ -304,14 +313,16 @@ describe('il Reso al banco rispetta i filtri', () => {
   it('Origine Vendita al banco: il Reso è dentro', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ origini: ['store'] }));
+      query({ origini: ['store'] }),
+    );
     expect(righe.map((r) => r.documentId).sort()).toEqual(['doc-reso', 'doc-vendita']);
   });
 
   it('Origine diversa: sparisce insieme alla vendita che lo genera', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ origini: ['shopify_online'] }));
+      query({ origini: ['shopify_online'] }),
+    );
     expect(righe).toHaveLength(0);
   });
 
@@ -371,9 +382,11 @@ describe('⭐ Reso con «Carica giacenze» spento su TUTTE le righe', () => {
     const prisma = prismaConBanco();
     await new CorrispettiviService(prisma).buildRegisterRows(TENANT, query());
 
-    const documento = (prisma as unknown as {
-      document: { findMany: { mock: { calls: [{ where: Record<string, unknown> }][] } } };
-    }).document.findMany;
+    const documento = (
+      prisma as unknown as {
+        document: { findMany: { mock: { calls: [{ where: Record<string, unknown> }][] } } };
+      }
+    ).document.findMany;
 
     const perResi = documento.mock.calls
       .map(([arg]) => arg.where)
@@ -393,11 +406,13 @@ describe('⭐ Reso con «Carica giacenze» spento su TUTTE le righe', () => {
     await new CorrispettiviService(prisma).buildRegisterRows(TENANT, query());
     await new CorrispettiviService(prisma).getSummary(TENANT, query());
 
-    const documento = (prisma as unknown as {
-      document: {
-        findMany: { mock: { calls: [{ where: Record<string, unknown>; select?: unknown }][] } };
-      };
-    }).document.findMany;
+    const documento = (
+      prisma as unknown as {
+        document: {
+          findMany: { mock: { calls: [{ where: Record<string, unknown>; select?: unknown }][] } };
+        };
+      }
+    ).document.findMany;
 
     for (const [arg] of documento.mock.calls) {
       if (arg.where['type'] !== 'store_return') continue;
@@ -452,7 +467,8 @@ describe('l’export quadra con il riepilogo', () => {
     const corrispettivi = new CorrispettiviService(prisma);
     const csv = await new CorrispettiviExportService(prisma, corrispettivi).exportAccountantCsv(
       TENANT,
-      query());
+      query(),
+    );
 
     expect(csv).toContain('VN-0001');
     expect(csv).toContain('RN-0001');
@@ -564,7 +580,15 @@ describe('⛔ il Registro Corrispettivi non tocca il magazzino', () => {
   it('il finto NON offre verbi di scrittura: è la rete che rende mordente la guardia', () => {
     const prisma = prismaConBanco() as unknown as Record<string, Record<string, unknown>>;
     const tabelle = ['salesOrder', 'salesOrderRefund', 'document', 'manualReceipt'];
-    const scritture = ['create', 'createMany', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'];
+    const scritture = [
+      'create',
+      'createMany',
+      'update',
+      'updateMany',
+      'delete',
+      'deleteMany',
+      'upsert',
+    ];
 
     for (const tabella of tabelle) {
       for (const verbo of scritture) {

@@ -28,9 +28,7 @@ describe('AdminTenantsController', () => {
   it('listTenants delega al service', async () => {
     adminTenants.listTenants.mockResolvedValue([{ id: 'tenant-1', name: 'Negozio' }]);
 
-    await expect(controller.listTenants()).resolves.toEqual([
-      { id: 'tenant-1', name: 'Negozio' },
-    ]);
+    await expect(controller.listTenants()).resolves.toEqual([{ id: 'tenant-1', name: 'Negozio' }]);
   });
 
   it('createTenant delega al service', async () => {

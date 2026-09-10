@@ -92,7 +92,14 @@ async function convertLegacyAdjustmentMovements(
     net.set(key, entry);
   }
   for (const entry of net.values()) {
-    await applyInventoryDelta(tx, tenantId, entry.variantId, entry.locationId, -entry.qty);
+    await applyInventoryDelta(
+      tx,
+      tenantId,
+      entry.variantId,
+      entry.locationId,
+      -entry.qty,
+      'locale',
+    );
   }
   await tx.stockMovement.deleteMany({
     where: { id: { in: legacy.map((movement) => movement.id) } },
@@ -148,6 +155,7 @@ export async function syncAdjustmentLineMovements(
         line.variantId,
         locationId,
         signedDelta(direction, line.quantity),
+        'locale',
       );
       await tx.stockMovement.create({
         data: {
@@ -197,6 +205,7 @@ export async function syncAdjustmentLineMovements(
         movement.variantId,
         movement.locationId,
         -signedDelta(oldDirection, movement.quantity),
+        'locale',
       );
       await applyInventoryDelta(
         tx,
@@ -204,6 +213,7 @@ export async function syncAdjustmentLineMovements(
         line.variantId,
         locationId,
         signedDelta(direction, line.quantity),
+        'locale',
       );
       syncTargets.push({ variantId: movement.variantId, locationId: movement.locationId });
       syncTargets.push({ variantId: line.variantId, locationId });
@@ -220,6 +230,7 @@ export async function syncAdjustmentLineMovements(
           line.variantId,
           locationId,
           signedDelta(direction, quantityDelta),
+          'locale',
         );
         syncTargets.push({ variantId: line.variantId, locationId });
         deltas.push({ sku, delta: signedDelta(direction, quantityDelta) });
@@ -263,6 +274,7 @@ export async function syncAdjustmentLineMovements(
       movement.variantId,
       movement.locationId,
       -signedDelta(oldDirection, movement.quantity),
+      'locale',
     );
     await tx.stockMovement.delete({ where: { id: movement.id } });
     deltas.push({ sku: movement.sku, delta: -signedDelta(oldDirection, movement.quantity) });

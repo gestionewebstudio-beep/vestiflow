@@ -70,9 +70,7 @@ describe('movementRevenueMinor', () => {
   });
 
   it('riga non risolvibile → 0 (movimento storico senza documento)', () => {
-    expect(
-      movementRevenueMinor(movement({ sourceLineId: 'sconosciuta' }), maps),
-    ).toBe(0);
+    expect(movementRevenueMinor(movement({ sourceLineId: 'sconosciuta' }), maps)).toBe(0);
     expect(
       movementRevenueMinor(
         movement({

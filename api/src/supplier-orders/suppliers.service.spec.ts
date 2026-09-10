@@ -529,7 +529,11 @@ describe('SuppliersService', () => {
     it('⛔ partita IVA e codice fiscale NON si copiano', async () => {
       prisma.supplier.findFirst.mockResolvedValue(
         supplierRow({
-          party: { ...supplierRow().party, vatNumber: 'IT01234567890', taxCode: 'RSSMRA80A01H501U' },
+          party: {
+            ...supplierRow().party,
+            vatNumber: 'IT01234567890',
+            taxCode: 'RSSMRA80A01H501U',
+          },
         }),
       );
 

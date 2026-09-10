@@ -15,10 +15,12 @@ import type { ShopifyLocationSyncService } from './shopify-location-sync.service
 import { ShopifyOAuthService } from './shopify-oauth.service';
 
 describe('ShopifyOAuthService', () => {
-  function createService(overrides: {
-    cryptoConfigured?: boolean;
-    tenantProfile?: TenantChannelProfile;
-  } = {}) {
+  function createService(
+    overrides: {
+      cryptoConfigured?: boolean;
+      tenantProfile?: TenantChannelProfile;
+    } = {},
+  ) {
     const { cryptoConfigured = true, tenantProfile = TenantChannelProfile.shopify } = overrides;
 
     const prisma = {
@@ -99,7 +101,11 @@ describe('ShopifyOAuthService', () => {
     const shopIdentity = {
       registra: vi
         .fn()
-        .mockResolvedValue({ tipo: 'registrata', shopId: 'shop-1', shopGid: 'gid://shopify/Shop/9930001' }),
+        .mockResolvedValue({
+          tipo: 'registrata',
+          shopId: 'shop-1',
+          shopGid: 'gid://shopify/Shop/9930001',
+        }),
     };
 
     const service = new ShopifyOAuthService(
@@ -164,8 +170,9 @@ describe('ShopifyOAuthService', () => {
       (shopifyAdmin as unknown as { registerWebhooks: unknown }).registerWebhooks = vi
         .fn()
         .mockResolvedValue({ registered: ['orders/cancelled'], skipped: [], failed: [] });
-      (shopifyConnection as unknown as { recordWebhooksActivated: unknown })
-        .recordWebhooksActivated = vi.fn();
+      (
+        shopifyConnection as unknown as { recordWebhooksActivated: unknown }
+      ).recordWebhooksActivated = vi.fn();
       (shopifyConnection as unknown as { healStaleErrorStatus: unknown }).healStaleErrorStatus =
         vi.fn();
 

@@ -424,6 +424,6 @@ export class InventoryCountService {
     locationId: string,
     delta: number,
   ): Promise<void> {
-    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta);
+    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta, 'locale');
   }
 }

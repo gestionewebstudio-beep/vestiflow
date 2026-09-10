@@ -4,9 +4,9 @@ import { extractShopifyOrderLocationId } from './shopify-order-location.util';
 
 describe('extractShopifyOrderLocationId', () => {
   it('usa location_id diretto sull ordine', () => {
-    expect(
-      extractShopifyOrderLocationId({ location_id: 12345 }),
-    ).toBe('gid://shopify/Location/12345');
+    expect(extractShopifyOrderLocationId({ location_id: 12345 })).toBe(
+      'gid://shopify/Location/12345',
+    );
   });
 
   it('fallback su fulfillment location', () => {

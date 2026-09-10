@@ -353,6 +353,8 @@ function createFakeDb() {
         return Promise.resolve({ count: 1 });
       },
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     stockMovement: {
       create: ({ data }: { data: FakeMovement }) => {
         movements.push({ ...data });

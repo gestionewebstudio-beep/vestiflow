@@ -41,9 +41,9 @@ describe('assertSerialNumbersForDocumentLines', () => {
     tx.productVariant.findMany.mockResolvedValue([
       {
         id: 'var-1',
-      sku: 'SKU-1',
-      product: { inventoryTracking: InventoryTrackingMode.standard },
-          },
+        sku: 'SKU-1',
+        product: { inventoryTracking: InventoryTrackingMode.standard },
+      },
     ]);
 
     await assertSerialNumbersForDocumentLines(tx as never, 'tenant-1', [
@@ -63,9 +63,9 @@ describe('assertSerialNumbersForDocumentLines', () => {
     tx.productVariant.findMany.mockResolvedValue([
       {
         id: 'var-1',
-      sku: 'SKU-SER',
-      product: { inventoryTracking: InventoryTrackingMode.serial },
-          },
+        sku: 'SKU-SER',
+        product: { inventoryTracking: InventoryTrackingMode.serial },
+      },
     ]);
 
     await expect(
@@ -85,9 +85,9 @@ describe('assertSerialNumbersForDocumentLines', () => {
     tx.productVariant.findMany.mockResolvedValue([
       {
         id: 'var-1',
-      sku: 'SKU-SER',
-      product: { inventoryTracking: InventoryTrackingMode.serial },
-          },
+        sku: 'SKU-SER',
+        product: { inventoryTracking: InventoryTrackingMode.serial },
+      },
     ]);
     tx.inventorySerial.findMany.mockResolvedValue([{ serialNumber: 'SN-1' }]);
 
@@ -260,9 +260,11 @@ describe('transferInventorySerialsFromDocumentLines', () => {
 describe('restoreConsumedSerialsForDocument', () => {
   it('ripristina seriali consumati', async () => {
     const updateMany = vi.fn();
-    await restoreConsumedSerialsForDocument({ inventorySerial: { updateMany } } as never, 'tenant-1', [
-      'line-1',
-    ]);
+    await restoreConsumedSerialsForDocument(
+      { inventorySerial: { updateMany } } as never,
+      'tenant-1',
+      ['line-1'],
+    );
 
     expect(updateMany).toHaveBeenCalledWith({
       where: {
@@ -307,10 +309,11 @@ describe('reverseTransferInventorySerialsForDocument', () => {
 describe('reverseInventorySerialsForDocument', () => {
   it('elimina seriali per righe documento', async () => {
     const deleteMany = vi.fn();
-    await reverseInventorySerialsForDocument({ inventorySerial: { deleteMany } } as never, 'tenant-1', [
-      'line-1',
-      'line-2',
-    ]);
+    await reverseInventorySerialsForDocument(
+      { inventorySerial: { deleteMany } } as never,
+      'tenant-1',
+      ['line-1', 'line-2'],
+    );
 
     expect(deleteMany).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-1', documentLineId: { in: ['line-1', 'line-2'] } },

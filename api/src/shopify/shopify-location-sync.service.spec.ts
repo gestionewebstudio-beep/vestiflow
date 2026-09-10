@@ -2,10 +2,7 @@ import { ShopifySyncStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
-import {
-  RIFERIMENTI_SEDE,
-  type RiferimentoSede,
-} from './location-delete-safety.util';
+import { RIFERIMENTI_SEDE, type RiferimentoSede } from './location-delete-safety.util';
 import type { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyLocationSyncService } from './shopify-location-sync.service';
 
@@ -38,7 +35,11 @@ function creaDelegatiRiferimento(presenti: Readonly<Record<string, number>> = {}
 
   const delegati: Record<
     string,
-    { count: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> }
+    {
+      count: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
+      deleteMany: ReturnType<typeof vi.fn>;
+    }
   > = {};
 
   for (const [modello, campi] of campiPerModello) {
@@ -97,23 +98,23 @@ describe('ShopifyLocationSyncService', () => {
     const locationUpdate = vi.fn().mockResolvedValue({});
     const locationCreate = vi.fn().mockResolvedValue({});
     const locationDelete = vi.fn().mockResolvedValue({});
-    const locationFindMany = vi.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
-      if (where.code === 'LOC-01') {
-        return Promise.resolve(
-          allLocations.filter(
-            (loc) => loc.code === 'LOC-01' && loc.shopifyLocationId == null,
-          ),
-        );
-      }
-      if (
-        typeof where.shopifyLocationId === 'object' &&
-        where.shopifyLocationId !== null &&
-        'not' in where.shopifyLocationId
-      ) {
-        return Promise.resolve(allLocations.filter((loc) => loc.shopifyLocationId != null));
-      }
-      return Promise.resolve(allLocations);
-    });
+    const locationFindMany = vi
+      .fn()
+      .mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+        if (where.code === 'LOC-01') {
+          return Promise.resolve(
+            allLocations.filter((loc) => loc.code === 'LOC-01' && loc.shopifyLocationId == null),
+          );
+        }
+        if (
+          typeof where.shopifyLocationId === 'object' &&
+          where.shopifyLocationId !== null &&
+          'not' in where.shopifyLocationId
+        ) {
+          return Promise.resolve(allLocations.filter((loc) => loc.shopifyLocationId != null));
+        }
+        return Promise.resolve(allLocations);
+      });
 
     const delegatiRiferimento = creaDelegatiRiferimento(options?.riferimenti);
 
@@ -270,34 +271,34 @@ describe('ShopifyLocationSyncService', () => {
     expect(locationDelete).not.toHaveBeenCalled();
   });
 
-    it('NON elimina i residui import non collegati: li archivia', async () => {
-      const { service, locationDelete } = createService({
-        tenantLocations: [
-          {
-            id: 'loc-local',
-            code: 'LOC-01',
-            name: 'Negozio',
-            shopifyLocationId: null,
-            isActive: true,
-          },
-          {
-            id: 'loc-residual',
-            code: 'LOC-02',
-            name: 'My Custom Location',
-            shopifyLocationId: null,
-            addressLine1: '123 Main St',
-            isActive: true,
-          },
-        ],
-      });
-
-      await service.syncFromShopify(tenantId, shopDomain, accessToken);
-
-      // ⛔ docs/24 §1.13.4: nessuna sincronizzazione elimina una sede, neppure vuota.
-      expect(locationDelete).not.toHaveBeenCalled();
+  it('NON elimina i residui import non collegati: li archivia', async () => {
+    const { service, locationDelete } = createService({
+      tenantLocations: [
+        {
+          id: 'loc-local',
+          code: 'LOC-01',
+          name: 'Negozio',
+          shopifyLocationId: null,
+          isActive: true,
+        },
+        {
+          id: 'loc-residual',
+          code: 'LOC-02',
+          name: 'My Custom Location',
+          shopifyLocationId: null,
+          addressLine1: '123 Main St',
+          isActive: true,
+        },
+      ],
     });
 
-    it('NON elimina una location Shopify stale, nemmeno senza dati operativi', async () => {
+    await service.syncFromShopify(tenantId, shopDomain, accessToken);
+
+    // ⛔ docs/24 §1.13.4: nessuna sincronizzazione elimina una sede, neppure vuota.
+    expect(locationDelete).not.toHaveBeenCalled();
+  });
+
+  it('NON elimina una location Shopify stale, nemmeno senza dati operativi', async () => {
     const { service, locationDelete } = createService({
       shopifyLocations: [{ id: '1001', name: 'Negozio attivo', active: true }],
       tenantLocations: [

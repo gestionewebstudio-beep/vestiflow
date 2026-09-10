@@ -2243,6 +2243,128 @@ model ShopifyInventorySyncState {
   lastObservedAt               DateTime? @map("last_observed_at")
   mismatchDetected             Boolean   @default(false) @map("mismatch_detected")
   mismatchNote                 String?   @map("mismatch_note")
+
+  // ── Un aggiornamento LOCALE che non e' stato trasmesso ────────────────────
+  //
+  // ⛔ **Non e' `mismatchDetected`, e non deve diventarlo.** Sono due stati che
+  //    si sanno in due modi diversi, e confonderli li rende indistinguibili
+  //    per sempre:
+  //
+  //      mismatchDetected   il canale porta un numero diverso da quello atteso
+  //                         → lo si sa GUARDANDO il canale
+  //      localPushPending   non si e' scritto, e non si sa cosa porti il canale
+  //                         → lo si sa NON avendo guardato niente
+  //
+  // ⭐ **Lo accende una sola cosa**: il push che esce con `stato_cambiato`,
+  //    cioe' quando la coppia si e' mossa sotto la lettura per piu' giri e
+  //    nessuna scrittura e' partita. Senza questo, quel valore restava
+  //    ritrovabile solo per caso — alla prossima vendita sullo stesso articolo.
+  //    Prova `P10`.
+  //
+  // ⭐ **Lo spegne la conferma di un invio, o il constatare che non c'e' piu'
+  //    niente da mandare** (`unchanged`). Mai altro.
+  localPushPending             Boolean   @default(false) @map("local_push_pending")
+
+  // ── Il TENTATIVO di invio in corso, per poterlo ripetere dopo un riavvio ──
+  //
+  // ⛔ **Sono separati da `lastPushed*`, e la separazione E' il punto.** L'ultimo
+  //    confermato non deve avanzare finche' il canale non ha risposto: usarlo
+  //    come prenotazione segnerebbe come trasmesso cio' che non e' mai partito.
+  //
+  // ⭐ **Non e' una coda**: e' la memoria dell'operazione in corso su QUESTA
+  //    coppia, sulla riga che gia' esiste. Una riga, un tentativo aperto.
+  //
+  // ⚠️ Ci sono anche la destinazione e la base, non solo la chiave: ripetere
+  //    "esattamente la stessa operazione" significa lo stesso negozio, lo stesso
+  //    articolo di inventario, la stessa sede remota e lo stesso confronto.
+  /// Chiave di idempotenza dell'operazione in corso. NULL = nessun tentativo aperto.
+  pendingKey                   String?   @unique @map("pending_key")
+  /// Quantita' pubblicabile che il tentativo sta scrivendo.
+  pendingAvailable             Int?      @map("pending_available")
+  /// Valore atteso usato nel confronto. NULL = inviato SENZA confronto.
+  pendingBase                  Int?      @map("pending_base")
+  /// Destinazione originale: negozio, articolo di inventario e sede remota.
+  pendingShopDomain            String?   @map("pending_shop_domain")
+  pendingItemId                String?   @map("pending_item_id")
+  pendingLocationRef           String?   @map("pending_location_ref")
+  /// Istante della prenotazione: decide se la finestra di idempotenza e' scaduta.
+  pendingAt                    DateTime? @map("pending_at")
+
+  // ── Lo SCARICO dei contatori, fotografato alla PRESA ──────────────────────
+  //
+  // ⭐ **Quanto togliere da `L` e da `C` quando questo tentativo si conferma**,
+  //    calcolato nel momento in cui si decide che cosa inviare.
+  //
+  // ⛔ **Non e' una comodita': i due percorsi di scrittura scaricano in modo
+  //    DIVERSO**, e la conferma non ha modo di sapere quale l'ha aperta.
+  //
+  //      invio ordinario   L -= T - R        C -= R - P
+  //      riallineamento    L -= L_w - (A_w - T)   C -= C_w
+  //
+  //    Con la formula dentro la conferma servirebbe un discriminante e due
+  //    rami; con lo scarico gia' calcolato la conferma applica e basta.
+  //
+  // ⚠️ **Fotografarli e' sicuro perche' il tentativo e' UNICO per riga**
+  //    (`pendingKey` unica): fra la presa e la conferma nessun altro invio puo'
+  //    muovere `P`, e i valori restano quelli su cui la decisione e' stata presa.
+  //
+  // ⚠️ NULL = tentativo aperto PRIMA di questa colonna: la conferma ripiega
+  //    sulla formula dell'invio ordinario.
+  pendingDischargeLocal        Int?      @map("pending_discharge_local")
+  pendingDischargeChannel      Int?      @map("pending_discharge_channel")
+
+  /// Questa presa ha fatto NASCERE i contatori.
+  ///
+  /// ⛔ **Serve alla chiusura di un tentativo NON confermato.** La presa
+  ///    inizializza `L` e `C` a zero perche' i movimenti arrivati nella finestra
+  ///    non svaniscano su un NULL; se poi il canale rifiuta, la riga resterebbe
+  ///    «inizializzata» senza che l'allineamento sia riuscito — e con `L = 0` il
+  ///    recupero smetterebbe di correggere il disallineamento, che con `L` NULL
+  ///    avrebbe ripubblicato col valore assoluto.
+  ///
+  /// ⚠️ La chiusura riporta i contatori a NULL **solo se sono ancora a zero**:
+  ///    se nel frattempo e' arrivato un movimento, quel lavoro esiste e resta.
+  pendingHaInizializzato       Boolean?  @map("pending_ha_inizializzato")
+
+  /// `L` — lo scostamento LOCALE non ancora trasmesso al canale.
+  ///
+  /// ⭐ Si muove per le operazioni di VestiFlow — vendita al banco, carico,
+  ///    rettifica, trasferimento, inventario — e **non** per gli effetti che
+  ///    Shopify ha gia' applicato in casa propria.
+  ///
+  /// ⛔ **Non e' `localPushPending`**: quel booleano dice «c'e' lavoro», questo
+  ///    dice **quanto**.
+  ///
+  /// ⚠️ **NULL = base non stabilita**, ed e' lo stato di partenza di ogni riga
+  ///    esistente: la base la crea la PARTENZA CONTROLLATA (`docs/DA-FARE` §31.-1),
+  ///    non il primo invio ordinario. Un NULL non si somma mai come zero.
+  localPendingDelta            Int?      @map("local_pending_delta")
+
+  /// `C` — gli effetti di CANALE acquisiti dopo l'ultima conferma.
+  ///
+  /// ⭐ Si muove quando VestiFlow registra in casa un effetto che Shopify ha
+  ///    gia' applicato — l'ordine online, l'evasione, il reso — e serve a NON
+  ///    rimandarglielo indietro.
+  ///
+  /// ⚠️ Stessa regola del NULL.
+  channelAcquiredDelta         Int?      @map("channel_acquired_delta")
+
+  /// Quando la coda del ritentativo ha ESAMINATO questa riga l'ultima volta.
+  ///
+  /// ⛔ **Non e' `updatedAt`, e la differenza e' il difetto che questa colonna
+  ///    corregge.** Diversi rami di uscita del push escono SENZA scrivere sulla
+  ///    riga (`base_assente`, `collegamento_escluso`, `rinvio_attivo`): con la
+  ///    coda ordinata per `updatedAt` quelle righe restano per sempre le piu'
+  ///    vecchie, e le successive non vengono tentate MAI — nemmeno a passate
+  ///    ripetute, perche' l'ordine non cambia.
+  ///
+  /// ⭐ **Si scrive PRIMA del tentativo, sempre**, qualunque sia l'esito: e' un
+  ///    «l'ho guardata», non un «ce l'ho fatta». Cosi' la riga scende in fondo e
+  ///    la passata dopo prosegue da quelle dietro.
+  ///
+  /// ⚠️ `null` = mai esaminata: sono le prime, e l'ordinamento le mette in testa.
+  lastAttemptAt                DateTime? @map("last_attempt_at")
+
   createdAt                    DateTime  @default(now()) @map("created_at")
   updatedAt                    DateTime  @updatedAt @map("updated_at")
 
@@ -2252,6 +2374,13 @@ model ShopifyInventorySyncState {
 
   @@unique([tenantId, variantId, locationId])
   @@index([tenantId, mismatchDetected])
+  // ⭐ La coda del ritentativo ora seleziona su DUE colonne in OR: senza questo
+  //    indice il secondo ramo diventa una scansione della tabella.
+  @@index([tenantId, localPushPending])
+  @@index([tenantId, pendingAt])
+  /// L'ordine con cui la coda del ritentativo sceglie: meno recentemente
+  /// esaminate per prime, mai esaminate in testa.
+  @@index([tenantId, lastAttemptAt])
   @@map("shopify_inventory_sync_states")
 }
 

@@ -6,7 +6,11 @@ import type { ShopifyWebhookStatusService } from './shopify-webhook-status.servi
 
 describe('ShopifyWebhookRepairService', () => {
   function createService(
-    registration: { registered: string[]; skipped: string[]; failed: { topic: string; message: string }[] },
+    registration: {
+      registered: string[];
+      skipped: string[];
+      failed: { topic: string; message: string }[];
+    },
     checkResult: Record<string, unknown> = { missingTopics: [], topics: ['orders/cancelled'] },
   ) {
     const resyncWebhooks = vi.fn().mockResolvedValue(registration);

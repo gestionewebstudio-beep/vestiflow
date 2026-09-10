@@ -59,7 +59,13 @@ describe('applySupplierPriceUpdates — la coda arriva in anagrafica', () => {
 
   it('⛔ oltre 4 cifre di centesimo si riduce: è il contratto, non un troncamento', async () => {
     const m = mockTx();
-    await applySupplierPriceUpdates(m.tx, 'ten-1', 'sup-1', [riga(2049.18032786885)] as never, true);
+    await applySupplierPriceUpdates(
+      m.tx,
+      'ten-1',
+      'sup-1',
+      [riga(2049.18032786885)] as never,
+      true,
+    );
 
     expect(costoVariante(m)).toBe(2049.1803);
   });
@@ -144,10 +150,7 @@ describe('applySupplierPriceUpdates — «il costo è cambiato?»', () => {
     const m = mockTx();
     await applySupplierPriceUpdates(m.tx, 'ten-1', 'sup-1', [riga(84.4262)] as never, true);
 
-    expect(m.linkUpsert.mock.calls[0]?.[0]?.update?.lastPurchasePriceMinor).toBeCloseTo(
-      84.4262,
-      4,
-    );
+    expect(m.linkUpsert.mock.calls[0]?.[0]?.update?.lastPurchasePriceMinor).toBeCloseTo(84.4262, 4);
   });
 
   it('⛔ senza la spunta la variante non si tocca, il fornitore sì', async () => {
@@ -155,10 +158,7 @@ describe('applySupplierPriceUpdates — «il costo è cambiato?»', () => {
     await applySupplierPriceUpdates(m.tx, 'ten-1', 'sup-1', [riga(84.4262)] as never, false);
 
     expect(m.variantUpdate).not.toHaveBeenCalled();
-    expect(m.linkUpsert.mock.calls[0]?.[0]?.update?.lastPurchasePriceMinor).toBeCloseTo(
-      84.4262,
-      4,
-    );
+    expect(m.linkUpsert.mock.calls[0]?.[0]?.update?.lastPurchasePriceMinor).toBeCloseTo(84.4262, 4);
   });
 
   describe('⭐ due righe dello stesso articolo: vince l’ULTIMA', () => {

@@ -370,7 +370,7 @@ describe('ManualSalesOrdersService.conclude', () => {
       // fatto emergere la lacuna del fixture.
       placedAt: new Date('2026-07-29T00:00:00.000Z'),
       source: 'manual',
-          commercialState: 'confirmed',
+      commercialState: 'confirmed',
       cancelledAt: null,
       fulfilledAt: null,
       documentId: null,
@@ -426,7 +426,7 @@ describe('ManualSalesOrdersService.conclude', () => {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
       source: 'manual',
-          commercialState: 'cancelled',
+      commercialState: 'cancelled',
       cancelledAt: new Date(),
       fulfilledAt: null,
       lines: [],
@@ -464,7 +464,9 @@ describe('ManualSalesOrdersService.delete', () => {
     });
     const { service } = createService(prisma);
 
-    await expect(service.delete(tenantId, 'order-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.delete(tenantId, 'order-1', testOwnerUser())).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
   });
 
@@ -499,7 +501,9 @@ describe('ManualSalesOrdersService.delete', () => {
     });
     const { service } = createService(prisma);
 
-    await expect(service.delete(tenantId, 'order-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.delete(tenantId, 'order-1', testOwnerUser())).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
   });
 });
@@ -518,7 +522,7 @@ describe('ManualSalesOrdersService.concludePrefill — riferimenti', () => {
       orderNumber: 'OC-0012',
       placedAt: new Date('2026-07-29T00:00:00.000Z'),
       source: 'manual',
-          commercialState: 'confirmed',
+      commercialState: 'confirmed',
       cancelledAt: null,
       fulfilledAt: null,
       documentId: null,
@@ -613,7 +617,7 @@ describe('ManualSalesOrdersService — etichetta della variante', () => {
       id: 'order-1',
       orderNumber: 'OC-0012',
       source: 'manual',
-          commercialState: 'confirmed',
+      commercialState: 'confirmed',
       locationId: 'loc-1',
       lines: [
         {

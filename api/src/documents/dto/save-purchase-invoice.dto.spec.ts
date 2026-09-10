@@ -28,7 +28,11 @@ describe('SavePurchaseInvoiceDto', () => {
     const esito = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
     const out: string[] = [];
     const scendi = (lista: readonly unknown[], prefisso: string): void => {
-      for (const e of lista as { property: string; constraints?: Record<string, string>; children?: unknown[] }[]) {
+      for (const e of lista as {
+        property: string;
+        constraints?: Record<string, string>;
+        children?: unknown[];
+      }[]) {
         const dove = prefisso ? `${prefisso}.${e.property}` : e.property;
         for (const c of Object.keys(e.constraints ?? {})) {
           out.push(`${dove}:${c}`);

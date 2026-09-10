@@ -36,18 +36,14 @@ describe('RolesGuard', () => {
   it('rifiuta accesso se il ruolo non è autorizzato', () => {
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
 
-    expect(() => guard.canActivate(contextWithRole('clerk') as never)).toThrow(
-      ForbiddenException,
-    );
+    expect(() => guard.canActivate(contextWithRole('clerk') as never)).toThrow(ForbiddenException);
   });
 
   it('consente accesso con sessione assistenza attiva indipendentemente dal ruolo', () => {
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
 
-    expect(
-      guard.canActivate(
-        contextWithRole('clerk', { sessionId: 'session-1' }) as never,
-      ),
-    ).toBe(true);
+    expect(guard.canActivate(contextWithRole('clerk', { sessionId: 'session-1' }) as never)).toBe(
+      true,
+    );
   });
 });

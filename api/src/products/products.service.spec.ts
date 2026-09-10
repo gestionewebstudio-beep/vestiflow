@@ -157,7 +157,9 @@ describe('ProductsService', () => {
 
       await service.list(tenantId, { page: 1, pageSize: 10 });
 
-      const [[chiamata]] = prisma.product.findMany.mock.calls as [[{ where: Record<string, unknown> }]];
+      const [[chiamata]] = prisma.product.findMany.mock.calls as [
+        [{ where: Record<string, unknown> }],
+      ];
       expect(chiamata.where).toMatchObject({ tenantId, deletedAt: null });
     });
 
@@ -167,9 +169,15 @@ describe('ProductsService', () => {
       prisma.product.count.mockResolvedValue(0);
 
       // Il titolare passa: la vista è amministrativa (CatalogDelete o accesso pieno).
-      await service.list(tenantId, { page: 1, pageSize: 10, trash: true } as never, testOwnerUser());
+      await service.list(
+        tenantId,
+        { page: 1, pageSize: 10, trash: true } as never,
+        testOwnerUser(),
+      );
 
-      const [[chiamata]] = prisma.product.findMany.mock.calls as [[{ where: Record<string, unknown> }]];
+      const [[chiamata]] = prisma.product.findMany.mock.calls as [
+        [{ where: Record<string, unknown> }],
+      ];
       expect(chiamata.where).toMatchObject({ tenantId, deletedAt: { not: null } });
     });
 
@@ -186,7 +194,11 @@ describe('ProductsService', () => {
       prisma.productVariant.findMany.mockResolvedValue([]);
       prisma.productVariant.count.mockResolvedValue(0);
 
-      await service.listVariantSummaries(tenantId, { page: 1, pageSize: 10 } as never, testOwnerUser());
+      await service.listVariantSummaries(
+        tenantId,
+        { page: 1, pageSize: 10 } as never,
+        testOwnerUser(),
+      );
 
       const [[chiamata]] = prisma.productVariant.findMany.mock.calls as [
         [{ where: Record<string, unknown> }],
@@ -1051,12 +1063,16 @@ describe('ProductsService', () => {
     prisma.productVariant.findMany.mockResolvedValue([]);
     prisma.productVariant.count.mockResolvedValue(0);
 
-    await service.listVariantSummaries(tenantId, {
-      page: 1,
-      pageSize: 10,
-      search: 'mag',
-      variantId: 'var-9',
-    } as never, testOwnerUser());
+    await service.listVariantSummaries(
+      tenantId,
+      {
+        page: 1,
+        pageSize: 10,
+        search: 'mag',
+        variantId: 'var-9',
+      } as never,
+      testOwnerUser(),
+    );
 
     const where = (
       prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
@@ -1070,11 +1086,15 @@ describe('ProductsService', () => {
     prisma.productVariant.findMany.mockResolvedValue([]);
     prisma.productVariant.count.mockResolvedValue(0);
 
-    await service.listVariantSummaries(tenantId, {
-      page: 1,
-      pageSize: 10,
-      productId: 'prod-7',
-    } as never, testOwnerUser());
+    await service.listVariantSummaries(
+      tenantId,
+      {
+        page: 1,
+        pageSize: 10,
+        productId: 'prod-7',
+      } as never,
+      testOwnerUser(),
+    );
 
     const where = (
       prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }

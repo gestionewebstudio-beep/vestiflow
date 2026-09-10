@@ -91,9 +91,7 @@ describe('DecimalSerializationInterceptor', () => {
       const interceptor = new DecimalSerializationInterceptor();
       const handler = { handle: () => of({ prezzo: dec('2049.1803') }) } as CallHandler;
 
-      const out = await lastValueFrom(
-        interceptor.intercept({} as ExecutionContext, handler),
-      );
+      const out = await lastValueFrom(interceptor.intercept({} as ExecutionContext, handler));
 
       expect(jsonDi(out)).toEqual({ prezzo: 2049.1803 });
     });
@@ -197,7 +195,12 @@ describe('separazione fra tipo interno e tipo di risposta', () => {
       listino2PriceMinor: null,
       createdAt: new Date('2026-08-22T10:00:00.000Z'),
       variants: [
-        { id: 'var-1', sku: 'A-M', sellingPriceMinor: dec('2049.1803'), purchasePriceMinor: dec('1200.25') },
+        {
+          id: 'var-1',
+          sku: 'A-M',
+          sellingPriceMinor: dec('2049.1803'),
+          purchasePriceMinor: dec('1200.25'),
+        },
       ],
     };
 
@@ -244,7 +247,12 @@ describe('separazione fra tipo interno e tipo di risposta', () => {
         totalMinor: 250000,
         documentDiscountPercent: dec('2.5'),
         lines: [
-          { id: 'l-1', unitPriceMinor: dec('2049.1803'), discountPercent: dec('7'), lineTotalMinor: 2049 },
+          {
+            id: 'l-1',
+            unitPriceMinor: dec('2049.1803'),
+            discountPercent: dec('7'),
+            lineTotalMinor: 2049,
+          },
           { id: 'l-2', unitPriceMinor: dec('999'), discountPercent: dec('0'), lineTotalMinor: 999 },
         ],
         linkedSalesDdts: [{ id: 'ddt-1', reference: 'DDT 17' }],

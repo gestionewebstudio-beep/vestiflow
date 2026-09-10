@@ -91,9 +91,9 @@ describe('SupportSessionService', () => {
   it('startSession rifiuta operatori non piattaforma', async () => {
     const { service } = createService({ isPlatformAdmin: false });
 
-    await expect(
-      service.startSession('op-1', 'user@test.it', 'tenant-1'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.startSession('op-1', 'user@test.it', 'tenant-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('startSession rifiuta tenant operatore piattaforma', async () => {

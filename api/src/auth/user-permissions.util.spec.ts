@@ -55,9 +55,9 @@ describe('user-permissions.util', () => {
   });
 
   it('normalizeStoredPermissions per il titolare restituisce sempre array vuoto', () => {
-    expect(
-      normalizeStoredPermissions(UserRole.owner, [TenantPermission.SectionReports]),
-    ).toEqual([]);
+    expect(normalizeStoredPermissions(UserRole.owner, [TenantPermission.SectionReports])).toEqual(
+      [],
+    );
   });
 
   it('normalizeStoredPermissions filtra chiavi obsolete prima del salvataggio', () => {

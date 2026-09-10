@@ -127,8 +127,18 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
         articleCode: 'INV-1',
         variants: {
           create: [
-            { tenantId: IDS.tenantA, sku: 'INV-M', optionValues: { T: 'M' }, sellingPriceMinor: 1000 },
-            { tenantId: IDS.tenantA, sku: 'INV-L', optionValues: { T: 'L' }, sellingPriceMinor: 1000 },
+            {
+              tenantId: IDS.tenantA,
+              sku: 'INV-M',
+              optionValues: { T: 'M' },
+              sellingPriceMinor: 1000,
+            },
+            {
+              tenantId: IDS.tenantA,
+              sku: 'INV-L',
+              optionValues: { T: 'L' },
+              sellingPriceMinor: 1000,
+            },
           ],
         },
       },
@@ -169,34 +179,48 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
   // ── 1 · le operazioni ordinarie ──────────────────────────────────────────
 
   it('I1 · carico, scarico e scarico OLTRE la giacenza: l invariante regge, il negativo resta', async () => {
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 10));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 10, 'locale'),
+    );
     expect(await riga(varianteA)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
 
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -3));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -3, 'locale'),
+    );
     expect(await riga(varianteA)).toMatchObject({ onHand: 7, committed: 0, available: 7 });
 
     // ⭐ La quantità insufficiente NON blocca: giacenza e disponibile vanno
     //    sotto zero insieme, ed è la politica dichiarata del gestionale.
     await prisma.$transaction((tx) =>
-      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -10),
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -10, 'locale'),
     );
     expect(await riga(varianteA)).toMatchObject({ onHand: -3, committed: 0, available: -3 });
     expect(await incoerenti()).toEqual([]);
   });
 
   it('I2 · impegno e rilascio: la giacenza non si muove, il disponibile sì', async () => {
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 10));
-    await prisma.$transaction((tx) => applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 4));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 10, 'locale'),
+    );
+    await prisma.$transaction((tx) =>
+      applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 4, 'locale'),
+    );
     expect(await riga(varianteA)).toMatchObject({ onHand: 10, committed: 4, available: 6 });
 
-    await prisma.$transaction((tx) => applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -4));
+    await prisma.$transaction((tx) =>
+      applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -4, 'locale'),
+    );
     expect(await riga(varianteA)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
     expect(await incoerenti()).toEqual([]);
   });
 
   it('I3 · l impegno OLTRE la giacenza porta il disponibile sotto zero, non lo blocca', async () => {
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 2));
-    await prisma.$transaction((tx) => applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 5));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 2, 'locale'),
+    );
+    await prisma.$transaction((tx) =>
+      applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 5, 'locale'),
+    );
     expect(await riga(varianteA)).toMatchObject({ onHand: 2, committed: 5, available: -3 });
     expect(await incoerenti()).toEqual([]);
   });
@@ -204,13 +228,17 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
   it('I4 · la riga che NASCE dall upsert nasce coerente (0, 0, 0)', async () => {
     // ⚠️ Un `create` che valorizzasse `onHand` lasciando `available` al default
     //    romperebbe l'invariante alla nascita: qui si verifica che non accada.
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteB, IDS.locA1, 0));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteB, IDS.locA1, 0, 'locale'),
+    );
     expect(await riga(varianteB)).toMatchObject({ onHand: 0, committed: 0, available: 0 });
     expect(await incoerenti()).toEqual([]);
   });
 
   it('I5 · l incoming NON tocca il disponibile', async () => {
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 5));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 5, 'locale'),
+    );
     await prisma.$transaction((tx) => applyIncomingDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 8));
     expect(await riga(varianteA)).toMatchObject({
       onHand: 5,
@@ -224,12 +252,14 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
   // ── 2 · il ROLLBACK ──────────────────────────────────────────────────────
 
   it('I6 · una transazione che cade DOPO il delta non lascia niente: né dato né incoerenza', async () => {
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 10));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 10, 'locale'),
+    );
 
     await expect(
       prisma.$transaction(async (tx) => {
-        await applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -4);
-        await applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 3);
+        await applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, -4, 'locale');
+        await applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 3, 'locale');
         // ⛔ Il guasto arriva DOPO che i due campi si sono mossi: è il caso in
         //    cui un rollback parziale lascerebbe `available` scollegato.
         throw new Error('guasto dopo le scritture');
@@ -246,12 +276,16 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
     // ⚠️ La riga si crea PRIMA: la nascita concorrente è un caso a sé, ed è
     //    `I9`. Qui il bersaglio è l'aggiornamento simultaneo di una riga che
     //    già esiste, che è la situazione di ogni giorno.
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 0));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 0, 'locale'),
+    );
     // ⭐ Gli increment sono atomici lato database: la somma deve tornare esatta.
     //    Se qualcuno leggesse-e-riscrivesse, qui si perderebbe un aggiornamento.
     await Promise.all(
       Array.from({ length: 12 }, () =>
-        prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 3)),
+        prisma.$transaction((tx) =>
+          applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 3, 'locale'),
+        ),
       ),
     );
     expect(await riga(varianteA)).toMatchObject({ onHand: 36, committed: 0, available: 36 });
@@ -262,13 +296,19 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
     // ⚠️ È il caso vero: un arrivo merce e un ordine cliente sulla stessa
     //    variante, nello stesso istante. I due percorsi toccano campi diversi e
     //    devono comporsi senza lasciare `available` a metà strada.
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 0));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 0, 'locale'),
+    );
     await Promise.all([
       ...Array.from({ length: 6 }, () =>
-        prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 5)),
+        prisma.$transaction((tx) =>
+          applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 5, 'locale'),
+        ),
       ),
       ...Array.from({ length: 6 }, () =>
-        prisma.$transaction((tx) => applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 2)),
+        prisma.$transaction((tx) =>
+          applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 2, 'locale'),
+        ),
       ),
     ]);
     const dopo = await riga(varianteA);
@@ -301,8 +341,12 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
     //    diventasse atomico, `esiti` non avrebbe più rifiuti e questa riga
     //    andrebbe riscritta di proposito.
     const esiti = await Promise.allSettled([
-      prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteB, IDS.locA1, 4)),
-      prisma.$transaction((tx) => applyCommittedDelta(tx, IDS.tenantA, varianteB, IDS.locA1, 1)),
+      prisma.$transaction((tx) =>
+        applyInventoryDelta(tx, IDS.tenantA, varianteB, IDS.locA1, 4, 'locale'),
+      ),
+      prisma.$transaction((tx) =>
+        applyCommittedDelta(tx, IDS.tenantA, varianteB, IDS.locA1, 1, 'locale'),
+      ),
     ]);
     const caduti = esiti.filter((e) => e.status === 'rejected');
     for (const caduto of caduti) {
@@ -315,14 +359,22 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
   // ── 4 · il RIPRISTINO ────────────────────────────────────────────────────
 
   it('I10 · export e ripristino: i livelli tornano com erano, e coerenti', async () => {
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 9));
-    await prisma.$transaction((tx) => applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 4));
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteB, IDS.locA1, -2));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 9, 'locale'),
+    );
+    await prisma.$transaction((tx) =>
+      applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 4, 'locale'),
+    );
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteB, IDS.locA1, -2, 'locale'),
+    );
     const prima = await riga(varianteA);
 
     const zip = await readStreamToBuffer((await exporter.createExportStream(IDS.tenantA)).stream);
     // Una modifica DOPO il backup, per vedere che il ripristino la sovrascrive.
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 100));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 100, 'locale'),
+    );
     await importer.importFromZipBuffer(IDS.tenantA, IDS.utenteA1, zip);
 
     expect(await riga(varianteA)).toMatchObject({
@@ -356,10 +408,10 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
     /** Porta la riga ai tre valori chiesti, passando dai percorsi veri. */
     async function portaA(onHand: number, committed: number): Promise<void> {
       await prisma.$transaction((tx) =>
-        applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, onHand),
+        applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, onHand, 'locale'),
       );
       await prisma.$transaction((tx) =>
-        applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, committed),
+        applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, committed, 'locale'),
       );
     }
 
@@ -374,10 +426,7 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
     ): Promise<Buffer> {
       return rewriteTenantBackupZip(zip, (file) => {
         const percorso = `${TENANT_BACKUP_DATA_DIR}/inventoryLevels.json`;
-        const righe = JSON.parse(file.get(percorso)!.toString('utf8')) as Record<
-          string,
-          unknown
-        >[];
+        const righe = JSON.parse(file.get(percorso)!.toString('utf8')) as Record<string, unknown>[];
         cambia(righe);
         file.set(percorso, Buffer.from(`${JSON.stringify(righe, null, 2)}\n`));
       });
@@ -533,10 +582,10 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
       });
       // La riga nasce dal percorso vero, poi la si sfasa di proposito.
       await prisma.$transaction((tx) =>
-        applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 9),
+        applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 9, 'locale'),
       );
       await prisma.$transaction((tx) =>
-        applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 1),
+        applyCommittedDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 1, 'locale'),
       );
       await prisma.$executeRawUnsafe(
         `UPDATE inventory_levels SET available = 4 WHERE tenant_id = $1::uuid AND variant_id = $2::uuid`,
@@ -545,11 +594,35 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
       );
     });
 
+    /**
+     * ⚠️ **Una base confermata, e il negozio che la porta.** Dal 09/09/2026 il
+     *    push non parte senza un ultimo valore confermato da cui confrontare
+     *    (`base_assente`, protezione provvisoria sul primo invio). Queste sonde
+     *    misurano QUALE NUMERO parte, non il primo invio: partono quindi da una
+     *    coppia già pubblicata.
+     */
+    async function coppiaGiaPubblicata(variantId: string, remoto: number): Promise<void> {
+      await prisma.shopifyInventorySyncState.deleteMany({
+        where: { tenantId: IDS.tenantA, variantId, locationId: IDS.locA1 },
+      });
+      await prisma.shopifyInventorySyncState.create({
+        data: {
+          tenantId: IDS.tenantA,
+          variantId,
+          locationId: IDS.locA1,
+          lastPushedAvailable: remoto,
+          lastPushedAt: new Date(Date.now() - 3_600_000),
+        },
+      });
+      negozio.impostaQuantitaRemota(inventarioItem, '994900', remoto);
+    }
+
     function creaPushInventario() {
       return new ShopifyInventoryPushService(
         prisma as never,
         negozio.oauth() as never,
         negozio.admin() as never,
+        negozio.graphql() as never,
         { touchSync: vi.fn() } as never,
         new ShopifyInventoryReconciliationService(prisma as never),
         // ⚠️ Storico e registro VERI. Qui la connessione non ha `shopId`, quindi
@@ -561,6 +634,7 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
     }
 
     it('I12 · il PUSH manda il Disponibile del gestionale, non la sua differenza', async () => {
+      await coppiaGiaPubblicata(varianteA, 99);
       const esito = await creaPushInventario().pushLevel(IDS.tenantA, varianteA, IDS.locA1);
 
       expect(esito.pushed).toBe(true);
@@ -576,26 +650,17 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
 
       // Shopify dice 4: coincide col Disponibile del gestionale → allineato.
       expect(
-        await riconciliazione.reconcileFromShopifyWebhook(
-          IDS.tenantA,
-          inventarioItem,
-          '994900',
-          4,
-        ),
+        await riconciliazione.reconcileFromShopifyWebhook(IDS.tenantA, inventarioItem, '994900', 4),
       ).toBe('reconciled');
 
       // ⛔ 8 è il vecchio ricalcolo: oggi è un disallineamento, non un allineamento.
       expect(
-        await riconciliazione.reconcileFromShopifyWebhook(
-          IDS.tenantA,
-          inventarioItem,
-          '994900',
-          8,
-        ),
+        await riconciliazione.reconcileFromShopifyWebhook(IDS.tenantA, inventarioItem, '994900', 8),
       ).toBe('mismatch_republish');
     });
 
     it('I14 · il negativo locale resta, e al canale va zero', async () => {
+      await coppiaGiaPubblicata(varianteA, 99);
       await prisma.$executeRawUnsafe(
         `UPDATE inventory_levels SET on_hand = -2, committed = 0, available = -2
           WHERE tenant_id = $1::uuid AND variant_id = $2::uuid`,
@@ -617,7 +682,9 @@ describe('L invariante del Disponibile — available = onHand - committed', () =
     //    di proposito una riga rotta — con SQL diretto, cioè per una strada che
     //    nessun percorso applicativo usa — e si verifica che venga contata.
     //    ⚠️ La riga resta rotta: non la si «sistema», si verifica e basta.
-    await prisma.$transaction((tx) => applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 6));
+    await prisma.$transaction((tx) =>
+      applyInventoryDelta(tx, IDS.tenantA, varianteA, IDS.locA1, 6, 'locale'),
+    );
     await prisma.$executeRawUnsafe(
       `UPDATE inventory_levels SET available = 999 WHERE tenant_id = $1::uuid AND variant_id = $2::uuid`,
       IDS.tenantA,

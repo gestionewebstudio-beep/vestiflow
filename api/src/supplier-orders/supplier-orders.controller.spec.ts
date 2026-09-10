@@ -42,7 +42,7 @@ describe('SupplierOrdersController', () => {
     expect(supplierOrders.getById).toHaveBeenCalledWith(tenantId, 'po-1', user);
   });
 
-  it('exportPdf recupera l\'ordine via getById (scope location) e restituisce StreamableFile', async () => {
+  it("exportPdf recupera l'ordine via getById (scope location) e restituisce StreamableFile", async () => {
     const order = { id: 'po-1', reference: 'PO-2026-0042' };
     supplierOrders.getById.mockResolvedValue(order);
     supplierOrderPdf.exportPdf.mockResolvedValue({
@@ -79,7 +79,7 @@ describe('SupplierOrdersController', () => {
     expect(supplierOrders.update).toHaveBeenCalledWith(tenantId, 'po-1', dto, user);
   });
 
-  it('cancel delega al service passando l\'utente (scope location)', async () => {
+  it("cancel delega al service passando l'utente (scope location)", async () => {
     supplierOrders.cancel.mockResolvedValue({ id: 'po-1', status: 'cancelled' });
 
     await controller.cancel(tenantId, user, 'po-1');
@@ -87,7 +87,7 @@ describe('SupplierOrdersController', () => {
     expect(supplierOrders.cancel).toHaveBeenCalledWith(tenantId, 'po-1', user);
   });
 
-  it('delete delega al service passando l\'utente (scope location)', async () => {
+  it("delete delega al service passando l'utente (scope location)", async () => {
     supplierOrders.delete.mockResolvedValue(undefined);
 
     await controller.delete(tenantId, user, 'po-1');

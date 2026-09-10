@@ -8,6 +8,9 @@ function createTx() {
       upsert: vi.fn().mockResolvedValue({ id: 'lvl-1' }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
+    shopifyInventorySyncState: {
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   };
 }
 
@@ -19,7 +22,7 @@ describe('applyCommittedDelta', () => {
   it('garantisce la riga e non aggiorna nulla con delta 0', async () => {
     const tx = createTx();
 
-    await applyCommittedDelta(tx as never, tenantId, variantId, locationId, 0);
+    await applyCommittedDelta(tx as never, tenantId, variantId, locationId, 0, 'locale');
 
     expect(tx.inventoryLevel.upsert).toHaveBeenCalledOnce();
     expect(tx.inventoryLevel.updateMany).not.toHaveBeenCalled();
@@ -28,7 +31,7 @@ describe('applyCommittedDelta', () => {
   it('impegno: committed +delta, available -delta, onHand invariata', async () => {
     const tx = createTx();
 
-    await applyCommittedDelta(tx as never, tenantId, variantId, locationId, 3);
+    await applyCommittedDelta(tx as never, tenantId, variantId, locationId, 3, 'locale');
 
     expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith({
       where: { tenantId, variantId, locationId },
@@ -47,7 +50,7 @@ describe('applyCommittedDelta', () => {
     // impegno 3 → Impegnata 7, Disponibile -2. Nessuna condizione sul where
     // e nessuna eccezione: l'operazione va sempre registrata.
     await expect(
-      applyCommittedDelta(tx as never, tenantId, variantId, locationId, 3),
+      applyCommittedDelta(tx as never, tenantId, variantId, locationId, 3, 'locale'),
     ).resolves.toBeUndefined();
 
     const callArg = tx.inventoryLevel.updateMany.mock.calls[0]?.[0] as {
@@ -60,11 +63,40 @@ describe('applyCommittedDelta', () => {
   it('rilascio impegno: committed -delta, available +delta', async () => {
     const tx = createTx();
 
-    await applyCommittedDelta(tx as never, tenantId, variantId, locationId, -2);
+    await applyCommittedDelta(tx as never, tenantId, variantId, locationId, -2, 'locale');
 
     expect(tx.inventoryLevel.updateMany).toHaveBeenCalledWith({
       where: { tenantId, variantId, locationId },
       data: { committed: { increment: -2 }, available: { increment: 2 } },
+    });
+  });
+
+  describe('origine della variazione', () => {
+    const scritta = (tx: ReturnType<typeof createTx>) =>
+      tx.shopifyInventorySyncState.updateMany.mock.calls[0]?.[0] as {
+        data: Record<string, unknown>;
+      };
+
+    it("⚠️ il SEGNO è quello di `available`, non dell'impegno", async () => {
+      const tx = createTx();
+
+      // Un impegno IN PIÙ è una disponibilità IN MENO.
+      await applyCommittedDelta(tx as never, tenantId, variantId, locationId, 3, 'locale');
+
+      expect(scritta(tx).data).toEqual({
+        localPendingDelta: { increment: -3 },
+        // ⭐ Un impegno di origine locale è lavoro da trasmettere quanto una
+        //    vendita al banco: entra in coda nella stessa scrittura.
+        localPushPending: true,
+      });
+    });
+
+    it("⭐ l'ordine online acquisito va in C: là è già avvenuto", async () => {
+      const tx = createTx();
+
+      await applyCommittedDelta(tx as never, tenantId, variantId, locationId, 1, 'canale');
+
+      expect(scritta(tx).data).toEqual({ channelAcquiredDelta: { increment: -1 } });
     });
   });
 });

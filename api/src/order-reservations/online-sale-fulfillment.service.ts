@@ -248,6 +248,7 @@ export class OnlineSaleFulfillmentService {
         line.variantId,
         unloadLocationId,
         -line.quantity,
+        'canale',
       );
 
       // 3. Movimento collegato a vendita, riga e ordine. UNIQUE
@@ -410,7 +411,14 @@ export class OnlineSaleFulfillmentService {
       }
 
       // Carico atomico: Giacenza +, Disponibile + (upsert livello incluso).
-      await applyInventoryDelta(tx, event.tenantId, line.variantId, locationId, line.quantity);
+      await applyInventoryDelta(
+        tx,
+        event.tenantId,
+        line.variantId,
+        locationId,
+        line.quantity,
+        'canale',
+      );
 
       // Il reso inverte la vendita: costo congelato sulla vendita online
       // originale (§③). Il fallback vale solo se quella vendita non esiste —

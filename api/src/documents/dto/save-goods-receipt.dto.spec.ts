@@ -26,19 +26,22 @@ describe('SaveGoodsReceipt — la coda decimale al cancello', () => {
   const CODA = 2049.1803; // netto esatto di 2500 ivati al 22%, in centesimi
 
   const riga = (extra: Record<string, unknown>) =>
-    validateSync(
-      plainToInstance(SaveGoodsReceiptLineDto, { quantity: 1, ...extra }),
-      { whitelist: false },
-    ).flatMap((e) => Object.keys(e.constraints ?? {}).map(() => e.property));
+    validateSync(plainToInstance(SaveGoodsReceiptLineDto, { quantity: 1, ...extra }), {
+      whitelist: false,
+    }).flatMap((e) => Object.keys(e.constraints ?? {}).map(() => e.property));
 
   const nuovoArticolo = (extra: Record<string, unknown>) =>
-    validateSync(
-      plainToInstance(SaveGoodsReceiptNewProductDto, { ...extra }),
-      { whitelist: false },
-    ).map((e) => e.property);
+    validateSync(plainToInstance(SaveGoodsReceiptNewProductDto, { ...extra }), {
+      whitelist: false,
+    }).map((e) => e.property);
 
   describe('⭐ passa dove la colonna è già NUMERIC(16,6)', () => {
-    for (const campo of ['unitPriceMinor', 'enteredUnitCostMinor', 'sellingPriceMinor', 'shopifyPriceMinor']) {
+    for (const campo of [
+      'unitPriceMinor',
+      'enteredUnitCostMinor',
+      'sellingPriceMinor',
+      'shopifyPriceMinor',
+    ]) {
       it(`«${campo}» accetta la coda`, () => {
         expect(riga({ [campo]: CODA })).not.toContain(campo);
       });

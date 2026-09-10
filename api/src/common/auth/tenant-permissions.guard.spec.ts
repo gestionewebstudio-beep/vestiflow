@@ -17,7 +17,7 @@ function clerkUser(permissions: readonly string[]): UserProfileDto {
     tenantId: 't1',
     tenantName: 'Negozio',
     tenantChannelProfile: 'gestionale',
-  manualUnloadEnabled: true,
+    manualUnloadEnabled: true,
     email: 'clerk@test.com',
     displayName: 'Clerk',
     avatarUrl: null,
@@ -83,11 +83,9 @@ describe('TenantPermissionsGuard', () => {
       return undefined;
     });
 
-    expect(
-      guard.canActivate(
-        createContext(clerkUser([TenantPermission.SectionReports])),
-      ),
-    ).toBe(true);
+    expect(guard.canActivate(createContext(clerkUser([TenantPermission.SectionReports])))).toBe(
+      true,
+    );
   });
 
   it('nega accesso se manca il permesso', () => {
@@ -111,11 +109,9 @@ describe('TenantPermissionsGuard', () => {
       return undefined;
     });
 
-    expect(
-      guard.canActivate(
-        createContext(clerkUser([TenantPermission.SectionCustomers])),
-      ),
-    ).toBe(true);
+    expect(guard.canActivate(createContext(clerkUser([TenantPermission.SectionCustomers])))).toBe(
+      true,
+    );
   });
 
   it('nega accesso in mode all se manca un permesso', () => {
@@ -130,9 +126,7 @@ describe('TenantPermissionsGuard', () => {
     });
 
     expect(() =>
-      guard.canActivate(
-        createContext(clerkUser([TenantPermission.CatalogManage])),
-      ),
+      guard.canActivate(createContext(clerkUser([TenantPermission.CatalogManage]))),
     ).toThrow(ForbiddenException);
   });
 
@@ -175,9 +169,7 @@ describe('TenantPermissionsGuard', () => {
     });
 
     it('nega se manca il permesso di UN SOLO gruppo', () => {
-      const { ctx, handler, cls } = createSplitContext(
-        clerkUser([TenantPermission.ReportsExport]),
-      );
+      const { ctx, handler, cls } = createSplitContext(clerkUser([TenantPermission.ReportsExport]));
       withGroups(handler, cls, {
         onHandler: [[TenantPermission.SectionCustomers], [TenantPermission.ReportsExport]],
       });
@@ -189,9 +181,7 @@ describe('TenantPermissionsGuard', () => {
       // Il difetto che questo test previene: con getAllAndOverride il gruppo
       // dell'handler cancellava quello di classe, e la porta di sezione
       // spariva senza che nulla fallisse.
-      const { ctx, handler, cls } = createSplitContext(
-        clerkUser([TenantPermission.ReportsExport]),
-      );
+      const { ctx, handler, cls } = createSplitContext(clerkUser([TenantPermission.ReportsExport]));
       withGroups(handler, cls, {
         onClass: [[TenantPermission.SectionSales]],
         onHandler: [[TenantPermission.ReportsExport]],
@@ -213,9 +203,7 @@ describe('TenantPermissionsGuard', () => {
     });
 
     it('un gruppo VUOTO nega, non apre: è un errore di programmazione', () => {
-      const { ctx, handler, cls } = createSplitContext(
-        clerkUser([TenantPermission.SectionSales]),
-      );
+      const { ctx, handler, cls } = createSplitContext(clerkUser([TenantPermission.SectionSales]));
       withGroups(handler, cls, { onHandler: [[]] });
 
       expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);

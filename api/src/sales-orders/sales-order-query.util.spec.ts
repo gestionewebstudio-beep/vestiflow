@@ -47,7 +47,7 @@ describe('sales-order-query.util', () => {
     expect(blocks.some((block) => block.source)).toBe(true);
   });
 
-  it('filtra per evasione, cliente e location dell\'impegno attivo', () => {
+  it("filtra per evasione, cliente e location dell'impegno attivo", () => {
     const where = buildSalesOrderWhere('tenant-1', {
       fulfillmentStatus: 'partial',
       customerId: 'cust-1',
@@ -69,9 +69,8 @@ describe('sales-order-query.util', () => {
    * Shopify, che è precisamente ciò che la norma vieta.
    */
   const ramoStato = (state: string) =>
-    andBlocks(buildSalesOrderWhere('tenant-1', { state })).find((block) =>
-      Array.isArray(block.OR),
-    )?.OR as Record<string, unknown>[] | undefined;
+    andBlocks(buildSalesOrderWhere('tenant-1', { state })).find((block) => Array.isArray(block.OR))
+      ?.OR as Record<string, unknown>[] | undefined;
 
   it('stato «annullato»: manuale dallo stato, canale da cancelledAt', () => {
     expect(ramoStato('cancelled')).toEqual([

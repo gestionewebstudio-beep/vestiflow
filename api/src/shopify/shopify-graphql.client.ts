@@ -11,6 +11,7 @@ import {
   templateNumericIdToAttributeNumericId,
   matchCategoryAttributeToMetafieldTemplate,
 } from './shopify-category-metafields.util';
+import type { ShopifyUserError } from './shopify-inventory-user-error.util';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
 import {
   parseGraphQlCostExtensions,
@@ -163,6 +164,31 @@ export interface ShopifyRemoteQuantity {
   readonly available: number | null;
 }
 
+/**
+ * L'esito della lettura di UNA sede, chiesta per identificativo.
+ *
+ * ⛔ **Un'assenza NON è uno zero, e i quattro esiti restano distinti.** Chi legge
+ *    deve poter dire quale dei tre modi di «non c'è» ha incontrato: pubblicare o
+ *    calcolare su un valore inventato è il difetto che questa forma esiste per
+ *    impedire.
+ *
+ * ⚠️ **`available` NON è clampata.** Il pubblicabile si clampa quando si
+ *    SCRIVE (`max(0, …)`, e l'API rifiuta le negative); un canale che *porta*
+ *    un valore negativo va letto per quello che è, o il residuo di oversell
+ *    sparisce in silenzio.
+ */
+export type ShopifyRemoteLevel =
+  | {
+      readonly found: false;
+      /**
+       * `articolo_assente`     l'inventory item non esiste sul canale
+       * `sede_non_stoccata`    l'articolo esiste, ma non ha un livello ATTIVO in quella sede
+       * `quantita_assente`     il livello c'è, ma non espone `available`
+       */
+      readonly reason: 'articolo_assente' | 'sede_non_stoccata' | 'quantita_assente';
+    }
+  | { readonly found: true; readonly available: number };
+
 /** Una riga di `inventorySetQuantities`: quantità ASSOLUTA per item e location. */
 export interface ShopifyInventoryQuantityInput {
   readonly inventoryItemId: string;
@@ -174,12 +200,20 @@ export interface ShopifyInventoryQuantityInput {
    *
    * ⛔ **Si chiama `changeFromQuantity`, e il nome è quello di Shopify**: in
    *    `2026-07` `compareQuantity` non esiste più e `ignoreCompareQuantity` è
-   *    stato tolto da `InventorySetQuantitiesInput` — chi vuole scrivere senza
-   *    confronto OMETTE il campo, non alza una bandiera. Tenere qui un nome
-   *    diverso avrebbe richiesto un mapper fra due vocabolari per la stessa
-   *    cosa. Misurato per introspezione sullo shop di sviluppo il 03/09/2026.
+   *    stato tolto da `InventorySetQuantitiesInput`. Tenere qui un nome diverso
+   *    avrebbe richiesto un mapper fra due vocabolari per la stessa cosa.
+   *    Misurato per introspezione sullo shop di sviluppo il 03/09/2026.
+   *
+   * ⛔ **OBBLIGATORIO, e `null` non è «assente»** — corretto il 09/09/2026 sulla
+   *    documentazione: un numero esegue il confronto, `null` esplicito lo
+   *    **disattiva**, e il campo **omesso** è un errore. Qui c'era scritto il
+   *    contrario, e il simulatore lo riproduceva rovesciato.
+   *
+   * ⚠️ **Che VestiFlow non debba mai usare `null` è una regola NOSTRA**, e la
+   *    fa rispettare il servizio: senza un ultimo valore confermato non si
+   *    invia affatto (`base_assente`). L'API lo ammette, noi no.
    */
-  readonly changeFromQuantity: number;
+  readonly changeFromQuantity: number | null;
 }
 
 /** Un media del prodotto. Solo l'id: è l'unica cosa stabile che Shopify espone. */
@@ -1363,6 +1397,76 @@ export class ShopifyGraphqlClient {
   }
 
   /**
+   * La quantità che il canale porta adesso **in UNA sede**, chiesta per
+   * IDENTIFICATIVO.
+   *
+   * ⛔ **Non è una variante economica di `getRemoteQuantities`: quella non sa
+   *    rispondere a questa domanda.** `inventoryLevels(first: N)` restituisce
+   *    le sedi dell'articolo **nell'ordine di Shopify** e la selezione non
+   *    chiede `pageInfo`: la nostra sede può non essere nella pagina, e chi
+   *    legge non ha modo di accorgersene. «Troncato» e «non stoccato in quella
+   *    sede» arrivano **identici**, entrambi come assenza.
+   *
+   * ⚠️ **E abbassare `first` al numero di sedi mappate peggiora le cose**: non
+   *    è un filtro, è una troncatura. Con tre sedi remote e una sola collegata,
+   *    `first: 1` restituisce la prima che Shopify elenca — non la nostra.
+   *
+   * ⭐ **Contratto verificato su `2026-07`**: `inventoryItem.inventoryLevel`
+   *    accetta `locationId: ID!` e restituisce un `InventoryLevel` **nullable**.
+   *    ⚠️ Ha anche `includeInactive` (default `false`): un livello **inattivo**
+   *    in quella sede torna quindi `null`, e cade in `sede_non_stoccata` —
+   *    che è la lettura giusta per chi deve pubblicare, ma va saputo.
+   *
+   * ⛔ **Questa lettura NON tocca la base di confronto.** `changeFromQuantity`
+   *    resta l'ultimo confermato (`lastPushedAvailable`): sostituirlo col
+   *    remoto appena letto cambierebbe una protezione esistente, e non è
+   *    quello che questo blocco fa.
+   */
+  async getRemoteLevelAtLocation(
+    shopDomain: string,
+    accessToken: string,
+    inventoryItemGid: string,
+    locationGid: string,
+  ): Promise<ShopifyRemoteLevel> {
+    const query = `
+      query InventoryLevelAtLocation($id: ID!, $locationId: ID!) {
+        inventoryItem(id: $id) {
+          id
+          inventoryLevel(locationId: $locationId) {
+            id
+            quantities(names: ["available"]) { name quantity }
+          }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      inventoryItem: {
+        id: string;
+        inventoryLevel: {
+          id: string;
+          quantities: readonly { name: string; quantity: number }[];
+        } | null;
+      } | null;
+    }>(shopDomain, accessToken, query, { id: inventoryItemGid, locationId: locationGid });
+
+    if (!data.inventoryItem) {
+      return { found: false, reason: 'articolo_assente' };
+    }
+    const livello = data.inventoryItem.inventoryLevel;
+    if (!livello) {
+      return { found: false, reason: 'sede_non_stoccata' };
+    }
+    const voce = livello.quantities?.find((q) => q.name === 'available');
+    // ⚠️ `?? null` sarebbe sbagliato qui: `0` è un valore legittimo e
+    //    `!voce.quantity` lo scarterebbe. Si guarda il TIPO, non la verità.
+    if (!voce || typeof voce.quantity !== 'number') {
+      return { found: false, reason: 'quantita_assente' };
+    }
+    // ⭐ Nessun clamp: un canale in oversell resta negativo.
+    return { found: true, available: voce.quantity };
+  }
+
+  /**
    * Scrive le giacenze come quantità ASSOLUTE (docs/24 §10.5).
    *
    * ⛔ **Il confronto si dichiara SEMPRE** (`changeFromQuantity`): è il modo in
@@ -1372,9 +1476,13 @@ export class ShopifyGraphqlClient {
    *
    * ⚠️ **Qui c'era `ignoreCompareQuantity: false`, e in `2026-07` quel campo NON
    *    ESISTE**: `InventorySetQuantitiesInput` non lo dichiara, quindi mandarlo
-   *    fa rifiutare l'intera mutation. Il contratto è cambiato di forma — non si
-   *    alza più una bandiera per saltare il confronto: si OMETTE il campo. Il
-   *    tipo lo rende obbligatorio proprio perché ometterlo sia una decisione.
+   *    fa rifiutare l'intera mutation.
+   *
+   * ⛔ **E qui c'era anche «per saltare il confronto si OMETTE il campo». È il
+   *    contrario.** Corretto il 09/09/2026 sulla documentazione: il campo è
+   *    **obbligatorio**, e a disattivare il confronto è un `null` **esplicito**;
+   *    ometterlo è un errore dell'API. Il tipo lo rende obbligatorio per questo,
+   *    non perché ometterlo fosse una scelta.
    *
    * ⚠️ **`referenceDocumentUri` è obbligatorio** e deve essere riconducibile a
    *    VestiFlow: è ciò che rende la scrittura auditabile nell'admin Shopify.
@@ -1398,17 +1506,17 @@ export class ShopifyGraphqlClient {
       readonly idempotencyKey: string;
       readonly quantities: readonly ShopifyInventoryQuantityInput[];
     },
-  ): Promise<void> {
+  ): Promise<readonly ShopifyUserError[]> {
     const mutation = `
       mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
         inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
-          userErrors { field message }
+          userErrors { field message code }
         }
       }
     `;
     const data = await this.graphql<{
       inventorySetQuantities: {
-        userErrors: readonly { field: string[] | null; message: string }[];
+        userErrors: readonly { field: string[] | null; message: string; code: string | null }[];
       } | null;
     }>(shopDomain, accessToken, mutation, {
       idempotencyKey: input.idempotencyKey,
@@ -1416,15 +1524,55 @@ export class ShopifyGraphqlClient {
         name: 'available',
         reason: input.reason,
         referenceDocumentUri: input.referenceDocumentUri,
+        // ⚠️ In `2026-07` `ignoreCompareQuantity` non esiste più: a disattivare
+        //    il confronto è un `null` esplicito su `changeFromQuantity`.
         quantities: input.quantities.map((entry) => ({
           inventoryItemId: entry.inventoryItemId,
           locationId: entry.locationId,
           quantity: entry.quantity,
+          // ⛔ **Sempre presente, anche quando vale `null`.** Il campo è
+          //    obbligatorio nel contratto `2026-07`: ometterlo è un errore
+          //    dell'API, non un invio senza confronto. Qui c'era uno spread
+          //    condizionato che lo toglieva se era `undefined` — rimasto da
+          //    quando il campo era facoltativo, e ormai irraggiungibile perché
+          //    il tipo lo richiede. Un ramo morto che descrive il contratto
+          //    sbagliato è peggio di nessun ramo.
           changeFromQuantity: entry.changeFromQuantity,
         })),
       },
     });
-    this.throwOnUserErrors('inventorySetQuantities', data.inventorySetQuantities?.userErrors);
+    // ⭐ **Gli `userErrors` si RESTITUISCONO, non si sollevano.** Un confronto
+    //    fallito e un guasto di trasporto sono due esiti diversi: il primo dice
+    //    che la scrittura NON è avvenuta, il secondo che non si sa. Sollevarli
+    //    entrambi li rendeva indistinguibili, e un difetto accertato finiva
+    //    trattato come un guasto temporaneo da risolvere insistendo.
+    //
+    // ⛔ **Ma una risposta MANCANTE non è un elenco vuoto.** Qui c'era
+    //    `data.inventorySetQuantities?.userErrors ?? []`, che trasformava una
+    //    mutation assente o malformata nella firma della riuscita: il chiamante
+    //    avanzava l'ultimo valore confermato e chiudeva il tentativo **per una
+    //    risposta che non c'era**. Corretto il 10/09/2026.
+    //
+    // ⭐ **Sollevare è il modo giusto di dirlo**, e non è una scorciatoia: chi
+    //    legge un elenco di `userErrors` non ha un valore per «non lo so», e il
+    //    push tratta già l'eccezione come esito IGNOTO — tentativo conservato,
+    //    confermato fermo, ripetizione con la stessa chiave.
+    const payload = data.inventorySetQuantities;
+    if (!payload || !Array.isArray(payload.userErrors)) {
+      throw new Error(
+        `Shopify (${shopDomain}): risposta di inventorySetQuantities assente o malformata — ` +
+          "esito IGNOTO, non una riuscita. Chiave " +
+          `${input.idempotencyKey}.`,
+      );
+    }
+    return payload.userErrors.map((e) => ({
+      field: e.field ?? null,
+      message: e.message,
+      // ⚠️ Il campo può mancare se un giorno la selezione cambia: `null`
+      //    significa «nessun codice», e la classificazione lo tratta come
+      //    sconosciuto — cioè in modo prudente.
+      code: e.code ?? null,
+    }));
   }
 
   /**

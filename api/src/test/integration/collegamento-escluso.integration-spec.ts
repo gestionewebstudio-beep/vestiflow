@@ -801,6 +801,7 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
         prisma as never,
         negozio.oauth() as never,
         negozio.admin() as never,
+        negozio.graphql() as never,
         { touchSync: vi.fn() } as never,
         new ShopifyInventoryReconciliationService(prisma as never),
         storico,
@@ -808,7 +809,16 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       );
     }
 
-    /** Una giacenza coerente: 7 − 2 = 5. */
+    /**
+     * Una giacenza coerente: 7 − 2 = 5, con una coppia GIÀ PUBBLICATA.
+     *
+     * ⚠️ **La base confermata serve dal 09/09/2026**: senza un ultimo valore
+     *    confermato il push non parte più e risponde `base_assente` — protezione
+     *    provvisoria sul primo invio, finché le quantità iniziali non sono
+     *    decise. Queste prove misurano lo STORICO dei collegamenti, non il primo
+     *    invio: partono quindi da una coppia già pubblicata, che è anche la
+     *    situazione reale in cui lo storico si chiude.
+     */
     async function giacenza(variantId: string, onHand = 7, committed = 2): Promise<void> {
       await prisma.inventoryLevel.create({
         data: {
@@ -820,6 +830,41 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
           available: onHand - committed,
         },
       });
+      await prisma.shopifyInventorySyncState.create({
+        data: {
+          tenantId: IDS.tenantA,
+          variantId,
+          locationId: IDS.locA1,
+          lastPushedAvailable: 99,
+          lastPushedAt: new Date(Date.now() - 3_600_000),
+        },
+      });
+      const variante = await prisma.productVariant.findUniqueOrThrow({
+        where: { id: variantId },
+        select: { shopifyInventoryItemId: true },
+      });
+      if (variante.shopifyInventoryItemId) {
+        // Il negozio porta ciò che VestiFlow crede: senza, il confronto
+        // rifiuterebbe per un motivo che queste prove non intendono misurare.
+        negozio.impostaQuantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA, 99);
+      }
+    }
+
+    /**
+     * Riallinea il negozio simulato alla convinzione di VestiFlow.
+     *
+     * ⚠️ Serve dopo un RIAGGANCIO: la destinazione remota cambia, e il negozio
+     *    deve portare il valore atteso o il confronto rifiuterebbe per un motivo
+     *    che la prova non intende misurare.
+     */
+    async function allineaRemoto(variantId: string): Promise<void> {
+      const variante = await prisma.productVariant.findUniqueOrThrow({
+        where: { id: variantId },
+        select: { shopifyInventoryItemId: true },
+      });
+      if (variante.shopifyInventoryItemId) {
+        negozio.impostaQuantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA, 99);
+      }
     }
 
     async function statiSync() {
@@ -840,10 +885,13 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       // ⛔ 1 · nessun invio, e NESSUNO ZERO al posto del rifiuto.
       expect(esito.pushed).toBe(false);
       expect(esito.reason).toBe('collegamento_escluso');
-      expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(0);
+      expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(0);
       expect(negozio.quantitaMandate).toEqual([]);
       // ⛔ 2 · nessun «ultimo invio riuscito»: il canale non è stato toccato.
-      expect(await statiSync()).toEqual([]);
+      // ⚠️ La riga di stato ora ESISTE — la coppia è già pubblicata — quindi la
+      //    domanda giusta non è «non c'è una riga» ma «non c'è stata una
+      //    CONFERMA»: l'ultimo valore confermato deve essere ancora quello.
+      expect((await statiSync()).map((r) => r.lastPushedAvailable)).toEqual([99]);
       // ⭐ 3 · il rifiuto è registrato, con attore `push` e il GID di variante.
       const righe = await righeRegistro();
       expect(righe).toHaveLength(1);
@@ -884,8 +932,11 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       const esito = await creaInventario().pushLevel(IDS.tenantA, variante.id, IDS.locA1);
 
       expect(esito.reason).toBe('collegamento_escluso');
-      expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(0);
-      expect(await statiSync()).toEqual([]);
+      expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(0);
+      // ⚠️ La riga di stato ora ESISTE — la coppia è già pubblicata — quindi la
+      //    domanda giusta non è «non c'è una riga» ma «non c'è stata una
+      //    CONFERMA»: l'ultimo valore confermato deve essere ancora quello.
+      expect((await statiSync()).map((r) => r.lastPushedAvailable)).toEqual([99]);
       expect((await righeRegistro())[0]!.detail).toMatch(/^identita_eliminata: /);
     });
 
@@ -991,6 +1042,7 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       });
       negozio.azzeraChiamate();
 
+      await allineaRemoto(variante.id);
       const esito = await creaInventario().pushLevel(IDS.tenantA, variante.id, IDS.locA1);
 
       // ⭐ Passa: il GID vecchio è chiuso, quello attuale no.
@@ -1042,6 +1094,7 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       await prisma.shopifyShop.deleteMany({ where: { tenantId: IDS.tenantA } });
       negozio.azzeraChiamate();
 
+      await allineaRemoto(variante.id);
       const esito = await creaInventario().pushLevel(IDS.tenantA, variante.id, IDS.locA1);
 
       expect(esito.pushed).toBe(true);
@@ -1066,7 +1119,7 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       const esito = await creaInventario().pushLevel(IDS.tenantA, variante.id, IDS.locA1);
 
       expect(esito).toEqual({ pushed: false, reason: 'variant_not_linked' });
-      expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(0);
+      expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(0);
       expect(await righeRegistro()).toHaveLength(0);
     });
 
@@ -1088,7 +1141,7 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       const esito = await creaInventario().pushLevel(IDS.tenantA, variante.id, IDS.locA1);
 
       expect(esito.reason).toBe('collegamento_escluso');
-      expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(0);
+      expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(0);
       expect((await righeRegistro())[0]!.detail).toMatch(/^collegamento_non_verificabile: /);
     });
 
@@ -1156,9 +1209,23 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
           available: 3,
         },
       });
+      // ⚠️ Anche la coppia del tenant B parte da «già pubblicata»: senza una
+      //    base confermata il push non parte più, e la prova misurerebbe la
+      //    protezione sul primo invio invece dell'isolamento fra aziende.
+      await prisma.shopifyInventorySyncState.create({
+        data: {
+          tenantId: IDS.tenantB,
+          variantId: varianteB.id,
+          locationId: IDS.locB1,
+          lastPushedAvailable: 99,
+          lastPushedAt: new Date(Date.now() - 3_600_000),
+        },
+      });
+      negozio.impostaQuantitaRemota(variante.shopifyInventoryItemId!, '77002', 99);
       negozio.azzeraChiamate();
 
       const inventario = creaInventario();
+      await allineaRemoto(variante.id);
       const suA = await inventario.pushLevel(IDS.tenantA, variante.id, IDS.locA1);
       const suB = await inventario.pushLevel(IDS.tenantB, varianteB.id, IDS.locB1);
 
@@ -1192,21 +1259,18 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       await giacenza(variante.id);
       // Un «ultimo invio riuscito» pari al valore attuale: la strada per cui il
       // push si fermerebbe da solo, senza guardare lo storico.
-      await prisma.shopifyInventorySyncState.create({
-        data: {
-          tenantId: IDS.tenantA,
-          variantId: variante.id,
-          locationId: IDS.locA1,
-          lastPushedAvailable: 5,
-          lastPushedAt: new Date(),
-        },
+      // ⚠️ Si AGGIORNA la riga che `giacenza` ha già creato: crearne una seconda
+      //    violerebbe il vincolo unico della coppia.
+      await prisma.shopifyInventorySyncState.updateMany({
+        where: { tenantId: IDS.tenantA, variantId: variante.id, locationId: IDS.locA1 },
+        data: { lastPushedAvailable: 5, lastPushedAt: new Date() },
       });
       negozio.azzeraChiamate();
 
       const esito = await creaInventario().pushLevel(IDS.tenantA, variante.id, IDS.locA1);
 
       expect(esito.reason).toBe('collegamento_escluso');
-      expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(0);
+      expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(0);
       expect((await righeRegistro())).toHaveLength(1);
     });
 
@@ -1230,6 +1294,7 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
         prisma as never,
         negozio.oauth() as never,
         negozio.admin() as never,
+        negozio.graphql() as never,
         { touchSync: vi.fn() } as never,
         new ShopifyInventoryReconciliationService(prisma as never),
         storico,
@@ -1240,8 +1305,11 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
 
       // ⭐ Non solleva, e rifiuta lo stesso.
       expect(esito.reason).toBe('collegamento_escluso');
-      expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(0);
-      expect(await statiSync()).toEqual([]);
+      expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(0);
+      // ⚠️ La riga di stato ora ESISTE — la coppia è già pubblicata — quindi la
+      //    domanda giusta non è «non c'è una riga» ma «non c'è stata una
+      //    CONFERMA»: l'ultimo valore confermato deve essere ancora quello.
+      expect((await statiSync()).map((r) => r.lastPushedAvailable)).toEqual([99]);
       expect(registroRotto.registraRifiuto).toHaveBeenCalledTimes(1);
       // ⭐ E la giacenza locale è intatta: nessun percorso l'ha toccata.
       expect(

@@ -27,6 +27,8 @@ function createTx() {
 
   const tx = {
     inventoryLevel: { upsert, updateMany, findUnique },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     stockMovement: { create: movementCreate },
   } as unknown as Prisma.TransactionClient;
 

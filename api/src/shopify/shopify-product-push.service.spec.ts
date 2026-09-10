@@ -471,7 +471,11 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toMatchObject({ pushed: false, outcome: 'fallito', reason: 'shopify_error' });
+        expect(result).toMatchObject({
+          pushed: false,
+          outcome: 'fallito',
+          reason: 'shopify_error',
+        });
         const [chiamata] = prisma.product.updateMany.mock.calls as [
           [{ where: Record<string, unknown>; data: Record<string, unknown> }],
         ];
@@ -494,7 +498,11 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toMatchObject({ pushed: false, outcome: 'fallito', reason: 'shopify_error' });
+        expect(result).toMatchObject({
+          pushed: false,
+          outcome: 'fallito',
+          reason: 'shopify_error',
+        });
         const [chiamata] = prisma.product.updateMany.mock.calls as [
           [{ data: Record<string, unknown> }],
         ];
@@ -536,7 +544,11 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
 
         const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
 
-        expect(result).toMatchObject({ pushed: false, outcome: 'fallito', reason: 'shopify_error' });
+        expect(result).toMatchObject({
+          pushed: false,
+          outcome: 'fallito',
+          reason: 'shopify_error',
+        });
         expect(shopifyGraphql.setProductStatus).not.toHaveBeenCalled();
         const [chiamata] = prisma.product.updateMany.mock.calls as [
           [{ data: Record<string, unknown> }],

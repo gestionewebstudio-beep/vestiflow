@@ -249,9 +249,9 @@ describe('coda decimale del prezzo unitario', () => {
 
 describe('isPersistableManualOrderLine', () => {
   it('riga valida: prodotto + quantità > 0', () => {
-    expect(
-      isPersistableManualOrderLine({ variantId: 'var-1', title: 'X', quantity: 1 }),
-    ).toBe(true);
+    expect(isPersistableManualOrderLine({ variantId: 'var-1', title: 'X', quantity: 1 })).toBe(
+      true,
+    );
   });
 
   it('quantità 0 o senza prodotto: non salvabile (regola Arrivo merce)', () => {
@@ -343,7 +343,15 @@ describe('computeManualOrderLines — contratto binario IVA', () => {
 
   it('riga NUOVA: nessun id, risoluzione normale dal codice dichiarato', () => {
     const [riga] = computeManualOrderLines(
-      [{ variantId: 'var-1', title: 'Maglia', quantity: 1, unitPriceMinor: 10000, vatCodeId: 'vat-22' }],
+      [
+        {
+          variantId: 'var-1',
+          title: 'Maglia',
+          quantity: 1,
+          unitPriceMinor: 10000,
+          vatCodeId: 'vat-22',
+        },
+      ],
       codiciCorrenti,
       persistiti,
     );
@@ -371,7 +379,11 @@ describe('computeManualOrderLines — contratto binario IVA', () => {
           'line-2',
           {
             vatCodeId: 'vat-rc',
-            vatSnapshot: { ...snapshotPersistito, ratePercent: 22, calculationMode: 'reverse_charge' },
+            vatSnapshot: {
+              ...snapshotPersistito,
+              ratePercent: 22,
+              calculationMode: 'reverse_charge',
+            },
           },
         ],
       ]),

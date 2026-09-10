@@ -13,6 +13,7 @@ import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
 import { ShopifyOrdersPullService } from './shopify-orders-pull.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
+import { ShopifyInventoryAlignService } from './shopify-inventory-align.service';
 import { ShopifyInventoryRepublishService } from './shopify-inventory-republish.service';
 import { ShopifyMissingOrdersService } from './shopify-missing-orders.service';
 import { ShopifyLocationSyncService } from './shopify-location-sync.service';
@@ -58,6 +59,7 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
     ShopifyCustomersPullService,
     ShopifyOrdersPullService,
     ShopifyMissingOrdersService,
+    ShopifyInventoryAlignService,
     ShopifyInventoryRepublishService,
     ShopifyInventoryReconciliationService,
     ShopifyInventoryPushService,

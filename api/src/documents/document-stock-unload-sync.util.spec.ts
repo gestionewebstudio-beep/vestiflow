@@ -34,6 +34,8 @@ function createTxMock(movements: readonly unknown[] = [], legacy: readonly unkno
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
   };
 }
 

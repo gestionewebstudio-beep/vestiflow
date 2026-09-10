@@ -143,7 +143,10 @@ describe('ShopifyConnectionService', () => {
   it('recordApiFailure imposta reauth_required su 401', async () => {
     const { service, prisma } = createService(connectedRow);
 
-    await service.recordApiFailure('tenant-1', new Error('Shopify Admin API error (401): Unauthorized'));
+    await service.recordApiFailure(
+      'tenant-1',
+      new Error('Shopify Admin API error (401): Unauthorized'),
+    );
 
     expect(prisma.shopifyConnection.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -175,7 +178,9 @@ describe('ShopifyConnectionService', () => {
     prisma.product.updateMany
       .mockResolvedValueOnce({ count: 2 })
       .mockResolvedValueOnce({ count: 1 });
-    prisma.location.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+    prisma.location.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
 
     const result = await service.clearErrors('tenant-1');
 

@@ -1,6 +1,10 @@
 import { vi } from 'vitest';
 
 import type { ShopifyAdminProduct } from '../../shopify/shopify-admin.client';
+import {
+  CODICE_CONFRONTO_FALLITO,
+  MESSAGGIO_CONFRONTO_FALLITO,
+} from '../../shopify/shopify-inventory-user-error.util';
 import { GID_COLLAUDO_A, GID_COLLAUDO_DA } from '../fixtures/collaudo-shopify.dataset';
 
 /**
@@ -85,6 +89,14 @@ export class NegozioSimulato {
   /** I costi TENTATI, in ordine, guasti compresi: dicono quale chiamata è caduta. */
   readonly costiMandati: { readonly inventoryItemId: string; readonly costo: string }[] = [];
   /**
+   * Le chiavi di idempotenza VISTE, in ordine, ripetizioni comprese.
+   *
+   * ⭐ **Distingue una ripetizione da un'operazione nuova**, che è la domanda
+   *    che conta quando due esecutori lavorano insieme: due richieste con la
+   *    stessa chiave sono la stessa operazione, e non sono un difetto.
+   */
+  readonly chiaviViste: string[] = [];
+  /**
    * La QUANTITÀ che il negozio porta adesso, per articolo di inventario e sede.
    *
    * ⭐ **Serve a distinguere «la chiamata è partita» da «il valore remoto è
@@ -97,6 +109,16 @@ export class NegozioSimulato {
   private readonly quantitaRemote = new Map<string, number>();
   private prossimoId: number;
   private readonly guasti = new Map<string, number>();
+  /**
+   * La prossima risposta si PERDE: l'effetto è applicato, il chiamante vede un
+   * errore.
+   *
+   * ⛔ **Non è `guastaProssima`, ed è la differenza che conta.** Un guasto
+   *    iniettato scatta PRIMA dell'effetto: la chiamata non è mai arrivata.
+   *    Qui la chiamata è arrivata, il negozio è cambiato, e a mancare è solo la
+   *    conferma — che è il caso in cui un ritentativo può fare danno.
+   */
+  private readonly rispostePerse = new Map<string, number>();
 
   constructor(
     readonly dominio: string,
@@ -122,6 +144,81 @@ export class NegozioSimulato {
     this.chiamate.clear();
   }
 
+  /** La prossima invocazione di `metodo` APPLICA l'effetto e poi solleva. */
+  perdiProssimaRisposta(metodo: string, volte = 1): void {
+    this.rispostePerse.set(metodo, volte);
+  }
+
+  /** Stabilisce che cosa il negozio porta, senza passare da una chiamata. */
+  impostaQuantitaRemota(inventoryItemId: string, locationId: string, quantita: number): void {
+    this.quantitaRemote.set(`${inventoryItemId}@${locationId}`, quantita);
+  }
+
+  /**
+   * Una vendita AVVENUTA SUL CANALE: abbassa la quantità del negozio e basta.
+   *
+   * ⚠️ Non produce nessun evento verso VestiFlow: è precisamente il caso
+   *    «ordine non ancora acquisito», dove Shopify sa una cosa che VestiFlow
+   *    non sa ancora.
+   */
+  vendiSulCanale(inventoryItemId: string, locationId: string, quantita: number): number {
+    const chiave = `${inventoryItemId}@${locationId}`;
+    const dopo = (this.quantitaRemote.get(chiave) ?? 0) - quantita;
+    this.quantitaRemote.set(chiave, dopo);
+    return dopo;
+  }
+
+  /**
+   * La scrittura CON CONFRONTO, nella semantica di `inventorySetQuantities`:
+   * se la quantità attuale non è quella attesa, la scrittura viene RIFIUTATA.
+   *
+   * ⛔ **Questo metodo fissa la semantica su cui si progetta, non dimostra che
+   *    Shopify si comporti così.** La prova che il confronto fermi davvero una
+   *    scrittura concorrente è il test di contratto eseguito contro il negozio
+   *    di sviluppo (`src/test/contract/shopify-catalogo.contract-spec.ts`).
+   *    Rifarla qui misurerebbe questo file.
+   */
+  scriviConConfronto(argomenti: {
+    readonly inventoryItemId: string;
+    readonly locationId: string;
+    readonly quantita: number;
+    readonly atteso: number;
+    /**
+     * Chiave di idempotenza, come `@idempotent(key:)`.
+     *
+     * ⭐ **La stessa chiave non riapplica**: restituisce l'esito memorizzato.
+     *    È ciò che rende un ritentativo la RIPETIZIONE di un'operazione invece
+     *    di una seconda operazione.
+     */
+    readonly chiave?: string;
+  }): { readonly scritta: boolean; readonly attuale: number | null; readonly ripetuta?: true } {
+    this.conta('scriviConConfronto');
+    if (argomenti.chiave) {
+      const memorizzato = this.esitiIdempotenti.get(argomenti.chiave);
+      if (memorizzato) {
+        return { ...memorizzato, ripetuta: true };
+      }
+    }
+    const coppia = `${argomenti.inventoryItemId}@${argomenti.locationId}`;
+    const attuale = this.quantitaRemote.get(coppia) ?? null;
+    const esito =
+      attuale !== argomenti.atteso
+        ? { scritta: false, attuale }
+        : { scritta: true, attuale: argomenti.quantita };
+    if (esito.scritta) {
+      this.quantitaRemote.set(coppia, argomenti.quantita);
+    }
+    if (argomenti.chiave) {
+      this.esitiIdempotenti.set(argomenti.chiave, esito);
+    }
+    return esito;
+  }
+
+  private readonly esitiIdempotenti = new Map<
+    string,
+    { readonly scritta: boolean; readonly attuale: number | null }
+  >();
+
   /**
    * Che quantità porta il negozio adesso, su quell'articolo e quella sede.
    *
@@ -140,6 +237,39 @@ export class NegozioSimulato {
   guastaProssima(metodo: string, volte = 1): void {
     this.guasti.set(metodo, volte);
   }
+
+  /**
+   * La prossima scrittura di inventario risponde con QUESTO `userError`.
+   *
+   * ⭐ **Serve a riprodurre le classi che il negozio non produce da sé.** Il
+   *    simulatore sa generare il rifiuto del confronto, perché quello dipende
+   *    dal proprio stato; concorrenza, validazione e codici sconosciuti no —
+   *    dipendono da cose che stanno dentro Shopify. Iniettarli è l'unico modo
+   *    di provare che VestiFlow li distingue.
+   *
+   * ⚠️ **La risposta resta una risposta**: `userErrors` con dentro il codice,
+   *    non un'eccezione. Un `userError` e un guasto di trasporto sono due esiti
+   *    diversi, ed è tutta la differenza che questo blocco misura.
+   */
+  rispondiConUserError(codice: string, messaggio = 'iniettato dalla prova', volte = 1): void {
+    this.userErrorIniettati.push(...Array.from({ length: volte }, () => ({ codice, messaggio })));
+  }
+
+  /**
+   * La prossima scrittura risponde con un CORPO ASSENTE.
+   *
+   * ⭐ **Riproduce, in termini del client, il difetto del payload mancante**: il
+   *    client vero solleva, perché una mutation assente è un esito IGNOTO e non
+   *    una riuscita. Qui il doppio fa la stessa cosa e col messaggio del client
+   *    vero, così l'integrazione misura la conseguenza — il tentativo si
+   *    conserva — mentre la prova unitaria del client misura la causa.
+   */
+  rispostaSenzaCorpo(volte = 1): void {
+    this.rispostePrive.set('setInventoryQuantities', volte);
+  }
+
+  private readonly userErrorIniettati: { codice: string; messaggio: string }[] = [];
+  private readonly rispostePrive = new Map<string, number>();
 
   private conta(metodo: string): void {
     this.chiamate.set(metodo, (this.chiamate.get(metodo) ?? 0) + 1);
@@ -171,7 +301,11 @@ export class NegozioSimulato {
       product_type: spec.product_type ?? null,
       tags: spec.tags ?? '',
       status: spec.status ?? 'active',
-      options: spec.opzioni.map((o, i) => ({ name: o.name, values: [...o.values], position: i + 1 })) as never,
+      options: spec.opzioni.map((o, i) => ({
+        name: o.name,
+        values: [...o.values],
+        position: i + 1,
+      })) as never,
       variants: spec.varianti.map((v) => this.nuovaVariante(v)),
       images: [],
     };
@@ -250,49 +384,54 @@ export class NegozioSimulato {
   /** Il client REST Admin: creazione e lettura del catalogo. */
   admin() {
     return {
-      createProduct: vi.fn(async (_dominio: string, _token: string, payload: Record<string, unknown>) => {
-        this.conta('createProduct');
-        const righe = (payload['variants'] as Record<string, unknown>[] | undefined) ?? [];
-        const opzioni = (payload['options'] as { name: string; values: string[] }[] | undefined) ?? [];
-        const id = this.nuovoId();
-        const prodotto: ProdottoRemoto = {
-          id,
-          title: String(payload['title'] ?? ''),
-          body_html: (payload['body_html'] as string | undefined) ?? null,
-          vendor: (payload['vendor'] as string | undefined) ?? null,
-          product_type: (payload['product_type'] as string | undefined) ?? null,
-          tags: (payload['tags'] as string | undefined) ?? '',
-          status: String(payload['status'] ?? 'active'),
-          options: opzioni.map((o) => ({ name: o.name, values: [...o.values] })),
-          variants: righe.map((riga) => ({
-            id: this.nuovoId(),
-            title: [riga['option1'], riga['option2'], riga['option3']]
-              .filter((v): v is string => typeof v === 'string')
-              .join(' / '),
-            sku: (riga['sku'] as string | undefined) ?? null,
-            barcode: (riga['barcode'] as string | undefined) ?? null,
-            price: String(riga['price'] ?? '0.00'),
-            compare_at_price: (riga['compare_at_price'] as string | undefined) ?? null,
-            inventory_item_id: this.nuovoId(),
-            option1: (riga['option1'] as string | undefined) ?? null,
-            option2: (riga['option2'] as string | undefined) ?? null,
-            option3: (riga['option3'] as string | undefined) ?? null,
-          })),
-          images: [],
-        };
-        this.prodotti.set(id, prodotto);
-        return {
-          id,
-          variants: prodotto.variants.map((v) => ({
-            id: v.id,
-            sku: v.sku,
-            inventory_item_id: v.inventory_item_id,
-          })),
-        };
-      }),
+      createProduct: vi.fn(
+        async (_dominio: string, _token: string, payload: Record<string, unknown>) => {
+          this.conta('createProduct');
+          const righe = (payload['variants'] as Record<string, unknown>[] | undefined) ?? [];
+          const opzioni =
+            (payload['options'] as { name: string; values: string[] }[] | undefined) ?? [];
+          const id = this.nuovoId();
+          const prodotto: ProdottoRemoto = {
+            id,
+            title: String(payload['title'] ?? ''),
+            body_html: (payload['body_html'] as string | undefined) ?? null,
+            vendor: (payload['vendor'] as string | undefined) ?? null,
+            product_type: (payload['product_type'] as string | undefined) ?? null,
+            tags: (payload['tags'] as string | undefined) ?? '',
+            status: String(payload['status'] ?? 'active'),
+            options: opzioni.map((o) => ({ name: o.name, values: [...o.values] })),
+            variants: righe.map((riga) => ({
+              id: this.nuovoId(),
+              title: [riga['option1'], riga['option2'], riga['option3']]
+                .filter((v): v is string => typeof v === 'string')
+                .join(' / '),
+              sku: (riga['sku'] as string | undefined) ?? null,
+              barcode: (riga['barcode'] as string | undefined) ?? null,
+              price: String(riga['price'] ?? '0.00'),
+              compare_at_price: (riga['compare_at_price'] as string | undefined) ?? null,
+              inventory_item_id: this.nuovoId(),
+              option1: (riga['option1'] as string | undefined) ?? null,
+              option2: (riga['option2'] as string | undefined) ?? null,
+              option3: (riga['option3'] as string | undefined) ?? null,
+            })),
+            images: [],
+          };
+          this.prodotti.set(id, prodotto);
+          return {
+            id,
+            variants: prodotto.variants.map((v) => ({
+              id: v.id,
+              sku: v.sku,
+              inventory_item_id: v.inventory_item_id,
+            })),
+          };
+        },
+      ),
       listAllProducts: vi.fn(async () => {
         this.conta('listAllProducts');
-        return [...this.prodotti.values()].map((p) => structuredClone(p)) as unknown as ShopifyAdminProduct[];
+        return [...this.prodotti.values()].map((p) =>
+          structuredClone(p),
+        ) as unknown as ShopifyAdminProduct[];
       }),
       listProductMetafields: vi.fn(async () => {
         this.conta('listProductMetafields');
@@ -324,6 +463,14 @@ export class NegozioSimulato {
           this.conta('setInventoryAvailable');
           this.quantitaMandate.push({ inventoryItemId, locationId, available });
           this.quantitaRemote.set(`${inventoryItemId}@${locationId}`, available);
+          // ⚠️ La risposta si perde DOPO l'effetto: il negozio è già cambiato.
+          const perse = this.rispostePerse.get('setInventoryAvailable') ?? 0;
+          if (perse > 0) {
+            this.rispostePerse.set('setInventoryAvailable', perse - 1);
+            throw new Error(
+              `Shopify simulato (${this.dominio}): risposta persa su setInventoryAvailable — la scrittura E' avvenuta`,
+            );
+          }
         },
       ),
       createProductImage: vi.fn(async () => {
@@ -333,6 +480,17 @@ export class NegozioSimulato {
   }
 
   /** Il client GraphQL: aggiornamento di un prodotto già collegato. */
+  /**
+   * Il numero dentro un GID, o la stringa se è già un numero.
+   *
+   * ⚠️ Il canale parla due dialetti — REST manda numeri, GraphQL manda GID — e
+   *    lo STATO del negozio deve essere lo stesso comunque ci si arrivi.
+   */
+  private numeroDi(id: string): string {
+    const gid = /\/(\d+)$/.exec(id.trim());
+    return gid?.[1] ?? id.trim();
+  }
+
   graphql() {
     const trova = (productGid: string): ProdottoRemoto => {
       const prodotto = this.prodotti.get(idDaGid(productGid));
@@ -342,6 +500,152 @@ export class NegozioSimulato {
       return prodotto;
     };
     return {
+      /**
+       * `inventorySetQuantities`: assoluta, con confronto e chiave.
+       *
+       * ⛔ **Rispetta le tre cose che contano**: il confronto RIFIUTA se il
+       *    valore attuale non è quello atteso; la stessa chiave non riapplica;
+       *    e una risposta persa cambia il negozio prima di sollevare.
+       *
+       * ⚠️ **Restituisce l'elenco degli `userErrors`, non l'oggetto della
+       *    mutation**: è un doppio del CLIENT, e il client di VestiFlow espone
+       *    già gli errori applicativi come elenco (vuoto = applicata). Farlo
+       *    rispondere con la forma grezza dell'API significherebbe che il
+       *    simulatore e il codice vero parlano due lingue diverse — e il
+       *    simulatore smetterebbe di provare qualcosa.
+       */
+      /**
+       * La lettura di UNA sede, per identificativo.
+       *
+       * ⭐ **Quattro esiti distinti, come il client vero**: un'assenza non è
+       *    uno zero. E la quantità NON si clampa: un canale in oversell si
+       *    legge negativo.
+       */
+      getRemoteLevelAtLocation: vi.fn(
+        async (
+          _dominio: string,
+          _token: string,
+          inventoryItemId: string,
+          locationId: string,
+        ) => {
+          this.conta('getRemoteLevelAtLocation');
+          const q = this.quantitaRemote.get(`${inventoryItemId}@${locationId}`);
+          if (q === undefined) {
+            return { found: false as const, reason: 'sede_non_stoccata' as const };
+          }
+          return { found: true as const, available: q };
+        },
+      ),
+      setInventoryQuantities: vi.fn(
+        async (
+          _dominio: string,
+          _token: string,
+          input: {
+            readonly idempotencyKey: string;
+            readonly quantities: readonly {
+              readonly inventoryItemId: string;
+              readonly locationId: string;
+              readonly quantity: number;
+              readonly changeFromQuantity?: number | null;
+            }[];
+          },
+        ) => {
+          this.conta('setInventoryQuantities');
+          this.chiaviViste.push(input.idempotencyKey);
+
+          // ── esiti INIETTATI: quelli che il negozio non genera da sé ────────
+          const prive = this.rispostePrive.get('setInventoryQuantities') ?? 0;
+          if (prive > 0) {
+            this.rispostePrive.set('setInventoryQuantities', prive - 1);
+            // ⭐ Il messaggio è quello del client vero: una mutation assente è
+            //    un esito IGNOTO, non un elenco vuoto di errori.
+            throw new Error(
+              `Shopify (${this.dominio}): risposta di inventorySetQuantities assente o malformata — ` +
+                `esito IGNOTO, non una riuscita. Chiave ${input.idempotencyKey}.`,
+            );
+          }
+          const iniettato = this.userErrorIniettati.shift();
+          if (iniettato) {
+            // ⛔ **Nessun effetto sul negozio, e nessun ricordo della chiave.**
+            //    Un `userError` dice che la mutation non ha eseguito: memorizzare
+            //    l'esito idempotente qui farebbe credere applicata una scrittura
+            //    che non c'è stata, e la ripetizione successiva la salterebbe.
+            return [{ field: null, message: iniettato.messaggio, code: iniettato.codice }];
+          }
+
+          const memorizzato = this.esitiIdempotenti.get(input.idempotencyKey);
+          if (memorizzato) {
+            // Stessa chiave: l'effetto non si riapplica.
+            return [];
+          }
+          for (const riga of input.quantities) {
+            // ⛔ **Il contratto di `2026-07`, e l'avevo scritto AL CONTRARIO.**
+            //    Corretto il 09/09/2026 sulla documentazione Shopify:
+            //
+            //      numero          → esegue il confronto
+            //      null esplicito  → DISATTIVA il confronto
+            //      campo OMESSO    → errore
+            //
+            //    ⚠️ Il simulatore rappresenta **Shopify**, non la politica di
+            //    VestiFlow: che questo percorso non debba mai usare `null` è
+            //    una regola nostra, e si fa rispettare dal servizio, non
+            //    fingendo che l'API la imponga.
+            if (!('changeFromQuantity' in riga)) {
+              throw new Error(
+                `Shopify simulato (${this.dominio}): changeFromQuantity è obbligatorio — ` +
+                  'per scrivere senza confronto si manda null esplicito, non si omette',
+              );
+            }
+            const item = this.numeroDi(riga.inventoryItemId);
+            const sede = this.numeroDi(riga.locationId);
+            const coppia = `${item}@${sede}`;
+            const attuale = this.quantitaRemote.get(coppia) ?? null;
+            if (riga.changeFromQuantity !== null && attuale !== riga.changeFromQuantity) {
+              // ⭐ **Un confronto fallito è un `userError`, non un guasto**: la
+              //    mutation risponde, e non ha scritto. Distinguerlo da un
+              //    errore di trasporto è ciò che permette di separare «esito
+              //    ignoto» da «divergenza accertata».
+              //
+              // ⛔ **Il messaggio è quello VERO di `2026-07`**, non una frase
+              //    inventata. Qui c'era «atteso X, attuale Y», che nessun
+              //    classificatore avrebbe riconosciuto: il simulatore avrebbe
+              //    fatto passare per «confronto» ciò che in produzione sarebbe
+              //    caduto in «sconosciuto», e la prova avrebbe misurato se
+              //    stessa. Lo scarto fra i due valori resta in coda, come
+              //    contesto per chi legge la prova.
+              return [
+                {
+                  field: ['quantities', 'changeFromQuantity'],
+                  // ⭐ Il messaggio **collaudato** sullo shop, che non coincide
+                  //    con la descrizione dell'enum: è la ragione per cui la
+                  //    classificazione NON lo guarda.
+                  message: `${MESSAGGIO_CONFRONTO_FALLITO} (atteso ${riga.changeFromQuantity}, attuale ${attuale})`,
+                  // ⭐ Il codice **documentato** per l'argomento che questo
+                  //    percorso manda davvero. ⚠️ Era `COMPARE_QUANTITY_STALE`,
+                  //    che è la forma con l'argomento vecchio: sbagliato per il
+                  //    nostro invio, e scelto quando l'enum non era stato letto.
+                  code: CODICE_CONFRONTO_FALLITO,
+                },
+              ];
+            }
+            this.quantitaMandate.push({
+              inventoryItemId: item,
+              locationId: sede,
+              available: riga.quantity,
+            });
+            this.quantitaRemote.set(coppia, riga.quantity);
+          }
+          this.esitiIdempotenti.set(input.idempotencyKey, { scritta: true, attuale: null });
+          const perse = this.rispostePerse.get('setInventoryQuantities') ?? 0;
+          if (perse > 0) {
+            this.rispostePerse.set('setInventoryQuantities', perse - 1);
+            throw new Error(
+              `Shopify simulato (${this.dominio}): risposta persa su inventorySetQuantities — la scrittura E' avvenuta`,
+            );
+          }
+          return [];
+        },
+      ),
       updateProductCatalog: vi.fn(
         async (
           _d: string,
@@ -388,7 +692,8 @@ export class NegozioSimulato {
               throw new Error(`Shopify simulato: variante ${input.id} non è di ${productGid}`);
             }
             if (input.price !== undefined) variante.price = input.price;
-            if (input.compareAtPrice !== undefined) variante.compare_at_price = input.compareAtPrice;
+            if (input.compareAtPrice !== undefined)
+              variante.compare_at_price = input.compareAtPrice;
             if (input.barcode !== undefined) variante.barcode = input.barcode;
             if (input.inventoryItem?.sku !== undefined) variante.sku = input.inventoryItem.sku;
           }
@@ -419,10 +724,12 @@ export class NegozioSimulato {
         this.conta('addProductMedia');
         return [];
       }),
-      setProductStatus: vi.fn(async (_d: string, _t: string, productGid: string, status: string) => {
-        this.conta('setProductStatus');
-        trova(productGid).status = status.toLowerCase();
-      }),
+      setProductStatus: vi.fn(
+        async (_d: string, _t: string, productGid: string, status: string) => {
+          this.conta('setProductStatus');
+          trova(productGid).status = status.toLowerCase();
+        },
+      ),
     };
   }
 
@@ -458,7 +765,10 @@ export class NegozioSimulato {
   /** La credenziale: un token finto per un dominio finto. */
   oauth() {
     return {
-      getAccessToken: vi.fn(async () => ({ shopDomain: this.dominio, accessToken: 'token-simulato' })),
+      getAccessToken: vi.fn(async () => ({
+        shopDomain: this.dominio,
+        accessToken: 'token-simulato',
+      })),
     };
   }
 }

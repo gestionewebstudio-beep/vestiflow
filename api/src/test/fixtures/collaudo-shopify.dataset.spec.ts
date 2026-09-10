@@ -60,9 +60,7 @@ describe('dataset del collaudo Shopify', () => {
   it('rappresenta l isolamento: stesso nome e stesso SKU in due tenant', () => {
     const alfa = ARTICOLI_COLLAUDO.filter((a) => a.tenant === TENANT_COLLAUDO.alfa.id);
     const beta = ARTICOLI_COLLAUDO.filter((a) => a.tenant === TENANT_COLLAUDO.beta.id);
-    expect(
-      beta.some((b) => alfa.some((a) => a.nome === b.nome && a.sku === b.sku)),
-    ).toBe(true);
+    expect(beta.some((b) => alfa.some((a) => a.nome === b.nome && a.sku === b.sku))).toBe(true);
   });
 
   it('ogni articolo dichiara QUALE scenario serve', () => {

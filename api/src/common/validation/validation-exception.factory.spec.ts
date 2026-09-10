@@ -25,7 +25,9 @@ describe('flattenValidationErrors', () => {
       }),
     ];
 
-    expect(flattenValidationErrors(errors)).toEqual(['quantity: quantity must be an integer number']);
+    expect(flattenValidationErrors(errors)).toEqual([
+      'quantity: quantity must be an integer number',
+    ]);
   });
 
   it('scende ricorsivamente nei children con il percorso concatenato', () => {

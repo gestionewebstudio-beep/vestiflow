@@ -16,7 +16,12 @@ describe('ShopifyWebhooksController', () => {
 
   it('rifiuta webhook senza raw body', async () => {
     await expect(
-      controller.handle({ rawBody: undefined } as never, 'hmac', 'products/update', 'shop.myshopify.com'),
+      controller.handle(
+        { rawBody: undefined } as never,
+        'hmac',
+        'products/update',
+        'shop.myshopify.com',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 

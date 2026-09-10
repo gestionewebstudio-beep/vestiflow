@@ -95,11 +95,7 @@ describe('SalesOrdersController', () => {
     const dto = { customerId: 'cust-1', documentDate: '2026-07-16', lines: [] };
     manualOrders.save.mockResolvedValue({ order: { id: 'ord-1' }, reservations: [], warnings: [] });
 
-    await controller.saveManual(
-      tenantId,
-      user as never,
-      dto as never,
-    );
+    await controller.saveManual(tenantId, user as never, dto as never);
 
     expect(manualOrders.save).toHaveBeenCalledWith(tenantId, dto, user);
   });

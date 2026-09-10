@@ -162,15 +162,18 @@ describe('Esiti veritieri dei comandi massivi', () => {
   }
 
   /**
-   * ⚠️ **Il client admin si passa dall'esterno**, perché `negozio.admin()`
-   *    restituisce un oggetto NUOVO a ogni chiamata: per intercettare una
-   *    chiamata verso il canale bisogna costruirlo una volta sola e avvolgerlo.
+   * ⚠️ **Il client GRAPHQL si passa dall'esterno**, perché `negozio.graphql()`
+   *    restituisce un oggetto NUOVO a ogni chiamata: per intercettare la
+   *    scrittura verso il canale bisogna costruirlo una volta sola e avvolgerlo.
+   *    ⛔ Ed è il GraphQL, non l'admin REST: dal 09/09/2026 la quantità passa
+   *    di là, e un'intercettazione sul vecchio client non scatterebbe.
    */
-  function creaPushInventario(admin: unknown = negozio.admin()) {
+  function creaPushInventario(graphql: unknown = negozio.graphql()) {
     return new ShopifyInventoryPushService(
       prisma as never,
       negozio.oauth() as never,
-      admin as never,
+      negozio.admin() as never,
+      graphql as never,
       { touchSync: vi.fn() } as never,
       new ShopifyInventoryReconciliationService(prisma as never),
       storico,
@@ -178,8 +181,8 @@ describe('Esiti veritieri dei comandi massivi', () => {
     );
   }
 
-  function creaRipubblicazione(admin?: unknown) {
-    return new ShopifyInventoryRepublishService(prisma as never, creaPushInventario(admin));
+  function creaRipubblicazione(graphql?: unknown) {
+    return new ShopifyInventoryRepublishService(prisma as never, creaPushInventario(graphql));
   }
 
   /** La riconciliazione VERA: serve a produrre gli stati invece di costruirli. */
@@ -219,10 +222,26 @@ describe('Esiti veritieri dei comandi massivi', () => {
    *    quell'ordine, quindi lo si stabilisce invece di sperarci.
    */
   let ordineCoda = 0;
+  /**
+   * Una riga in coda di ripubblicazione.
+   *
+   * ⭐ **`osservato` e `remoto` sono due cose diverse, e dal 09/09/2026 si
+   *    possono dichiarare separatamente.** `osservato` è ciò che VestiFlow ha
+   *    REGISTRATO di aver visto; `remoto` è ciò che il canale porta ADESSO. Di
+   *    norma coincidono — un'osservazione appena presa — e il valore predefinito
+   *    lo dice; ma un'osservazione può essere vecchia, e il canale essere
+   *    tornato dove l'avevamo lasciato.
+   *
+   * ⛔ **Nessuno dei due è la base del confronto**, che è e resta l'ultimo
+   *    valore CONFERMATO. Poterli separare serve proprio a provarlo: una prova
+   *    che li tiene sempre uguali non distingue «confronto contro l'osservato»
+   *    da «confronto contro il confermato».
+   */
   async function segnaDisallineata(
     variantId: string,
     ultimoInviato: number | null,
     osservato: number,
+    remoto: number = osservato,
   ): Promise<void> {
     await prisma.shopifyInventorySyncState.create({
       data: {
@@ -237,6 +256,18 @@ describe('Esiti veritieri dei comandi massivi', () => {
         mismatchNote: 'costruito dalla prova',
       },
     });
+    // ⭐ **Il negozio simulato deve PORTARE un valore, e va detto quale.** Dal
+    //    09/09/2026 la scrittura viaggia con il confronto concorrenziale, quindi
+    //    una riga che dichiara uno stato remoto senza che il negozio ce l'abbia
+    //    costruirebbe un mondo incoerente, e la scrittura verrebbe rifiutata per
+    //    una ragione che la prova non intende misurare.
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+      select: { shopifyInventoryItemId: true },
+    });
+    if (variante.shopifyInventoryItemId) {
+      negozio.impostaQuantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA, remoto);
+    }
     ordineCoda += 1;
     await prisma.$executeRawUnsafe(
       'UPDATE shopify_inventory_sync_states SET updated_at = $2::timestamptz WHERE variant_id = $1::uuid',
@@ -315,17 +346,30 @@ describe('Esiti veritieri dei comandi massivi', () => {
 
   // ── 1 · il RITENTATIVO delle quantità ────────────────────────────────────
 
-  it('V1 · «Disponibile uguale all ultimo inviato, ma Shopify diverso»: ora si RIPUBBLICA', async () => {
-    // ⛔ **Il caso canonico del disallineamento**: VestiFlow ha pubblicato 5 e
-    //    non ha più cambiato la propria giacenza; qualcuno ha messo 3 a mano su
-    //    Shopify. L'ultimo inviato coincide con ciò che si dovrebbe mandare,
-    //    quindi il push si fermava prima di partire — ed è proprio l'«ultimo
-    //    inviato» che il disallineamento mette in dubbio.
+  it('V1 · «Shopify modificato a mano»: il recupero PARTE, e il canale lo rifiuta', async () => {
+    // ⛔ **Il caso canonico del disallineamento, e ciò che il ritentativo NON
+    //    è.** VestiFlow ha pubblicato 5 e non ha più cambiato la propria
+    //    giacenza; qualcuno ha messo 3 a mano su Shopify.
     //
-    // ⭐ **Il percorso interno di recupero supera QUEL confronto e basta.** Le
-    //    guardie prima di esso restano tutte, e le rivalutazioni nuove stanno
-    //    dopo: V8 (rinvio), V9 (disallineamento già risolto), V11 e V12
-    //    (collegamento escluso e sincronizzazione spenta).
+    // ⭐ **Il percorso di recupero supera il confronto con l'ultimo inviato**
+    //    — quello che fermava il push ordinario prima ancora di partire — e la
+    //    chiamata parte davvero. Ma parte portando la base CONFERMATA (5), e
+    //    il canale è a 3: risponde di no.
+    //
+    // ⛔ **Qui questa prova diceva «ora si RIPUBBLICA», e la scrittura passava
+    //    perché non c'era confronto.** Sovrascriveva 3 con 5 senza sapere
+    //    perché il canale fosse a 3 — se per una modifica a mano o per due
+    //    ordini non ancora acquisiti. Nel secondo caso rimetteva in vendita
+    //    merce venduta. È la scrittura cieca che il proprietario ha escluso il
+    //    09/09/2026: «Ritentativo: ripete un'operazione già definita.
+    //    Riallineamento: deve stabilire quale quantità sia corretta prima di
+    //    scriverla».
+    //
+    // ⏸ **Questo caso è un RIALLINEAMENTO, e il suo comando non esiste
+    //    ancora**: la procedura sicura è un blocco a sé (`docs/DA-FARE.md`
+    //    §29.6). Fino ad allora l'esito onesto è quello qui sotto — protetto e
+    //    non risolto — e questa prova è la ragione per cui quel comando resta
+    //    richiesto.
     const remoto = seminaDue('V1');
     const prodotto = await importaEProduci(remoto.id);
     const variante = prodotto.variants[0]!;
@@ -335,20 +379,62 @@ describe('Esiti veritieri dei comandi massivi', () => {
 
     const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
 
-    // ⭐ Il valore ATTUALE è partito…
+    // ⭐ La chiamata è PARTITA: il recupero ha fatto il suo mestiere, e a dire
+    //    di no è stato il canale. Distinguere «non è partito niente» da «è
+    //    partito ed è stato rifiutato» è metà di questa prova.
+    expect(negozio.chiamate.get('setInventoryQuantities')).toBe(1);
+    // ⛔ E non ha scritto: il negozio porta ancora 3.
+    expect(negozio.quantitaMandate).toEqual([]);
+    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBe(3);
+
+    // ⭐ **`refused`, non `failed`**: ritentare non lo risolve.
+    expect(esito.refused).toBe(1);
+    expect(esito.republished).toBe(0);
+    expect(esito.failed).toBe(0);
+    expect(esito.unchanged).toBe(0);
+
+    // ⭐ Il problema resta VISIBILE e il confermato non avanza.
+    const stato = await statoSync(variante.id);
+    expect(stato.lastPushedAvailable).toBe(5);
+    expect(stato.mismatchDetected).toBe(true);
+    expect(stato.mismatchNote).toMatch(/Divergenza accertata/);
+    expect(esito.remaining).toBe(1);
+    expect(await inCoda()).toBe(1);
+  });
+
+  it('V1-bis · disallineamento RECUPERABILE: il canale è dove l avevamo lasciato, e l invio passa', async () => {
+    // ⭐ **La controprova di V1, e ciò che il ritentativo È.** Stessa coda,
+    //    stesso comando: cambia una cosa sola, e cioè che il canale porta
+    //    ancora l'ultimo valore CONFERMATO. L'osservazione che ha acceso il
+    //    marcatore era vecchia (3), il canale è tornato a 5, e in locale il
+    //    Disponibile è nel frattempo diventato 6.
+    //
+    // ⛔ **Senza questa prova, V1 da sola non distinguerebbe «protetto» da
+    //    «non parte mai più niente»**: una regressione che spegnesse del tutto
+    //    la ripubblicazione la lascerebbe verde.
+    const remoto = seminaDue('V1-bis');
+    const prodotto = await importaEProduci(remoto.id);
+    const variante = prodotto.variants[0]!;
+    await giacenza(variante.id, 6);
+    await segnaDisallineata(variante.id, 5, 3, 5);
+    negozio.azzeraChiamate();
+
+    const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
+
     expect(negozio.quantitaMandate).toEqual([
       {
         inventoryItemId: variante.shopifyInventoryItemId,
         locationId: SEDE_REMOTA,
-        available: 5,
+        available: 6,
       },
     ]);
-    // ⭐ …e il negozio simulato adesso PORTA quel numero. Non è la stessa cosa
+    // ⭐ E il negozio simulato adesso PORTA quel numero. Non è la stessa cosa
     //    che «la chiamata è partita»: il registro delle chiamate dice che
     //    qualcuno ha bussato, questo dice che cosa c'è dall'altra parte.
-    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBe(5);
+    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBe(6);
     expect(esito.republished).toBe(1);
     expect(esito.unchanged).toBe(0);
+    expect(esito.refused).toBe(0);
     // ⭐ E l'arretrato dichiarato corrisponde a ciò che resta davvero: niente.
     expect(esito.remaining).toBe(0);
     expect(await inCoda()).toBe(0);
@@ -365,7 +451,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
 
     const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
 
-    expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(0);
+    expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(0);
     expect(negozio.quantitaMandate).toEqual([]);
     // ⭐ Il rifiuto è una classe a sé: non è una riuscita e non è un errore.
     expect(esito.refused).toBe(1);
@@ -427,12 +513,17 @@ describe('Esiti veritieri dei comandi massivi', () => {
     //    misurerebbe il contrario di quello che dice.
     await segnaDisallineata(senzaInvio.id, 5, 5);
     await segnaDisallineata(esclusa.id, 99, 1);
-    await segnaDisallineata(parte.id, 99, 1);
+    // ⚠️ **Il canale porta ancora il confermato (99), l'osservazione è vecchia
+    //    (1).** Senza il quarto argomento questa riga sarebbe una divergenza
+    //    accertata e finirebbe in `refused` — che è l'esito giusto per quel
+    //    mondo, ma non è ciò che questa prova misura: qui il ruolo di questa
+    //    riga è «parte e riesce». Il caso della divergenza in un lotto è V16.
+    await segnaDisallineata(parte.id, 99, 1, 99);
 
     await scollega(esclusa.id);
     // Un guasto del canale sulla PRIMA chiamata, cioè sulla prima riga della coda.
     negozio.azzeraChiamate();
-    negozio.guastaProssima('setInventoryAvailable', 1);
+    negozio.guastaProssima('setInventoryQuantities', 1);
 
     const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
 
@@ -451,7 +542,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
     expect(negozio.quantitaMandate).toEqual([
       { inventoryItemId: parte.shopifyInventoryItemId, locationId: SEDE_REMOTA, available: 3 },
     ]);
-    expect(negozio.chiamate.get('setInventoryAvailable')).toBe(2);
+    expect(negozio.chiamate.get('setInventoryQuantities')).toBe(2);
     // ⭐ E l'arretrato è quello vero: tre righe restano accese.
     expect(esito.remaining).toBe(3);
     expect(await inCoda()).toBe(3);
@@ -519,6 +610,10 @@ describe('Esiti veritieri dei comandi massivi', () => {
     const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
 
     expect(negozio.quantitaMandate).toEqual([]);
+    // ⚠️ **`null`, non 3**: qui lo stato lo costruisce la RICONCILIAZIONE vera,
+    //    che scrive la riga di VestiFlow e non tocca il negozio simulato. Il
+    //    negozio non è mai stato scritto, ed è proprio ciò che questa prova
+    //    deve dimostrare: il rinvio non ha fatto partire niente.
     expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBeNull();
     expect(esito.republished).toBe(0);
     expect(esito.unchanged).toBe(1);
@@ -567,32 +662,37 @@ describe('Esiti veritieri dei comandi massivi', () => {
     await segnaDisallineata(prima.id, 2, 2);
     await segnaDisallineata(seconda.id, 5, 3);
 
-    const admin = negozio.admin();
-    const adminIntercettato = {
-      ...admin,
-      setInventoryAvailable: vi.fn(
-        async (
-          dominio: string,
-          token: string,
-          inventoryItemId: string,
-          locationId: string,
-          available: number,
-        ) => {
-          // ⭐ Mentre la passata è in corso, un'eco di Shopify risolve l'ALTRA
-          //    riga. È la concorrenza che la suite non riproduceva, ed è l'unica
-          //    condizione in cui riconta e sottrazione danno numeri diversi.
-          if (inventoryItemId === prima.shopifyInventoryItemId) {
-            await prisma.shopifyInventorySyncState.updateMany({
-              where: { tenantId: IDS.tenantA, variantId: seconda.id },
-              data: { mismatchDetected: false, mismatchNote: null },
-            });
-          }
-          return admin.setInventoryAvailable(dominio, token, inventoryItemId, locationId, available);
-        },
-      ),
+    // ⛔ **L'intercettazione segue il TRASPORTO, e dal 09/09/2026 il trasporto è
+    //    GraphQL.** Avvolta intorno al vecchio client REST non scattava più:
+    //    la prova restava verde o rossa per una ragione che non c'entrava con
+    //    quello che misura.
+    const vero = negozio.graphql() as unknown as Record<
+      string,
+      (...argomenti: unknown[]) => Promise<unknown>
+    >;
+    const graphqlIntercettato = {
+      ...vero,
+      setInventoryQuantities: async (...argomenti: unknown[]) => {
+        const input = argomenti[2] as {
+          readonly quantities: readonly { readonly inventoryItemId: string }[];
+        };
+        // ⭐ Mentre la passata è in corso, un'eco di Shopify risolve l'ALTRA
+        //    riga. È la concorrenza che la suite non riproduceva, ed è l'unica
+        //    condizione in cui riconta e sottrazione danno numeri diversi.
+        const riguardaLaPrima = input.quantities.some((riga) =>
+          riga.inventoryItemId.endsWith(String(prima.shopifyInventoryItemId)),
+        );
+        if (riguardaLaPrima) {
+          await prisma.shopifyInventorySyncState.updateMany({
+            where: { tenantId: IDS.tenantA, variantId: seconda.id },
+            data: { mismatchDetected: false, mismatchNote: null },
+          });
+        }
+        return vero['setInventoryQuantities']!(...argomenti);
+      },
     };
 
-    const esito = await creaRipubblicazione(adminIntercettato).retryPending(IDS.tenantA);
+    const esito = await creaRipubblicazione(graphqlIntercettato).retryPending(IDS.tenantA);
 
     expect(esito.pending).toBe(2);
     expect(esito.attempted).toBe(2);
@@ -631,7 +731,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
     // ⛔ **«Nemmeno zero» nella forma più stretta**: il negozio non porta NESSUN
     //    valore su quella coppia. «Mai toccata» e «messa a zero» sono due cose
     //    diverse, e confonderle nasconderebbe proprio il difetto che 26.8 vieta.
-    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBeNull();
+    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBe(3);
     expect(esito.refused).toBe(1);
     expect(esito.republished).toBe(0);
     expect(esito.remaining).toBe(1);
@@ -657,7 +757,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
     const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
 
     expect(negozio.quantitaMandate).toEqual([]);
-    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBeNull();
+    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBe(3);
     expect(esito.republished).toBe(0);
     expect(esito.unchanged).toBe(1);
     expect(esito.remaining).toBe(1);
@@ -670,15 +770,15 @@ describe('Esiti veritieri dei comandi massivi', () => {
     await giacenza(variante.id, 5);
     await segnaDisallineata(variante.id, 5, 3);
     negozio.azzeraChiamate();
-    negozio.guastaProssima('setInventoryAvailable', 1);
+    negozio.guastaProssima('setInventoryQuantities', 1);
 
     const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
 
     // ⭐ La chiamata è PARTITA — il recupero ha fatto il suo mestiere — ed è il
     //    canale ad averla rifiutata.
-    expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(1);
+    expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(1);
     // ⛔ E il negozio NON porta il valore: il guasto scatta prima della scrittura.
-    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBeNull();
+    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBe(3);
     expect(esito.failed).toBe(1);
     expect(esito.republished).toBe(0);
     // ⛔ Nessun «ultimo invio riuscito» scritto, e il problema resta in coda.
@@ -692,8 +792,12 @@ describe('Esiti veritieri dei comandi massivi', () => {
     const remoto = seminaDue('V14');
     const prodotto = await importaEProduci(remoto.id);
     const variante = prodotto.variants[0]!;
-    await giacenza(variante.id, 5);
-    await segnaDisallineata(variante.id, 5, 3);
+    await giacenza(variante.id, 6);
+    // ⚠️ **Una riga RECUPERABILE**: il canale è dove l'avevamo lasciato (5), e
+    //    l'osservazione che ha acceso il marcatore è vecchia. Questa prova
+    //    misura che una ripubblicazione RIUSCITA non si ripete, quindi le serve
+    //    una riga che riesca — con una divergenza accertata misurerebbe altro.
+    await segnaDisallineata(variante.id, 5, 3, 5);
     negozio.azzeraChiamate();
     const ripubblicazione = creaRipubblicazione();
 
@@ -706,7 +810,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
     expect(secondo.pending).toBe(0);
     expect(secondo.attempted).toBe(0);
     expect(secondo.republished).toBe(0);
-    expect(negozio.chiamate.get('setInventoryAvailable') ?? 0).toBe(1);
+    expect(negozio.chiamate.get('setInventoryQuantities') ?? 0).toBe(1);
   });
 
   it('V15 · ⛔ la porta ORDINARIA, sullo stesso stato, NON supera il confronto', async () => {
@@ -719,14 +823,21 @@ describe('Esiti veritieri dei comandi massivi', () => {
     const prodotto = await importaEProduci(remoto.id);
     const variante = prodotto.variants[0]!;
     await giacenza(variante.id, 5);
-    await segnaDisallineata(variante.id, 5, 3);
+    // ⚠️ **Il canale porta il confermato (5), l'osservazione è vecchia (3).**
+    //    Serve una riga su cui il recupero RIESCA: l'asimmetria da misurare è
+    //    fra le due porte, e con una riga che il canale rifiuta le due porte
+    //    non manderebbero nulla né l'una né l'altra — la prova resterebbe verde
+    //    dicendo il contrario di quello che afferma.
+    await segnaDisallineata(variante.id, 5, 3, 5);
     negozio.azzeraChiamate();
 
     const ordinario = await creaPushInventario().pushLevel(IDS.tenantA, variante.id, IDS.locA1);
 
     expect(ordinario).toEqual({ pushed: false, reason: 'unchanged', publishableAvailable: 5 });
+    // ⛔ La porta ordinaria non ha nemmeno bussato.
+    expect(negozio.totaleChiamate()).toBe(0);
     expect(negozio.quantitaMandate).toEqual([]);
-    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBeNull();
+
     // ⭐ E il controllo inverso, sullo stesso identico stato: la porta di
     //    recupero manda. Senza, questa prova passerebbe anche se non partisse
     //    più niente da nessuna delle due.
@@ -736,7 +847,59 @@ describe('Esiti veritieri dei comandi massivi', () => {
       IDS.locA1,
     );
     expect(recupero).toEqual({ pushed: true, publishableAvailable: 5 });
-    expect(negozio.quantitaRemota(variante.shopifyInventoryItemId, SEDE_REMOTA)).toBe(5);
+    expect(negozio.quantitaMandate).toEqual([
+      {
+        inventoryItemId: variante.shopifyInventoryItemId,
+        locationId: SEDE_REMOTA,
+        available: 5,
+      },
+    ]);
+  });
+
+  it('V16 · in un LOTTO, la divergenza accertata è distinta dal collegamento escluso e dal guasto', async () => {
+    // ⭐ **`refused` ha due origini, e il comando le somma senza confonderle
+    //    con i guasti.** Lo storico che vieta il collegamento e il canale che
+    //    rifiuta la scrittura hanno cause diverse e lo stesso rimedio:
+    //    ritentare non li risolve. Il guasto di trasporto invece sì, e resta
+    //    in `failed`.
+    //
+    // ⛔ **Il segno che le distingue sta nella riga**, non nel conteggio: la
+    //    divergenza lascia una NOTA che dice cosa il canale ha risposto; il
+    //    collegamento escluso non arriva nemmeno a bussare.
+    const remoto = seminaDue('V16');
+    const prodotto = await importaEProduci(remoto.id);
+    const divergente = prodotto.variants[0]!;
+    const esclusa = prodotto.variants[1]!;
+
+    await giacenza(divergente.id, 12);
+    await giacenza(esclusa.id, 4);
+    // Confermato 10, ma il canale porta 8: la scrittura partirà e sarà rifiutata.
+    await segnaDisallineata(divergente.id, 10, 7, 8);
+    await segnaDisallineata(esclusa.id, 99, 1);
+    await scollega(esclusa.id);
+    negozio.azzeraChiamate();
+
+    const esito = await creaRipubblicazione().retryPending(IDS.tenantA);
+
+    expect(esito.attempted).toBe(2);
+    expect(esito.refused).toBe(2);
+    expect(esito.failed).toBe(0);
+    expect(esito.republished).toBe(0);
+    // ⭐ Una sola chiamata al canale: la riga esclusa si ferma prima.
+    expect(negozio.chiamate.get('setInventoryQuantities')).toBe(1);
+    expect(negozio.quantitaMandate).toEqual([]);
+    expect(negozio.quantitaRemota(divergente.shopifyInventoryItemId, SEDE_REMOTA)).toBe(8);
+
+    // ⭐ E le due righe si distinguono guardandole.
+    const rigaDivergente = await statoSync(divergente.id);
+    expect(rigaDivergente.mismatchNote).toMatch(/Divergenza accertata/);
+    expect(rigaDivergente.lastPushedAvailable).toBe(10);
+    const rigaEsclusa = await statoSync(esclusa.id);
+    expect(rigaEsclusa.mismatchNote).toBe('costruito dalla prova');
+    expect(rigaEsclusa.lastPushedAvailable).toBe(99);
+
+    // ⭐ Entrambe restano da risolvere, e il comando lo dichiara.
+    expect(esito.remaining).toBe(2);
   });
 
   // ── 2 · l'IMPORT del catalogo ────────────────────────────────────────────
