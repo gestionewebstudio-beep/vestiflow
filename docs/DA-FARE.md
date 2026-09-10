@@ -3459,6 +3459,11 @@ Shopify non ha ancora abbinato.
 
 ### ⏸ 12 · Correzione — nessun collegamento automatico di sede per NOME
 
+⭐ **Confermata come regola il 09/09/2026**, e ora ha un punto canonico: `docs/24` §8.11.1 —
+collegamenti uno-a-uno **scelti dall'operatore**, nessuna somma di sedi diverse, nessun
+collegamento indovinato dal nome. ⚠️ La divergenza misurata (`findMatch` collega per nome) e la
+prova che la coglie (`N1`) stanno in §28 di questo documento: qui resta il perché.
+
 ⛔ **La stesura precedente diceva «il riaggancio per NOME si condiziona all'assenza di un
 periodo chiuso». È sbagliata**, e va corretta: condizionata così, una sede **mai collegata**
 verrebbe agganciata automaticamente per nome, che è esattamente ciò che §1.13 vieta.
@@ -5279,12 +5284,30 @@ per costruzione, quella sarebbe una regola di conversione: va decisa, non dedott
 
 **Il ritentativo delle quantità** distingue ora quattro classi che prima erano una sola:
 
-| Classe           | Significato                                                 | Ritentare serve?                     |
-| ---------------- | ----------------------------------------------------------- | ------------------------------------ |
-| **ripubblicata** | invio confermato, la quantità è partita                     | —                                    |
-| **nessun invio** | il push non aveva niente da mandare, o mancava un requisito | no                                   |
-| **rifiutata**    | lo storico vieta quel collegamento (26.8)                   | ⛔ no: si riaggancia, non si ritenta |
-| **fallita**      | il canale ha rifiutato o non ha risposto                    | ✅ sì                                |
+| Classe           | Significato                                                 | Ritentare serve? |
+| ---------------- | ----------------------------------------------------------- | ---------------- |
+| **ripubblicata** | invio confermato, la quantità è partita                     | —                |
+| **nessun invio** | il push non aveva niente da mandare, o mancava un requisito | no               |
+| **rifiutata**    | ciò che **ritentare non risolve**: due origini (sotto)      | ⛔ no            |
+| **fallita**      | guasto: il canale non ha risposto, o la chiamata è saltata  | ✅ sì            |
+
+⭐ **La linea fra «rifiutata» e «fallita» è il RIMEDIO, non chi ha detto no** — precisato il
+09/09/2026, quando `rifiutata` ha preso la seconda origine:
+
+| Origine di «rifiutata»                    | Che cosa è successo                                            | Come si distingue guardando la riga |
+| ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------- |
+| **storico 26.8**                          | il collegamento non è utilizzabile: non si è nemmeno bussato   | nessuna nota nuova                  |
+| **divergenza accertata** _(nuova, §29.6)_ | rifiutata la **quantità**: la base non è più quella del canale | nota «Divergenza accertata»         |
+| **richiesta rifiutata** _(nuova, §29.6)_  | rifiutata la **richiesta**: id, riferimento, permesso          | nota «Richiesta rifiutata»          |
+
+⛔ **Contare le ultime due fra le «fallite» direbbe a chi legge «riprova più tardi»**, cioè
+esattamente l'insistenza che quei casi non risolvono. ⏸ Per la divergenza il rimedio vero è
+la **riconciliazione**, che non esiste ancora; per la richiesta rifiutata è il collegamento.
+In entrambi i casi la riga resta nell'arretrato, che è ricontato e quindi lo dice.
+
+⛔ **E `tentativo in corso` NON è qui.** Un `userError` che dice «quella chiave è ancora in
+lavorazione» non è un rifiuto: cade in **«nessun invio»**, perché per quella passata non è
+successo niente e il tentativo è ancora vivo (§29.6).
 
 ⛔ **Non si conta più una chiamata come riuscita solo perché non ha sollevato**: `pushLevel`
 cattura i propri errori e li restituisce, quindi contare la chiamata invece dell'esito rendeva
@@ -5318,11 +5341,18 @@ e quello sottratto danno lo stesso numero, e nessuna prova li distingueva. ⭐ *
 09/09/2026 dalla prova `V10`** (§27.6), che riproduce la concorrenza in modo deterministico
 invece di aspettarla.
 
-#### ✅ 27.6 — il RECUPERO del disallineamento delle quantità (blocco chiuso il 09/09/2026)
+#### ⏸ 27.6 — il RECUPERO del disallineamento delle quantità (rivisto il 09/09/2026)
 
 > **Autorizzato dal proprietario con una precisazione**: deve correggere un disallineamento
 > **ancora valido**, non introdurre un invio incondizionato. ⛔ Nessuna coda persistente,
 > nessuna colonna CSV, nessuna sospensione massiva, nessun ridisegno, nessuna migration.
+
+⚠️ **Questa sezione diceva «blocco chiuso», e non lo è.** La **forma** descritta qui sotto —
+due porte, un solo corpo, tre rivalutazioni, nessun invio forzato esposto — vale ancora
+interamente. Quello che è cambiato è il **criterio 1**: da quando ogni scrittura porta il
+confronto con l'ultimo valore confermato, il caso canonico `V1` **non si ripubblica più** — il
+canale la rifiuta. Il seguito è in **§29.6**, che dichiara i tre stati: invio recuperabile
+(fatto), riconciliazione (da implementare), separazione delle origini (aperta).
 
 **Il caso.** «Disponibile uguale all'ultimo inviato, ma Shopify osservato diverso». Il push si
 fermava prima di partire perché il numero da mandare coincideva con l'ultimo inviato — ed è
@@ -5375,17 +5405,19 @@ chiude per tutte le righe che passano dal recupero, non solo per quelle che sblo
 
 ##### Le prove — sette nuove, tutte di integrazione con Shopify simulato
 
-| Prova | Che cosa fissa                                                                                                                                                      |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `V1`  | il caso canonico **parte**: valore attuale inviato, remoto simulato aggiornato, arretrato a zero                                                                    |
-| `V8`  | disallineamento pendente → evento che richiede il rinvio → ritentativo: **nessun invio**. Gli stati li produce la **riconciliazione vera**, non sono scritti a mano |
-| `V9`  | disallineamento già risolto (Shopify porta già quel numero): nessuna ripubblicazione inutile                                                                        |
-| `V10` | un altro pendente si risolve **durante** la passata: riconta 0, sottrazione 1                                                                                       |
-| `V11` | collegamento escluso **nel sottoinsieme che il recupero sblocca**: rifiuto, e nemmeno zero                                                                          |
-| `V12` | «Sincronizza con Shopify» spento, stesso sottoinsieme: nessun invio                                                                                                 |
-| `V13` | guasto remoto: nessuna falsa riuscita, nessun «ultimo invio riuscito», problema ancora in coda                                                                      |
-| `V14` | seconda passata senza nuove divergenze: non ripete l'invio                                                                                                          |
-| `V15` | ⭐ la porta **ordinaria**, sullo stesso identico stato, **non** supera il confronto — col controllo inverso sulla porta di recupero, che invece manda               |
+| Prova    | Che cosa fissa                                                                                                                                                      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `V1`     | ⏸ **riscritta il 09/09/2026**: il recupero **parte** e il canale **rifiuta**. Vedi §29.6 — questo caso è un riallineamento, non un ritentativo                      |
+| `V1-bis` | la controprova: quando il canale è dove l'avevamo lasciato, l'invio **passa**. Senza, `V1` non distinguerebbe «protetto» da «non parte più niente»                  |
+| `V16`    | in un lotto, la divergenza accertata e il collegamento escluso stanno **entrambi** in `rifiutate`, e si distinguono guardando la riga                               |
+| `V8`     | disallineamento pendente → evento che richiede il rinvio → ritentativo: **nessun invio**. Gli stati li produce la **riconciliazione vera**, non sono scritti a mano |
+| `V9`     | disallineamento già risolto (Shopify porta già quel numero): nessuna ripubblicazione inutile                                                                        |
+| `V10`    | un altro pendente si risolve **durante** la passata: riconta 0, sottrazione 1                                                                                       |
+| `V11`    | collegamento escluso **nel sottoinsieme che il recupero sblocca**: rifiuto, e nemmeno zero                                                                          |
+| `V12`    | «Sincronizza con Shopify» spento, stesso sottoinsieme: nessun invio                                                                                                 |
+| `V13`    | guasto remoto: nessuna falsa riuscita, nessun «ultimo invio riuscito», problema ancora in coda                                                                      |
+| `V14`    | seconda passata senza nuove divergenze: non ripete l'invio                                                                                                          |
+| `V15`    | ⭐ la porta **ordinaria**, sullo stesso identico stato, **non** supera il confronto — col controllo inverso sulla porta di recupero, che invece manda               |
 
 ##### ⚠️ La suite di integrazione NON gira al `pre-push`, e le prove sopra da sole non fanno da guardia
 
@@ -5658,6 +5690,4098 @@ il materiale grezzo del ritardo vero è già persistito e inutilizzato.
 abilita **nasce spento**; il regolatore è per processo, quindi con più repliche misura
 un'istanza; e senza coda persistente **l'arretrato non ha un oggetto da contare** — due delle
 quattro misure che il piano di collaudo dichiara necessarie non hanno oggi un soggetto.
+
+---
+
+### ⏸ 28 · IL FUNZIONAMENTO RICHIESTO — differenza da colmare, 09/09/2026
+
+> **Le regole sono confermate e vivono nel punto canonico**, `docs/24` §8.11: qui c'è soltanto
+> lo **stato**. Le prove sono lo scenario `N` del piano di collaudo. ⛔ Ricognizione in sola
+> lettura: nessun codice scritto.
+
+| #      | Comportamento richiesto                                                                                                                 | Codice già presente                                                                                                                                                                                                                                                                                                                            | Differenza da colmare                                                                                                                                                                                                                                                                                                    | Prova |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
+| **1**  | Sedi: collegamenti **uno-a-uno scelti dall'operatore**, nessuna somma automatica, **nessun collegamento dal nome**                      | `ShopifyLocationSyncService` importa e collega, e non cancella né disattiva più nulla da sola. Nessuna somma di sedi esiste da nessuna parte                                                                                                                                                                                                   | ⛔ **`findMatch` collega PER NOME** quando manca l'identificativo (`shopify-location-sync.service.ts`): è esattamente ciò che la regola vieta. E manca la scelta dell'operatore: il collegamento è automatico. ⚠️ Già registrato come §12 di questo documento                                                            | `N1`  |
+| **2**  | Catalogo: **una direzione iniziale**, niente fusione automatica di due cataloghi popolati, niente cancellazioni sulla destinazione      | Le due direzioni sono approvate (`docs/24` §12.0). Import e push esistono entrambi e rispettano lo storico dei collegamenti                                                                                                                                                                                                                    | ⛔ **Non esiste il momento in cui la direzione si sceglie**: non c'è onboarding, e i due comandi restano premibili in qualunque ordine. Nessuna guardia impedisce di importare sopra un catalogo già popolato                                                                                                            | `N2`  |
+| **3**  | Matrice invariata; la scelta iniziale **non decide il regime**; VestiFlow funziona **senza Shopify**                                    | La matrice §9.2 è canonica e implementata. Il funzionamento senza Shopify ha una **prova di integrazione dedicata** (`senza-shopify.integration-spec.ts`) e uno scenario di collaudo (`K`)                                                                                                                                                     | ⭐ **Nessuna differenza misurata.** La direzione successiva non dipende da come si è partiti: già oggi la decide il campo, non l'origine                                                                                                                                                                                 | `K`   |
+| **4**  | Ordini: **confine temporale alla prima connessione**, che una pausa o riconnessione **non sposta**                                      | La connessione ha `lastConnectedAt`, `lastSyncAt`, `webhooksActivatedAt`                                                                                                                                                                                                                                                                       | ⛔ **Il confine NON esiste**: nessun campo lo registra, `listAllOrders` chiede `status=any` **senza filtro di data**, e `lastConnectedAt` viene **azzerato alla disconnessione** — quindi non può fare da confine nemmeno come ripiego                                                                                   | `N3`  |
+| **5**  | L'ordine identifica **articoli, quantità e sedi**; **non** autorizza a copiare la disponibilità Shopify nella giacenza                  | ⭐ **Già rispettato, e per scelta esplicita**: la riconciliazione non scrive mai la giacenza locale, e i quattro casi A–D non toccano `onHand`                                                                                                                                                                                                 | ⚠️ Una sola crepa: la sede dell'ordine ripiega sulla **prima sede in ordine alfabetico** quando il payload non la porta (`shopify-order-location.util.ts`) — un'identificazione **indovinata**, vietata da §8.11.1 e da `docs/24` §12.4                                                                                  | `N1`  |
+| **6**  | Effetto **già applicato da Shopify** → si acquisisce senza reinvio automatico; effetto **locale** → si trasmette                        | I due percorsi sono distinti: la riconciliazione acquisisce, il push trasmette                                                                                                                                                                                                                                                                 | ⛔ **Il Caso D fa partire un push dall'acquisizione**, cioè proprio il reinvio che la regola esclude — oggi lo ferma per caso la scorciatoia dell'«invariata» (§27.6)                                                                                                                                                    | `N4`  |
+| **7**  | **L'arrivo di un ordine non cancella aggiornamenti locali pendenti**                                                                    | —                                                                                                                                                                                                                                                                                                                                              | ⛔ **Gli aggiornamenti pendenti non esistono come dato**: senza coda persistente non c'è niente da cancellare **e niente da conservare**. È la stessa lacuna di §27.2                                                                                                                                                    | `N5`  |
+| **8**  | **Nessun invio sovrascrive vendite online non ancora acquisite**, con una protezione **effettiva**                                      | ⭐ **La protezione effettiva ESISTE GIÀ NEL CLIENT E NON HA CHIAMANTI**: `setInventoryQuantities` usa `inventorySetQuantities` con **`changeFromQuantity`** — il confronto concorrenziale di Shopify, che **rifiuta la scrittura** se il valore è cambiato — più `@idempotent(key:)`. È provata da un test di contratto sullo shop di sviluppo | ⛔ **Il push inventario usa ancora il REST `inventory_levels/set.json`**, che scrive in assoluto e **non confronta niente**. Le tre protezioni che il proprietario ha dichiarato insufficienti — «VestiFlow è autorevole», la finestra dell'eco, il confronto con l'ultimo inviato — sono esattamente quelle in uso oggi | `N4`  |
+| **9**  | **Sospensione riconoscibile**, distinta dalla cancellazione dei collegamenti, che non archivia, non azzera e non ferma il lavoro locale | ⭐ **Metà c'è**: `ShopifyConnection.autoSyncEnabled` è un interruttore che **ferma i webhook in ingresso** senza toccare niente altro                                                                                                                                                                                                          | ⛔ **Ferma solo l'INGRESSO**: nessun percorso di **uscita** lo consulta, quindi a sospensione «attiva» VestiFlow continua a scrivere su Shopify. E lo stato non è riconoscibile: l'enum ha `not_connected · connected · reauth_required · error`, **nessun `paused`**                                                    | `N5`  |
+| **10** | **Comando di riallineamento** per variante e sede, che **non scavalca le protezioni**                                                   | `POST /shopify/sync/inventory` esiste, con il suo permesso, e in coda esegue il ritentativo dei disallineamenti                                                                                                                                                                                                                                | ⛔ **È il contrario di ciò che serve**: legge Shopify e per ogni livello divergente fa partire un invio, **uno per livello e senza tetto** (§27.3). Non è per variante e sede, non ha anteprima, e passa dal REST senza confronto                                                                                        | `N6`  |
+| **11** | **Importazioni massive** anche in attività ordinaria: CSV Shopify e **XML fornitori**                                                   | ⭐ **CSV Shopify c'è**: `products-import.service` con parser, mapper e serializzatore, anteprima inclusa                                                                                                                                                                                                                                       | ⛔ **XML fornitori: non esiste nulla**, in nessuna forma. ⛔ E la colonna «Sincronizza con Shopify» non esiste in nessuna direzione: un CSV che la portasse verrebbe **scartato in silenzio**                                                                                                                            | `N7`  |
+
+⭐ **Due cose sono già a posto e vanno dette**, perché il resto dell'elenco è di lacune: il
+funzionamento **senza Shopify** è garantito e provato, e la regola che **l'ordine non porta la
+giacenza** è rispettata per scelta esplicita, non per caso.
+
+#### 28.1 · Le tre decisioni da presentare — la proposta più semplice compatibile
+
+⛔ **Proposte, non implementazioni.**
+
+| Decisione                                                       | La più semplice compatibile con le regole                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Origine delle quantità iniziali per sede**                    | **Nessuna quantità iniziale automatica.** Alla prima configurazione le giacenze restano quelle di VestiFlow; se il tenant parte vuoto, la sede parte a zero e l'operatore carica con gli strumenti che già esistono — inventario, rettifica, CSV giacenze. ⭐ Perché è la più semplice: **non richiede il documento di apertura, né il confine, né una lettura di Shopify**, e non può sommare o sovrascrivere niente (§8.11.1). ⚠️ Costo dichiarato: al primo invio VestiFlow **abbassa** Shopify a zero, quindi va accompagnata dalla sospensione di §8.11.6 accesa di partenza — che va decisa insieme, o è metà rimedio |
+| **Eventi durante la pausa, e ripresa incompleta**               | **La pausa non recupera: dichiara.** Alla ripresa VestiFlow non ricostruisce nulla da sé e **marca l'intervallo** (da quando la pausa è iniziata a quando è finita) come «periodo non coperto», mostrandolo. Il recupero è un'azione **esplicita** dell'operatore, per periodo. ⭐ Perché è la più semplice: non serve una coda persistente, e un recupero incompleto **non può fingersi completo** — è la regola che il proprietario ha già imposto altrove, «un tetto silenzioso si legge come ho finito»                                                                                                                 |
+| **Conferma dell'invio dopo importazione massiva, e la colonna** | **L'import non invia.** Un'importazione massiva scrive solo in VestiFlow e lascia gli articoli **fuori dalla sincronizzazione**; è l'operatore a sincronizzarli, con il comando che già esiste. La colonna «Sincronizza con Shopify» diventa allora **un dato dell'articolo esportato e reimportato**, non un comando: valore vuoto = non cambiare, e nessun valore accende da solo un invio. ⭐ Perché è la più semplice: è §8.10 **senza costruire la schermata di conferma** — l'atto di conferma è il comando di sincronizzazione che c'è già                                                                           |
+
+#### 28.2 · ⛔ Il cambio di trasporto NON chiude il caso — correzione del 09/09/2026
+
+⛔ **Qui c'era scritto che passare a `inventorySetQuantities` con `changeFromQuantity` «chiude
+da solo la crepa di §27.6». È FALSO**, e il controesempio del proprietario lo dimostra:
+
+```text
+Shopify 10  →  due ordini  →  8
+VestiFlow ha acquisito solo il primo         →  crede 9
+si legge Shopify: 8   ·   si scrive 9 con atteso 8   →   RIESCE
+il negozio torna a 9, e la verità è 8
+```
+
+⭐ **Il confronto riesce PROPRIO PERCHÉ nulla è cambiato fra la lettura e la scrittura.** La
+divergenza è avvenuta **prima** della lettura, e lì il confronto non guarda.
+
+> **Il confronto concorrenziale protegge una FINESTRA — quella fra la lettura e la scrittura —
+> non la correttezza del valore che si invia.** È un miglioramento **parziale**, e va chiamato
+> così.
+
+Misurato dalle prove di §29: chiude `P1`, aiuta `P5` (con la chiave di idempotenza), **non
+chiude** `P2`, `P3` e `P4`.
+
+---
+
+### ⏸ 29 · PROTEZIONE DELLE SCRITTURE DI INVENTARIO — misure e rimedio minimo, 09/09/2026
+
+> **Sei prove versionate**, database sacrificabile e negozio simulato con stato:
+> `api/src/test/integration/protezione-scritture-inventario.integration-spec.ts`. ⛔ **Nessun
+> comportamento applicativo modificato**: le prove misurano, non correggono.
+>
+> ⚠️ **Cinque delle sei sono prove del LIMITE**: fissano il comportamento sbagliato di oggi e
+> **non valgono come conformità**. Quando il rimedio arriverà diventeranno rosse, e andranno
+> **riscritte**, non aggiustate. Ognuna lo dichiara nel proprio nome.
+
+#### 29.1 · Che cosa dicono le sei misure
+
+| Prova    | Che cosa è stato misurato                                                                                                                                                                                                                                                                                 |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `P1`     | il push di oggi scrive **senza leggere e senza confrontare**: una sola chiamata in tutto. Il confronto, dove c'è, **ferma** la scrittura concorrente — ed è la finestra che protegge davvero                                                                                                              |
+| `P2`     | ⛔ **il controesempio**: vendita online **prima** della lettura, ordine non acquisito. Il confronto **riesce** e rimette una disponibilità falsa. È la prova che il cambio di trasporto non basta                                                                                                         |
+| `P3`     | vendita locale mentre manca un ordine online: l'effetto locale parte — ed è giusto — ma **in assoluto**, e annulla la vendita online non acquisita                                                                                                                                                        |
+| `P3-bis` | un invio **rifiutato** non lascia **nessuna traccia** dell'aggiornamento locale pendente: né marcatore, né nota, né coda. L'informazione resta solo in una riga di log                                                                                                                                    |
+| `P4`     | **acquisire** un effetto già applicato dal canale **fa partire un reinvio** che lo annulla — e il reinvio è «lancia e dimentica», quindi un suo fallimento non arriva a nessuno. ⚠️ Nessun aggiornamento locale pendente nella prova, per costruzione: la scrittura è attribuibile alla sola acquisizione |
+| `P5`     | scrittura riuscita e **risposta persa**: VestiFlow crede fallito ciò che è avvenuto, e il ritentativo **riscrive in assoluto** annullando una vendita arrivata nel frattempo. Nessuna chiave di idempotenza viaggia col REST                                                                              |
+
+#### 29.2 · Che cosa esiste già, prima di proporre qualcosa
+
+⛔ **Nessuna coda e nessuna architettura nuova**: prima si guarda che cosa c'è.
+
+| Esiste                                                           | Dove                                                                                                                         |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **scrittura assoluta con confronto** e **chiave di idempotenza** | `setInventoryQuantities` nel client GraphQL, provata contro il negozio di sviluppo — **nessun chiamante in produzione**      |
+| **stato per coppia variante × sede**                             | `shopify_inventory_sync_states`, con ultimo inviato, ultimo osservato e il loro istante                                      |
+| **origine degli effetti locali**                                 | `StockMovement` porta `type` e `origin`, con vincolo unico per riga: è già un registro **idempotente** di ciò che è successo |
+| **effetti di canale acquisiti**                                  | impegni e vendite online, che VestiFlow registra quando li acquisisce                                                        |
+
+| ⛔ Manca davvero                                                                | Perché conta                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **una scrittura a DELTA** verso il canale                                       | `inventoryAdjustQuantities` non è implementato in nessuno dei due client. Un delta **compone** invece di sovrascrivere: è la sola forma che non annulla ciò che non si conosce                                               |
+| **la separazione fra effetto LOCALE ed effetto ACQUISITO** sulla stessa colonna | `available` si muove per entrambi — un impegno da ordine di canale lo abbassa quanto una vendita al banco. ⚠️ **È qui che casca la scorciatoia**: `available − lastPushedAvailable` sembra «la variazione locale» e non lo è |
+| **la traccia di un aggiornamento pendente**                                     | misurata da `P3-bis`                                                                                                                                                                                                         |
+
+⚠️ **E una lacuna che rende incompleto qualunque conteggio basato sui movimenti**: la Vendita
+manuale aggiorna la giacenza **senza creare `StockMovement`** — deroga esplicita e documentata.
+Chi costruisse la variazione locale sommando movimenti la perderebbe.
+
+#### 29.3 · Il rimedio minimo, nelle quattro parti richieste
+
+**Origine del valore ATTESO.** ⛔ **Non una lettura di Shopify fatta un istante prima**: è
+quella che produce la falsa sicurezza di `P2`. Il valore atteso è **ciò che VestiFlow crede
+che il canale porti**, cioè l'ultimo inviato composto con gli effetti di canale **che ha
+acquisito**. ⭐ La differenza fra questo numero e ciò che Shopify mostra **è l'informazione
+utile**: dice «c'è qualcosa che non ho acquisito», che una lettura da sola non dice.
+
+**Origine del valore da INVIARE.** ⛔ **Non il totale locale.** Si trasmette la **variazione di
+origine locale** avvenuta dall'ultima trasmissione confermata. Un delta compone con ciò che il
+canale ha già applicato; un totale lo cancella. ⚠️ E la variazione locale **non è** la
+differenza fra disponibile e ultimo inviato: quella comprende anche gli effetti di canale
+acquisiti (vedi §29.2). Separare le due origini è il lavoro vero.
+
+**Conflitto o incertezza.**
+
+| Caso                                  | Comportamento                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **conflitto** (l'atteso non combacia) | ⛔ **Qui c'era «significa: esistono effetti di canale che non ho acquisito», ed è un'equivalenza sbagliata** — corretta il 09/09/2026. Una quantità inattesa dimostra un **disallineamento**, e basta: può venire da una rettifica fatta a mano, da un'altra app che scrive sullo stesso negozio, da una sede mappata male, o da un ordine non acquisito. ⭐ Il comportamento è **non scrivere, registrare e mostrare**; l'aggiornamento locale resta pendente. Il recupero degli ordini è **una delle spiegazioni possibili**, non il rimedio certo a qualunque differenza. ⛔ E **mai «rileggi Shopify e rimanda lo stesso totale locale»**: è la mossa che `P2` dimostra dannosa |
+| **incertezza** (risposta persa)       | la **stessa** operazione dev'essere ripetibile in modo identico, con una chiave di idempotenza stabile. ⛔ Senza quella garanzia non si riscrive alla cieca: lo stato si marca **esito ignoto** e si aspetta una riconciliazione. `P5` misura che oggi accade il contrario                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+**Conservazione degli aggiornamenti pendenti.** ⭐ **Non serve una coda**: se la trasmissione
+non è confermata, l'ultimo inviato **non si muove**, e l'aggiornamento pendente è **derivabile**
+— è la variazione locale non ancora trasmessa. Quello che manca non è un posto dove metterlo:
+è **saperlo calcolare** (la separazione delle origini) e **poterlo dire** (`P3-bis`: oggi non
+c'è nemmeno un marcatore).
+
+#### 29.3-bis · Cinque misure aggiunte il 09/09/2026, e un perimetro corretto
+
+⛔ **Correzione di perimetro.** `P4` era dichiarata «acquisizione di un ordine». **Non lo è**:
+percorre `applyInventoryLevelFromShopify`, cioè la **notifica di inventario**. Sono due
+percorsi diversi con esiti opposti, e confonderli attribuiva agli ordini un difetto che è
+dell'inventario. Il nome e il commento della prova sono stati corretti.
+
+| Prova                                                      | Esito                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `P6` — percorso applicativo degli **ORDINI**               | ⭐ **conforme su due punti**: il modulo degli ordini non ha alcun riferimento ai canali, quindi l'acquisizione **non fa partire niente**; e l'ultimo inviato lo scrive solo un invio riuscito, quindi **niente viene marcato come trasmesso**. ⛔ **Il terzo è il limite**: dopo l'acquisizione la differenza vale −3 e **mescola** −2 locale da trasmettere con −1 di canale già applicato. Il pendente non è cancellato: è diventato **indistinguibile**, che per chi deve trasmetterlo è lo stesso |
+| `P7` — la sequenza del proprietario, coi dati di **oggi**  | 10 → locale −1 applicata con risposta persa → locale +3 → riavvio. I dati persistiti dicono «ultimo inviato 10, Disponibile 12»: **nessuna riga registra che un invio da 9 sia stato tentato**. Un delta di +2 su un negozio a 9 dà **11**, non 12 — il −1 verrebbe contato due volte; e un assoluto darebbe 12 sovrascrivendo, cioè con la mossa che `P2` vieta                                                                                                                                      |
+| `P7-bis` — la stessa sequenza col **tentativo registrato** | risolto prima il tentativo in sospeso ripetendo la **stessa operazione con la stessa chiave** — riconosciuta come ripetizione, nessuna seconda applicazione — l'ultimo confermato diventa 9 e la nuova operazione porta a **12**. ⚠️ La contabilità è modellata **nella prova**: stabilisce quali dati basterebbero, non introduce un comportamento                                                                                                                                                   |
+| `P7-ter` — due **esecutori concorrenti**                   | ⭐ la coppia variante × sede è già **unica**: un aggiornamento condizionato sul valore letto è una **presa atomica**, e su due tentativi simultanei ne passa esattamente **uno**. Non serve un lucchetto nuovo e non serve una coda                                                                                                                                                                                                                                                                   |
+| `P8` — passaggio **sotto zero**                            | ✅ **conforme**: Disponibile −3 pubblicato 0, un carico +2 porta a −1, e il pubblicabile resta 0 — nessun invio. ⛔ Un delta calcolato sul **grezzo** avrebbe mandato +2 portando il negozio a 2: merce che non esiste. **La regola del pubblicabile non si cambia per far tornare un delta**                                                                                                                                                                                                         |
+
+#### 29.4 · Il cambio di trasporto, dichiarato per quello che è
+
+⭐ **Miglioramento parziale, e va preso**: toglie la sovrascrittura cieca nella finestra fra
+lettura e scrittura (`P1`) e dà la chiave di idempotenza che serve a `P5`. ⛔ **Non chiude**
+`P2`, `P3` e `P4`, che dipendono dall'origine degli effetti e non dal trasporto.
+
+⚠️ **Due dipendenze da tenere DISTINTE, e nessuna delle due si decide qui**: la prima
+trasmissione senza un «ultimo inviato» non ha una base da cui calcolare un delta — tocca la
+scelta delle **quantità iniziali per sede**; e quali ordini entrino affatto tocca il **confine
+temporale**. Sono due decisioni diverse, e vanno lasciate tali.
+
+#### ⏸ 29.6 · IL TENTATIVO PERSISTENTE E RECUPERABILE — 09/09/2026
+
+⛔ **Qui c'era «blocco autorizzato e chiuso», ed era una dichiarazione sbagliata.** Non perché
+il lavoro fosse incompleto rispetto a ciò che era stato autorizzato — quello è fatto — ma
+perché «chiuso» in fondo a una sezione che porta il nome della sincronizzazione si legge come
+«la sincronizzazione è a posto». Non lo è, e i tre stati vanno tenuti separati:
+
+| Cosa                                             | Stato                  | Dove sta                                                                 |
+| ------------------------------------------------ | ---------------------- | ------------------------------------------------------------------------ |
+| **Recuperabilità dell'invio**                    | ✅ **fatta e provata** | questa sezione: prenotazione, invio, conferma, ripetizione con la chiave |
+| **Riconciliazione** (quale quantità è la giusta) | ⏸ **da implementare**  | il nodo qui sotto, e il **comando manuale di riallineamento**            |
+| **Separazione delle origini**                    | ⛔ **aperta**          | §29.1–29.3, prove `P2`, `P3`, `P4-bis`, `P6`                             |
+
+⚠️ **Il perimetro autorizzato restava e resta quello**: conservazione e recupero dell'invio.
+⛔ **Non** la separazione delle origini, **non** la conversione a delta, **non** l'onboarding.
+⭐ Il quadro d'insieme non si ricopia qui: sta in `docs/SINCRONIZZAZIONE-QUADRO-FUNZIONALE.md`
+e nelle sette regole di `docs/24` §8.11.
+
+**Che cosa c'è adesso.** Sette colonne sulla riga di stato che già esisteva — chiave, valore,
+base del confronto, negozio, articolo, sede, istante — e tre passi separati: **prenotazione**
+atomica, **invio**, **conferma**. Il trasporto è `inventorySetQuantities` con confronto e chiave
+di idempotenza, cioè la migrazione già decisa in `docs/24` §8.7.
+
+⛔ **La prenotazione non è la conferma, e sono colonne diverse perché sono fatti diversi.**
+`lastPushedAvailable` non avanza finché il canale non ha risposto: usarlo come lucchetto — come
+faceva la prova `P7-ter` — segnerebbe come trasmesso ciò che non è mai partito.
+
+##### Tre correzioni, ognuna con la sua prova
+
+| Correzione                                                                                                                                                                                                                                                  | Prova |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| ⛔ **L'ultimo osservato NON è una base.** Provarlo riapriva il controesempio da un'altra porta: confermato 10, remoto 8, notifica 8 dopo la conferma, locale 9 → base 8, remoto 8, il confronto passa e si scrive 9. La base è **solo l'ultimo confermato** | `B1`  |
+| ⛔ **Il tentativo si risolve PRIMA dell'«invariata».** Confermato 10, inviato 9 con risposta persa, modifica locale che riporta a 10: la scorciatoia rispondeva «invariata» e lasciava il tentativo aperto per sempre                                       | `B2`  |
+| ⛔ **La conferma è UNA scrittura condizionata alla chiave.** Una risposta tardiva di A chiudeva il tentativo B e faceva arretrare il confermato                                                                                                             | `B3`  |
+
+##### La destinazione memorizzata
+
+⛔ **Controllare i soli identificativi attuali non basta.** Le guardie autorizzano la
+destinazione di **adesso**; il tentativo porta quella di **allora**. Il recupero ripete solo se
+le due coincidono — negozio, articolo e sede — altrimenti il tentativo resta riconoscibile e
+chiede riconciliazione. `B4` (riaggancio a un altro articolo) e `B5` (collegamento chiuso nel
+frattempo): **nessuna scrittura, nessuna perdita del tentativo**.
+
+##### La finestra di idempotenza
+
+Ventiquattro ore, come dichiara la documentazione Shopify. Oltre quella la ripetizione **non è
+più deduplicata**, quindi non si reinvia: il tentativo resta e chiede riconciliazione, e le
+modifiche locali successive non si perdono (`T5`). ⚠️ **La finestra non è stata verificata
+contro il negozio**: servirebbe un'autorizzazione a sé.
+
+##### ⏸ La protezione PROVVISORIA sul primo invio
+
+⛔ **Senza una base confermata non si invia**, e l'esito lo dice (`base_assente`, prova `B6`).
+Non zero, non l'ultimo osservato, non un invio senza confronto: sarebbero tre modi diversi di
+decidere al posto del proprietario. ⚠️ **È provvisoria e ha un costo operativo dichiarato**: una
+coppia mai pubblicata **non si pubblica**, e resterà così finché non è decisa l'origine delle
+**quantità iniziali per sede** (`docs/24` §12.0, §12.9), che resta separata dal confine degli
+ordini.
+
+##### La concorrenza, misurata sul requisito giusto
+
+⛔ **Non «una sola chiamata».** Due richieste con la stessa chiave sono una ripetizione
+legittima. `T4` misura le tre garanzie vere: nessun **doppio effetto** sul canale, **una sola
+chiave** — cioè nessuna operazione indipendente duplicata — e nessuna **perdita** dello stato
+locale. ⭐ E ha corretto un'attesa sbagliata: il secondo esecutore non riceve
+`tentativo_in_corso`, perché **ripete** il tentativo aperto invece di aprirne uno nuovo.
+
+##### ✅ IL NODO È DECISO — dal proprietario, il 09/09/2026
+
+> **Si mantengono le protezioni, e il RITENTATIVO si distingue dal RIALLINEAMENTO. Non si
+> torna alla scrittura cieca.**
+
+|                    |                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| **Ritentativo**    | ripete un'operazione **già definita**, conservando chiave, destinazione e parametri |
+| **Riallineamento** | deve **stabilire quale quantità sia corretta** prima di scriverla                   |
+
+⚠️ **Il caso canonico del disallineamento è un RIALLINEAMENTO**, non un ritentativo: il remoto
+differisce dalla nostra convinzione, e nessuno sa ancora quale delle due sia giusta. Quindi il
+confronto lo ferma, ed è il comportamento voluto — non un difetto da aggirare.
+
+⛔ **Il criterio 1 di §27.6 — «`V1` si ripubblica» — è quindi SUPERATO**, e le prove sono state
+riscritte, non tolte: `V1` fissa ora il caso protetto, `V1-bis` la controprova che un
+disallineamento **recuperabile** parte davvero, `V16` che la divergenza in un lotto si conta a
+parte. Lo stesso è stato fatto su `P1`, `P3`, `P4` e `P5` — vedi la tabella qui sotto.
+
+##### Gli esiti di un invio — e la lettura degli `userErrors`
+
+⛔ **Qui c'era «gli esiti sono TRE», e non bastavano.** La riga che diceva «il canale ha
+RIFIUTATO (`userErrors`)» trattava quel campo come un blocco solo: **non lo è**, e il
+controesempio è `IDEMPOTENCY_CONCURRENT_REQUEST` — significa che l'operazione con quella
+chiave **è ancora in corso**. Letto come rifiuto, faceva chiudere il tentativo, dimenticare
+la chiave e, al giro dopo, aprire un invio nuovo e indipendente **mentre il primo stava
+andando a segno**: il doppio effetto che la chiave di idempotenza esiste per impedire.
+Corretto il 10/09/2026.
+
+| Esito                        | Che cosa si sa                              | Tentativo   | Classe del comando |
+| ---------------------------- | ------------------------------------------- | ----------- | ------------------ |
+| conferma                     | il canale ha applicato                      | si chiude   | ripubblicata       |
+| **divergenza accertata**     | rifiutata la **quantità**: base ≠ remoto    | si chiude   | **rifiutata**      |
+| **richiesta rifiutata**      | rifiutata la **richiesta**: id, riferimento | si chiude   | **rifiutata**      |
+| **tentativo in corso**       | l'operazione è **ancora viva** sul canale   | **intatto** | nessun invio       |
+| **tentativo non ripetibile** | la chiave non può più ripetere quell'invio  | **intatto** | nessun invio       |
+| rifiuto **non interpretato** | esito **ignoto**                            | **intatto** | fallita            |
+| guasto di trasporto          | esito **ignoto**                            | **intatto** | fallita            |
+
+⭐ **Le cinque classi si dividono su una domanda sola: il significato DOCUMENTATO permette di
+concludere che quell'operazione non è stata applicata?** Solo se sì il tentativo si chiude.
+Le altre tre non toccano niente — né chiave, né parametri, né nota, né marcatore — perché
+toccare la riga significherebbe affermare qualcosa che non si sa.
+
+###### ⛔ Il riconoscimento è per CODICE ESATTO — e la difesa scritta qui era falsa
+
+⛔ **Qui c'era: «l'enum non è stato introspezionato — servirebbe una chiamata allo shop, che
+è un'autorizzazione a sé».** Non serviva: l'enum è **pubblicamente documentato**, e leggerlo
+non è interrogare un negozio. I diciassette valori di
+`InventorySetQuantitiesUserErrorCode` sono stati letti sulla documentazione il 10/09/2026.
+
+⛔ **E qui c'era la difesa del riconoscimento per FRAMMENTI**: «si classifica sul messaggio,
+si allarga sul nome del codice, e sbagliare un nome produce una prudenza in più, mai una
+scrittura in più». **Era falsa**, e in un modo preciso: un frammento non aggiunge prudenza —
+**promuove uno sconosciuto a una classe che CONCLUDE**, e una classe che conclude chiude il
+tentativo. Due contro esempi, entrambi codici veri:
+
+| Codice                               | Significato documentato          | Con i frammenti             |
+| ------------------------------------ | -------------------------------- | --------------------------- |
+| `COMPARE_QUANTITY_REQUIRED`          | manca il parametro di confronto  | ⛔ «divergenza di quantità» |
+| `IDEMPOTENCY_KEY_PARAMETER_MISMATCH` | stessa chiave, parametri diversi | ⛔ chiudeva il tentativo    |
+
+⭐ **Adesso la mappa è esplicita e l'incontro è per uguaglianza.** Ciò che non è in tabella è
+`sconosciuto`, e `sconosciuto` conserva il tentativo: **da qui** quella proprietà di prudenza
+diventa vera, perché nessun nome non previsto può più cadere in una classe che conclude.
+
+⛔ **E il messaggio non decide più niente.** Resta informativo — finisce nella nota che
+l'operatore legge — ma non chiude un tentativo: un testo può cambiare senza che cambi la
+versione dell'API, e infatti **due testi diversi descrivono già lo stesso codice**, quello
+dell'enum e quello misurato sullo shop il 03/09/2026.
+
+###### DOCUMENTATO e COLLAUDATO sono due livelli diversi, e vanno tenuti distinti
+
+| Livello                          | Che cosa significa                            | Stato oggi                         |
+| -------------------------------- | --------------------------------------------- | ---------------------------------- |
+| **documentato da Shopify**       | letto sulla documentazione pubblica dell'enum | ✅ tutti e diciassette i codici    |
+| **collaudato contro il negozio** | osservato rispondere così da uno shop vero    | ⛔ **nessuno** — solo un messaggio |
+
+⚠️ **La pagina non si è lasciata ancorare a una versione**: chiedendo il percorso di
+`2025-07` la documentazione ha restituito lo **stesso** contenuto dichiarando `2026-07`.
+Quindi «documentato per `2026-07`» significa «la documentazione dichiara `2026-07`», non
+«verificato che `2026-07` differisca dalle altre versioni». ⭐ La mappa regge comunque lo
+scarto: un valore in più, o con un altro nome, cade in `sconosciuto`.
+
+###### I due casi che i frammenti sbagliavano, e come si trattano ora
+
+- **`COMPARE_QUANTITY_REQUIRED`** → `validazione`. Manca un **parametro**, non c'è nessuna
+  differenza di giacenza: mandare a riconciliare quantità che nessuno ha ancora confrontato
+  è mandare a cercare un problema che non esiste.
+- **`IDEMPOTENCY_KEY_PARAMETER_MISMATCH`** → **non ripetibile**. Dice che i parametri non
+  corrispondono, **non** che l'operazione di allora non sia stata applicata. Chiave e
+  parametri restano dove sono, l'incoerenza si segnala, e non si apre nessuna operazione
+  nuova di iniziativa. Stessa classe per
+  **`IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED`**: «fallito» non è «non applicato», e la
+  protezione di quella chiave non c'è più — generarne una nuova da soli sarebbe un invio
+  indipendente su un esito ignoto.
+
+⛔ **E `userErrors` assente non è `userErrors` vuoto.** Il client faceva
+`data.inventorySetQuantities?.userErrors ?? []`, cioè trasformava una mutation assente o
+malformata nella **firma della riuscita**: il confermato avanzava e il tentativo si chiudeva
+per una risposta che non c'era. Ora solleva, e il push lo tratta come esito ignoto.
+
+⛔ **La nota dice DOVE guardare**, e le due classi conclusive mandano in due posti opposti:
+la divergenza alla riconciliazione delle quantità, la richiesta rifiutata al collegamento.
+Una nota sola per entrambe manderebbe metà delle volte dalla parte sbagliata.
+
+⛔ **Un rifiuto non tocca `lastPushedAvailable`, in nessuna direzione**: non ci si scrive il
+valore che si voleva mandare — sarebbe la scrittura cieca — e non ci si ripiega sull'ultimo
+**osservato**, che è l'errore già fatto due volte. ⭐ **E non si dichiara successo**: il
+marcatore resta acceso e la nota dice che cosa il canale ha risposto, così il problema e il
+lavoro non risolto restano visibili.
+
+| Prova                                    | Che cosa fissa                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| `E1`                                     | A in corso, B riceve «ancora in corso»: chiave intatta, un solo effetto              |
+| `E2`                                     | un errore di validazione **non** è presentato come divergenza di quantità            |
+| `E3`                                     | il rifiuto vero del confronto non tocca remoto né confermato                         |
+| `E4`                                     | un codice mai visto non diventa una divergenza inventata                             |
+| `E4-bis`                                 | uno sconosciuto che **contiene** «STALE» non chiude il tentativo                     |
+| `E5`                                     | payload mancante: nessuna falsa riuscita, tentativo conservato                       |
+| `E6`                                     | base originale mancante: nessun invio, nessun parametro ricostruito                  |
+| `E7`                                     | `COMPARE_QUANTITY_REQUIRED` non è presentato come differenza di giacenza             |
+| `E8`                                     | `IDEMPOTENCY_KEY_PARAMETER_MISMATCH` non cancella il tentativo originale             |
+| `D1`, `D2`, `D3`, `V16`                  | la separazione degli esiti nel comando massivo                                       |
+| `shopify-inventory-user-error.util.spec` | la mappa dei diciassette codici, i frammenti che non classificano più, le precedenze |
+
+##### ⛔ Il ritentativo ripete i parametri ORIGINALI — nessun ripiego
+
+Qui c'era `pendingBase ?? pendingAvailable`, cioè una base **ricostruita** quando quella
+originale mancava. ⛔ **Un ritentativo ripete un'operazione già definita**: con una base
+inventata diventa un'operazione diversa sotto la stessa chiave — per il canale una richiesta
+che non corrisponde alla chiave che la accompagna (`IDEMPOTENT_REQUEST_MISMATCH`). ⚠️ E se
+il confronto passasse **per caso**, scriverebbe sopra uno stato che nessuno ha verificato.
+
+⭐ Ora la base è parte del **controllo di completezza**: senza, il tentativo è incompleto,
+non si chiama nessuno e i parametri restano quelli di allora — non si «ripara» la riga
+scrivendoci dentro un valore plausibile. Prova `E6`.
+
+##### ⏸ IL COMANDO MANUALE DI RIALLINEAMENTO — richiesto, NON completo
+
+> **Resta nel piano.** La sua procedura sicura è un blocco a sé, e non è stata scritta.
+
+⚠️ **Finché non esiste, il costo operativo è dichiarato**: una modifica fatta a mano
+nell'admin Shopify **non si riassorbe da sola**. La ripubblicazione la incontra, la classifica
+`rifiutata`, lascia la riga in arretrato — e una passata successiva ripresenterà la stessa
+operazione e raccoglierà lo stesso rifiuto. ⭐ **È un limite, non un ciclo nascosto**: ciò che
+non accade è l'unica cosa pericolosa — il confermato non avanza e il canale non cambia — e la
+prova `D3` lo fissa apposta.
+
+##### Il CONTRATTO del canale e la POLITICA di VestiFlow, provati separatamente
+
+⛔ **Il simulatore rappresenta Shopify, non le regole di VestiFlow.** Il contratto di
+`inventorySetQuantities` (`2026-07`) è:
+
+```text
+numero          → esegue il confronto
+null esplicito  → DISATTIVA il confronto
+campo OMESSO    → errore
+```
+
+⚠️ **Era stato scritto al contrario** — `null` come errore, campo omesso come ammesso — e
+corretto il 09/09/2026 sulla documentazione. Un simulatore che vieta `null` fa passare per
+verde una politica che nessuno ha scritto: il giorno in cui qualcuno chiama la mutation da
+un'altra porta, il divieto non c'è e nessuna prova lo dice.
+
+⭐ **La politica è nostra e la fa rispettare il servizio**: questo percorso manda **sempre un
+numero**, mai `null`; e senza una base confermata non si arriva nemmeno a chiamare
+(`base_assente`). Le due cose hanno prove distinte — `C1` e `C2` il contratto, `C3` la
+politica.
+
+##### Le prove riscritte, e che cosa dicono adesso
+
+| Prova      | Prima                                          | Adesso                                                                            |
+| ---------- | ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| `P1`       | ⛔ limite: «il push non legge e non confronta» | ✅ **protetto**: vendita online dopo l'ultima conferma → scrittura fermata        |
+| `P3`       | ⛔ limite: la vendita online viene annullata   | ✅ **protetto** qui / ⛔ **aperto**: origini mescolate (`P2`) e locale da mandare |
+| `P4`       | ⛔ limite: la notifica fa partire un reinvio   | ✅ fermato — ma da `base_assente`, che è **provvisorio**: vedi `P4-bis`           |
+| `P4-bis`   | _(nuova)_                                      | ⛔ **aperto**: con una base pari al remoto, la notifica riscrive lo stesso        |
+| `P5`       | ⛔ limite: il ritentativo annulla una vendita  | ✅ **protetto**: stessa chiave, nessuna riapplicazione, la vendita sopravvive     |
+| `P2`, `P6` | ⛔ limiti                                      | ⛔ **invariati**: la separazione delle origini resta aperta                       |
+
+⛔ **Nessuna prova di limite è stata cancellata.** `P2` resta il controesempio decisivo del
+proprietario, `P3-bis` resta a dire che un invio fermato non lascia ancora traccia distinta
+dell'aggiornamento locale pendente, `P6` resta sulle origini mescolate dopo l'acquisizione di
+un ordine. ⭐ E `P4-bis` è **nuova apposta**: senza, chiudere la decisione sulle quantità
+iniziali per sede riaprirebbe in silenzio il difetto che oggi `base_assente` copre per caso.
+
+#### 29.5 · PROPOSTA IMPLEMENTATIVA — breve, e non ancora autorizzata
+
+> ⛔ **Nessuna modifica applicativa e nessuna migration sono state fatte.** Questa è la forma
+> che il rimedio avrebbe; l'autorizzazione è un atto a sé.
+
+**Dati già disponibili**
+
+|                                         |                                                                                                                                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **la riga per coppia variante × sede**  | `shopify_inventory_sync_states`, **unica** per `(tenant, variante, sede)`: `P7-ter` dimostra che basta a far passare un solo esecutore, con un aggiornamento condizionato |
+| **l'ultimo valore CONFERMATO**          | `lastPushedAvailable`, scritto solo da un invio riuscito                                                                                                                  |
+| **la scrittura con confronto e chiave** | `setInventoryQuantities` nel client GraphQL, provata contro il negozio di sviluppo, **senza chiamanti**                                                                   |
+| **la regola del pubblicabile**          | `max(0, available)`, **invariata**: `P8` la fissa                                                                                                                         |
+
+**Dati mancanti — due, e solo due**
+
+1. ⛔ **Il TENTATIVO in corso.** Tre campi sulla riga che già esiste — valore tentato, chiave di idempotenza, istante — più uno stato «esito ignoto». ⭐ **Non è una coda**: è la memoria dell'operazione che si sta facendo, e `P7` dimostra che senza di essa la sequenza non può chiudersi a 12.
+2. ⛔ **La separazione delle ORIGINI** sul valore pubblicato: quale parte della variazione dall'ultimo confermato è di origine **locale**. ⚠️ **Non basta sommare i movimenti**: la Vendita manuale aggiorna la giacenza senza crearne, e un impegno da ordine di canale muove il Disponibile senza essere un effetto locale — è ciò che `P6` misura.
+
+**Comportamento**
+
+1. si calcola il pubblicabile di adesso, con la regola di sempre;
+2. se esiste un **tentativo non risolto**, si risolve **prima**, ripetendo l'operazione identica con la stessa chiave. ⛔ Nessuna operazione nuova sopra una non risolta;
+3. si **prende** la riga con un aggiornamento condizionato sull'ultimo confermato: due esecutori non partono insieme;
+4. si scrive confrontando con l'**ultimo confermato**, non con una lettura fresca — che è ciò che `P2` dimostra insufficiente;
+5. gli esiti: **confermato** → si aggiorna l'ultimo confermato e si chiude il tentativo; **rifiutato** → disallineamento, non si scrive, si registra e si mostra, e l'aggiornamento locale **resta pendente**; **risposta persa** → il tentativo resta, stato «esito ignoto», nessun'altra scrittura finché non è risolto;
+6. ⛔ mai «rileggi Shopify e rimanda lo stesso totale locale».
+
+**Prove di accettazione** — le stesse di §29, con la transizione attesa:
+
+```text
+P1  LIMITE → CONFORME     la scrittura è preceduta da un confronto
+P5  LIMITE → CONFORME     il ritentativo è riconosciuto come ripetizione
+P7  LIMITE → CONFORME     la sequenza chiude a 12 (come P7-bis modella)
+P2  LIMITE → resta        richiede la separazione delle origini
+P3  LIMITE → resta        idem
+P4  LIMITE → resta        idem (notifica di inventario)
+P6  parziale → resta      idem
+P7-ter · P8   CONFORMI, e devono restarlo
+```
+
+⚠️ **Le prove del limite che diventano conformi vanno RISCRITTE, non aggiustate**: oggi
+asseriscono il comportamento sbagliato, e cambiarne il segno senza riscriverle lascerebbe
+un'asserzione che non dice più che cosa si sta proteggendo.
+
+---
+
+### ⏸ 30 · SEPARAZIONE DELLE ORIGINI — perimetro proposto, 10/09/2026
+
+> ⛔ **Proposta, non implementazione.** Nessuna riga di codice applicativo è stata scritta per
+> questo blocco. Le misure qui sotto sono state fatte leggendo i percorsi reali.
+>
+> ⚠️ **LE FORMULE DI §30.2 E §30.7 SONO STATE FALSIFICATE** — vedi **§31**, che le sostituisce.
+> Il delta calcolato sui valori pubblicati e quello calcolato sui valori grezzi sbagliano in
+> direzioni opposte, ciascuno su casi che l'altro prende. ⭐ **Restano validi** la ricognizione
+> delle origini (§30.1, §30.10), l'attraversamento dello zero come **fenomeno** (§30.7), il
+> divieto di inizializzazione automatica (§30.8) e i confini (§30.9).
+
+#### 30.0 · Che cosa deve valere, e l'esempio che lo fissa
+
+|     |                                                                                                |
+| --- | ---------------------------------------------------------------------------------------------- |
+| 1   | una variazione **locale** arriva a Shopify **una volta sola**                                  |
+| 2   | acquisire un effetto **già applicato** da Shopify aggiorna VestiFlow **senza ritrasmetterlo**  |
+| 3   | l'arrivo di un ordine Shopify **non cancella né confonde** variazioni locali ancora da inviare |
+
+**L'esempio.** Partenza allineata a 10; vendita locale di 2 ancora pendente; vendita online di
+1, poi acquisita. VestiFlow 7, Shopify 9 → deve arrivare **solo** il −2, **una volta**.
+
+⚠️ **Oggi non arriva affatto.** Il confronto usa `lastPushedAvailable` = 10, il canale porta 9:
+la scrittura è **rifiutata**, e la variazione locale legittima resta ferma. Lo stato attuale non
+è «sbagliato», è **protetto e bloccato** — ed è il motivo per cui questo blocco serve.
+
+#### 30.1 · Dove l'origine è DISPONIBILE e dove si perde — misurato
+
+⭐ **`available` si muove da DUE sole funzioni**, e non ce ne sono altre: verificato cercando
+ogni scrittura di quella colonna in `api/src`.
+
+| Funzione                                     | Che cosa muove                            | Chiamanti (non di prova) |
+| -------------------------------------------- | ----------------------------------------- | ------------------------ |
+| `inventory/inventory-level-delta.util.ts`    | `onHand` e `available` dello stesso delta | **46**, in 9 file        |
+| `order-reservations/committed-delta.util.ts` | `committed` +d, `available` −d            | **7**, in 2 file         |
+
+⭐ **Entrambe sono già `increment` atomici dentro una transazione.** Non c'è nessun
+«leggi-modifica-scrivi» da rendere atomico: la parte difficile è già fatta.
+
+⛔ **E l'origine si perde ESATTAMENTE lì.** Nessuna delle due funzioni riceve chi la sta
+chiamando: una vendita al banco e l'acquisizione di un ordine online entrano dalla stessa porta
+con lo stesso `delta`. È il punto in cui il dato esiste ancora nel chiamante e sparisce.
+
+⭐ **Per gli impegni l'origine è GIÀ nella riga**: `StockReservation.channel`
+(`SalesOrderSource`: `shopify_online`, `shopify_pos`, `manual`, `store`). Il servizio degli
+impegni non ha bisogno che il chiamante gliela dica: ce l'ha davanti.
+
+##### Le tre cose che la ricognizione ha corretto rispetto a quanto si dava per scontato
+
+⛔ **1. La notifica di inventario NON scrive la giacenza.**
+`applyInventoryLevelFromShopify` chiama la riconciliazione e, nel Caso D, una ripubblicazione:
+**non tocca `inventory_levels`**. Quindi l'effetto di canale entra in `available` **solo** dalla
+porta degli ordini. Chi cercasse la separazione delle origini sul percorso dei webhook di
+inventario non troverebbe niente da separare.
+
+⛔ **2. L'eccezione della Vendita manuale NON è un problema qui — e mostra quale gancio è
+giusto.** Quel documento aggiorna la giacenza **senza creare `StockMovement`**, ma passa da
+`applyInventoryDelta` come tutti gli altri. Agganciare l'origine ai **movimenti** l'avrebbe
+persa; agganciarla alla **scrittura del livello** la prende. È la ragione tecnica per cui il
+collo di bottiglia giusto è quello, non il registro dei movimenti.
+
+⛔ **3. L'acquisizione di un ordine NON fa già partire un invio.** Nessun chiamante di
+`pushInventoryLevels` sta in `online-sale-fulfillment` o in `stock-reservation`: i chiamanti
+sono tutti percorsi locali (documenti, cassa, inventari, rettifiche) più due di recupero. ⚠️ Ma
+**non è una regola**: è che nessuno lo chiama. Il requisito 2 oggi è soddisfatto **per assenza**,
+e basta un chiamante nuovo per riaprirlo.
+
+##### ⛔ «Relativa a un ordine Shopify» NON è «già applicata da Shopify» — verificato
+
+⛔ **Qui c'era una tabella che marcava «acquisita» ogni riga del ciclo di vita degli ordini di
+canale.** È sbagliata: sono **due domande diverse**, e nei percorsi reali divergono in quattro
+casi su nove. Dedurre l'origine dal `channel` della prenotazione è la stessa scorciatoia che
+questo progetto ha già pagato altrove.
+
+##### I quattro valori di `restock_type`, letti sulla documentazione il 10/09/2026
+
+⛔ **La versione precedente di questa tabella diceva che `cancel` NON è applicato da Shopify.
+È falso.** La documentazione REST di `refund_line_items` è esplicita, e le quattro voci non si
+dividono come il nome suggerisce:
+
+| Valore           | Descrizione documentata                                                | Inventario Shopify |
+| ---------------- | ---------------------------------------------------------------------- | ------------------ |
+| `no_restock`     | «Refunding these items won't affect inventory.»                        | ⛔ **invariato**   |
+| `cancel`         | «The canceled quantity will be **added back to the available count**.» | ✅ **risale**      |
+| `return`         | «The refunded quantity will be **added back to the available count**.» | ✅ **risale**      |
+| `legacy_restock` | «These items were made available for sale again.»                      | ✅ **risale**      |
+
+⭐ **`cancel` restituisce disponibilità pur senza rientro fisico**, ed è la distinzione che
+avevo perso: «la merce non torna in magazzino» e «il canale non risale» sono due frasi diverse,
+e per `cancel` la prima è vera e la seconda no.
+
+⚠️ **Ne discende un'asimmetria reale**: `emitRestockEvents` emette eventi di rientro **solo**
+per `return`/`legacy_restock` — giustamente, perché la merce fisica rientra solo lì. Ma su
+Shopify anche `cancel` fa risalire l'available. La corrispondenza torna **solo se** al `cancel`
+corrisponde in VestiFlow un rilascio d'impegno di pari quantità: sull'annullamento **intero**
+lo fa l'evento `cancelled`; su un `cancel` **parziale** di alcune righe non è verificato che
+succeda. ⏸ Da verificare prima di implementare.
+
+##### La corrispondenza nei percorsi reali — con l'incertezza dichiarata
+
+| Percorso reale                                     | Su un ordine Shopify? | Shopify l'ha **già applicato**?      |
+| -------------------------------------------------- | --------------------- | ------------------------------------ |
+| ordine creato/aggiornato → impegno `available −q`  | sì                    | ✅ sì                                |
+| **annullamento** → rilascio impegno `available +q` | sì                    | ⚠️ **non si sa** (vedi sotto)        |
+| evasione, sede evasione **=** sede impegno         | sì                    | — netto 0 su `available`             |
+| evasione, sede impegno (`+q`), sede **diversa**    | sì                    | ⚠️ **non si sa**                     |
+| evasione, sede evasione (`−q`), sede **diversa**   | sì                    | ⚠️ **non si sa**                     |
+| evasione **senza** impegno (storici importati)     | sì                    | ✅ sì                                |
+| **reso** `return` / `legacy_restock`               | sì                    | ✅ sì — `restock_type` **già letto** |
+| **reso** `cancel`                                  | sì                    | ✅ **sì** — l'available risale       |
+| **reso** `no_restock`                              | sì                    | ⛔ no                                |
+| **ordini spariti** dal canale → rilascio impegni   | sì                    | ⚠️ **non si sa**                     |
+| «Concludi ordine» **documentale** su ordine canale | sì                    | ⛔ no — la decisione è di VestiFlow  |
+
+⛔ **Il cambio sede resta il contro esempio, ma per una ragione più forte di quella che avevo
+scritto.** Avevo dedotto «su quella sede Shopify non risale»: **è una deduzione, non un fatto**.
+⚠️ La sede dell'impegno è **scelta da VestiFlow per ripiego**, e non dimostra dove Shopify abbia
+applicato l'effetto; e un cambio di sede di evasione **può produrre una compensazione remota su
+entrambe le sedi**. Quindi l'evasione a sede diversa non ha due origini opposte **note**: ha due
+origini **ignote**, ed è peggio.
+
+⛔ **E non si toccano le regole locali per far tornare un'ipotesi sul remoto.** Impegni e
+giacenze restano come sono: l'incertezza è sul canale, e si tratta sul canale.
+
+##### ⚠️ Il terzo stato: «non si sa», e non si può fingere che siano due
+
+⛔ **Annullamento e ordini spariti non dicono se Shopify ha ripristinato.** Trattarli come uno
+dei due estremi è una scelta, e va fatta con gli occhi aperti:
+
+| Se si marca…                             | e la verità era l'opposto                                           |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| **acquisito** (Shopify ha ripristinato)  | `expected` sale, il canale no → il prossimo invio è **rifiutato**   |
+| **locale** (Shopify non ha ripristinato) | `expected` resta, il canale è salito → prossimo invio **rifiutato** |
+
+⛔ **E «il confronto protegge» è FALSO, come cavata generale.** Lo avevo scritto: si finisce in
+divergenza accertata, visibile e non scritta. ⚠️ Vale solo quando i numeri **non** coincidono.
+Due effetti remoti che si compensano — un annullamento e un ordine nuovo di pari quantità —
+riportano il canale sul valore atteso, e allora **il confronto numerico passa** e si scrive su
+uno stato che nessuno ha capito. È `P2` in un'altra veste.
+
+⛔ **Quindi «non si sa» NON si può trattare come «Shopify non l'ha applicato».** Marcare la
+riga **non basta**: se il push poi procede, il marcatore è una nota su una scrittura avvenuta.
+
+##### ⏸ Trattamento proposto per l'incertezza — da autorizzare, non applicato
+
+> **Un effetto di origine ignota SOSPENDE l'invio su quella coppia, finché non è riconciliata.**
+
+|                      |                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------- |
+| l'effetto locale     | si applica normalmente: giacenze e impegni **non cambiano regola**                |
+| l'invio sulla coppia | ⛔ **non parte**, e non perché il confronto lo rifiuterebbe: non si prova nemmeno |
+| lo stato             | riga marcata, con il motivo: «origine ignota», distinta da «divergenza accertata» |
+| la ripresa           | la riconciliazione, che è un blocco a sé                                          |
+
+⭐ **La differenza con «marcare e procedere» è tutta qui**: sospendere non dipende dai numeri,
+quindi non si lascia sbloccare da una coincidenza. ⚠️ **Il costo è dichiarato**: ogni
+annullamento sospenderebbe la coppia finché non esiste la riconciliazione — che oggi non esiste.
+⛔ **Per questo non lo applico**: è una decisione con un costo operativo, e va autorizzata.
+
+⏸ **E prima serve una ricognizione mirata**, che riduce quanto spesso «non si sa» capita
+davvero: (a) se il payload di annullamento porti il `restock_type` fino all'evento che rilascia
+gli impegni — il codice già lo classifica, ma non è verificato che ci arrivi; (b) se e come
+Shopify compensi sulle due sedi quando l'evasione avviene altrove. È lettura di payload e di
+documentazione, non implementazione.
+
+⭐ **Il consumo di un impegno è netto zero su `available` solo a sede invariata.** L'effetto di
+canale su `available` avviene alla **prenotazione**, non all'evasione — tranne per l'ordine che
+arriva già evaso, e tranne quando la sede cambia.
+
+##### ⚠️ Un limite ereditato, che questo blocco NON chiude
+
+La sede dell'impegno è **indovinata**: `online-sale-fulfillment` lo dichiara — «errore
+TRANSITORIO sulla disponibilità della sede del ripiego… chiuso quando l'impegno saprà leggere
+le fulfillment orders di Shopify». ⛔ Se l'impegno è sulla sede sbagliata, `expected` è
+sbagliato **su quella sede**. La separazione delle origini eredita quel limite e non lo
+guarisce: va dichiarato, non nascosto sotto una colonna nuova.
+
+#### 30.2 · Dove conservare la distinzione — riusando quanto esiste
+
+⛔ **Nessuna coda, nessuna tabella nuova.** La riga per coppia `(tenant, variante, sede)` esiste
+già: `shopify_inventory_sync_states`, con `lastPushedAvailable`, il blocco `pending*` e la
+conferma condizionata alla chiave.
+
+> **UNA colonna nuova su quella riga:** `expectedChannelAvailable` — che cosa VestiFlow crede
+> che il canale porti **adesso**.
+
+| Chi la muove                             | Come                                                          |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| **acquisizione** di un effetto di canale | `increment: delta`, nella **stessa transazione** dell'effetto |
+| **conferma** di un invio                 | `increment: pendingAvailable − pendingBase`                   |
+| nient'altro                              | —                                                             |
+
+⭐ **Le due letture del push cambiano di una parola**, e sono tutto il blocco:
+
+```text
+oggi     base del confronto   = lastPushedAvailable
+         «invariata»          = publishable === lastPushedAvailable
+
+domani   base del confronto   = expectedChannelAvailable
+         «invariata»          = publishable === expectedChannelAvailable
+```
+
+**L'esempio, passo per passo:**
+
+```text
+partenza      lastPushed 10   expected 10   available 10   remoto 10
+vendita −2    lastPushed 10   expected 10   available  8   remoto 10
+online −1 acquisita           expected  9   available  7   remoto  9
+push          base 9 = remoto 9  → passa, manda 7          remoto  7
+conferma      expected 9 + (7−9) = 7   lastPushed 7
+secondo push  publishable 7 === expected 7  → «invariata», NESSUN invio
+```
+
+⭐ **Requisito 3, ma con una condizione che va detta.** L'arrivo dell'ordine muove `available`
+**e** `expected` dello stesso delta, quindi finché il pubblicabile **non tocca il limite di
+zero** la variazione da trasmettere — `publishable − expected` = −2 — non cambia.
+
+⛔ **Qui c'era «matematicamente non può cambiare», ed era falso.** `publishable` è
+`max(0, available)`: sotto zero **smette di seguire** il Disponibile, e la differenza non
+conserva più la variazione locale. Il caso, le tracce e la regola stanno in §30.7.
+
+⭐ **Requisito 2 si chiude alla radice.** Nessuna variazione locale, online −1 acquisita:
+`publishable 9 === expected 9` → «invariata», non parte niente. ⚠️ Oggi in quel caso si ferma
+`base_assente`, che è una **protezione provvisoria** e per un'altra ragione (`P4`): qui la
+ragione diventa quella giusta.
+
+⭐ **E la scrittura resta ASSOLUTA con confronto.** ⛔ `inventoryAdjustQuantities` **non serve**:
+un delta cambierebbe cosa si manda, non cosa bisogna sapere — e la separazione servirebbe
+comunque. Il trasporto che c'è già basta. È una parte del §29.2 che questa ricognizione
+**ritira**.
+
+##### La distinzione la dichiara il CHIAMANTE, e il tipo lo impone
+
+| Funzione              | Come sa l'origine                                                    |
+| --------------------- | -------------------------------------------------------------------- |
+| `applyCommittedDelta` | ⭐ **già la sa**: `reservation.channel`. Nessun chiamante da toccare |
+| `applyInventoryDelta` | ⛔ non la sa: serve un **parametro obbligatorio**                    |
+
+⛔ **Obbligatorio, non con valore predefinito «locale».** Un default farebbe sì che un percorso
+di acquisizione **nuovo** ritrasmetta in silenzio — la classe di difetto muto che questo
+progetto combatte. Il costo è **46 punti di chiamata** da dichiarare, quasi tutti banali (2
+soli sono di canale, in `online-sale-fulfillment`); il beneficio è che l'omissione **non
+compila**, per sempre.
+
+##### Il confine dichiarato: `null` resta `null`
+
+⚠️ `expectedChannelAvailable` nasce `null` come `lastPushedAvailable`, e senza base non si invia
+(`base_assente`). ⛔ **Da dove prenda il primo valore è la decisione sulle quantità iniziali per
+sede** (`docs/24` §12.0, §12.9), che è **fuori** da questo blocco e resta aperta.
+
+#### 30.3 · Atomicità, riavvio, e i casi difficili
+
+⭐ **Atomicità della SCRITTURA e sopravvivenza al riavvio sono gratuite**: è una colonna della
+stessa riga, incrementata dalla stessa transazione dell'effetto. Non esiste un istante in cui
+l'effetto è applicato e la distinzione no.
+
+⛔ **Ma questo NON basta, ed è il difetto che §30.6 riproduce**: le scritture sono già atomiche,
+a essere spezzata è la **lettura**. Il push legge Disponibile e stato in due momenti diversi e
+prepara un invio su una coppia mai esistita. Prove `P9` e `P9-bis`.
+
+| Caso                                  | Perché regge                                                                                                                                                                                              |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ordini ritardati**                  | l'incremento avviene **all'acquisizione**, non alla data dell'ordine. ⛔ Nessun confronto su `lastPushedAt`: un confine a **tempo** perde gli ordini che arrivano tardi e conta due volte quelli al bordo |
+| **consegne duplicate**                | `OnlineOrderEvent` scarta il doppione **prima** di ogni effetto, e l'incremento sta nella stessa transazione: non può contare due volte                                                                   |
+| **invii concorrenti**                 | la presa su `pendingKey` serializza già; l'incremento di conferma è nello **stesso `updateMany` condizionato** che esiste. Una conferma tardiva non scrive niente                                         |
+| **risposte perse**                    | il tentativo resta con il suo `pendingBase`; la ripetizione porta la stessa chiave; la prima conferma azzera `pendingKey`, quindi l'incremento **non si applica due volte**                               |
+| **acquisizione fra presa e conferma** | ⭐ la conferma incrementa di `pendingAvailable − pendingBase` invece di **impostare**: l'acquisizione avvenuta nel frattempo sopravvive                                                                   |
+
+⛔ **È il motivo per cui la conferma incrementa e non imposta.** Impostare `expected = valore
+inviato` perderebbe ogni acquisizione arrivata durante la finestra dell'invio — un ordine perso
+per una gara di pochi millisecondi, che nessuna prova sequenziale vedrebbe.
+
+#### 30.4 · Le prove: quali diventano di conformità, quali sono nuove
+
+**Diventano prove di conformità** — oggi asseriscono il limite, dovranno asserire la regola:
+
+| Prova    | Oggi                                                | Dopo                                                                                                                              |
+| -------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `P2`     | ⛔ il confronto passa e rimette disponibilità falsa | ⚠️ **da riscrivere passando dal servizio**: oggi chiama il negozio simulato direttamente, quindi non misura il percorso           |
+| `P3`     | protetto qui, origini mescolate                     | il −2 locale **arriva**, una volta sola                                                                                           |
+| `P3-bis` | ⛔ nessuna traccia dell'aggiornamento pendente      | ⛔ **NON** `publishable − expected`: §30.7 dimostra che quella differenza non è la variazione locale quando si attraversa lo zero |
+| `P6`     | ⛔ dopo l'acquisizione le origini si mescolano      | la variazione locale pendente resta distinguibile                                                                                 |
+| `V15`    | l'asimmetria fra le due porte                       | invariata, ma su una base composta                                                                                                |
+
+⛔ **`P4-bis` NON diventa verde, e va detto.** Lì il canale si è mosso per una **notifica**, non
+per un ordine acquisito: `docs/24` §8.11.4 dice che un ordine autorizza e una notifica no.
+Questo blocco separa ciò che VestiFlow **ha acquisito**; una quantità remota che nessuno ha
+acquisito resta un disallineamento, ed è mestiere della **riconciliazione**. Resta ⛔ aperta.
+
+**Restano verdi senza modifiche** (non regressione): `invariante-disponibile` (`available =
+onHand − committed`), `B1`–`B6`, `T1`–`T6`, `C1`–`C3`, `D1`–`D3`, `E1`–`E8`, `V1`, `V1-bis`,
+`V16`, `collegamento-escluso`.
+
+**Nuove, e ognuna per una ragione precisa:**
+
+| #   | Prova                                                                                                   | Requisito |
+| --- | ------------------------------------------------------------------------------------------------------- | --------- |
+| 1   | **l'esempio di accettazione**, end-to-end: arriva solo il −2, una volta                                 | 1 · 3     |
+| 2   | acquisizione **senza** pendente locale → **nessun invio** (non `base_assente`)                          | 2         |
+| 3   | l'arrivo dell'ordine **non muove** la variazione locale pendente                                        | 3         |
+| 4   | ordine **ritardato**: push rifiutato → ordine acquisito → il push dopo consegna esattamente il locale   | 1 · 3     |
+| 5   | **consegna duplicata** dello stesso evento → l'attesa si muove una volta                                | 3         |
+| 6   | **annullamento** dell'ordine: impegno rilasciato → l'attesa torna indietro                              | 2 · 3     |
+| 7   | **acquisizione fra presa e conferma** → non si perde                                                    | 1 · 3     |
+| 8   | **risposta persa** → ripetizione → l'incremento si applica una volta                                    | 1         |
+| 9   | **Vendita manuale** (senza `StockMovement`) conta come locale e **viene trasmessa**                     | 1         |
+| 10  | **VestiFlow senza Shopify**: nessun percorso locale dipende dalla colonna nuova                         | —         |
+| 11  | **cambio sede in evasione**: `+q` sulla sede impegno è **locale**, `−q` sulla sede evasione è acquisito | 2 · 3     |
+| 12  | **reso con `restock_type` fisico** è acquisito; con `cancel` è locale                                   | 2         |
+| 13  | **annullamento**: la riga resta marcata e nessun invio parte alla cieca (§30.1, «non si sa»)            | 2         |
+
+⭐ **La 9 è quella che nessuna intuizione avrebbe scritto**: è la deroga della Vendita manuale, e
+prova che il gancio sta sul livello e non sui movimenti. ⭐ **E la 11 è quella che smentisce il
+flag derivato dal canale**: stesso ordine, stesso canale, due origini opposte.
+
+⚠️ **Più le famiglie `Z1`–`Z5` (§30.7, attraversamento dello zero) e `S1`–`S4` (§30.8, stato
+preesistente).** Nessuna delle due si può scrivere prima dell'implementazione: fissano il
+comportamento di una colonna che non esiste ancora, e vanno scritte **con** essa, nello stesso
+passo, non dopo.
+
+⭐ **`P9` e `P9-bis` invece esistono già** e sono verdi: asseriscono il difetto di oggi. Vanno
+**riscritte** all'implementazione, non capovolte.
+
+#### ✅ 30.6 · Le due LETTURE coerenti — FATTO il 10/09/2026
+
+> **Blocco autorizzato ed eseguito**, separato dal resto della proposta. ⛔ **Senza**
+> `expectedChannelAvailable`: la base resta `lastPushedAvailable`, e nessuna colonna è nata.
+
+⭐ **Tre correzioni, e la terza è quella che il proprietario ha chiesto di verificare a parte:**
+
+|                        |                                                                                                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **lettura coerente**   | `leggiCoppia` prende Disponibile e stato in **una sola** `SELECT` con `LEFT JOIN`. ⛔ Nessuna transazione attorno al push: conterrebbe una chiamata di rete |
+| **rilettura completa** | dopo aver risolto un tentativo si rilegge la **coppia** e si ricalcola il pubblicabile, non il solo stato                                                   |
+| **presa condizionata** | la presa verifica che **base e Disponibile** siano ancora quelli letti, in una `UPDATE … WHERE … AND EXISTS(…)` sola                                        |
+
+⛔ **La sola base non basta, ed è dimostrato da `P9-ter`.** Un'operazione locale muove il
+Disponibile e **non** tocca l'ultimo confermato: la base sarebbe identica, la presa passerebbe,
+e si manderebbe al canale un totale che il magazzino non ha più. Le due condizioni misurano
+cose diverse.
+
+⭐ **Il fallimento della presa ha due cause, e si distinguono**: un altro esecutore ce l'ha
+(`tentativo_in_corso`, ci si ferma) oppure i valori si sono mossi — e allora si rilegge, si
+rivalutano «invariata» e la base sui valori nuovi, e si riprova. Tre giri, poi
+`stato_cambiato`: nessuna scrittura.
+
+##### ✅ CHIUSO — «lo manderà l'altro push» era un'assunzione, e la prova l'ha smentita
+
+Qui c'era: «a mandare quel valore sarà il push dell'operazione che l'ha mosso». ⛔ **Non è
+dimostrato, e `P10` mostra che come garanzia non regge.** Esauriti i tre giri, con gli altri
+esecutori conclusi e nessuna modifica ulteriore:
+
+|                                |                                                                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅ **lo stato è recuperabile** | Disponibile e ultimo confermato bastano a ricostruire che cosa mandare, e un esecutore fresco — cioè il caso «dopo un riavvio» — lo manda appena qualcuno lo chiama |
+| ⛔ **l'innesco non esiste**    | `mismatchDetected` resta **spento**, quindi `retryPending` non vede la riga: `attempted` vale **0**                                                                 |
+
+⭐ **«Recuperabile» e «ripianificato» sono due cose diverse**, ed è la distinzione che `P10`
+fissa. Il dato non è perso; manca chi decide **quando** riprovare. E l'altro push può essersi
+già concluso, fermarsi su un tentativo in corso, o interrompersi: nessuno dei tre casi
+ripianifica questo valore.
+
+##### ✅ CHIUSO il 10/09/2026 — `localPushPending`, una colonna sua
+
+⭐ **Il lavoro si conserva, e la coda che esiste già lo ritrova.** Uscendo con
+`stato_cambiato` il push accende `localPushPending` sulla riga di quella coppia; `retryPending`
+seleziona ora `mismatchDetected OR localPushPending`, in **entrambi** i punti — conteggio e
+lotto — e sceglie la porta secondo che cosa c'è da fare:
+
+| Riga in coda            | Porta                       | Perché                                                                               |
+| ----------------------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| `mismatchDetected`      | **recupero**                | è l'unica che supera il confronto con l'ultimo inviato, che lì è il valore in dubbio |
+| solo `localPushPending` | **ordinaria** (`pushLevel`) | quel valore è già **diverso** dall'ultimo confermato: non c'è niente da superare     |
+
+⛔ **La porta ordinaria non è una scelta di simmetria**: mandare un aggiornamento locale dalla
+porta di recupero gli darebbe privilegi che non gli servono, su un caso che non è un
+disallineamento.
+
+⭐ **Si spegne in due punti soli**: la conferma di un invio (nella stessa scrittura condizionata
+alla chiave, così una conferma tardiva non spegne il pendente di qualcun altro) e la
+constatazione che non c'è più niente da mandare — e lì la scrittura è **condizionata al
+valore**, perché fra la constatazione e lo spegnimento un'altra operazione può aver rimesso
+lavoro sul tavolo.
+
+⚠️ **Che cosa attiva il recupero, alla lettera: NON è automatico.** `retryPending` ha un solo
+chiamante, `pullInventory`, che è il comando **Sincronizza giacenze** dell'operatore.
+Nell'applicazione non esiste nessuno scheduler — lo dichiara il codice stesso. Quindi il valore
+è **conservato e ritrovabile**, e viene trasmesso alla prima sincronizzazione: chiamarlo
+automatico sarebbe falso.
+
+⏸ **Limite residuo, dichiarato**: un tentativo rimasto **aperto** (`pendingKey` valorizzato,
+senza mismatch) ha lo stesso problema di innesco — la coda non lo seleziona. È la stessa classe
+di difetto, fuori dal perimetro di questo blocco.
+
+| Prova     | Che cosa fissa                                                                                                                                                         |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `P10`     | esauriti i giri: pendente acceso, `mismatchDetected` **spento**, e un esecutore nuovo — servizi costruiti da zero, nessuna modifica — trasmette il **valore corrente** |
+| `P10-bis` | se non c'è più niente da mandare il pendente si spegne: la coda non lo ripesca all'infinito                                                                            |
+| `P10-ter` | lo spegnimento è condizionato al valore: non cancella un lavoro tornato a esistere                                                                                     |
+| unitarie  | la porta dipende dalla riga, e la coda seleziona entrambi i lavori                                                                                                     |
+
+**Falsificato in cinque forme**: pendente non acceso · coda al solo mismatch · conteggio
+indietro rispetto al lotto · pendente mai spento · spegnimento non condizionato al valore.
+Ognuna presa dalla prova giusta. La guardia `check:ripubblicazione-interna` copre i tre difetti
+strutturali, falsificata a sua volta.
+
+##### Perché NON `mismatchDetected` — la proposta di riusarlo è RITIRATA
+
+L'avevo proposto perché riusa la coda che esiste; il proprietario l'ha respinto il 10/09/2026, e
+la ragione regge:
+
+| Stato                    | Che cosa afferma                                        | Come si è saputo            |
+| ------------------------ | ------------------------------------------------------- | --------------------------- |
+| **divergenza osservata** | il canale porta un numero diverso da quello che credevo | ⭐ **guardando il canale**  |
+| **invio non tentato**    | non ho scritto, e non so che cosa porti il canale       | ⛔ **non guardando niente** |
+
+⛔ **Fonderli renderebbe indistinguibili due cose con rimedi diversi**, e in modo
+irreversibile: dopo la fusione nessuno può più dire, guardando una riga in coda, se il canale
+sia stato interrogato o no. È lo stesso errore della classe unica sugli `userErrors`, un piano
+più in alto.
+
+⭐ **L'attivazione del recupero resta quindi DISTINTA**, ed è la colonna descritta qui sopra.
+
+##### La falsificazione — tre forme, tre prove diverse
+
+| Guasto reintrodotto                                  | Chi lo prende  |
+| ---------------------------------------------------- | -------------- |
+| presa condizionata **solo sulla base**               | `P9-ter`       |
+| rilettura che **non ricalcola** il pubblicabile      | `P9-bis`       |
+| **niente ciclo**: la presa fallita si arrende subito | `P9`, `P9-ter` |
+
+⚠️ **E un difetto della prova stessa, trovato falsificando**: il decoratore intercettava
+`inventoryLevel.findUnique`; quando la lettura è diventata unica ha smesso di scattare **in
+silenzio**, e le prove sarebbero rimaste verdi misurando un mondo senza concorrenza. Ora
+intercetta `$queryRaw`.
+
+##### Il difetto com'era — riprodotto prima di correggerlo
+
+⛔ **Il push legge il Disponibile e lo stato sync in due `findUnique` separati, fuori da una
+transazione**, e prepara l'invio combinando un valore di `t0` con uno di `t1`: una coppia che
+**non è mai esistita**. ⚠️ **Non si chiude mettendo le sole SCRITTURE nella stessa
+transazione**: quelle sono già atomiche — la lettura è spezzata.
+
+##### Due prove, e il danno è di OGGI
+
+⭐ **Non serve la colonna nuova per vederlo.** Le due prove interpongono un'operazione vera fra
+le due letture vere, con un `prisma` decorato: niente è simulato, solo reso deterministico.
+
+| Prova    | La finestra                                                   | Il danno misurato **prima** della correzione                                                                                                           |
+| -------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `P9`     | fra lettura del Disponibile e lettura dello stato             | ⛔ il canale torna da 9 a **10**: la vendita locale appena confermata viene **annullata**, e il confronto passa perché la base riletta è quella giusta |
+| `P9-bis` | fra lettura del Disponibile e **rilettura** dopo il tentativo | ⛔ il push risponde «invariata» con Disponibile 9 e confermato 10: la vendita **non parte, e non partirà**                                             |
+| `P9-ter` | cambia **solo** il Disponibile, la base resta identica        | ⛔ si manderebbe 10 mentre il magazzino ha 9                                                                                                           |
+
+⛔ **`P9-bis` è la finestra più larga**, e non è teorica: fra le due letture c'è una **chiamata
+di rete a Shopify**. E la rilettura che già esiste (`leggiStato`) riguarda il solo **stato**:
+il `publishable` resta quello di prima.
+
+⚠️ **In `P9-bis` la variazione locale è persa, non ritardata**: il push è post-commit
+sull'operazione locale, e quell'operazione il suo push l'ha già avuto — questo. Non ne arriverà
+un altro finché un evento indipendente non tocca la stessa coppia.
+
+##### La forma proposta: leggere la coppia in un colpo, e verificarla alla presa
+
+⭐ **Due difese, e servono entrambe** — la prima toglie la finestra, la seconda la sorveglia:
+
+|                            |                                                                                                                                                                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 · lettura unica**      | Disponibile e stato sync in **una sola istruzione** (join sulla stessa terna `tenant/variante/sede`). In `READ COMMITTED` una singola istruzione vede uno snapshot coerente: o entrambi prima dell'acquisizione, o entrambi dopo |
+| **2 · presa condizionata** | `prenotaTentativo` fa già un `updateMany` condizionato su `pendingKey: null`: alla `where` si aggiunge il valore **letto** della base. Se nel frattempo è cambiato, `count === 0`, si rilegge e si riprova                       |
+
+⭐ **La seconda copre ciò che la prima non può.** Fra la lettura e la presa passa comunque del
+tempo — le guardie, la risoluzione di un tentativo, la chiamata a `getAccessToken`. La presa
+condizionata è l'unico punto in cui si può affermare «questi due valori sono ancora quelli».
+
+⛔ **E la rilettura dopo aver risolto un tentativo deve rileggere la COPPIA**, non il solo
+stato. È una riga, ed è la correzione che `P9-bis` pretende.
+
+⚠️ **Nessuna transazione lunga attorno alla chiamata di rete.** Tenere aperta una transazione
+per tutta la durata di una richiesta a Shopify significa tenere un lucchetto di riga per
+centinaia di millisecondi: è il rimedio peggiore del difetto.
+
+##### Che cosa asseriscono ADESSO
+
+⭐ Le tre prove sono state **riscritte**, non capovolte: `P9` che nessuna vendita viene
+annullata da un valore vecchio (il canale resta a 9 e il push dice «invariata», che a quel punto
+è vero); `P9-bis` che la modifica arrivata durante il recupero **parte**; `P9-ter` che parte il
+valore giusto quando a muoversi è il solo Disponibile.
+
+---
+
+#### 30.7 · L'attraversamento dello ZERO — dimostrato
+
+⛔ **`publishable − expected` NON è «la variazione locale».** È la **variazione da
+trasmettere**, e le due coincidono solo finché il Disponibile resta ≥ 0. Sotto zero
+`publishable = max(0, available)` smette di seguire il Disponibile, e la differenza si stacca.
+
+⭐ **Il Disponibile canonico e il limite a zero NON si toccano**: la regola resta
+`max(0, available)`, e `P8` la fissa già. Quello che cambia è **dove vive `expected`**.
+
+> **`expected` vive nello spazio del PUBBLICATO, non del Disponibile — e NON si clampa.**
+
+⛔ **Non si clampa, ed è la decisione che fa funzionare il resto.** `expected` dice «che cosa
+credo che il canale porti», e il canale **può** portare un negativo (oversell). Clamparlo a
+zero significherebbe confrontare `0` contro un canale a `−3`: rifiuto, e la coppia si blocca
+per sempre.
+
+##### Le tracce, da positivo a negativo e ritorno
+
+```text
+① solo operazioni locali, si attraversa lo zero
+   partenza          avail  2   pub 2   expected 2   remoto 2
+   vendita −5        avail −3   pub 0   expected 2   → 0 ≠ 2, manda 0
+   conferma                                expected 2+(0−2)=0   remoto 0
+   carico +3         avail  0   pub 0   expected 0   → 0 = 0, NESSUN invio      ✅
+   carico +2         avail  2   pub 2   expected 0   → manda 2                   ✅
+
+② ordine acquisito che porta il canale sotto zero (oversell del canale)
+   partenza          avail  2   pub 2   expected  2   remoto  2
+   online −5 acquis. avail −3   pub 0   expected −3   remoto −3
+   ⛔ QUI NON PARTE NIENTE: l'acquisizione da sola non fa mai partire un invio
+   (poi) carico +1   avail −2   pub 0   expected −3   → 0 ≠ −3, manda 0
+   conferma                              expected −3+(0−(−3))=0   remoto 0
+
+③ locale e acquisito insieme, sotto zero
+   partenza          avail  1   pub 1   expected  1   remoto  1
+   vendita locale −2 avail −1   pub 0   expected  1
+   online −1 acquis. avail −2   pub 0   expected  0   remoto  0
+   push                                  pub 0 = expected 0 → NESSUN invio       ✅
+   ⭐ e non è un errore: il canale è già a 0, ed è il massimo che si possa pubblicare
+   carico +3         avail  1   pub 1   expected  0   → manda 1                   ✅
+```
+
+⛔ **In ② il push NON lo fa partire l'acquisizione, e la traccia lo dice adesso.** Qui c'era
+«push → manda 0» subito dopo l'ordine acquisito: sarebbe stato un **reinvio provocato dalla sola
+acquisizione**, cioè proprio ciò che `docs/24` §8.11.5 vieta. L'invio parte quando parte
+un'operazione **locale**, e non prima.
+
+⛔ **E quel `manda 0` NON è una normalizzazione automatica del negativo.** Va detto perché il
+risultato ci somiglia: il remoto passa da −3 a 0, e sembra che il sistema «rimetta a posto» il
+canale da solo. Non è così — è il pubblicabile dell'operazione locale, che vale 0 per la regola
+del clamp. ⏸ **Se un remoto negativo debba essere riportato a zero, e da chi, è una decisione
+che questo blocco non prende**: introdurla implicitamente qui significherebbe far scrivere sul
+canale un valore che nessuna operazione locale ha chiesto.
+
+⚠️ **In ③ la vendita locale di 2 «non arriva» al canale**, e va detto perché **non è una
+perdita**: il canale era già sceso a 0 per conto proprio, e sotto zero non si pubblica. La
+merce mancante è la stessa; è la rappresentazione che si ferma al limite, come la regola
+prescrive.
+
+⛔ **Ed è la ragione per cui il pendente NON si può leggere come `publishable − expected`.** In
+③ vale 0 mentre in magazzino manca merce: quel numero dice «non c'è niente da trasmettere», che
+è vero, e **non** «non c'è niente da fare». ⚠️ `P3-bis` chiedeva «una traccia
+dell'aggiornamento pendente»: questa differenza **non è quella traccia**, e prometterlo sarebbe
+peggio che non averla.
+
+##### Le prove necessarie, prima dell'implementazione
+
+| #   | Caso                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------ |
+| Z1  | solo locali, discesa sotto zero e ritorno: nessun invio a `pub` invariato                                          |
+| Z2  | ordine acquisito che porta il canale sotto zero: `expected` **non** clampato, il confronto passa                   |
+| Z3  | dopo un invio clampato, `expected` torna in pari col pubblicato                                                    |
+| Z4  | locale + acquisito sotto zero: nessun invio, e il Disponibile resta negativo                                       |
+| Z5  | risalita sopra zero: parte **solo** la differenza sul pubblicato                                                   |
+| Z6  | ⛔ ordine acquisito che porta il remoto sotto zero: **nessun invio** parte dall'acquisizione                       |
+| Z7  | ⛔ nessuna normalizzazione a zero non richiesta: il remoto negativo resta finché non lo muove un'operazione locale |
+
+---
+
+#### 30.8 · Lo STATO PREESISTENTE — nessuna inizializzazione automatica
+
+⛔ **La migration non scrive niente nella colonna nuova.** Nasce `null` su tutte le righe, e
+`null` **non** significa «nessuna base».
+
+| Stato della riga                                   | Significato                                | Comportamento       |
+| -------------------------------------------------- | ------------------------------------------ | ------------------- |
+| `lastPushedAvailable` null                         | mai pubblicata                             | `base_assente`      |
+| `lastPushedAvailable` valorizzato, `expected` null | **base EREDITATA**, mai ricomposta         | si usa `lastPushed` |
+| `expected` valorizzato                             | base composta e verificata da una conferma | si usa `expected`   |
+
+⛔ **Perché non copiare `lastPushedAvailable` nella migration.** Copiarlo scriverebbe
+nel database l'affermazione «fra l'ultimo invio e oggi non è stato acquisito nessun effetto di
+canale» — che **nessuno ha verificato** e che è falsa ogni volta che un ordine è arrivato nel
+frattempo. ⛔ E `lastObservedShopifyAvailable` è escluso a maggior ragione: è l'errore già
+commesso due volte, un'osservazione non è una base.
+
+⭐ **Il ripiego alla LETTURA dice la stessa cosa senza affermarla.** Con `expected` a `null` la
+base resta `lastPushedAvailable`: **il comportamento delle righe esistenti non cambia di un
+bit** rispetto a oggi. Non è «la base corretta»: è **la base che si usa già**, e la differenza
+fra le due frasi è tutto il punto di questa sezione.
+
+⛔ **Qui c'era «e dove quella base è sbagliata, il confronto lo dice». Non è vero, e va
+corretto.** Il confronto respinge quando il canale porta un numero **diverso** dalla base: se il
+canale si è mosso e poi è **tornato** sullo stesso valore — un annullamento e un ordine che si
+compensano, una rettifica e la sua inversa — la base sbagliata **coincide** e l'invio passa. È
+`P2`, e non lo chiude questa sezione.
+
+⭐ **Quello che si può affermare è più stretto, ed è comunque il punto**: la migrazione non
+introduce **nessuna scrittura cieca nuova**, perché le righe esistenti si comportano esattamente
+come prima. ⛔ **Non che ogni base sbagliata venga respinta**: alcune passeranno, come passano
+oggi.
+
+⭐ **Il `null` si estingue da sé, una riga alla volta**, alla prima conferma dopo
+l'implementazione — che è l'unico momento in cui si sa che base e canale coincidevano davvero.
+
+⚠️ **E resta misurabile**: `expected IS NULL AND last_pushed_available IS NOT NULL` conta le
+righe ancora su base ereditata. È il debito residuo, e si guarda invece di indovinarlo.
+
+⛔ **Che cosa NON fa questa sezione**: non decide le quantità iniziali per sede (`docs/24`
+§12.0, §12.9), che restano fuori. Una riga mai pubblicata resta `base_assente` come oggi.
+
+##### Le prove necessarie
+
+| #   | Caso                                                                        |
+| --- | --------------------------------------------------------------------------- |
+| S1  | riga con `lastPushed` e `expected` null: si comporta **come oggi**          |
+| S2  | la stessa riga con canale mosso: **rifiuto**, non scrittura                 |
+| S3  | dopo la prima conferma `expected` è valorizzato e il ripiego non si usa più |
+| S4  | riga mai pubblicata: resta `base_assente`, invariata                        |
+
+#### 30.10 · Ricognizione delle ORIGINI — il dato dall'ingresso all'effetto, 10/09/2026
+
+⛔ **Ricognizione, non implementazione.** Nessuna colonna, nessuna sospensione, nessuna
+migration. Segue il dato dal payload fino alla scrittura locale.
+
+##### ⚠️ Da dove viene quello che segue — tre livelli, e non si confondono
+
+| Livello                     | Che cosa vale                                  | Stato qui                                                                    |
+| --------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| **documentazione Shopify**  | quello che il canale dichiara di fare          | ✅ letta il 10/09/2026 (`restock_type`)                                      |
+| **payload conservati**      | quello che il canale ha davvero mandato        | ⛔ **nessuno nel repository** — cercato, non c'è                             |
+| **osservazioni registrate** | una misura fatta su un negozio vero e annotata | ⚠️ **una sola**: reso per intero, 14/08/2026 (commento in `shopify-sync`)    |
+| **simulazioni**             | quello che il doppio costruisce                | ⚠️ tutto il resto: `NegozioSimulato` risponde ciò che le prove gli insegnano |
+
+⛔ **Quindi niente di ciò che segue sul cambio sede o sull'annullamento è «osservato».** È
+ricavato dal **codice** — quali campi legge e quali scarta — e dalla documentazione. Chiamarlo
+osservato sarebbe la forma di falso verde più facile.
+
+##### Quali dati ARRIVANO davvero, percorso per percorso
+
+⭐ **La scoperta principale: la sede spesso c'è nel payload, e viene usata.**
+`extractShopifyOrderLocationId` legge in ordine `order.location_id`, poi
+`fulfillments[].location_id`; **solo se entrambi mancano** ripiega sulla prima sede attiva in
+ordine alfabetico. E `resolveShopifyOrderLocationId` viene rieseguito a **ogni** webhook, quindi
+la sede si aggiorna quando il payload comincia a portarla.
+
+| Percorso                           | Quantità                          | Id sede                                              | Che cosa si perde                            |
+| ---------------------------------- | --------------------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| ordine creato, **non evaso**       | ✅ righe                          | ⛔ **ripiego alfabetico** se il payload non la porta | la sede vera: Shopify non l'ha ancora decisa |
+| **evasione**                       | ✅ righe                          | ✅ `fulfillments[0].location_id`                     | ⚠️ **le sedi oltre la prima**                |
+| **reso** `return`/`legacy_restock` | ✅ `refund_line_items[].quantity` | ✅ `refund_line_items[].location_id`                 | niente                                       |
+| **reso** `cancel`                  | ✅ presente nel payload           | ✅ presente nel payload                              | ⛔ **tutto: la riga viene SCARTATA**         |
+| **reso** `no_restock`              | —                                 | —                                                    | niente da perdere: Shopify non muove         |
+| **annullamento** (intero)          | ⚠️ implicita: gli impegni aperti  | ⛔ **nessun dato di sede** nell'evento `cancelled`   | la sede su cui Shopify ha fatto risalire     |
+| **annullamento parziale**          | ⛔ non produce evento `cancelled` | ⛔ —                                                 | ⛔ **l'intero effetto**                      |
+
+##### ⛔ Tre perdite di dato, e nessuna è un limite strutturale
+
+1. **`cancel` viene scartato.** `emitRestockEvents` prosegue solo su `return`/`legacy_restock`
+   (`if (restockType !== 'return' && restockType !== 'legacy_restock') continue`). Ma su Shopify
+   `cancel` **fa risalire l'available**: quantità e `location_id` sono lì, nella stessa riga, e
+   si buttano. ⚠️ Non è un'incertezza: è un dato disponibile che nessuno legge.
+2. **L'evasione oltre la prima sede.** `extractFulfillmentInfo` prende `fulfillments[0]` per data
+   e id, e la sede viene dal primo fulfillment utile. Un ordine spedito da due sedi ne perde una.
+3. **L'annullamento non porta la sede.** L'evento `cancelled` nasce da `order.cancelled_at` e non
+   trasporta né righe né sedi: VestiFlow rilascia gli impegni **dove li aveva messi**, che è la
+   sede indovinata se il payload non l'aveva mai portata.
+
+##### Che cosa resta DAVVERO ignoto
+
+⭐ **Molto meno di quanto la versione precedente di questa proposta diceva.** L'incertezza vera
+è **una sola**, e ha una forma precisa:
+
+> **La sede dell'impegno, quando il payload dell'ordine non porta ancora nessuna location.**
+
+Da lì discendono le due conseguenze: l'impegno sta su una sede indovinata, e l'annullamento —
+che non porta sede — lo rilascia sulla stessa. Se Shopify aveva decrementato altrove, le due
+coppie divergono entrambe.
+
+| Caso                                        | Ignoto?                                                          |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| impegno con sede nel payload                | ⛔ **no**: la sede è di canale                                   |
+| impegno **senza** sede nel payload          | ✅ **sì**: ripiego alfabetico                                    |
+| evasione, prima sede                        | ⛔ no                                                            |
+| evasione, sedi successive                   | ✅ sì — ma perché il dato **non viene letto**, non perché manchi |
+| reso `return`/`legacy_restock`              | ⛔ no                                                            |
+| reso `cancel`                               | ⛔ no — il dato c'è, va **letto**                                |
+| annullamento di un ordine con sede nota     | ⛔ no                                                            |
+| annullamento di un ordine a sede indovinata | ✅ sì, per eredità dall'impegno                                  |
+
+##### ⏸ Il perimetro minimo che ne discende — e la sospensione generalizzata NON serve
+
+⛔ **La proposta precedente — «ogni annullamento sospende la coppia» — era sovradimensionata**, e
+va ritirata: nasceva dall'aver classificato come ignoto ciò che era solo **non letto**.
+
+⭐ **Il perimetro minimo è leggere quello che già arriva**, e prima di ogni colonna nuova:
+
+| #   | Passo                                                                                                                                                                                                                                                                                                                         | Costo                                   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 1   | propagare `restock_type: cancel` come effetto **acquisito** (available risale là)                                                                                                                                                                                                                                             | un ramo in `emitRestockEvents`          |
+|     | ⛔ **e NON come un rientro fisico**: `cancel` non è merce che torna in magazzino. Il ramo di `emitRestockEvents` che esiste oggi crea un **carico**; per `cancel` non deve. ⚠️ E se l'impegno è già stato rilasciato dall'evento `cancelled`, non deve rilasciarlo una seconda volta: la stessa quantità conterebbe due volte | ⏸ **da progettare**, non un ramo in più |
+| 2   | usare la sede del **fulfillment** per l'effetto di evasione, non quella dell'ordine                                                                                                                                                                                                                                           | un campo già estratto                   |
+| 3   | trattare le sedi oltre la prima, o **dichiarare** il limite                                                                                                                                                                                                                                                                   | una decisione                           |
+| 4   | dichiarare l'impegno a **sede indovinata** come tale, sulla riga                                                                                                                                                                                                                                                              | una colonna? **da valutare dopo 1–3**   |
+
+⚠️ **Solo il punto 4 resta candidato alla sospensione**, e su un insieme molto più stretto:
+gli ordini la cui sede è stata **indovinata**, non tutti gli annullamenti. ⛔ E non lo si decide
+qui: prima si vede quanto quell'insieme sia grande davvero, e per saperlo serve un payload
+vero — che oggi non c'è.
+
+⛔ **Nessuna regola locale di giacenza o impegno viene toccata da questi quattro passi**:
+leggono dati di canale che oggi si buttano.
+
+#### 30.9 · Fuori perimetro, dichiarato
+
+⛔ Riconciliazione manuale · quantità iniziali per sede · onboarding · ridisegno frontend ·
+trasporto a delta · secondo canale. ⚠️ **Il secondo canale è l'unico che tocca questa forma**:
+`expectedChannelAvailable` sta sulla riga di stato **di Shopify**, quindi ogni canale avrà la
+propria — e un effetto acquisito da TikTok è, per Shopify, **locale**. Con un canale solo la
+domanda non si pone; con due va decisa prima di scrivere.
+
+**Restano invariati**: Disponibile canonico, pubblicabile `max(0, available)`, protezioni dello
+storico 26.8, recupero dei tentativi, e il funzionamento senza Shopify.
+
+---
+
+### ⏸ 31 · SINCRONIZZAZIONE CONTINUA — proposta implementativa unica, 10/09/2026
+
+> ⛔ **Proposta, non implementazione.** Sostituisce le formule di §30.2 e §30.7, **falsificate
+> entrambe**: il delta sui valori pubblicati e quello sui valori grezzi sbagliano in direzioni
+> opposte. Di §30 restano validi la ricognizione (§30.1, §30.10) e i confini (§30.8, §30.9).
+
+> ### ⛔ CORRETTA IL 10/09/2026 — due errori del proprietario, e uno trovato attaccandoli
+>
+> ⭐ **Due correzioni su tre TOLGONO roba invece di aggiungerla**, ed è il segno che il difetto
+> non era nel modello ma in quello che gli avevo scritto attorno.
+>
+> |                                   |                                                                            |
+> | --------------------------------- | -------------------------------------------------------------------------- |
+> | **§31.4** l'inizializzazione      | ⛔ non è calcolabile: riscritta come **procedura**, non come formula       |
+> | **§31.3** l'esito oltre le 24 ore | ⛔ la tabella `R == T` era una **regressione**: cancellata                 |
+> | **§31.2** la condizione di invio  | ⚠️ manca `T ≠ R`: senza, un residuo negativo scrive a vuoto **per sempre** |
+>
+> **Il criterio con cui sono state fatte** — stabilito dal proprietario lo stesso giorno: la
+> soluzione si progetta sull'**esigenza del progetto**, anche se comporta cambiare e riscrivere;
+> il costo si dichiara, non si usa come filtro. ⛔ «Nessuna coda, nessuna tabella» e il recupero
+> lasciato al pulsante «perché non esiste uno scheduler» erano vincoli **dedotti
+> dall'implementazione** e presentati come scelte.
+
+#### 31.-1 · ⭐ IL PIANO DI FUNZIONAMENTO — deciso dal proprietario il 10/09/2026
+
+> **Questa è la cornice: tutto il resto di §31 serve a realizzarla.** Dove una sezione più
+> avanti propone qualcosa che non ci sta dentro, vince questa.
+
+##### Le quattro fasi
+
+```text
+1  PARTENZA CONTROLLATA, a fasi: se ci sono ordini online pendenti,
+     si acquisiscono PRIMA e si allinea in piu' passaggi
+2  DA LI SI PARTE PULITI: le quantita' corrispondono
+3  REGIME CONTINUO: gli effetti LOCALI viaggiano, quelli di CANALE no
+     vendita in VestiFlow  ->  si manda il meno
+     carico in VestiFlow   ->  si manda il piu'
+     ordine da Shopify     ->  NON si rimanda: la' e' gia' avvenuto
+4  TASTO «ALLINEA», premibile quando si vuole: controlla le differenze
+     e allinea Shopify al valore di VestiFlow
+```
+
+⛔ **La sincronizzazione NON si sospende mai, in nessuna fase.** Sospenderla toglierebbe proprio
+la cosa che serve a tenere allineate le giacenze. Non esiste un «modo manutenzione» nostro.
+
+##### ⭐ Che cosa questo DECIDE, e che era aperto
+
+|                                               |                                                                                                                                                                 |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **la base di partenza** delle righe esistenti | non si calcola e non si deduce: **si creano le condizioni in cui è vera**, una volta sola, a negozio fermo                                                      |
+| **le quantità modificate a mano su Shopify**  | ⭐ **non sono un problema nostro.** Non si copiano in VestiFlow, non si inseguono, non fermano niente: le corregge il tasto Allinea quando l'operatore lo preme |
+| **chi vince**                                 | VestiFlow. Il tasto allinea **Shopify al valore di VestiFlow**, mai il contrario                                                                                |
+| **quando si allinea**                         | quando lo decide l'operatore. Nessuna soglia, nessuna sospensione automatica, nessun riallineamento implicito                                                   |
+
+⭐ **E va scritto nelle guide utente**: se le quantità si toccano nell'admin Shopify, VestiFlow
+non le recepisce e non le difende — si riallinea premendo Allinea.
+
+##### ⛔ L'unico buco che resta, ed è di SEQUENZA
+
+Un ordine **già compreso** nelle quantità di partenza ma **non ancora acquisito** viene sottratto
+**due volte** quando arriva:
+
+```text
+allineo prima, acquisisco dopo
+   Shopify 9 (l ordine e' gia' applicato la')  ->  allineo VestiFlow a 9
+   arriva l ordine  ->  VestiFlow 8, Shopify 9      il -1 contato DUE volte
+```
+
+⭐ **Il rimedio NON è far acquisire gli ordini al tasto Allinea** — deciso dal proprietario il
+10/09/2026, e la mia prima stesura sbagliava proprio qui.
+
+> **Gli ordini devono arrivare da soli.** Il loro recupero appartiene alla **sincronizzazione
+> continua**, non al pulsante delle giacenze: **Allinea corregge le disponibilità, non serve a
+> far arrivare gli ordini.**
+
+E «mancante» sono **due cose diverse**, con rimedi diversi:
+
+|                              |                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **appena creato**            | la notifica è in viaggio o in elaborazione: è un **ritardo temporaneo**, si risolve da sé                                      |
+| **non acquisito per guasto** | ⛔ va **recuperato automaticamente**: Shopify non garantisce ogni consegna e prescrive un recupero periodico dell'applicazione |
+
+⭐ **Ne discende che il recupero automatico degli ordini non è un'opzione: il piano lo richiede**
+(§31.9). ⏸ _Dove_ viva l'innesco resta la decisione aperta di quella sezione.
+
+⚠️ **Prima di Allinea può starci un controllo di freschezza**, per ridurre il rischio di lavorare
+su dati arretrati. ⛔ **Non è una reimportazione di tutti gli ordini**, e non garantisce che non
+ne arrivi uno subito dopo.
+
+⛔ **Fermare le vendite su Shopify NON è un nostro passo, e non deve diventarlo.** È una scelta
+del titolare, nell'admin Shopify: può staccare le vendite per la durata dell'allineamento, oppure
+**accollarsi il rischio** e allineare a negozio aperto. ⭐ **Noi non glielo chiediamo e non lo
+verifichiamo**: pretenderlo complicherebbe tutto per un caso che il tasto Allinea risolve
+comunque.
+
+⚠️ **Il rischio residuo, detto in chiaro**: fra l'ultimo ordine acquisito e la scrittura può
+entrarne uno nuovo, e per quella coppia si pubblicherà un pezzo già venduto. La finestra è
+stretta, il rimedio è premere Allinea di nuovo.
+
+#### 31.0 · Che cosa chiude, e che cosa no
+
+> ⛔ **Le spunte qui sotto sono VERIFICATE NELLE SIMULAZIONI, non nell'applicazione.** Nessuna riga
+> di codice applicativo è stata scritta per §31: le regole sono state provate su banchi con oracolo
+> indipendente e falsificazione, il che dice che **la regola è sana**, non che il prodotto sia
+> sicuro. La sicurezza applicativa comincia quando il codice esiste e le prove girano su di esso.
+
+|                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅ una variazione **locale** arriva al canale senza aspettare gli ordini in volo                                                          |
+| ✅ un effetto **già applicato** da Shopify non viene ritrasmesso                                                                          |
+| ✅ l'arrivo di un ordine **non cancella** le variazioni locali pendenti                                                                   |
+| ✅ lo **scarto non spiegato** resta visibile anche dopo un invio riuscito                                                                 |
+| ✅ un tentativo ripetuto non applica due volte la stessa vendita — entro la finestra                                                      |
+| ✅ oltre la finestra l'esito ignoto **resta ignoto**: nessuna deduzione da coincidenze                                                    |
+| ⭐ **se la verifica non è conclusiva, il tentativo resta incerto: non si ritrasmette per supposizione**                                   |
+| ⛔ **non** decide che cosa fare di uno scarto inspiegato: è una scelta funzionale (§31.10)                                                |
+| ⭐ le righe esistenti **non ricevono una base inventata**: `L` nasce NULL e si stabilisce alla prima nostra scrittura confermata (§31.13) |
+| ⏸ l'innesco automatico è **progettato** (§31.9), con tre prerequisiti e una scelta da fare                                                |
+
+#### 31.1 · Lo stato — due contatori e un marcatore, sulla riga che esiste
+
+Su `shopify_inventory_sync_states`, già per coppia `(tenant, variante, sede)`:
+
+|                       |                       |                                                                 |
+| --------------------- | --------------------- | --------------------------------------------------------------- |
+| `P`                   | `lastPushedAvailable` | ⭐ **esiste già**: ultimo valore confermato sul canale          |
+| `L`                   | **nuova**             | scostamento **locale** non ancora trasmesso                     |
+| `C`                   | **nuova**             | effetti di **canale** acquisiti dopo l'ultima conferma          |
+| `origineNonAccertata` | **nuova**             | su questa coppia è arrivato un effetto che non si sa attribuire |
+
+⛔ **Nessuna coda, nessuna tabella.**
+
+⚠️ **`L` non è `localPushPending`**: quel booleano dice «c'è lavoro», `L` dice **quanto**. Il
+booleano si può togliere quando `L` esiste — `L ≠ 0` porta la stessa informazione, più precisa.
+⛔ **E non è `mismatchDetected`**, che continua a significare quello che significa: divergenza
+osservata su Shopify. Il significato dei campi esistenti non cambia.
+
+⚠️ **Il marcatore è la terza colonna e va giustificato**, perché due sarebbero state più
+eleganti: senza, un effetto di origine ignota lascerebbe `C` fermo e lo scarto risulterebbe
+**inspiegato** anche quando la spiegazione c'è e semplicemente non la sappiamo leggere (§31.5).
+Segnalare un errore che non è un errore è il modo più rapido per far ignorare il segnale.
+
+#### 31.2 · Le regole, tutte
+
+```text
+lettura        R = valore remoto letto adesso        (lettura FRESCA, vedi sotto)
+segnale        S = R - (P + C)                       scarto NON spiegato
+
+operazione locale di d      L += d                   C invariato
+acquisizione di canale d    C += d                   L invariato
+                                                     e non serve che siano atomiche fra loro
+
+si invia                    SOLO se L != 0  E  T != R
+valore inviato              T = max(0, R + L)
+confronto                   changeFromQuantity = R
+
+alla conferma               L -= (T - R)
+                            C -= (R - P)             <- conserva lo scarto
+                            P := T
+```
+
+⭐ **`C -= (R - P)` alla conferma è la riga decisiva**, ed è quella che mancava nel resoconto
+delle 10:04. Senza, un invio riuscito **nasconde l'errore che stava segnalando**:
+
+```text
+                                     P    C    L    R     S
+partenza                             10    0    0   10     0
+rettifica ERRATA nell admin (+10)    10    0    0   20   +10
+vendita locale di 1                  10    0   -1   20   +10
+invio T = max(0, 20-1) = 19          19  -10    0   19   +10   <- conservato
+   senza  C -= (R - P)               19    0    0   19     0   <- l errore sparisce
+```
+
+⭐ **E uno scarto SPIEGATO si azzera da sé**, che è l'altra metà della prova:
+
+```text
+partenza                             10    0    0   10     0
+due ordini online non acquisiti      10    0    0    8    -2
+vendita locale di 1                  10    0   -1    8    -2
+invio T = 7                           7   +2    0    7    -2
+gli ordini vengono ACQUISITI          7    0    0    7     0   <- da solo
+```
+
+Un ordine in ritardo non è un errore, e il segnale smette di indicarlo senza che nessuno
+intervenga. ⛔ **Una rettifica sbagliata invece resta**, ed è esattamente la distinzione che si
+voleva.
+
+##### ⭐ E non sono due esempi: è un INVARIANTE, verificato
+
+Due esempi non dimostrano una regola. Quello che la regola afferma davvero è:
+
+> **`S` vale sempre la somma dei movimenti di canale NON ancora acquisiti.**
+
+Si verifica riga per riga, e spiega da sé i due esempi: un ordine in volo è un movimento che
+**verrà** acquisito, quindi `S` torna a zero da solo; una rettifica errata nell'admin è un
+movimento che **non verrà mai** acquisito, quindi `S` la conserva. E la conferma non lo tocca:
+
+```text
+prima dell invio   S = R - P - C
+dopo               S = T - T - (C - R + P)  =  R - P - C      identico
+```
+
+**Misurato il 10/09/2026** su 30.000 sequenze casuali, con **due oracoli indipendenti** — il
+valore atteso ricostruito sommando il registro degli eventi, il segnale atteso da un contatore
+separato — e con rettifiche errate mescolate agli ordini:
+
+```text
+[OK  ] regola completa                    0 controesempi su 30.000
+
+falsificazione — le campagne vedono i guasti?
+[ROTT] C azzerato alla conferma          15.910 controesempi   (segnale)
+[ROTT] C scaricato di R invece di R-P    19.777 controesempi   (segnale)
+[ROTT] L azzerato alla conferma             941 controesempi   (valore)
+```
+
+⚠️ **La terza riga è la più istruttiva**: guastando lo scarico di `L` i controesempi sono **941
+su 30.000**, cioè il 3%. Una campagna piccola sarebbe rimasta verde su un guasto vero — ed è la
+ragione per cui il numero di sequenze non è un dettaglio.
+
+##### Perché il valore inviato NON dipende da `C`
+
+⭐ `T = max(0, R + L)` non usa `C`. Ne discendono due conseguenze che cambiano l'ordine dei
+lavori, e vanno scritte:
+
+- l'intera classe di difetti «i due contatori devono muoversi nella stessa transazione, con lo
+  stesso dedup, letti in uno snapshot coerente» — la più costosa trovata attaccando la formula
+  precedente — **non esiste**: solo `L` entra nella trasmissione;
+- i quattro percorsi di origine ignota (§30.10) bloccano il **segnale**, non la
+  **trasmissione**.
+
+##### ⛔ La condizione di invio ha DUE termini, e servono tutti e due
+
+> **`L != 0` E `T != R`.** Presi uno alla volta sbagliano in direzioni opposte, e il secondo è
+> stato aggiunto il 10/09/2026 dopo che era stato trovato attaccando la correzione di §31.4.
+
+**Perché serve `L != 0`.** È il divieto di normalizzazione automatica: con il solo `T != R`, un
+canale in oversell a −3 e nessun lavoro locale darebbe `T = 0` e si scriverebbe, **cancellando
+il debito del canale** — che è escluso esplicitamente.
+
+**Perché serve `T != R`.** ⛔ Con un residuo negativo permanente `L` **non torna mai a zero**:
+`L = -3`, `R = 0` dà `T = max(0, 0-3) = 0 = R`, si scrive 0 dove c'è già 0, e alla conferma
+`L -= (T - R) = 0`, cioè `L` resta −3. Misurato: **10 invii su 10 giri, nessuno che cambi un
+valore**; su una campagna più lunga, il 40% degli invii aveva `T == R`. Contro un'API a quota, e
+senza comprare niente.
+
+⭐ **E non riapre la normalizzazione**: quel caso ha `L = 0`, quindi è il primo termine a
+fermarlo. ⭐ **Ed è equivalente, non una scorciatoia**: lo scarico che quell'invio produrrebbe
+vale `L -= (T - R) = 0`. Saltarlo non muove nessuno dei tre contatori.
+
+⚠️ **Resta un caso da dichiarare**: con lavoro locale pendente **e** canale già negativo
+(`R = -3`, `L = -2`), si invia 0 e il canale **sale** da −3 a 0. È il clamp del pubblicabile,
+non una normalizzazione arbitraria — ma a schermo si vede una vendita che fa salire Shopify, e
+chi guarda ha diritto di saperlo prima.
+
+##### ⭐ Perché un valore ASSOLUTO e non un delta — la motivazione corretta
+
+⛔ **Qui stavo per scrivere una ragione sbagliata**, e il proprietario l'ha fermata prima che
+entrasse nella specifica: «un delta non si può ripetere in sicurezza». **Falso.** La direttiva di
+idempotenza è obbligatoria dal 2026-04 sulle mutation di inventario, quindi **la chiave protegge
+un delta esattamente come protegge un assoluto**; ed entrambe le forme prevedono un confronto
+sulla quantità attesa. Sul piano della sicurezza le due strade **si equivalgono**.
+
+⭐ **La ragione vera è il CLAMP**, e regge:
+
+```text
+il valore pubblicabile e'  max(0, R + L)   -- e Shopify RIFIUTA le negative
+                                              (INVALID_QUANTITY_NEGATIVE, documentato)
+```
+
+|                                                               |                                                                              |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| per calcolare `max(0, R + L)` **serve comunque `R`**          | quindi il delta non risparmia la lettura                                     |
+| se `R + L < 0`, il delta che porta a zero è `−R`, **non `L`** | cioè non è più l'effetto dell'operazione: è un numero derivato dalla lettura |
+| l'assoluto porta **il risultato già clampato**                | il delta chiederebbe al server qualcosa che rifiuta, invece di clampare      |
+
+⭐ **E il tentativo persistito registra un BERSAGLIO invece di una variazione**, che è la forma
+giusta per una scrittura che va ripetuta alla lettera.
+
+⛔ **Nessun cambio di API**: il ramo usa `inventorySetQuantities` (verificato) e continua a
+usarla. Qui si corregge la **motivazione**, non la scelta.
+
+##### ⚠️ `R` è una lettura NUOVA, e non è un riuso
+
+⛔ Qui c'era «`getRemoteQuantities`, già esistente», e induceva a sottostimare il costo. Il
+metodo esiste nel client GraphQL ma **nessun percorso applicativo lo chiama** — solo le prove.
+E il confronto che oggi si manda a Shopify **non è `R`**: è `P` (`baseDiConfronto` →
+`lastPushedAvailable`). Il modello cambia il parametro, non lo eredita.
+
+⛔ **E `R` non si prende da `lastObservedShopifyAvailable`**: quella colonna è **clampata a zero
+in ingresso** (`Math.max(0, ...)` in `shopify-inventory-reconciliation.service.ts:57`), quindi
+non può rappresentare un canale in oversell. Usarla cancellerebbe il residuo negativo una
+seconda volta — lo stesso difetto di §31.4, in un altro punto.
+
+⚠️ **Il confronto cambia mestiere, e va riesaminata la prova che lo copriva.** Oggi si confronta
+con `P` proprio per rifiutare quando non si sa che cosa sia successo sul canale; nel regime nuovo
+la protezione si sposta sul valore composto `T = max(0, R + L)` e il confronto diventa una
+guardia sulla finestra fra lettura e scrittura. **`B1` fotografa il regime vecchio**: va
+riesaminata, non ereditata.
+
+#### 31.3 · Il recupero, e la doppia applicazione
+
+⛔ **Un tentativo aperto NON ricalcola mai.** Ripete alla lettera i parametri persistiti —
+chiave, valore, confronto, destinazione — come fa già `risolviTentativoAperto`. Entro le 24 ore
+Shopify riconosce la chiave e **restituisce l'esito memorizzato senza rieseguire**.
+
+⚠️ **Rileggere `R` e ricalcolare su un tentativo aperto applicherebbe la vendita due volte.** È
+il primo difetto emerso attaccando questa forma, e la regola qui sopra è ciò che lo esclude.
+
+⛔ **Non è un «baratto» da approvare: è una garanzia tecnica da mantenere**, e il meccanismo che
+la mantiene esiste già — il tentativo persistente costruito nel blocco precedente. Qui si era
+scritto «si perde l'idempotenza»: impreciso. La scrittura composta non è idempotente **di per
+sé**, ma il tentativo con la chiave la ripristina entro la finestra; e la vecchia scrittura
+assoluta non era comunque sicura rispetto a una vendita sopravvenuta. Cambia il **meccanismo**
+della garanzia, non il suo livello.
+
+##### ⛔ Oltre le 24 ore: qui c'era una REGRESSIONE, ed è stata cancellata
+
+Qui c'era una tabella che diceva «si rilegge `R`; se `R == T` del tentativo si tratta come
+confermato, altrimenti come non applicato». ⛔ **Sbagliava in due direzioni**, e il proprietario
+l'ha smontata il 10/09/2026 con due controesempi, entrambi riprodotti:
+
+```text
+vendita online nel mezzo   remoto 8 != T 9    -> "non applicato" -> reinvia -> 7, corretto 8
+annullamento alla base     remoto 10 == base  -> il confronto PASSA -> 9, corretto 10
+niente nel mezzo           remoto 9 == T 9    -> indovina, ma non accerta
+```
+
+⛔ **La seconda riga smentisce anche la difesa che avevo scritto** («oltre la finestra protegge
+il confronto»): se il remoto torna alla vecchia base, la richiesta riesegue e **riapplica**.
+Shopify lo dice a lettere: «After 24 hours, idempotency keys expire… retries beyond this window
+will not have idempotency protection, and will be treated as separate operations».
+
+⭐ **Ma il fatto più importante è un altro: quel regime NON andava aggiunto, perché il ramo lo
+implementa già, e meglio.** Verificato nel codice —
+
+|                               |                                                                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| oltre le 24 ore               | non reinvia affatto: esce `tentativo_incerto` e chiede riconciliazione (`push:786-798`)                                |
+| dopo un rifiuto per confronto | chiude il tentativo, **non tocca** `lastPushedAvailable`, riaccende il disallineamento (`push:1216-1231`, `1260-1275`) |
+
+**La correzione è quindi una cancellazione**: la tabella sparisce, e resta scritto che il regime
+esistente è quello giusto. ⚠️ **Era la proposta a voler togliere una protezione già in vigore** —
+il difetto più insidioso di tutta la §31, perché si presentava come un miglioramento.
+
+##### ⛔ «Errore noto» non è «effetto accertato» — due assi, non uno
+
+⚠️ Qui c'era: «se il tentativo originale è fallito Shopify lo dice… non è ignoto: è noto e non
+ripetibile», e la conclusione «resta davvero ignoto solo il guasto di trasporto». **Sbagliato, e
+in un modo pericoloso**: confondeva _sapere che cosa ci ha risposto Shopify_ con _sapere se
+l'inventario è cambiato_. Letta alla lettera, autorizzava a emettere una chiave nuova.
+
+Gli assi sono due e vanno tenuti separati:
+
+|                                               | errore noto | effetto accertato |
+| --------------------------------------------- | ----------- | ----------------- |
+| risposta riuscita                             | —           | ✅ sì             |
+| `IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED`         | ✅ sì       | ⛔ **no**         |
+| `IDEMPOTENCY_KEY_PARAMETER_MISMATCH`          | ✅ sì       | ⛔ **no**         |
+| guasto di **trasporto** (nessun codice)       | ⛔ no       | ⛔ no             |
+| verifica differita che **trova** la rettifica | —           | ✅ sì             |
+| verifica differita che **non** la trova       | —           | ⛔ **no**         |
+
+⭐ **Il ramo lo dice già, e meglio di come l'avevo scritto io.** Il commento di
+`applicaRifiuto` (`push:1100-1114`) è esplicito: «il codice è riconosciuto, ma non dice se
+l'operazione di allora abbia avuto effetto — e la chiave non la può più ripetere… generare una
+chiave nuova di iniziativa sarebbe un invio indipendente su uno stato ignoto». Esito:
+`tentativo_incerto`, chiave e parametri **conservati**, nessuna operazione nuova.
+
+> ⛔ **Non si emette una chiave nuova e non si ritrasmette sulla base del NOME dell'errore.**
+> Il nome dice che cosa è andato storto nella richiesta, non che cosa è successo all'inventario.
+
+⚠️ **Quindi il caso da riconciliare non è «solo il trasporto»**: è **ogni** riga in cui l'effetto
+non è accertato — che è la maggioranza dei rifiuti non conclusivi, non un residuo esotico.
+
+##### ⏸ L'esito ignoto È accertabile — ma si paga, e la decisione è del proprietario
+
+⛔ Qui c'era «se l'API consente di ritrovare la rettifica dal riferimento… che sia interrogabile
+non è verificato». **Ora è verificato, e la risposta è sì — ma non dove la cercavo.** Non esiste
+nessuna query di root su `InventoryAdjustmentGroup` («No types reference this object»), e
+`InventoryItem.inventoryHistoryUrl` è un link alla pagina admin, non un dato.
+
+⭐ **La strada è `shopifyqlQuery` sullo schema `inventory_adjustment_history`**, che dichiara
+`reference_document_uri` fra le dimensioni e supporta `WHERE`. La domanda «questa mia scrittura è
+stata applicata?» si può quindi porre a Shopify.
+
+⭐ **E il pezzo che serve a porla esiste già**: il push manda
+`vestiflow://inventory-push/{chiave del tentativo}` come `referenceDocumentUri`
+(`shopify-inventory-push.service.ts:1029`). Il riferimento è **già legato alla chiave del
+tentativo**, quindi la domanda è formulabile senza cambiare ciò che si scrive su Shopify.
+
+##### ⛔ Ma la risposta è ASIMMETRICA, e questo decide la regola
+
+|                                                                                      |                                     |
+| ------------------------------------------------------------------------------------ | ----------------------------------- |
+| la rettifica **si trova**, con riferimento, articolo, sede e quantità corrispondenti | ⭐ l'applicazione è **verificata**  |
+| la rettifica **non si trova**                                                        | ⛔ **non si può concludere niente** |
+
+⛔ **Un risultato vuoto non è una prova di mancata applicazione**, perché quello storico è
+**analitico e non in tempo reale** — lo dice lo staff Shopify, e nessuna pagina documenta la
+latenza. Interrogarlo più tardi non trasforma un vuoto in una prova: sposta solo l'istante in cui
+non si sa.
+
+> **La regola che ne discende, e vale per l'intera §31: se la verifica non è conclusiva, il
+> tentativo resta INCERTO. Non si ritrasmette per supposizione.**
+
+⭐ È la stessa regola che il ramo applica già oltre le 24 ore, estesa allo strumento nuovo:
+ShopifyQL può **chiudere** un esito incerto, non può **aprirlo** nella direzione opposta.
+
+##### ⚠️ Il prezzo, per intero — ed è più alto di come l'avevo scritto
+
+|                                                      |                                                                                                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| scope `read_reports`                                 | VestiFlow oggi non lo chiede                                                                                                    |
+| ⛔ **accesso di livello 2 ai dati cliente protetti** | richiesto testualmente da `shopifyqlQuery` («Level 2 access to Customer data including name, address, phone, and email fields») |
+| freschezza                                           | non documentata; «don't trust this for real-time»                                                                               |
+| natura                                               | canale **analitico** accanto a quello transazionale, con un suo modo di fallire                                                 |
+
+⛔ **La seconda riga non è uno scope in più: è un'approvazione dell'app.** Qui avevo scritto
+«ri-autorizzazione di ogni negozio collegato», che è la parte facile. L'accesso ai dati cliente
+protetti si chiede a Shopify per l'**applicazione**, e va verificato che VestiFlow lo abbia o
+possa ottenerlo **prima** di presentare questa strada come praticabile. ⏸ Non verificato.
+
+⭐ **La forma resta comunque quella**: l'accertamento è **differito**, non un ramo del ciclo di
+invio — dove la latenza produrrebbe falsi «non applicato». Vive dentro la **riconciliazione**,
+che §31.5 e §31.10 già indicano come l'unica valvola legittima.
+
+⛔ **E non autorizza a dichiarare chiuso il residuo**: lo rende _chiudibile in un verso solo_, a
+condizione di uno scope, di un'approvazione da verificare e di una latenza da misurare.
+
+##### I tentativi già aperti alla migrazione
+
+⛔ **Confermarli con la regola nuova crea lavoro fantasma**, misurato: un tentativo con `T = 9`,
+base `10` e `L = 0` farebbe `L -= (9 - 10) = +1`, e l'invio successivo manderebbe 10 invece di 9.
+
+⭐ **Si ripetono normalmente e si confermano SENZA scaricare `L` e `C`**: sono operazioni
+definite prima che quei contatori esistessero, e non hanno niente da scaricare. La riga esce
+dalla conferma con `P := T` e i contatori intatti.
+
+#### 31.4 · Il punto di partenza delle righe esistenti
+
+⛔ **`L = 0` su tutte le righe è sbagliato**, e la ragione è che non è accertabile: una riga con
+`lastPushedAvailable` pari al pubblicabile può avere un locale −2 e un canale +2 acquisito che si
+compensano. Azzerare significherebbe **cancellare aggiornamenti pendenti**.
+
+##### ⛔ E nemmeno cinque condizioni bastano: NON è una formula, è una procedura
+
+⚠️ Qui c'erano cinque condizioni (`R == P`, `max(0,A) == P`, nessun tentativo aperto,
+`local_push_pending` falso, `mismatch_detected` falso) e la promessa che sotto di esse `L = 0`
+fosse corretto. **Il proprietario l'ha smontata con un controesempio, e attaccarla ne ha fatti
+uscire altri tre.**
+
+**Il controesempio del proprietario.** `A = -3`, `R = 0`, `P = 0` soddisfa tutte e cinque, quindi
+la regola pone `L = 0`. Poi un carico di 2 porta `A` a −1 ma `L` a **+2**, e si pubblica **2
+invece di 0**. ⭐ **È §30.7 rientrato dalla porta di servizio**: il clamp nasconde quanto si è
+sotto zero, e azzerare il contatore cancella il debito.
+
+**La forma portante, da cui tutto discende.** Il contatore non è un numero da postulare: è
+
+```text
+L == valoreVero - R              e   valoreVero = A + U
+                                     U = movimenti di canale NON ancora acquisiti
+```
+
+Ne segue subito, per algebra, che **`L0 = A - R` è corretto se e solo se `U0 = 0`**, e che
+l'errore vale esattamente `-U0`. Verificato: le righe con `U0 != 0` producono violazione **tutte**
+(19.741 su 19.741), quelle con `U0 = 0` **nessuna** (0 su 12.570).
+
+##### ⛔ Le cinque condizioni non stabiliscono `U0 = 0`, e la ragione sta nel codice
+
+|                     |                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| il push **vecchio** | scrive un valore **assoluto**: copre i movimenti di canale non acquisiti e **riporta `R` su `P`** |
+| la conferma         | spegne `mismatchDetected` **incondizionatamente**: cancella l'unica traccia lasciata dal webhook  |
+
+⭐ **Le due condizioni che dovrebbero fare il lavoro sono cancellate dal push stesso.** Non è un
+caso limite: nella simulazione del comportamento del ramo, **61,1% delle righe qualificate** ha
+`U0 != 0`, e il 37,4% pubblica almeno un valore sbagliato. ⚠️ Rendere i webhook perfetti e il
+push infallibile non cambia il quadro (18.393 su 31.557 restano).
+
+##### ⛔ E NESSUN predicato sui dati locali può bastare — dimostrato, non temuto
+
+Due storie diverse producono **la stessa identica fotografia osservabile**:
+
+```text
+MONDO 1   tre vendite al banco su una riga gia' a zero, poi il push (che clampa)
+          A=-3  R=0  P=0   |  U0 = 0    valoreVero = -3   ->  L0 corretto = -3
+MONDO 2   rettifica ERRATA di +3 nell admin (mai acquisita), poi tre ordini online
+          acquisiti: il canale torna a zero da se' e il webhook spegne il mismatch
+          A=-3  R=0  P=0   |  U0 = +3   valoreVero =  0   ->  L0 corretto =  0
+```
+
+Poi in entrambi arriva un carico di +2. Con `L0 = A - R` il mondo 2 **si mangia il carico**: la
+merce arriva davvero, Shopify resta a 0, e `L` resta negativo — i primi pezzi di ogni rifornimento
+futuro vengono ingoiati. Con `L0 = 0` sbaglia il mondo 1. **Ognuna delle due è giusta in un mondo
+e sbagliata nell'altro.**
+
+⭐ **Per enumerazione, non per esempio: 49 fotografie osservabili `(A, R, P)` su 55 ammettono più
+di un `L0` corretto.** Per `(-3, 0, 0)` i valori corretti osservati sono **30 valori distinti, da
+−19 a +14**. `U` è per definizione ciò che VestiFlow non ha acquisito: non è in nessuna sua
+tabella, e nessuna funzione dei suoi dati può indovinarlo.
+
+##### ⭐ La procedura, e il confine onesto
+
+```text
+1  SVUOTARE L ARRETRATO dal canale, PRIMA della lettura di migrazione
+     -> toglie l intera famiglia degli ordini in volo
+     -> misurato: arretrato svuotato e nessuna rettifica a mano -> 0 controesempi su 47.999
+
+2  SOLO ALLORA, e solo dove U0 = 0 e' DIMOSTRATO:   L0 = A - R    C0 = 0
+
+3  TUTTO IL RESTO non si inizializza: origineNonAccertata acceso, a riconciliazione
+```
+
+⭐ **Il passo 1 non è lavoro nuovo**: è la stessa rilettura per intervallo che serve al recupero
+dopo la pausa (§31.9). I tre punti del proprietario convergono su un unico lavoro.
+
+⛔ **Ma il passo 2 non scatta quasi mai da solo, e va letto sapendolo**: le due sezioni qui sotto
+dimostrano che `U₀ = 0` **non è stabilibile per sola osservazione**. Il passo 1 riduce l'insieme
+delle righe da riconciliare; **a dimostrare** è la riconciliazione, non la migrazione.
+
+##### ⛔ «Svuotato» non è uno stato: va dimostrato rispetto a un ISTANTE
+
+⚠️ Il passo 1 diceva «svuotare l'arretrato», e non basta: **una lista momentaneamente vuota non
+dimostra niente**, perché intanto continuano ad arrivare ordini. Non è una formula da inventare —
+è un **requisito del recupero**, e ha una forma provabile.
+
+⛔ **E il primo tentativo di scriverlo era incoerente.** Qui c'era `updated_at:<=t₀` «finché il
+cursore supera `t₀`»: con quel filtro gli ordini oltre il taglio **non entrano mai nel
+risultato**, quindi il cursore non può superarlo. Confondevo due cose diverse — il **filtro
+temporale**, che delimita l'insieme, e il **cursore**, che pagina dentro l'insieme. E comunque
+finire la paginazione non dimostra che nulla sia cambiato mentre si leggeva.
+
+##### La forma che si può davvero dimostrare: sweep in avanti + scrittura condizionale
+
+⭐ **Si legge in AVANTI, non fino a un taglio**: `orders(query: "updated_at:>=w", sortKey:
+UPDATED_AT)` in ordine crescente, con cursore. `w` è il segnalibro.
+
+⭐ **Ed è questa direzione a rendere il recupero dimostrabile**: un ordine modificato **durante**
+la lettura prende un `updated_at` **nuovo**, quindi si sposta **davanti** al cursore e lo scan lo
+raggiunge lo stesso. Uno scan all'indietro, o delimitato da un taglio superiore, lo perderebbe.
+
+⚠️ **Il segnalibro avanza solo dietro all'ultimo record letto**, mai fino a «adesso»: più ordini
+possono condividere lo stesso istante, quindi si riparte con **sovrapposizione** sul confine. La
+sovrapposizione è gratuita perché l'acquisizione è **idempotente per `shopifyOrderId`** — è già
+così nel ramo.
+
+⛔ **Ma tutto questo dimostra «acquisito fino a `w`», NON «adesso non c'è niente in sospeso»**, e
+quel secondo enunciato non è dimostrabile leggendo: qualunque lettura è vecchia nell'istante in
+cui la si guarda. **Non si prova un negativo leggendo: lo si prova ORDINANDO.**
+
+```text
+1  sweep in avanti da w, con sovrapposizione   -> «acquisito fino a w», dimostrato
+2  secondo passaggio da w                      -> le coppie toccate dopo w escono dal giro
+3  inizializzazione = SCRITTURA CONDIZIONALE, guardata sul fatto che la riga
+   non sia cambiata da quando e' stata osservata
+4  se la guardia fallisce: la riga NON si inizializza. Giro successivo, o riconciliazione.
+```
+
+⚠️ **`t₀` sparisce dal vocabolario**: non esiste un istante in cui il mondo sia fermo. Esiste un
+segnalibro `w` che avanza dietro a ciò che si è letto, e una guardia per riga.
+
+##### ⛔ E il passo 3 NON chiude: la guardia locale non vede un ordine ancora solo su Shopify
+
+⚠️ Qui avevo scritto che la scrittura condizionale era «la chiusura», e che «il modo di fallire è
+sempre _non inizializzata_, mai _inizializzata male_». **Falso, e il proprietario l'ha smontato
+con un incrocio che passa attraverso tutta la procedura:**
+
+```text
+1  VestiFlow e Shopify a 10; il recupero degli ordini FINISCE
+2  arriva una vendita online: Shopify scende a 9, l ordine non e' ancora arrivato a noi
+3  si legge il canale: R = 9;  in casa A = 10
+4  la riga locale NON e' cambiata  ->  la scrittura condizionale PASSA
+5  L0 = A - R = +1   <- si inventa un aumento locale da trasmettere
+```
+
+⛔ **La guardia protegge dalle modifiche già atterrate nel nostro database, non da quelle ancora
+fuori.** E leggere gli ordini in avanti non elimina la finestra: fra la fine del sweep e la
+lettura di `R` un ordine può essere applicato su Shopify e non esserci ancora stato consegnato.
+
+⭐ **Non è una famiglia nuova di difetti: è lo stesso `U₀ ≠ 0`**, con l'errore che vale ancora
+esattamente `−U₀`. Ma smonta il rimedio che avevo proposto, ed è la ragione per cui
+l'inizializzazione **non si dichiara risolta con il solo controllo locale**.
+
+##### ⛔ Nessun test di sola osservazione dimostra `U₀ = 0`
+
+Il tentativo di salvare la procedura con una condizione in più cade sulla stessa dimostrazione già
+in questa sezione: `R == P` intercetta l'incrocio qui sopra (`P = 10`, `R = 9`), ma **è cancellata
+dal push assoluto** appena una scrittura copre il movimento; e **49 fotografie osservabili su 55
+ammettono più di un `L₀` corretto**. Ogni condizione nuova sposta l'insieme dei casi che sbaglia,
+non lo svuota.
+
+⚠️ **E nessuno dei due valori di ripiego è sicuro**, il che chiude la strada del «scegline uno»:
+
+|              | sbaglia così                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| `L₀ = 0`     | perde il residuo negativo → **pubblica troppo** più avanti (il primo controesempio del proprietario) |
+| `L₀ = A − R` | **inventa lavoro** quando c'è un movimento di canale non acquisito (l'incrocio qui sopra)            |
+
+> ⛔ **Quindi l'inizializzazione NON è un passo di migrazione che gira su tutte le righe: è un
+> ESITO della riconciliazione, riga per riga.** Il sweep in avanti e la guardia condizionale
+> restano utili — riducono l'insieme delle righe da riconciliare e impediscono di scrivere su una
+> riga che si è mossa — ma **non costituiscono una prova**, e non vanno presentati come tale.
+
+⭐ **E c'è una via che NON richiede né dedurre né decidere: aspettare la nostra prima scrittura
+confermata** (§31.13). Non stabilisce `U₀ = 0` — registra ciò che abbiamo messo noi sul canale, e
+da lì la contabilità riparte. **È la strada che si può percorrere adesso**, senza il pulsante e
+senza decisioni aperte.
+
+⚠️ Il **riallineamento esplicito** di §31.12 resta l'altra via, quella in cui una persona
+_asserisce_ il valore — ma richiede una decisione che **non è stata presa** (§31.10 punto 6).
+
+⭐ **Le operazioni LOCALI non entrano in questa condizione**, ed è una semplificazione che vale
+la pena scrivere: `L` deve valere `valoreVero − R`, e una vendita al banco avvenuta fra
+l'osservazione e la scrittura muove `A` esattamente di quanto va poi trasmesso. **Viene assorbita
+correttamente.** La condizione riguarda **solo** i movimenti di canale non acquisiti.
+
+⚠️ **Una riga molto movimentata non qualifica, e non è un difetto**: finisce dove finiscono tutte
+le altre non inizializzabili — in riconciliazione. Il costo è dichiarato, non nascosto.
+
+##### ⛔ I 60 giorni sono l'ETÀ DELL'ORDINE, non la durata della pausa
+
+⚠️ Qui c'era «una pausa più lunga di 60 giorni lascia un buco», e inquadrava male il limite.
+Senza `read_all_orders` l'applicazione non può leggere **ordini più vecchi di 60 giorni**: è un
+limite sull'**età dell'ordine**, non sulla finestra cieca.
+
+> ⛔ **Ne segue che anche una pausa BREVE può perdere un cambiamento.** Un reso o un annullamento
+> su un ordine di tre mesi fa — un ordine **già nostro**, acquisito quando era fresco — non è
+> ritrovabile dalla rilettura, per quanto corta sia stata la pausa.
+
+⚠️ **Le coppie colpite non sono conoscibili**: proprio perché quegli ordini non si leggono, non
+si sa quali articoli e sedi abbiano toccato. Alimentano quindi lo stesso esito di tutto il resto —
+`U₀` non stabilibile, riga a riconciliazione — e **non lo diventa aspettando**.
+
+⛔ **E `read_all_orders` NON è «importare gli ordini precedenti all'aggancio».** Sono due cose
+diverse e non vanno confuse:
+
+|                                          |                                                                              |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| **il confine di ciò che sincronizziamo** | resta dove è stato deciso: nessuna importazione indiscriminata dello storico |
+| **`read_all_orders`**                    | restituirebbe solo la capacità di **rileggere ordini che sono già nostri**   |
+
+⏸ Resta comunque un permesso in più e una decisione del proprietario (§31.10 punto 5).
+
+⚠️ **E il sweep deve coprire tutto il periodo dall'ultimo segnalibro attendibile**, non «di
+recente»: gli eventi buttati mentre `autoSyncEnabled` era spento **non arrivano mai**, ed è
+esattamente per questo che il recupero è una rilettura di ordini e non un'attesa di webhook.
+
+⚠️ **Il residuo irriducibile sono le rettifiche fatte a mano nell'admin**: non nascono da un
+ordine, quindi nessuna rilettura di ordini le copre. L'unica fonte è il canale — la stessa
+`inventory_adjustment_history` di §31.3, con lo stesso prezzo e la stessa decisione da prendere.
+
+##### Tre avvertenze che cambiano come si legge il resto
+
+⛔ **`C0 = 0` è la stessa incognita travestita**: `C0` corretto vale `-U0`, quindi sotto `R == P`
+il segnale nasce **sempre a zero** qualunque sia `U0`. Il mondo 2 — la rettifica errata, cioè
+**il caso per cui il segnale è stato inventato** — nascerebbe **muto**. E nel caso opposto il
+segnale si accende quando il sistema fa la cosa giusta.
+
+⛔ **`local_push_pending` non fa il lavoro che gli avevo attribuito.** Qui c'era «sono
+esattamente le righe di cui sappiamo che hanno lavoro da trasmettere»: la premessa è vera,
+**l'implicazione inversa no**, ed è quella che serve alla sicurezza. Si accende in **un solo
+punto** — quando un push rinuncia dopo `GIRI_PRESA` giri con la coppia che si muove. Una riga con
+lavoro locale non trasmesso per qualunque altra causa ha il flag **spento**.
+
+⚠️ **La tabella degli stati sync non ha chiavi esterne** (deriva già registrata in §21-ter):
+può contenere righe orfane. Contatori di scostamento su righe orfane sono lavoro fantasma, e la
+migrazione deve dire che cosa ne fa.
+
+⚠️ **Quante righe reali qualifichino è una misura da fare PRIMA**, sul database: i numeri qui
+sopra vengono da una simulazione del comportamento del ramo, non dai dati. Se le righe non
+inizializzabili fossero la maggioranza, il blocco non è pronto e la riconciliazione viene prima.
+
+#### 31.5 · Gli effetti sulle sedi non ancora chiariti
+
+I quattro percorsi di §30.10 in cui l'origine è ignota — annullamento, ordini spariti, evasione a
+sede diversa nelle due direzioni — **non bloccano la trasmissione** (§31.2), ma renderebbero `C`
+inesatto, e con lui il segnale.
+
+⭐ **Il trattamento è dichiararlo, non indovinarlo.** Un'acquisizione che non si sa attribuire
+accende `origineNonAccertata` sulla coppia, e finché è accesa `S` su quella coppia **non è
+presentato come errore**: è marcato «non attribuibile». Spegnerla richiede una riconciliazione.
+
+⛔ **L'alternativa era peggiore in entrambe le direzioni**: contarla come locale falserebbe il
+valore inviato, contarla come canale spegnerebbe un segnale che potrebbe essere vero. Dichiarare
+l'incertezza è l'unica delle tre che non mente.
+
+⏸ **Il perimetro che le chiarisce resta quello di §30.10** — leggere `restock_type` (compreso
+`cancel`, che fa risalire l'available), usare la sede del **fulfillment** invece di quella
+dell'ordine, dichiarare il limite oltre la prima sede. ⛔ **Nessuna delle tre è in questo
+blocco**, e questa proposta è progettata per non aspettarle.
+
+#### 31.6 · Le prove
+
+**Riscritte** — asseriscono la regola nuova, non più il limite:
+
+|      |                                                                                                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `P1` | **«l'effetto locale arriva e la differenza resta rilevabile»** — non più «la scrittura è respinta»: il rifiuto era il rimedio vecchio, e la prova lo fotografava |
+| `P2` | il totale locale non si scrive più: il valore composto conserva gli effetti di canale                                                                            |
+| `P8` | invariata nella regola, riscritta nella conclusione — il delta sui valori grezzi resta sbagliato, ma il commento che prescriveva quello sui pubblicati va tolto  |
+
+**Nuove** — una per ogni cosa che si può rompere:
+
+| #   |                                                                                                                                                                                                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | la vendita al banco arriva mentre due ordini sono in volo (il caso di partenza)                                                                                                                                                          |
+| 2   | rettifica errata nell'admin: l'effetto locale arriva **e** `S` resta ≠ 0 dopo la conferma                                                                                                                                                |
+| 3   | ordine in ritardo: `S` si azzera **da solo** all'acquisizione, senza intervento                                                                                                                                                          |
+| 4   | attraversamento dello zero in discesa e in risalita, con `L` che conserva il debito                                                                                                                                                      |
+| 5   | canale in oversell e nessun lavoro locale: **nessun invio**, nessuna normalizzazione                                                                                                                                                     |
+| 6   | acquisizione fra la scrittura e la conferma: la conferma usa i valori del **proprio** tentativo                                                                                                                                          |
+| 7   | risposta persa, recupero entro le 24 ore: la ripetizione non applica due volte                                                                                                                                                           |
+| 8   | risposta persa, recupero **oltre** le 24 ore: il confronto rifiuta, e `L` non si sdoppia                                                                                                                                                 |
+| 9   | tentativo aperto prima della migrazione: confermato senza scaricare i contatori                                                                                                                                                          |
+| 10  | riga esistente che soddisfa le cinque condizioni: inizializzata a zero e verificata                                                                                                                                                      |
+| 11  | riga che **non** le soddisfa: dichiarata da riconciliare, nessun invio alla cieca                                                                                                                                                        |
+| 12  | acquisizione di origine ignota: `S` marcato non attribuibile, non presentato come errore                                                                                                                                                 |
+| 13  | residuo negativo permanente: **nessuna scrittura a vuoto** — la condizione a due termini                                                                                                                                                 |
+| 14  | i due mondi con la stessa fotografia: la riga **non si inizializza**, e nessun invio parte                                                                                                                                               |
+| 15  | oltre le 24 ore: nessuna deduzione dal numero remoto, la coppia va a riconciliazione                                                                                                                                                     |
+| 16  | coda: una riga che rifiuta **senza scrivere** non impedisce alle altre di essere tentate                                                                                                                                                 |
+| 17  | ripartenza dopo la pausa: la rilettura per intervallo non applica due volte ciò che c'era già                                                                                                                                            |
+| 18  | la verifica sul canale **non trova** la rettifica: il tentativo resta incerto, **nessuna ritrasmissione**                                                                                                                                |
+| 19  | la verifica **trova** la rettifica con riferimento, articolo, sede e quantità: allora si chiude                                                                                                                                          |
+| 20  | riga toccata da un ordine **dopo il segnalibro**: esclusa dal giro, non indovinata                                                                                                                                                       |
+| 21  | ordine aggiornato **durante** il recupero: lo sweep in avanti lo raggiunge — nessun effetto perso, nessuno duplicato                                                                                                                     |
+| 22  | modifica **fra il secondo passaggio e l'inizializzazione**: la scrittura condizionale fallisce e la riga **non** è dichiarata inizializzabile                                                                                            |
+| 23  | `IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED`: il tentativo resta incerto, **nessuna chiave nuova**, nessuna ritrasmissione                                                                                                                      |
+| 24  | ⛔ **l'incrocio**: ordine online applicato su Shopify **dopo** la fine del recupero e **non ancora acquisito**, riga locale invariata (`A = 10`, `R = 9`) — la riga **non** deve risultare inizializzabile, e `L` **non** deve valere +1 |
+| 25  | tre sedi remote, **una sola collegata e fuori dalla prima pagina**: viene letta quella giusta, **per identificativo**                                                                                                                    |
+| 26  | articolo **non stoccato** nella nostra sede: distinto da «non letto», e **mai** convertito in zero                                                                                                                                       |
+| 27  | riallineamento con **ordine remoto non ancora acquisito**: senza svuotamento ripubblica un pezzo venduto — con lo svuotamento no                                                                                                         |
+| 28  | **vendita locale durante il riallineamento**: non va persa — `L := 0` la perde, `L := A − T` no                                                                                                                                          |
+| 29  | riallineamento su **disponibile negativo**, poi carico **insufficiente**: nessuna scrittura, il debito resta; col carico sufficiente pubblica il valore giusto                                                                           |
+| 30  | riallineamento su **rettifica manuale** (`R = 20`, `A = 9`): scrive 9 e **resta** 9 — lo scarico ordinario lo ripubblicherebbe a 20                                                                                                      |
+| 31  | rettifica manuale **e** ordine in volo insieme: sbaglia anche **abbassando** — la direzione non protegge, lo svuotamento sì                                                                                                              |
+| 32  | ⛔ **ordine applicato sul canale E acquisito fra scrittura e conferma**: `L` deve restare **0** — non deve nascere un −1 da ritrasmettere — e `C` deve conservare l'acquisizione, quindi `S = 0`                                         |
+| 33  | canale in stato **negativo** con `L = 0`: nessuna scrittura, e non è un difetto — è il divieto di normalizzazione                                                                                                                        |
+| 34  | la quantità **inviata** non è mai negativa, anche quando `R + L < 0`: si invia 0                                                                                                                                                         |
+| 35  | la fotografia `(A_w, L_w, C_w)` **sopravvive a un riavvio** fra scrittura e conferma                                                                                                                                                     |
+| 36  | conferma **tardiva** con chiave non più propria: `count = 0`, **nessuna scrittura** — né conferma né chiusura                                                                                                                            |
+| 37  | la conferma **decrementa**, non assegna: un'operazione arrivata dopo la fotografia sopravvive                                                                                                                                            |
+| 38  | ⛔ **prova ritirata**: il confronto fra `committed` remoto e locale non discrimina l'ordine dalla rettifica — sono insiemi di origini diverse, e i totali si compensano                                                                  |
+| 39  | coppia che **non** soddisfa le due condizioni verificabili: **rinviata**, non riallineata alla cieca                                                                                                                                     |
+
+⭐ **E una prova di PROPRIETÀ, non di caso**: un generatore di sequenze casuali con **oracolo
+indipendente** — il valore atteso ricostruito sommando il registro degli eventi, non lo stato del
+simulatore. ⚠️ **Va falsificato**: guastando la regola dello scarico e quella del segnale deve
+produrre controesempi, altrimenti il verde non dice niente.
+
+⚠️ **Nella consegna vanno separate quattro proprietà**, perché un'unica campagna verde non le
+dimostra tutte: **correttezza aritmetica**, **concorrenza**, **recupero**, **compatibilità dei
+dati preesistenti**.
+
+#### 31.7 · L'ordine dei passi
+
+```text
+0  la LETTURA REMOTA di R PER SEDE, per identificativo             prerequisito di tutto il resto
+1  le due colonne, il marcatore, la migrazione (solo sacrificabile)   nessun cambio di comportamento
+2  la rilettura per intervallo che SVUOTA L ARRETRATO                 prerequisito della migrazione
+3  L: l'origine dichiarata ai due colli di bottiglia                  -> la trasmissione funziona
+4  il valore composto e la condizione a due termini                   -> il caso di partenza e' chiuso
+5  C, il segnale S e la conservazione alla conferma                   -> serve 30.10 per essere esatto
+6  l innesco automatico (31.9), coi suoi tre prerequisiti
+7  la valvola del segnale                                             decisione, vedi sotto
+```
+
+⛔ **Il passo 0 non c'era, ed è il prerequisito di tutto**: oggi `R` non si legge in nessun punto
+del push. Senza, il passo 1 non può nemmeno inizializzare.
+
+⭐ **Il passo 2 serve DUE volte**, ed è la ragione per cui i tre punti del proprietario sono un
+lavoro solo: svuota l'arretrato prima della migrazione (§31.4) **ed è** il recupero dopo la pausa
+(§31.9).
+
+⭐ **I passi 3-4 valgono anche da soli**: chiudono il caso della vendita al banco senza dipendere
+dai percorsi di origine ignota. Il segnale arriva dopo, ed è l'unico che li richiede.
+
+#### 31.8 · Il costo, dichiarato
+
+⚠️ **Una lettura remota per ogni invio**, e `R` va riletto a ogni giro del ciclo di presa. Su 17
+punti di push, contro un'API a quota, è il moltiplicatore per riga che la pipeline `C4` vuole
+togliere. ⛔ **Va misurato prima, non dopo.**
+
+⚠️ **La scorciatoia «invariata» va rifatta**: oggi confronta `lastPushedAvailable` con
+`max(0, available)` senza interrogare Shopify. Con `L` la domanda diventa `L != 0` — **più
+economica**, non meno: si risponde senza leggere il canale.
+
+#### 31.9 · L'automatismo — la coda c'è già, manca l'innesco
+
+⛔ Qui la proposta diceva «il recupero resta al comando dell'operatore, perché non esiste nessuno
+scheduler». **Era un vincolo dedotto dal codice, presentato come una scelta**, e il proprietario
+l'ha respinto: la sincronizzazione continua richiede che il canale converga senza che nessuno
+prema niente.
+
+⭐ **E la buona notizia è che manca poco, ma non è quello che sembrava.** Verificato:
+
+|                          |                                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| una **coda** persistente | ✅ esiste già, e non è una tabella: le righe con `mismatchDetected` OR `localPushPending`, ordinate per anzianità, con due indici dedicati |
+| un **consumatore**       | ✅ esiste già: `retryPending`                                                                                                              |
+| un **innesco**           | ⛔ manca: `retryPending` ha **un solo chiamante**, il pulsante «Sincronizza giacenze»                                                      |
+
+> **Non serve inventare una coda né una tabella. Serve un secondo innesco per un consumatore che
+> c'è già — e la dipendenza di schedulazione che lo fa girare.**
+
+##### I tre prerequisiti — DUE FATTI il 10/09/2026, uno aperto
+
+**1. ✅ FATTO — la coda si bloccava in testa.** Il lotto prendeva le 50 righe più vecchie per
+`updatedAt`, ma diversi rami di uscita **non scrivono sulla riga** — `base_assente` (`push:450`),
+`collegamento_escluso` (`push:359`), `rinvio_attivo` (`push:1334`) — quindi restavano in testa
+**per sempre**.
+
+⛔ **E il primo rimedio non bastava.** Avevo aggiunto un tetto di scansione (200) e una paginazione
+con `skip`: risolveva _dentro una passata_, ma con **duecento bloccate davanti ogni passata
+riscandiva le stesse**. Alzare il tetto sposta il blocco, non lo toglie — corretto dal proprietario.
+
+⭐ **Il rimedio vero è che l'ordine si muova**: colonna `lastAttemptAt`, scritta **prima** di ogni
+tentativo qualunque sia l'esito, e ordinamento `asc nulls first`. Una riga guardata scende in
+fondo, e la passata dopo prosegue da quelle dietro. ⚠️ Si marca **prima**, non dopo: dopo, un
+guasto a metà rimetterebbe la riga in testa per sempre — cioè il difetto di partenza.
+
+⭐ **Il limite per passata resta**: 50 tentativi **conclusivi** e 200 righe esaminate. Provato in
+**integrazione su PostgreSQL vero** con 220 non recuperabili davanti e 3 recuperabili dietro,
+**ricostruendo il servizio a ogni passata** — se la rotazione vivesse in memoria di processo, quel
+ciclo non uscirebbe.
+
+⛔ **E una colonna dedicata SERVE: la prima falsificazione lo aveva mancato.** Rimettendo
+`orderBy: updatedAt` la prova restava **verde**, perché la marcatura bumpa comunque `updatedAt`
+(è `@updatedAt`) e la coda ruotava lo stesso. Quella prova dimostrava la **marcatura**, non la
+colonna.
+
+⛔ **E `ASC NULLS FIRST` NON BASTA DA SOLO: serve IL SECONDO CRITERIO** — trovato il
+10/09/2026 durante le regressioni. Le righe **mai esaminate** hanno `last_attempt_at` NULL _tutte
+quante_, e fra chiavi di ordinamento uguali SQL non promette nessun ordine: quale parte prima lo
+decide il piano di esecuzione.
+
+⚠️ **Il sintomo non era un difetto visibile, era una prova INTERMITTENTE**: `V10` di
+`esiti-comandi-massivi` — verde eseguita da sola, rossa dentro la suite, verde alla ripetizione.
+Un test che arrossa a caso è peggio di un test che manca: si impara a rieseguirlo invece di
+leggerlo.
+
+⭐ **Il secondo criterio è `createdAt`**, e regge anche nel merito: fra righe mai esaminate parte
+per prima quella che aspetta da più tempo. La prova che lo tiene fermo inserisce le due righe
+nell'ordine **opposto** al loro `createdAt`, così senza il criterio la coda restituisce l'ordine
+fisico e prende quella sbagliata — falsificata, rossa.
+
+⭐ **La differenza vera, e ora c'è la prova che la coglie**: `updatedAt` si muove per **qualunque**
+scrittura — il webhook che aggiorna l'osservato, la riconciliazione, il push. Una riga che riceve
+traffico verrebbe risospinta in fondo a ogni evento e **non sarebbe ritentata mai**: una fame
+diversa, e più subdola, perché colpisce proprio le righe attive. `lastAttemptAt` si muove **solo**
+quando la coda la guarda.
+
+**2. ✅ FATTO — il drenaggio non era separabile dall'import.** `retryPending` era agganciato **in
+coda a** `pullInventory`, che interroga Shopify per ogni sede × lotti da 50 articoli: svuotare la
+coda costava un import completo. ⭐ Ora ha una rotta propria, `POST /shopify/sync/inventory/pending`,
+con lo **stesso permesso** e le stesse guardie di scrittura — che restano dentro il push, riga per
+riga. ⛔ **Non è un innesco automatico**: è lo stesso comando dell'operatore, senza l'import davanti.
+
+**3. ⏸ APERTO — il limitatore di frequenza è per processo.** Con più repliche su Railway, uno
+scheduler in-process girerebbe **N volte**, ognuna convinta di avere tutta la quota. ⏸ Quante
+repliche giri oggi l'API **non è verificato**, e va saputo prima di scegliere dove mettere
+l'innesco.
+
+##### ⏸ Dove mettere l'innesco — la domanda è quale, non se
+
+|                                                     | costo                                                                                               |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **schedulazione nel processo API**                  | dipendenza nuova (`@nestjs/schedule` non è fra le dipendenze); si moltiplica per replica            |
+| **cron dell'infrastruttura** che chiama un endpoint | un solo esecutore per costruzione; ma Railway avvia **un processo solo** e non ha oggi sezione cron |
+| **drenaggio opportunistico sui webhook**            | nessuna dipendenza nuova; ma scatta solo se c'è traffico dal canale                                 |
+
+⭐ **Un precedente di schedulazione esterna esiste già nel repository**: i due cron di GitHub
+Actions (backup e sicurezza). ⏸ **La scelta è del proprietario**, e va fatta sapendo il numero di
+repliche.
+
+##### 📋 LA PROPOSTA CONCRETA — 10/09/2026, da decidere PRIMA di attivare
+
+> ⛔ **Niente è stato attivato.** Questa è la proposta chiesta dal proprietario:
+> frequenza, gestione delle repliche e costo. La scelta resta sua.
+
+⭐ **Il presupposto è cambiato**: con §31.14 il lavoro pendente è **ritrovabile**
+— vendita salvata e processo fermo prima del push, tentativo con esito ignoto,
+disallineamento osservato. Quello che manca è **chi chiama**, e solo quello.
+
+###### Il costo, misurato prima di proporre
+
+```text
+passata a VUOTO (niente in coda)     1 query   contaInCoda esce subito
+   il conteggio, a 20.000 righe      0,39 ms   Bitmap Heap Scan, nessun indice nuovo serve
+passata con lavoro, caso peggiore    ~1.806 query DB + fino a 200 chiamate GraphQL
+passata di sole righe scriventi      si ferma a 50: ~753 query + 100 chiamate
+```
+
+⭐ **La passata a vuoto costa UNA query.** È il numero che decide la frequenza:
+girare spesso non costa quasi niente, e il tetto (50 conclusivi, 200 esaminate)
+limita il caso pieno.
+
+###### La frequenza proposta: ogni 5 minuti
+
+⚠️ **Il ritardo che conta non è «quanto tarda il recupero», è QUANTO A LUNGO la
+giacenza resta troppo alta sul canale** — cioè per quanto tempo Shopify può
+vendere qualcosa che non c'è. Nel funzionamento normale il push parte subito
+dopo la vendita; il recupero interviene solo quando quello non è partito o non è
+riuscito.
+
+|                 |                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **1 minuto**    | più reattivo, e sostenibile (1 query a vuoto). Ma cinque volte le passate per un guadagno che nessuno percepisce               |
+| ⭐ **5 minuti** | la proposta: finestra di esposizione accettabile, costo trascurabile                                                           |
+| **15+ minuti**  | una vendita non trasmessa resta invisibile al canale per un quarto d'ora: troppo per un negozio che vende su entrambi i fronti |
+
+###### Le repliche: la ragione per cui propongo un esecutore FUORI dall'API
+
+⛔ **Quante repliche giri l'API non è nel repository e non si deduce**:
+`railway.toml` non ha direttive di scaling, e su Railway si cambia dal pannello
+con un clic, senza commit e senza traccia. ⚠️ **`api/Dockerfile:39` dice «un
+processo per container», che è un'altra cosa** — e in `docs/13` quella riga è già
+stata scambiata per «una sola istanza».
+
+⭐ **La proposta è scegliere una forma che NON ha bisogno di saperlo.**
+
+|                                        | repliche                                                                                                                                                                                                                                                                                                 | dipendenze nuove         | nodo aperto                                                                                                                                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A · schedulazione nel processo API** | ⛔ gira **N volte**, una per replica, e il limitatore di frequenza Shopify è **per processo** (`shopify-rate-limiter.service.ts:30`: lo stato vive in una `Map`). Servirebbe un lock **non bloccante** — `pg_try_advisory_lock`, che nel codice **non esiste**: i tre lock presenti sono tutti bloccanti | `@nestjs/schedule`       | serve sapere le repliche, o scrivere il lock                                                                                                                                                                    |
+| ⭐ **B · processo CRON separato**      | ✅ **un solo esecutore per costruzione**, qualunque sia il numero di repliche dell'API                                                                                                                                                                                                                   | nessuna nel processo API | un entry point nuovo e una connessione in più                                                                                                                                                                   |
+| **C · opportunistico sui webhook**     | ✅ nessun problema                                                                                                                                                                                                                                                                                       | nessuna                  | ⛔ copre **solo** i tenant con traffico dal canale, e il webhook deve rispondere in fretta: farlo in linea rischia il timeout di Shopify, farlo fire-and-forget ha **la stessa fragilità** che stiamo chiudendo |
+
+⭐ **B in concreto**: un servizio schedulato su Railway che esegue un entry point
+proprio (`dist/…`), cicla sui tenant con profilo `shopify` e connessione
+`connected`, e per ognuno chiama `retryPending`. ⛔ **Non passa da HTTP**, e
+questa è la parte che semplifica di più: niente token di servizio, niente
+endpoint pubblico nuovo, niente decisione di sicurezza su come un cron si
+autentica.
+
+###### Perché NON propongo di chiamare l'endpoint via HTTP
+
+`POST /api/v1/shopify/sync/inventory/pending` esiste già, con permessi e guardie.
+⛔ Ma è **per tenant**, e l'identità arriva dal JWT: un cron dovrebbe avere un
+token per ogni tenant, oppure servirebbe un endpoint «drena tutti» protetto da un
+segreto di servizio — cioè **codice nuovo più una decisione di sicurezza**, che è
+esattamente ciò che la forma B evita.
+
+⚠️ **E quell'endpoint oggi non ha nessun chiamante nel frontend**: l'operatore che
+vuole solo drenare passa da `sync/inventory`, che gli mette davanti un import
+completo. È un lavoro piccolo e separato, e vale la pena farlo comunque.
+
+###### Che cosa serve sapere PRIMA di attivare
+
+- [ ] ⏸ **la forma**: A, B o C — è la decisione del proprietario
+- [ ] ⏸ se B, **il costo di un servizio in più su Railway** (un container che sta
+      quasi sempre fermo) e la sua connessione al database: `connection_limit`
+      dichiarato è 5
+- [ ] ⏸ **se il cron debba girare per tutti i tenant o solo per alcuni**
+- [ ] ⏸ **che cosa si vede quando la coda non si svuota**: oggi il numero esiste
+      (`remaining`, ricontato) ma non lo guarda nessuno. Un recupero automatico
+      che fallisce in silenzio è peggio di nessun recupero
+
+###### Due cose che NON servono, e vanno dette
+
+⭐ **Non serve un lock sulla riga.** La presa del tentativo è già ottimistica e
+condizionata (`prenotaTentativo`): due esecutori sulla stessa coppia non si
+sovrappongono — il secondo fallisce la presa e ricompone. ⚠️ Quello che si
+sprecherebbe con due esecutori è **lavoro doppio**, non correttezza: il registro
+delle righe già viste vive in memoria di processo e non attraversa le repliche.
+
+⭐ **Non serve un indice nuovo.** Misurato: a 20.000 righe il conteggio della coda
+costa 0,39 ms e un indice parziale dedicato non cambia i tempi.
+
+##### ⛔ La pausa d'emergenza: il problema non è quello che avevo scritto
+
+Qui c'era «i webhook non consegnati non tornano da soli». ⛔ **Non esistono webhook non
+consegnati.** Le due strade odierne li perdono in modi diversi, ed entrambe li chiudono dal lato
+di Shopify:
+
+|                           |                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `sync/webhooks/disable`   | **cancella le sottoscrizioni** su Shopify: non consegna e non ritenta          |
+| `autoSyncEnabled = false` | l'evento **arriva, riceve HTTP 200 e viene buttato**: per Shopify è consegnato |
+
+⛔ **E Shopify non offre replay né conserva una coda di eventi**: la documentazione prescrive
+esattamente l'opposto — «fetch data from the outage period and feed it into your webhook
+processing code», più un lavoro di riconciliazione periodico dell'app.
+
+> **Il recupero dopo la pausa non può essere una coda: è per forza una rilettura per intervallo.**
+> Il vincolo «niente code senza dimostrarne la necessità» è soddisfatto dalla documentazione, e
+> nella direzione opposta a una coda.
+
+**La forma**: `orders(query: "updated_at:>…", sortKey: UPDATED_AT, first: 250)` più cursore.
+⚠️ **Su `updated_at`, non `created_at`**: un ordine creato prima della pausa e modificato durante
+— evasione, annullamento, reso — è proprio il caso da recuperare. ⚠️ **E il `sortKey` deve
+coincidere col campo filtrato**, o su collezioni grandi la paginazione «might timeout or return
+an error».
+
+**Lo stato necessario**: **una marca temporale per negozio**, non una tabella. ⭐ È già decisa in
+`docs/24` §1.15.2-3 come «ultimo checkpoint ordini riuscito», e `ShopifyShop` è la sede naturale
+perché è l'identità immutabile del negozio. ⛔ **Non si riusano `lastSyncAt` né
+`lastWebhookEventAt`**: la prima ha sette scrittori, la seconda è approssimata al minuto e dice «è
+arrivato qualcosa», non «ho letto fino a qui».
+
+##### ⚠️ Tre limiti della ripartenza, da dichiarare adesso
+
+1. ⛔ **Il limite dei 60 giorni è sull'ETÀ DELL'ORDINE, non sulla durata della pausa** (§31.4):
+   senza `read_all_orders` non si rileggono ordini più vecchi di due mesi, quindi **anche una
+   pausa breve** perde un reso o un annullamento su un ordine vecchio — un ordine già nostro. E
+   `read_all_orders` restituirebbe solo la capacità di rileggere ciò che è già nostro: **non è
+   un'autorizzazione a importare lo storico precedente all'aggancio**.
+2. **Le sottoscrizioni vanno verificate e ricreate**: Shopify le **rimuove** dopo fallimenti
+   ripetuti in 24 ore, e «removed webhook subscriptions won't receive any deliveries unless you
+   create them again». Non ripartono da sole.
+3. ⛔ **`autoSyncEnabled` ferma solo l'INGRESSO.** Durante una «pausa» VestiFlow **continua a
+   pubblicare** giacenze su Shopify. Se la pausa deve fermare tutto — come §31.10 dichiara deciso
+   — oggi l'unica strada è `disconnect()`, che azzera proprio le date da cui `docs/24` §1.15.3
+   vuole calcolare l'intervallo. **È una contraddizione da sciogliere prima di implementare.**
+
+#### 31.10 · Le decisioni — quattro PRESE il 10/09/2026, le altre aperte
+
+##### ✅ PRESE, e non si riaprono
+
+|                                        |                                                                                                                                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **quantità toccate a mano su Shopify** | ⭐ **non sono un problema nostro**: non si copiano, non si inseguono, non fermano niente. Le corregge il tasto Allinea, quando l'operatore lo preme. **Va scritto nelle guide utente** |
+| **il tasto Allinea**                   | **mostra le differenze e si conferma** prima di scrivere — è un'azione sensibile, e una differenza anomala dev'essere vista prima di propagarla                                        |
+| **la partenza controllata**            | è una **procedura, non un obbligo**: VestiFlow non blocca niente e non verifica che sia stata fatta. Chi non la segue parte disallineato e se ne accorge dalle differenze              |
+| **il recupero degli ordini**           | appartiene alla **sincronizzazione continua**, non al tasto Allinea. Gli ordini arrivano da soli; quelli persi per un guasto **si recuperano automaticamente**                         |
+
+⭐ **La prima chiude anche il vecchio punto 1** («che cosa fare di uno scarto inspiegato»): non si
+sospende niente, non c'è nessuna soglia da tarare, e la valvola è il tasto. ⚠️ Restava la scelta
+fra sospendere e mostrare: **si mostra**, e basta.
+
+##### ✅ E anche il rischio del tasto Allinea è deciso
+
+⛔ Qui il punto era: «l'operatore può accettare il rischio di sovrascrivere, quando sotto una
+rettifica manuale può nascondersi un ordine vero non ancora atterrato?». **La risposta è nelle
+decisioni qui sopra**: il tasto mostra le differenze, l'operatore conferma, e le quantità toccate
+a mano non sono un problema nostro. ⭐ **Il titolare si accolla il rischio, e lo fa vedendo che
+cosa cambierà.**
+
+⚠️ **Che cosa questo NON rende vero**, e resta scritto: la sovrascrittura registrata è
+**tracciabile, non reversibile**. Si ripristina il numero; **non si annulla una vendita avvenuta**
+perché la disponibilità era falsa. Il danno esce dal sistema.
+
+⛔ **E due forme che avevo proposto restano ritirate** (§31.12): «rifiutare se il canale è in
+movimento» scambia un'assenza di evidenza per evidenza di assenza, e «una dichiarazione esplicita
+dell'utente» non scioglie niente — chi conferma non sa più del sistema. ⭐ Quello che scioglie il
+caso comune è un'altra cosa: **gli ordini arrivano da soli**, quindi la differenza che il tasto
+trova è quasi sempre davvero una rettifica manuale.
+
+##### ⭐ Un REQUISITO che discende dal piano, non una domanda
+
+**La pausa d'emergenza** ferma **ingressi e uscite**, alla riattivazione si recupera, e il lavoro
+locale accumulato **si conserva**. ⛔ Oggi il codice non lo soddisfa: `autoSyncEnabled` chiude solo
+l'ingresso e VestiFlow continua a pubblicare; l'unica strada che ferma davvero (`disconnect()`)
+azzera le date da cui calcolare l'intervallo di recupero. ⚠️ È **lavoro**, non una decisione, e
+sta in §31.9.
+
+⚠️ **Non va confusa con «fermare le vendite su Shopify»** (§31.-1), che non è un nostro comando e
+non lo diventa: la pausa d'emergenza ferma **noi**, non la vetrina.
+
+##### ⏸ Le decisioni ancora aperte — sono TRE
+
+**1. Dove mettere l'innesco automatico.** ⭐ Il piano ora **richiede** il recupero automatico degli
+ordini (§31.-1), quindi non è più in questione _se_ serve un innesco: è in questione **dove sta**.
+Le tre opzioni e i loro costi in §31.9; la scelta richiede di sapere **quante repliche gira oggi
+l'API**, che non è verificato.
+
+**2. Se pagare l'accesso a `inventory_adjustment_history`.** L'esito ignoto diventa accertabile
+**in un verso solo** — trovata = applicata; non trovata = ancora ignota. Il prezzo è
+`read_reports` **più l'accesso di livello 2 ai dati cliente protetti**, che non è uno scope ma
+un'**approvazione dell'applicazione** da parte di Shopify. ⏸ Prima della decisione va verificato
+se VestiFlow ce l'abbia o possa ottenerlo.
+
+**3. Se chiedere `read_all_orders`.** Senza, **non si rileggono ordini più vecchi di 60 giorni** —
+ed è un limite sull'**età dell'ordine**, non sulla durata di una finestra cieca: anche una pausa
+breve perde un reso o un annullamento su un ordine di tre mesi fa, che è già nostro. ⛔ **Non è
+una richiesta di importare lo storico**: il confine di ciò che sincronizziamo resta dove è stato
+deciso, e `read_all_orders` restituirebbe solo la capacità di rileggere ciò che è già nostro.
+
+#### 31.11 · ⏸ Il primo blocco — RISCRITTO il 10/09/2026
+
+> ⛔ **Non è autorizzato**: è la proposta del primo passo. Nessuna riga di codice applicativo è
+> stata scritta.
+
+⚠️ **La prima stesura proponeva «leggere `R` e conservarlo in una colonna nuova», e la
+giustificava con il conteggio diagnostico.** Il proprietario l'ha respinta con due obiezioni,
+entrambe accolte:
+
+|                                                                      |                                                                                               |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| ⛔ **raccogliere `R` non dimostra che una riga sia inizializzabile** | sono due cose diverse, e §31.4 ora lo scrive: nessun test di sola osservazione lo dimostra    |
+| ⛔ **non si aggiunge un blocco produttivo per un conteggio**         | una colonna persistente si motiva col suo ruolo nel percorso definitivo, non con una diagnosi |
+
+⭐ **Quindi la misura scende di rango — diventa una diagnosi, non un blocco — e il primo blocco
+diventa un altro.**
+
+##### Il blocco: la lettura del canale PER SEDE, per identificativo
+
+⭐ **È una correzione di correttezza, non una funzione nuova**, e la §31 la richiede comunque:
+§31.2 legge `R` per **una** coppia (variante, sede), e oggi quella lettura non è affidabile.
+
+⛔ **Il difetto, verificato in `shopify-graphql.client.ts:1338-1350`**:
+
+```text
+inventoryLevels(first: 250)        <- TUTTE le sedi Shopify dell articolo, nel loro ordine
+nessun pageInfo / hasNextPage      <- la troncatura non si puo' distinguere
+```
+
+|                                                |                                                 |
+| ---------------------------------------------- | ----------------------------------------------- |
+| la nostra sede può **non essere nella pagina** | e chi legge non ha modo di accorgersene         |
+| «troncato» e «non stoccato in quella sede»     | ⛔ **arrivano identici**: entrambi come assenza |
+
+⛔ **E la mia proposta peggiorava le cose.** Avevo scritto «abbassare `first:` al numero di sedi
+mappate»: **non è un filtro, è una troncatura.** Con tre sedi remote A, B, C e solo C collegata,
+`first: 1` restituisce A. Avrei trasformato un rischio raro in uno **sistematico**.
+
+**Il rimedio**: leggere **per identificativo** la sede che serve, invece di prendere una pagina e
+cercarci dentro. ⏸ Il proprietario riporta dalla documentazione
+`inventoryItem.inventoryLevel(locationId: ...)`: **da confermare sullo schema della versione in
+uso** prima di scrivere. Se non fosse disponibile, il ripiego è la paginazione vera con
+`pageInfo`.
+
+> ⛔ **In entrambi i casi vale la regola che conta: un'assenza NON è uno zero.** Una sede non
+> letta e una sede a quantità zero devono restare distinguibili fino in fondo al percorso.
+
+##### Perché questo blocco regge l'obiezione
+
+|                                 |                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| stato persistente nuovo         | ⭐ **nessuno**: non si aggiunge nessuna colonna                           |
+| permessi Shopify nuovi          | ⭐ **nessuno**: `read_inventory` c'è già                                  |
+| dipendenze                      | ⛔ **nessuna** da ShopifyQL, `read_all_orders`, livello 2, o dall'innesco |
+| utilità se §31 cambiasse ancora | ⭐ resta: è la lettura che serve a **qualunque** forma del blocco         |
+| API del ramo                    | resta **spenta**: verifica su suite di integrazione e simulatore          |
+
+##### Prove di accettazione
+
+| #   |                                                                                                                             |
+| --- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1   | tre sedi remote, **una sola collegata e collocata fuori dalla prima pagina**: viene letta quella giusta, per identificativo |
+| 2   | articolo **non stoccato** nella nostra sede: distinto da «non letto» — nessun valore inventato, e **mai zero**              |
+| 3   | canale in oversell: il valore letto resta **negativo**, il clamp non agisce sul percorso di lettura                         |
+| 4   | **nessuna mutation** parte come conseguenza della lettura — contata sul simulatore, non dedotta                             |
+| 5   | **falsificazione**: rimettendo la lettura a pagina con `first` basso, le prove 1 e 2 devono arrossare                       |
+
+##### ⏸ La misura, separata — è una diagnosi
+
+§31.4 chiede di sapere «quante righe reali qualificherebbero» **prima** di decidere. Quella
+domanda resta, ma:
+
+- ⛔ **non persiste niente**: è un'interrogazione, non un blocco produttivo;
+- ⛔ **richiede una sessione autorizzata contro un negozio vero**, quindi è fuori dal perimetro
+  attuale (nessun Shopify reale) e va autorizzata a parte;
+- ⚠️ **e anche allora è un LIMITE SUPERIORE, non una prova**: conta le righe che _sembrano_
+  qualificare, e §31.4 dimostra che l'apparenza non basta.
+
+##### ⏸ Il blocco parallelo, indipendente
+
+Il **difetto di testa della coda** (§31.9, prerequisito 1): cinque rami di uscita non toccano
+`updatedAt`, quindi quelle righe restano per sempre le più vecchie e le altre non vengono mai
+tentate — più l'indice mancante. ⭐ **Correzione di difetto, nessuna dipendenza**, e va fatta
+**prima** di qualunque innesco automatico: col comando manuale è tollerabile, a innesco periodico
+diventa un ciclo che brucia quota senza avanzare.
+
+#### 31.12 · Il RIALLINEAMENTO esplicito — VestiFlow → Shopify
+
+> ⭐ **Deciso dal proprietario il 10/09/2026**: un comando esplicito nelle impostazioni di
+> sincronizzazione, che allinea **Shopify** al valore di VestiFlow. Mai il contrario.
+>
+> ⛔ **La regola sui contatori qui sotto è stata VERIFICATA PRIMA di essere scritta**, su richiesta
+> del proprietario. Non era un formalismo: **due delle tre regole candidate sono cadute**, e
+> ognuna su un caso diverso.
+
+##### ⭐ Che cosa è davvero: è la RICONCILIAZIONE, con una faccia
+
+§31 la invoca in ogni sezione — «va a riconciliazione», «l'unica valvola che può azzerare `S`» —
+senza mai dirle dove viva. È qui.
+
+⭐ **E ne discende la chiusura del punto che teneva bloccato §31.4.** Avevamo dimostrato che il
+punto di partenza delle righe esistenti **non è deducibile per osservazione**: 49 fotografie su 55
+sono ambigue. Il riallineamento non deduce — **una persona asserisce**: «la verità è questa,
+scrivila». ⛔ È legittimo in un modo in cui indovinare non lo è, **e solo perché è esplicito**.
+
+> **L'inizializzazione delle righe esistenti non è una migrazione: è il primo uso del
+> riallineamento.**
+
+##### ⛔ Il riallineamento ha DUE TEMPI, e nel mezzo il mondo si muove
+
+È questo a decidere la regola, e me ne sono accorto solo perché il proprietario ha chiesto un
+sesto caso prima di lasciarmela dichiarare valida.
+
+```text
+t1   snapshot atomico (A_w, L_w, C_w)   e   scrittura remota di  T = max(0, A_w)
+     ...........  qui il mondo continua a muoversi  ...........
+t2   conferma locale:   P := T
+                        L -= L_w - (A_w - T)
+                        C -= C_w
+```
+
+> ⭐ **Sono SCARICHI, non assegnazioni. Un'assegnazione butta via ciò che è successo nella
+> finestra; uno scarico toglie solo quello che il riallineamento ha davvero portato.**
+
+##### Le due candidate cadute, e il caso che ha ucciso ciascuna
+
+| regola                  | cade su                                                                                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `L := 0` · `C := 0`     | ⛔ **vendita locale durante il riallineamento** — persa per sempre; **negativo + carico insufficiente** — il residuo torna a pubblicare troppo; e su **F** `C := 0` cancella un'acquisizione legittima, producendo un **allarme falso** (`S = −1` su una riga sana) |
+| `L := A − T` · `C := 0` | ⛔ **F, il caso chiesto dal proprietario** (sotto). Regge tutti gli altri: era la regola che stavo per formalizzare                                                                                                                                                 |
+
+##### ⛔ Il caso F — l'ordine applicato sul canale E acquisito, fra scrittura e conferma
+
+```text
+t1  A=10 R=10        scrivo T=10 su Shopify
+    ordine online:   Shopify applica (R=9)  E  VestiFlow lo acquisisce (A=9, C=-1)
+t2  conferma
+
+    L := A - T   ->  L = 9 - 10 = -1     ⛔ e quel -1 e' l ORDINE, gia' sul canale
+                     il giro dopo invia 8, mentre il vero e' 9
+    L -= L_w - (A_w - T)  ->  L -= 0  ->  L = 0    ✅ niente da ritrasmettere
+    C -= C_w              ->  C  = -1              ✅ l ordine resta SPIEGATO, S = 0
+```
+
+⭐ **`L := A − T` attribuiva a `L` tutto ciò che muoveva `A` nella finestra** — comprese le
+acquisizioni, che sono già sul canale. Lo scarico distingue perché **le acquisizioni entrano in
+`C`, non in `L`**, e la stessa forma vale per entrambi i contatori.
+
+⭐ **La forma per scarico supera tutti e sette i casi**, ed è l'unica delle tre.
+
+⛔ **Ma «supera i casi» vuol dire nelle SIMULAZIONI, non nell'applicazione.** È una regola provata
+su un banco con oracolo indipendente e falsificazione — il che dice che **l'aritmetica è sana**.
+Non esiste una riga di codice che la implementi, quindi non c'è nessuna sicurezza applicativa da
+dichiarare: quella comincia quando il codice esiste e le prove girano su di esso.
+
+⚠️ **E la campagna precedente non discriminava**, perché non modellava i due tempi: `L := 0` dava
+zero controesempi. Modellata la finestra, li vede tutti — 3.430 per l'assegnazione, 955 per
+l'azzeramento, **0 per lo scarico su 60.000**. ⛔ **Una campagna verde non è un superinsieme delle
+prove mirate**, ed è la ragione per cui i casi vanno chiesti prima.
+
+##### ⭐ Quantità INVIATE e stati REMOTI sono due cose diverse
+
+|                      |                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **quantità inviate** | sempre `≥ 0`: `T = max(0, …)`. Non è una convenzione nostra — l'API **rifiuta** le negative (`INVALID_QUANTITY_NEGATIVE`) |
+| **stati remoti**     | ⚠️ **possono essere negativi**, e non è escluso: `T = max(0, R + L)` lo prevede già                                       |
+
+⛔ **E una volta avevo confuso le due cose per far sparire un risultato scomodo.** La campagna
+dava 64 controesempi con il canale negativo; li ho eliminati **vietando al canale di andare sotto
+zero**, cioè usando un fatto sulle _scritture_ per vincolare il modello degli _stati_. Sbagliato:
+a essere errata era l'asserzione, non il modello. La formulazione giusta è **«dopo un invio che
+ha davvero scritto»** — quando `L = 0` non si scrive e il canale resta dov'è, che è il divieto di
+normalizzazione, non un difetto.
+
+⭐ Rifatta così, col canale libero: **0 controesempi su 60.000**, con 32.028 istanti a canale
+negativo effettivamente attraversati — quindi il caso è stato esercitato, non evitato.
+
+##### ⛔ Lo svuotamento dell'arretrato è OBBLIGATORIO, e non dipende dalla direzione
+
+**Tutte e tre le regole cadono** sui due casi con un ordine remoto non ancora acquisito — perché
+non è un problema dei contatori: è il riallineamento che **ripubblica un pezzo già venduto**.
+
+```text
+A=10  R=9 (ordine online non acquisito)   ->  riallinea a 10  ->  canale 10, vero 9
+                                              e nessuno poteva saperlo
+con lo svuotamento prima                  ->  riallinea a  9  ->  corretto
+```
+
+⛔ **E l'ipotesi «alzare è pericoloso, abbassare no» è FALSA** — l'avevo formulata e il banco
+l'ha smentita: con una rettifica manuale a `R = 19` e un ordine in volo, il riallineamento
+**abbassa** a 10 e sbaglia lo stesso, perché l'ordine c'è comunque. **Non è la direzione: è
+l'ordine non acquisito.** Non va ri-dedotta.
+
+##### Le tre regole di contorno, e sono vincoli
+
+|                                         |                                                                                                                                                                   |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **la direzione non si inverte**         | non «impostata a VestiFlow → Shopify»: il percorso non deve **poter** scrivere in magazzino. Le giacenze sono di VestiFlow per contratto di ownership             |
+| **si mostra anche ciò che NON si sa**   | «Shopify 20, VestiFlow 9, **causa non accertata**» è onesto; «differenza 11 → correggo» è un modo autorevole di sovrascrivere un ordine vero non ancora atterrato |
+| **si aggiorna solo ciò che differisce** | e si distinguono riuscito, fallito e **non eseguibile in sicurezza**, che è un esito a sé                                                                         |
+
+##### Il tentativo persistente: che cosa è VERIFICATO e che cosa è ancora da fare
+
+⚠️ **Le due cose vanno tenute separate**, e il titolo precedente («il meccanismo esiste già») le
+confondeva: il **veicolo** è verificato nel codice, la **fotografia** è progettata e non esiste.
+
+**✅ VERIFICATO nel ramo — il veicolo del tentativo**
+
+|                              |                                                                                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| sopravvive a un riavvio      | il tentativo vive su **colonne della riga**, non in memoria: chiave, valore, base, destinazione, istante (`pending*`, `pendingKey` unica)                                |
+| si usa **una volta sola**    | `confermaTentativo` è un `updateMany` con `pendingKey: chiave` nel `WHERE`. Se non è più il proprio, `count === 0` e **non si scrive niente**: «né conferma né chiusura» |
+| risposta **persa o tardiva** | tardiva → nessuna scrittura; persa → il tentativo **resta aperto**, e oltre la finestra esce `tentativo_incerto` senza reinviare                                         |
+
+**⛔ DA IMPLEMENTARE — la fotografia, e non è solo spazio**
+
+|                                                    |                                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| le tre colonne `A_w`, `L_w`, `C_w`                 | non esistono, perché non esistono `L` e `C`                                                       |
+| **scriverle nello stesso atto** che decide l'invio | ⛔ è comportamento nuovo: oggi non si fotografa niente, si legge e si scrive                      |
+| la conferma che **decrementa** invece di assegnare | ⛔ oggi scrive `localPushPending: false`, cioè un'assegnazione — la forma che il caso F ha ucciso |
+
+⭐ **Quindi: il posto dove metterla è collaudato, quello che ci va dentro non è ancora stato
+scritto.** Dire «il meccanismo c'è» è vero del contenitore e falso del contenuto.
+
+##### ⛔ Le condizioni che avevo proposto — due ritirate, e la terza va riformulata
+
+⛔ **«Rifiutare il riallineamento sulle coppie con canale in movimento» — ritirata.** Non aver
+_osservato_ movimenti non dimostra che non ci siano ordini in viaggio: è un'assenza di evidenza
+travestita da evidenza di assenza.
+
+⛔ **«Una conferma esplicita dell'utente» — ritirata.** Chi conferma non sa più di quanto sappia
+il sistema: una firma non produce informazione.
+
+##### ⛔ E anche il confronto su `committed` era sbagliato — due volte
+
+⚠️ Avevo scritto che confrontare il `committed` remoto col nostro «discrimina l'ordine dalla
+rettifica, per presenza di evidenza concorde». **Non regge, e per due ragioni indipendenti.**
+
+**1. Sono aggregati di ORIGINI DIVERSE.** Verificato nel ramo: il `committed` di VestiFlow lo
+scrive `stock-reservation.service.ts` attraverso `applyCommittedDelta` — sono le **prenotazioni
+nostre** (ordini cliente, impegni locali). Il `committed` di Shopify è la quantità impegnata ai
+**suoi** ordini non evasi.
+
+> ⛔ **Non sono lo stesso insieme, e differiscono per ragioni del tutto legittime**: un ordine
+> cliente locale impegna da noi e non su Shopify. Confrontarli è confrontare due somme di cose
+> diverse, e la loro uguaglianza non è evidenza di niente.
+
+**2. E anche a insiemi omogenei, i totali si COMPENSANO.** L'evasione di un ordine vecchio
+(`committed` scende) e la creazione di uno nuovo (`committed` sale) si annullano nel totale. Non
+serve che i due eventi riguardino lo stesso ordine — che era il residuo, molto più stretto, che
+avevo dichiarato.
+
+⭐ **La forma che sarebbe evidenza è un confronto di IDENTITÀ, non di totali**: l'insieme degli
+ordini Shopify **non evasi** che toccano quella coppia, contro l'insieme degli id che abbiamo
+acquisito. Un id presente là e assente qui **è** un ordine non acquisito — e due ordini diversi
+non si annullano come identità.
+
+⏸ **Ma non la propongo come blocco**: è un'altra superficie di API e un costo per coppia, e le
+API non si cambiano di iniziativa. ⚠️ **E lascia comunque scoperto** l'ordine piazzato **ed
+evaso** dentro la finestra: non è non-evaso in nessuna delle due fotografie, quindi è invisibile
+anche al confronto per identità.
+
+##### Che cosa resta come condizione verificabile
+
+| condizione                                                                                               | residuo che lascia                                       |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| lo sweep in avanti ha superato l'istante della lettura **e** la seconda passata non ha toccato la coppia | ⚠️ la finestra della seconda passata                     |
+| `R == P` **e** nessuna nostra scrittura da allora                                                        | ⚠️ movimenti di canale **compensativi** che si annullano |
+
+⛔ **Sono due, non tre, e nessuna delle due è una prova.** Restringono l'insieme delle coppie su
+cui si può procedere senza incertezza; non lo azzerano.
+
+##### ⛔ I casi in cui servirebbe DAVVERO accettare un rischio
+
+- un ordine piazzato **ed evaso** interamente nella finestra cieca;
+- movimenti di canale compensativi che si annullano;
+- il periodo in cui i webhook sono stati **buttati** (`autoSyncEnabled` spento) e la rilettura non
+  ci arriva — oltre i 60 giorni senza `read_all_orders`;
+- coppie senza accesso alla storia del canale, con `R ≠ P` e nessun'altra evidenza.
+
+Le opzioni, e **nessuna delle due è «l'utente conferma»**:
+
+|                                                      |                                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **rinviare la coppia**                               | non la si riallinea: si aspetta l'evidenza. Costa che quella riga resta disallineata |
+| **scrivere e registrare che cosa si è sovrascritto** | ⚠️ rende la sovrascrittura **TRACCIABILE**                                           |
+
+⛔ **E «tracciabile» NON vuol dire «reversibile».** Qui avevo scritto che registrare trasforma il
+rischio in «un rischio reversibile, cioè una decisione molto più piccola». **Falso**: si può
+ripristinare **il numero**, non si può annullare **una vendita avvenuta** perché la disponibilità
+era falsa. Quel danno esce dal sistema e non torna indietro con una scrittura.
+
+> ⏸ **L'autorizzazione a sovrascrivere in condizioni incerte NON è stata data**, in nessuna delle
+> due forme. Resta §31.10 punto 6, e non è una conseguenza automatica del pulsante.
+
+##### ⏸ Che cosa NON risolve
+
+⛔ **Non elimina la finestra**: fra la vendita su Shopify e la sua acquisizione resta un intervallo,
+e durante quello nessuna asserzione è affidabile. Lo svuotamento lo restringe, non lo chiude.
+
+⛔ **E il riallineamento cancella la deriva senza sapere che cos'era.** Se sotto la rettifica
+manuale si nascondeva un ordine vero non ancora atterrato, l'asserzione lo sovrascrive: la forma
+per scarico protegge **i contatori**, non la verità dell'asserzione.
+
+> ⏸ **Che l'operatore possa ACCETTARE questo rischio residuo NON è una decisione approvata.**
+> Qui avevo scritto «è il costo di un'asserzione umana, ed è accettabile se chi conferma sa che
+> cosa dichiara»: era un'approvazione che mi ero dato da solo. È una decisione del proprietario,
+> ed è aperta — §31.10 punto 6.
+
+⚠️ **Resta anche la decisione di §31.10 punto 1**: che cosa fare di uno scarto inspiegato _prima_
+che qualcuno prema il pulsante.
+
+#### 31.13 · ✅ FATTO il 10/09/2026 — `L` e `C`, l'origine dichiarata al collo di bottiglia
+
+> ⭐ **Realizzato e provato.** Sotto, la proposta com'era: resta perché la parte sulle righe
+> esistenti è ancora futura. Qui che cosa esiste **adesso**.
+
+##### I punti effettivi, verificati prima di toccarli
+
+```text
+applyInventoryDelta   46 chiamate in  9 file   ->  onHand e available
+applyCommittedDelta    7 chiamate in  1 file   ->  committed e available (segno opposto)
+```
+
+⛔ **E sono due, non di piu'**: `inventory-import.service` scrive solo `minThreshold`,
+`inventory-incoming.util` solo `incoming`. Nessuno dei due tocca il Disponibile.
+
+##### Che cosa è stato fatto
+
+|                               |                                                                                                                                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| due colonne                   | `local_pending_delta` (`L`) e `channel_acquired_delta` (`C`), migration applicata **solo al sacrificabile**                                                                                              |
+| origine **obbligatoria**      | i due util prendono `OrigineVariazione` come parametro richiesto: chi aggiunge un percorso **deve** dichiararla o non compila. ⛔ Nessun default: direbbe «locale» proprio per i casi che si dimenticano |
+| stessa transazione            | la registrazione usa lo **stesso `tx`** della variazione: o si muovono entrambe o nessuna delle due                                                                                                      |
+| classificazione degli impegni | ⭐ **dedotta da un dato che c'era già**: `StockReservation.channel`. `shopify_online` e `shopify_pos` → canale, `manual` e `store` → locale                                                              |
+
+⭐ **Il `NULL` fa da guardia da solo**: su una riga senza base i contatori sono `NULL`, e in SQL
+`NULL + n` resta `NULL`. Una riga fuori dal regime nuovo non accumula, **senza un controllo che
+qualcuno possa dimenticare**.
+
+⛔ **Nessun upsert**: se la riga di stato non esiste non la si crea. Quella riga nasce dal
+collegamento al canale, non da una vendita al banco.
+
+##### Le prove — il caso centrale, e la falsificazione che ha trovato una lacuna mia
+
+Sette prove di integrazione su PostgreSQL vero, fra cui **il caso da cui è partito tutto**:
+vendita online non ancora acquisita **più** vendita al banco → `L = −1`, `C = −1`, ciascuna
+contata **una volta sola**, e il Disponibile a 8.
+
+Più: l'ordine arrivato **durante** un invio che non tocca `L`; il debito negativo che si conserva
+attraverso un carico insufficiente; la riga senza base che resta a `NULL`; la coppia non collegata
+che non fa nascere nessuna riga; e il **rollback** che non lascia né giacenza né contatore.
+
+⛔ **Una falsificazione è rimasta VERDE al primo giro**, ed era una lacuna vera: le prove di
+integrazione chiamano l'origine a mano, quindi non esercitavano
+`origineDaCanaleOrdine` — la funzione che classifica **ogni** prenotazione. Invertirla non
+arrossava niente. Ora ha una prova sua, e i quattro guasti arrossano tutti.
+
+⚠️ **233 prove unitarie sono diventate rosse**, ed era la conseguenza onesta: i doppi di
+transazione non conoscevano la tabella nuova. ⛔ **Non si è ammorbidita la guardia** — un util che
+salti la registrazione quando il modello «non c'è» nasconderebbe in produzione proprio ciò che
+deve garantire. Si sono adeguati i doppi, 25 file.
+
+##### ✅ E dal 10/09/2026 i contatori sono COLLEGATI all'invio
+
+|                              |                                                                                                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **valore composto**          | `T = max(0, R + L)`, con `R` letto per sede e per identificativo. Un effetto già applicato da Shopify sta in `C` e **non entra in `T`**                                                                                            |
+| **condizione a due termini** | `L ≠ 0` **e** `T ≠ R`                                                                                                                                                                                                              |
+| **confronto**                | passa all'ultimo remoto letto ⚠️ **solo sulle righe con base**; le altre restano al regime di prima                                                                                                                                |
+| **conferma atomica**         | ⭐ **una sola `UPDATE`**: avanza il confermato, chiude il tentativo e scarica i contatori. In due scritture ci sarebbe una finestra in cui i contatori sono scaricati e il tentativo aperto — alla ripresa scaricherebbe due volte |
+| **scarico**                  | `L -= (T − R)` e `C -= (R − P)`: si toglie **esattamente quanto trasmesso**, quindi il residuo negativo resta e un'operazione arrivata dopo la fotografia sopravvive                                                               |
+
+⛔ **Nessuna inizializzazione nascosta**: con `L` a `NULL` la riga usa il percorso di prima —
+valore assoluto e confronto sull'ultimo confermato. La base resta della partenza controllata.
+
+##### Le prove sul PERCORSO, non sulla contabilità
+
+⚠️ Le prove dei contatori chiamano le funzioni delle quantità **a mano**: dimostrano che la
+registrazione è giusta, **non** che l'invio usi la distinzione. Restano, ma non bastano.
+
+Dieci prove su **servizi veri**, PostgreSQL e negozio simulato:
+
+```text
+IL CASO CENTRALE   10/10 -> vendita ONLINE (Shopify 9, non acquisita)
+                         -> vendita al banco (VestiFlow 9)
+                         -> INVIO: Shopify 8, L scaricato a 0
+                         -> l ordine arriva: VestiFlow 8, NESSUNA seconda sottrazione
+```
+
+Più: un'operazione locale che entra **durante** la scrittura e sopravvive allo scarico; la
+**risposta persa** con ripartenza da un esecutore nuovo, che non applica due volte; il residuo
+negativo che pubblica 0 e conserva il debito; e la riga senza base che resta al regime di prima.
+
+##### ⛔ QUATTRO RACCORDI trovati LEGGENDO, non eseguendo — 10/09/2026
+
+> ⭐ **Tre li ha trovati il proprietario rileggendo il codice; il quarto è uscito
+> provando a verificare la sua obiezione sul terzo.** Nessuno dei quattro faceva
+> fallire una prova: erano decisioni **vecchie** rimaste intatte accanto al
+> percorso nuovo, e il percorso nuovo funzionava.
+
+|     | Il difetto                                                                                                                                                                                  | La forma corretta                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | la scorciatoia dell'**«invariata»** guardava il Disponibile e usciva _prima_ del calcolo con `L`: un carico +1 e un ordine online −1 acquisito lo lasciano dov'era, e il carico non partiva | con una base la domanda è `L`, non il Disponibile                                                                                    |
+| 2   | il **ritentativo** escludeva esplicitamente il valore composto e tornava al totale assoluto                                                                                                 | ritentare trasmette **lo stesso valore** dell'invio ordinario. ⛔ Ritentare **non** è premere Allinea: con `L = 0` non scrive niente |
+| 3   | la **presa** controllava Disponibile e confermato, non `L`: due variazioni di origine diversa che si compensano lasciano `available` identico mentre `L` cambia                             | la presa confronta anche `L`                                                                                                         |
+| 4   | la **conferma** spegneva il pendente con un `FALSE` secco, e buttava via il lavoro entrato durante la scrittura                                                                             | si spegne **solo se, dopo lo scarico, `L` è zero**                                                                                   |
+
+⛔ **Il quarto è quello che la chiamata a mano nascondeva.** La prova esistente
+dimostrava che il residuo _sopravvive_ allo scarico, e poi lo trasmetteva
+chiamando un secondo `pushLevel` — cioè l'operatore che rifà il gesto. In
+esercizio nessuno lo rifà: la riga usciva dalla coda insieme al tentativo
+confermato, e quella vendita restava ferma finché su quella coppia non capitava
+per caso un altro movimento.
+
+⭐ **Adesso la prova non chiama più nessun push**: costruisce
+`ShopifyInventoryRepublishService` con un esecutore **nuovo** e chiama
+`retryPending`. Prima della correzione rispondeva `pending: 0`.
+
+⚠️ **Un residuo NON TRASMISSIBILE tiene la riga in coda, ed è dichiarato**: con
+`T` clampato a zero il debito negativo non si scarica, e la coda continuerà a
+esaminarla senza mai scrivere. È lavoro locale che il canale non può
+rappresentare — **visibile e fermo**, invece che perso in silenzio.
+
+⭐ **Tutti e quattro sono stati riprodotti prima di correggerli**, e falsificati
+dopo rimettendo il difetto uno per uno: quattro guasti, quattro prove rosse.
+
+##### ✅ CHIUSO il 10/09/2026 — il tentativo aperto ORA sta in coda
+
+⛔ **Qui c'era il rilievo aperto** — «la coda guarda due colonne, una riga con
+`pending_key` non sta in nessuna delle due, e la ripetizione avviene solo se
+qualcuno richiama `pushLevel` su quella coppia». Resta scritto **cosa** era,
+perché è la forma in cui il difetto può tornare: un lavoro che esiste sulla riga
+e che nessun criterio di selezione guarda.
+
+La coda ha ora un **terzo** criterio, e i tre restano distinguibili — vedi
+§31.14. Le due metà della tabella di allora reggono ancora, ma la seconda è
+chiusa:
+
+|                                            |                                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **oltre** la finestra di idempotenza (24h) | ⭐ **è voluto e resta**: ripetere potrebbe applicare l'effetto due volte. Oggi la coda lo TROVA e lo lascia stare — prima non lo trovava, e sembrava la stessa cosa |
+| **dentro** la finestra                     | ✅ lo ritrova `retryPending`, che passa dalla porta ordinaria: stessa chiave, stessi parametri, stessa destinazione                                                 |
+
+#### 31.14 · ✅ FATTO il 10/09/2026 — la RECUPERABILITÀ senza un altro gesto
+
+> ⭐ **Il requisito, dichiarato dal proprietario**: ritrovare _tutto_ il lavoro
+> pendente è concordato; **dove e con quale frequenza** avviare il recupero
+> resta da decidere in base al deployment (§31.9). Questa sezione chiude la
+> prima metà: il lavoro è ritrovabile. Non attiva niente.
+
+##### Le due finestre che restavano scoperte
+
+```text
+1  vendita locale confermata, processo fermo PRIMA del push
+     -> `L` incrementato, nessun marcatore acceso: la coda non la vedeva
+2  tentativo persistito con risposta persa, senza altri marcatori
+     -> `pending_key` aperto, e nessun criterio lo guardava
+```
+
+⛔ **La prima non è teorica ed è la piu' comune**: fra il commit della vendita e
+l'inizio del push c'è una finestra vera — `pushInventoryAsync` è
+fire-and-forget, perché la cassa non deve aspettare Shopify. Un riavvio, un
+container che cade, un deploy: quel lavoro restava fermo finché su quella coppia
+non capitava per caso un'altra operazione.
+
+⚠️ **E la seconda la nascondeva la prova stessa**: dimostrava che il residuo
+sopravvive allo scarico, e poi lo trasmetteva chiamando un secondo `pushLevel` a
+mano — cioè l'operatore che rifà il gesto. In esercizio nessuno lo rifà.
+
+##### Che cosa è stato fatto
+
+|                                                  |                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **il marcatore si accende dove il lavoro NASCE** | `registraOrigine` accende `localPushPending` insieme a `L`, **nella stessa transazione** della variazione: o si muovono la giacenza e il marcatore, o nessuno dei due. ⚠️ Solo per l'origine **locale**: un effetto di canale è già applicato là                                                                                  |
+| **la coda ha un TERZO criterio**                 | `pendingKey IS NOT NULL` — un tentativo partito con esito ignoto. ⛔ Non si fonde con gli altri due: non si rimanda, si **ripete** con la sua chiave                                                                                                                                                                              |
+| **il filtro è scritto UNA volta**                | `righeInCoda(tenantId)`, usata dalla selezione e dal conteggio. Erano due `where` gemelli: aggiungendo un criterio a uno solo, la coda conterebbe una cosa e ne esaminerebbe un'altra — e con il conteggio a zero **la passata non parte affatto**                                                                                |
+| **lo spegnimento fa la domanda giusta**          | con una base, «non c'è più niente da trasmettere» vuol dire `L = 0`. La domanda vecchia — «l'ultimo confermato è uguale al Disponibile?» — è quella del regime assoluto: basta un effetto di canale acquisito in mezzo perché i due numeri differiscano legittimamente, e la riga resterebbe in coda **per sempre, senza lavoro** |
+| **e si spegne in TUTTI e quattro i punti**       | due rami `unchanged` dentro il ciclo di presa non lo facevano. Non perdevano lavoro — la riga usciva al giro dopo — ma è la stessa decisione in quattro posti, e lasciarne due fuori è il difetto già pagato quattro volte                                                                                                        |
+
+##### Le protezioni, verificate una per una
+
+⛔ **Nessuna chiave nuova per aggirare un esito ignoto.** La prova confronta le
+chiavi di idempotenza viste dal canale: la ripetizione usa **la stessa**, non
+una nuova. Una chiave nuova su un effetto forse già applicato è il modo di
+applicarlo due volte.
+
+⛔ **Il tentativo SCADUTO si conserva e si segnala, non si reinvia.** Oltre le 24
+ore il canale non deduplica più. La prova verifica le due cose insieme —
+`pending ≥ 1` (la coda **l'ha trovato**) e `republished = 0` (non l'ha
+reinviato): senza la prima, resterebbe verde anche se non lo avesse mai visto,
+che è come passava prima della correzione.
+
+⛔ **Un residuo non trasmissibile non blocca le righe dietro.** Una riga con un
+debito che il canale non può rappresentare (`T` clampato a zero) resta in coda,
+visibile e ferma; la prova mette dietro una coppia con lavoro trasmissibile e
+verifica che venga raggiunta **nella stessa passata**.
+
+##### L'ordinamento è ora TOTALE
+
+```text
+1  last_attempt_at  ASC NULLS FIRST   la rotazione: chi e' stato guardato scende
+2  created_at       ASC               fra le mai esaminate, chi aspetta da piu' tempo
+3  id               ASC               chiude il pareggio, e non significa altro
+```
+
+⛔ **`created_at` NON è unico**, e non è un caso di scuola: `@default(now())` in
+PostgreSQL è l'istante della **transazione**, quindi tutte le righe create
+insieme — un import, un collegamento massivo — lo condividono al microsecondo.
+
+⚠️ **E il terzo criterio ha un costo dichiarato**: fra righe nate nella stessa
+transazione l'ordine diventa quello degli uuid, cioè arbitrario rispetto a
+quello di arrivo. Tutte vengono comunque servite, e la rotazione resta garantita
+dal primo criterio — ma «prima» smette di voler dire «arrivata prima». Due prove
+di banco vi si appoggiavano e sono state corrette assegnando `createdAt`
+distinti, che è anche più fedele all'esercizio.
+
+##### Il costo, misurato invece che dedotto
+
+Misura sul database sacrificabile, 20.000 righe di stato per un tenant, 1.200 in
+coda (5% lavoro locale, 2% disallineate, 1% tentativo aperto):
+
+```text
+conteggio della coda    0,39 ms    Bitmap Heap Scan
+selezione del lotto     0,56 ms    Bitmap Heap Scan + top-N heapsort (35 kB)
+```
+
+⭐ **Un indice dedicato NON serve**: provato un indice parziale su
+`(tenant_id, last_attempt_at, created_at, id)` filtrato sui tre criteri, i tempi
+non cambiano (0,43 e 0,57 ms) — il planner usa già gli indici esistenti.
+L'indice è stato creato e **eliminato** dentro la misura: nessuna migration.
+
+⚠️ **Il limite della misura, dichiarato**: 20.000 righe per un tenant e una
+tabella appena analizzata. A volumi molto maggiori la domanda va rifatta, e la
+risposta potrebbe cambiare.
+
+##### La copertura di queste prove
+
+|                                        |                                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| la **vendita** del caso 1              | `StoreSalesService.createSale` vero, con le sue dipendenze effettive                     |
+| il **ponte canali** del caso 1         | doppio inerte **per costruzione**: è il processo che muore prima del push, e va simulato |
+| il **servizio di invio** e la **coda** | reali, sempre, con un esecutore costruito dopo l'arresto                                 |
+| **Shopify**                            | simulato, mai il canale vero                                                             |
+
+⚠️ **Resta fuori la strada HTTP**: `createSale` è invocato dal servizio, non da
+un socket con la `ValidationPipe` di produzione (vedi §31.13).
+
+##### ⚠️ LA COPERTURA, detta per intero
+
+Va scritto **che cosa è servizio vero e che cosa no**, perché la differenza è
+esattamente il punto in cui i quattro raccordi si nascondevano.
+
+```text
+il servizio di INVIO         reale     ShopifyInventoryPushService, sempre
+la CODA del ritentativo      reale     ShopifyInventoryRepublishService
+PostgreSQL                   reale     database sacrificabile
+Shopify                      simulato  NegozioSimulato — mai il canale vero
+```
+
+| Le prove                                            | Vendita e acquisizione                                                                                                                                                               |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| §31.13 contatori (7) · invio composto (9)           | ⚠️ chiamano `applyInventoryDelta` / `applyCommittedDelta` **a mano**, passando l'origine come argomento                                                                              |
+| ⭐ **il caso centrale sui servizi applicativi** (1) | `StoreSalesService.createSale` con le sue dipendenze effettive e `ChannelSyncFacade` col push simulato; `OnlineOrderLifecycleService` + `StockReservationService` per l'acquisizione |
+
+⛔ **La differenza non è formale.** Una prova che passa l'origine a mano
+resterebbe verde anche se domani la Vendita al banco scrivesse la giacenza per
+un'altra strada. Falsificato: forzando lo scarico di vendita a dichiarare
+origine «canale», e `origineDaCanaleOrdine` a rispondere sempre «locale», la
+prova sui servizi arrossa in entrambi i casi.
+
+⭐ **E il push post-vendita è fire-and-forget**: `pushInventoryAsync` lascia
+andare la promessa perché la cassa non deve aspettare Shopify. La prova attende
+la **conseguenza osservabile**, non un tempo fisso.
+
+⚠️ **Resta fuori la strada HTTP**: `createSale` è invocato dal servizio, non da
+un socket con la `ValidationPipe` di produzione. Quel percorso è coperto da
+`vendita-al-banco.integration-spec.ts`, che però non ha Shopify simulato — e i
+due non si possono unire senza sostituire un provider dentro `AppModule`.
+
+##### ⚠️ Tre difetti trovati misurando, non ragionando
+
+1. **Due letture dello stato**, `STATO_SYNC` e la `$queryRaw`: aggiungendo le colonne solo alla
+   seconda, il ramo composto **non partiva mai** e l'invio tornava in silenzio al valore assoluto.
+   Verde nei tipi, sbagliato nel comportamento.
+2. ⛔ **La guardia della presa e il confronto da inviare sono due cose diverse.** Averle fatte
+   coincidere faceva fallire la presa a ogni giro. La guardia si misura sull'**ultimo confermato**,
+   il confronto è il **remoto appena letto**.
+3. La prima stesura della conferma erano **due istruzioni**: scarico e conferma. Corretto in una.
+
+##### ⏸ Che cosa resta
+
+Il segnale `S` (serve §30.10) e l'innesco automatico (§31.9).
+
+⭐ **La partenza controllata e il pulsante NON sono più fra questi: sono §31.16**, e la
+sequenza `allineamento → base → regime continuo` è collaudata.
+
+#### 31.15 · ✅ IL QUARTO RACCORDO, e il PREREQUISITO che li rende tutti inerti — 10/09/2026
+
+> ⭐ **Nato da una verifica AVVERSARIA sui tre raccordi**: tre revisori
+> indipendenti, ognuno incaricato di **dare ragione al proprietario** e di
+> mostrare come il difetto si manifesti ancora. Due hanno dichiarato chiuso il
+> rilievo che gli era stato assegnato; il terzo ha trovato un fatto piu' grande.
+
+##### Il quarto raccordo — il RECUPERO si fermava sull'osservato
+
+⛔ **Stessa famiglia dei tre, sul percorso di ripubblicazione.**
+`recuperoDaFermare` viene chiamato **prima** del calcolo del valore composto e
+giudica su `publishable`, che li' e' ancora il Disponibile **assoluto**:
+
+```text
+   P = 10   Disponibile = 10   L = +1   osservato = 10   canale (R) = 9
+
+   la domanda vecchia    osservato === publishable  ->  10 === 10  ->  «niente da fare»
+   il valore composto    T = max(0, 9 + 1) = 10  !=  R = 9        ->  si manda
+```
+
+⚠️ **E' lo scenario del proprietario visto dal lato del ritentativo**: carico
+locale +1 e ordine online acquisito −1 lasciano il Disponibile a 10, mentre il
+canale porta 9 e quel +1 non e' mai partito.
+
+⭐ **Con una base la domanda si fa DOPO**, dentro `componi()`, e si fa meglio: su
+`R` letto **fresco** dal canale invece che sull'ultima osservazione, che e'
+vecchia quanto l'ultimo webhook. `componi()` esce con `nessun_invio` quando
+`T === R` — la stessa domanda, al momento giusto e sul numero giusto.
+
+⚠️ **Senza base resta la domanda di prima**, ed e' ancora quella giusta: li' non
+esiste un valore composto e il numero che partirebbe e' davvero `publishable`.
+Due prove tengono fermi i due lati, e la falsificazione arrossa da entrambi.
+
+##### ⛔ IL PREREQUISITO: oggi `haBase` e' FALSO su ogni riga reale
+
+> **Tutti e quattro i raccordi sono corretti, provati e falsificati — e
+> INERTI in esercizio**, perche' nessuna riga ha ancora una base.
+
+⛔ **Non e' un difetto: e' il prerequisito dichiarato**, e vale la pena scriverlo
+per esteso perche' chi legge il codice vede quattro correzioni e puo' concludere
+che il regime composto sia attivo. Non lo e'.
+
+```text
+L nasce NULL          la migration aggiunge la colonna senza DEFAULT e senza backfill
+l'unico scrittore     registraOrigine, con `{ increment }`  ->  NULL + n = NULL
+quindi                su ogni riga esistente L resta NULL, e haBase e' sempre falso
+```
+
+⭐ **Il `NULL` come guardia e' voluto** — «nessuna inizializzazione nascosta» — e
+la base la crea la **partenza controllata**, che dal 10/09/2026 **esiste**: §31.16.
+⚠️ Finche' non la si preme su un tenant, le sue righe restano al regime di prima —
+valore assoluto e confronto sull'ultimo confermato — e i quattro raccordi restano
+inerti **su quel tenant**. Il rilievo qui sopra resta valido come descrizione di
+quello stato, non piu' come "manca il comando".
+
+###### La conseguenza, detta con l'esempio del proprietario
+
+Con `L` a NULL il caso che ha descritto **resta invisibile**, ed e' esattamente
+la ragione per cui il modello `L`/`C` esiste:
+
+```text
+1  carico locale +1        available 10 -> 11,  L resta NULL,  pendente ACCESO
+2  il push non conclude    Shopify resta 10,  P resta 10
+3  ordine online acquisito available 11 -> 10  (Shopify lo applica da se': 10 -> 9)
+4  stato: available 10, P 10, L NULL           Shopify 9  ->  disallineamento di 1
+5  la coda prende la riga, il push vede 10 === 10, esce «unchanged» e SPEGNE il pendente
+```
+
+⚠️ **Il regime assoluto non puo' accorgersene**, e non e' una svista: `P` e il
+Disponibile coincidono davvero, e nessuna colonna ricorda che quel +1 non e' mai
+partito. Con una base, `L = +1` lo ricorderebbe e il valore composto lo
+trasmetterebbe.
+
+⚠️ **Lo spegnimento del pendente al punto 5 e' coerente col regime assoluto** —
+«il canale ha gia' questo valore, per quanto ne sappiamo» — e non e' un
+peggioramento rispetto a prima, quando quella riga non entrava nemmeno in coda.
+Ma va detto: **il marcatore acceso dalla vendita viene spento da una guardia che
+non sa del regime composto.** Con una base non accade, perche' `haBase` la salta.
+
+##### ✅ DUE RESIDUI — trovati qui, DECISI e chiusi lo stesso giorno
+
+> ⭐ **La decisione e il codice stanno nella sezione «I DUE RESIDUI, CHIUSI»**,
+> piu' avanti. Qui resta come sono stati **trovati**, perche' e' la forma in cui
+> difetti di questa famiglia si presentano: un punto che giudica su un numero
+> che non parte.
+
+⛔ **Nel percorso di recupero altri due punti giudicano sul valore ASSOLUTO**, e
+con il quarto raccordo diventano piu' raggiungibili — prima si usciva prima di
+arrivarci.
+
+|                                  |                                                                                                                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **il RINVIO** (`rinvioAttivo`)   | riceve `publishable` assoluto come «valore che si pubblicherebbe» e rinvia quando `osservato < atteso` e ci sono impegni Shopify attivi. In regime composto il verso vero e' `T` contro `R` |
+| **l'avviso «ALZA la quantita'»** | stesso confronto sull'assoluto: puo' avvisare quando `T` in realta' abbassa, e tacere quando alza                                                                                           |
+
+⭐ **E per il rinvio la domanda non e' «passargli `T`»: e' se serva ancora.** Quel
+rinvio esiste perche' nel regime assoluto pubblicare il Disponibile locale
+**annullava** gli ordini Shopify non ancora acquisiti. Il valore composto parte
+da `R`, cioe' da quello che il canale porta adesso: quella sottrazione la
+rispetta per costruzione, e non c'e' piu' niente da annullare.
+
+⏸ **Togliere una protezione e' una decisione, e non la prendo io.** ✅ **Presa dal
+proprietario il 10/09/2026**, e non nella forma «si toglie»: il rinvio resta
+intatto nel regime vecchio e non si applica nel composto, dove la garanzia e'
+strutturale. Vedi «I DUE RESIDUI, CHIUSI».
+
+##### ⚠️ Una lacuna di copertura, dichiarata
+
+⛔ **Nessuna prova UNITARIA copre il recupero in regime composto**:
+`localPendingDelta` non compare in `shopify-inventory-push.service.spec.ts`, e le
+prove del recupero usano uno stato senza contatori — cioe' esercitano solo il
+ramo assoluto. I quattro raccordi sono ancorati **soltanto** dalle prove di
+integrazione, che richiedono PostgreSQL: fuori dal job che le esegue, una
+regressione tornerebbe verde.
+
+##### ✅ I DUE RESIDUI, CHIUSI il 10/09/2026 — decisione del proprietario
+
+⛔ **Qui i due punti erano dichiarati «verificati e NON toccati: sono decisioni».**
+La decisione e' stata presa, ed e' questa. Resta scritto **come** si e' deciso,
+perche' la forma della decisione e' la parte che serve a chi verra'.
+
+###### 1 · Il RINVIO, distinto fra i due regimi
+
+> **Righe inizializzate (regime composto): la sola presenza di ordini Shopify
+> aperti non trattiene una variazione locale.** Una vendita al banco arriva al
+> canale senza aspettare l'evasione degli ordini online.
+> **Righe nel vecchio regime: il rinvio resta esattamente com'era.**
+
+⭐ **La protezione non e' stata tolta: nel composto e' gia' data dalla FORMA del
+valore.** Il rinvio esisteva perche' il valore assoluto, pubblicato, annullava la
+sottrazione che Shopify aveva gia' applicato per un ordine aperto.
+`T = max(0, R + L)` parte da `R` — quella sottrazione la conserva per
+costruzione — e la scrittura viaggia con `changeFromQuantity = R`: se il canale
+si muove nel frattempo, Shopify rifiuta.
+
+⛔ **E nel composto il rinvio faceva DANNO, non solo lavoro inutile.** Confrontava
+l'ultima osservazione con il Disponibile **assoluto**, che e' piu' alto proprio
+perche' gli ordini aperti non sono ancora acquisiti da noi:
+
+```text
+   P = 10   Disponibile = 9 (vendita al banco)   osservato = 7 (tre ordini aperti)
+
+   il criterio vecchio   7 < 9   ->  «sta ALZANDO»  ->  rinvia
+   la scrittura vera     T = max(0, 7 - 1) = 6     ->  sta ABBASSANDO
+```
+
+⚠️ La vendita al banco restava ferma finche' gli ordini online non fossero stati
+evasi — che e' esattamente cio' che il piano non vuole (§31.-1: VestiFlow non
+ferma le vendite Shopify, e non aspetta il canale per registrare le proprie).
+
+⛔ **LA CONDIZIONE DI VALIDITA', da rileggere se il modello cambia**: regge
+finche' `T` parte da `R` letto **fresco** e il confronto remoto viaggia con `R`.
+Se il valore composto cambiasse origine, il rinvio andrebbe ripristinato anche
+nel regime nuovo. La riga sta accanto al codice, non solo qui.
+
+⚠️ **Le altre protezioni restano INTATTE**, ed e' la parte da non fraintendere:
+pausa, collegamenti esclusi, confronto remoto, idempotenza, tentativi incerti.
+Una prova tiene fermo il vecchio regime: togliendo il rinvio anche di la',
+arrossa.
+
+###### 2 · L'avviso «ALZA» descrive la variazione TENTATA
+
+> **I due numeri sono quelli che viaggiano verso Shopify**: `da` e' il confronto
+> (`changeFromQuantity`), `a` e' la quantita'.
+
+⛔ **Prima confrontava l'ultima osservazione con il Disponibile assoluto**, cioe'
+con un numero che nel regime composto **non parte**. Ne discendevano due difetti
+speculari, e **hanno una prova ciascuno**:
+
+|                           |                                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **avvisava a sproposito** | osservato 7, Disponibile 9, ma la scrittura porta il canale da 7 a 6: abbassa, e l'avviso partiva lo stesso |
+| **taceva quando serviva** | il caso opposto: la scrittura alza davvero e l'avviso non c'era                                             |
+
+⭐ **E' un adeguamento del messaggio, non una funzione nuova**: stesso avviso,
+stessa soglia, stesso perimetro (solo il recupero). Cambiano i due numeri, e la
+`fonte` li qualifica — «lettura fresca del canale» nel composto, «ultima
+osservazione» nel regime vecchio, dove quello e' davvero cio' che partirebbe.
+
+⚠️ **E si emette anche dopo una RICOMPOSIZIONE**: se un conflitto di presa fa
+ricalcolare il valore, l'avviso deve descrivere quello nuovo — altrimenti
+racconta una variazione che non e' piu' quella tentata.
+
+###### Le prove, nei due regimi
+
+```text
+COMPOSTO   la vendita al banco passa con tre ordini aperti      canale 7 -> 6
+COMPOSTO   il carico passa e NON annulla gli ordini             canale 7 -> 9, non 12
+VECCHIO    il rinvio resta e ferma l'invio                      rinvio_attivo, canale intatto
+AVVISO     cita «da 7 a 9», e non il Disponibile assoluto
+AVVISO     tace quando la variazione tentata abbassa
+```
+
+⭐ **Cinque falsificazioni, cinque rosse** — compresa quella che toglie il rinvio
+**anche** al regime vecchio: e' la prova che la protezione la' non e' stata
+indebolita.
+
+##### ⏸ CINQUE PROVE DEL COLLAUDO SONO INTERMITTENTI — misurato il 10/09/2026
+
+⛔ **Non e' il lavoro sull'inventario, ma va segnato invece che archiviato come
+rumore.** Nella suite di integrazione completa, `collaudo-ciclo-utilizzo`
+ha mostrato SEI fallimenti in un'esecuzione e UNO in quella successiva:
+
+```text
+esecuzione 1    S1/5  S1/50  S1/500  S2/5  S2/50   piu' D5
+esecuzione 2    solo D5                              901 verdi su 902
+il file da solo  solo D5
+```
+
+⚠️ **`D5` e' l'unico STABILE**, ed e' il difetto aperto fuori mandato (barcode
+duplicato in import): resta rosso per scelta, non attesta niente.
+
+⛔ **LA CAUSA NON E' NOTA, e va detto cosi'.** Qui avevo scritto «la causa piu'
+probabile e' il tempo»: e' un'**ipotesi non verificata**, e presentarla come
+probabile la fa diventare una conclusione che nessuno rimette in discussione.
+Precisazione del proprietario, 10/09/2026.
+
+⛔ **E il giro successivo verde non dimostra niente**: ne' la causa, ne' che le
+modifiche all'inventario siano estranee. Un difetto intermittente non si assolve
+con un'esecuzione andata bene — si assolve quando si sa perche' falliva.
+
+Quello che si SA, e basta:
+
+|                            |                                                                                                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **misurato**               | quattro esecuzioni complete: **sei** fallimenti nella prima, **uno** (`D5`) nelle altre tre; il file da solo passa sempre tranne `D5`; dentro la suite impiega 140 secondi |
+| **ipotesi non verificata** | che a muovere l'esito sia il tempo — quelle prove misurano durate e chiamate, e `S1` ammette **un solo** import fallito, quello di `D5`                                    |
+| **non escluso**            | che dipenda dallo stato lasciato da un altro file, ne' che c'entrino le modifiche all'inventario                                                                           |
+
+⚠️ **Il file non ha `beforeEach`**: la situazione iniziale si ricostruisce dentro
+le singole prove. Non e' una prova di contaminazione, ma e' la condizione in cui
+una contaminazione non si vedrebbe.
+
+⏸ **Da fare, e resta APERTO**: eseguirlo piu' volte di fila dentro la suite
+completa registrando quale prova cade e con quale asserzione, e stabilire se a
+muoversi siano le durate o gli esiti. ⛔ Fino ad allora «tutto verde tranne D5»
+va detto **con questa riserva**, e questo punto resta separato dai raccordi
+gia' verificati — non li riapre e non ne dipende.
+
+#### 31.16 · ✅ LA PARTENZA CONTROLLATA — implementata e collaudata il 10/09/2026
+
+> ⚠️ **Venti difetti trovati DOPO, in sei letture: §31.17, §31.18, §31.19, §31.20, §31.21 e §31.22.** Le ultime tre di §31.22 sono APERTE. Quanto segue resta valido
+> nel disegno, ma due punti sono stati corretti — la base si stabilisce anche quando
+> le quantita' coincidono, e i contatori nascono alla presa. Dove le due sezioni
+> divergono, vince §31.17.
+
+> ⭐ **La sequenza completa gira su PostgreSQL e negozio simulato**:
+> `allineamento iniziale → base stabilita → sincronizzazione continua`.
+> ⛔ Nessuna inizializzazione nascosta al primo invio ordinario, e c'è la prova.
+
+##### Che cosa è, e che cosa NON è
+
+|                              |                                                                                                                                                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **è**                        | il comando esplicito di §31.12 — «Allinea disponibilità», VestiFlow → Shopify — e il suo **primo uso** è la partenza: una coppia senza base la riceve lì                                                  |
+| ⛔ **non è**                 | la preparazione del CATALOGO. Quella è un'altra operazione, e va nelle due direzioni: import da Shopify, oppure pubblicazione da VestiFlow. Le coppie non ancora collegate escono da qui come **escluse** |
+| ⛔ **non acquisisce ordini** | Allinea corregge le disponibilità; gli ordini arrivano per la loro strada (§31.-1). La sequenza «acquisire, poi allineare» resta dell'operatore                                                           |
+| ⛔ **non ferma niente**      | né le vendite Shopify né la sincronizzazione. Il titolare decide se allineare a negozio aperto                                                                                                            |
+
+##### Il perimetro — deciso dal proprietario
+
+> **Il comando riguarda l'azienda corrente e tutte le sue sedi collegate**,
+> limitatamente agli articoli e alle varianti **abilitati alla sincronizzazione**.
+> Internamente lavora per sede e per lotti, e mostra completato, resto ed errori
+> **distinguibili per sede**.
+
+⛔ **Nessun comando per sede da lanciare a mano, nessuna selezione di varianti.**
+Una chiamata sola, che dentro cicla.
+
+⭐ **Un articolo con la sincronizzazione spenta è FUORI dal perimetro**, non
+«escluso»: non entra nemmeno nel denominatore. Ha una prova.
+
+##### ⭐ L'AVANZAMENTO non ha un registro suo: è lo stato delle righe
+
+Il requisito era «conservare l'avanzamento e permettere la ripresa senza
+duplicare gli effetti». ⛔ **Non serve una tabella di esecuzioni**, e non è una
+scorciatoia: una coppia già allineata porta il canale sullo stesso valore,
+quindi alla passata dopo esce come «già allineata» **senza scrivere e senza
+consumare quota**.
+
+> **L'idempotenza è per RIGA, non per esecuzione**: riprendere non duplica
+> perché ogni coppia è idempotente rispetto al proprio stato.
+
+⭐ **E «quanto resta» si RICONTA dal database**, per coppia — variante _e_ sede.
+⛔ Un filtro sulla sola variante farebbe risultare a posto tutti i magazzini
+appena uno è allineato: il comando direbbe «finito» con metà del lavoro da fare.
+Falsificato, e la prova arrossa.
+
+##### I quattro esiti, e non se ne fondono due
+
+```text
+allineate      il valore di VestiFlow e' stato scritto sul canale
+gia allineate  il canale portava gia' quel numero: nessuna scrittura
+escluse        NON eseguibile in sicurezza — e non e' un guasto
+fallite        tentato, e non riuscito
+```
+
+⛔ **Le fallite e le escluse NON si dichiarano allineate**, e restano contate fra
+quelle da allineare. ⭐ E la distinzione fra le due è **onesta**: una variante
+che il canale non riconosce risulta **fallita**, non esclusa, perché da qui non
+si distingue un articolo sparito su Shopify da un guasto della chiamata. Dire
+«non era eseguibile» suonerebbe come una decisione presa con cognizione.
+
+##### ⛔ NESSUNA INIZIALIZZAZIONE NASCOSTA — dov'è la guardia
+
+Il punto delicato: la conferma **decrementa**, quindi su una riga senza base
+`L` resterebbe `NULL` e la partenza non stabilirebbe niente. La soluzione è che
+la **fotografia dello scarico sia anche il segnale** che la riga sta nel regime
+nuovo:
+
+```text
+con la fotografia    L := COALESCE(L, 0) − scarico     la base NASCE
+senza                L := L − (formula vecchia)        NULL resta NULL
+```
+
+⭐ **E l'invio ordinario NON fotografa su una riga senza base**
+(`scarichiInvioOrdinario`): è lì la guardia. Senza, il primo push qualunque
+porterebbe la riga nel regime composto.
+
+⚠️ **La prova che serviva davvero non era quella ovvia.** «Il push ordinario non
+stabilisce la base» su una riga completamente vuota si ferma prima, su
+`base_assente`, e non esercita niente: la falsificazione restava **verde**. Il
+caso reale è una riga con `P` valorizzato e `L` NULL — lo stato di ogni riga
+oggi — che il push ordinario percorre fino in fondo. Con quella prova, la
+falsificazione arrossa.
+
+##### La regola dei contatori, e le due colonne nuove
+
+⭐ La forma per scarico di §31.12, **verificata in simulazione** (0 controesempi
+su 60.000), è ora codice:
+
+```text
+t1   snapshot (A_w, L_w, C_w)   e scrittura remota di  T = max(0, A_w)
+t2   conferma:   P := T
+                 L -= L_w − (A_w − T)      il residuo che il clamp non ha trasmesso
+                 C -= C_w                  gli effetti di canale acquisiti: spiegati
+```
+
+⛔ **I due percorsi di scrittura scaricano in modo DIVERSO** e la conferma non ha
+modo di sapere quale l'ha aperta:
+
+```text
+invio ordinario   L -= T − R              C -= R − P
+riallineamento    L -= L_w − (A_w − T)    C -= C_w
+```
+
+⭐ Da cui `pending_discharge_local` e `pending_discharge_channel`: **quanto**
+scaricare, deciso dove si decide che cosa inviare. La conferma applica e basta,
+senza discriminante e senza due rami. ⚠️ Fotografarli è sicuro perché il
+tentativo è **unico per riga**: fra presa e conferma nessun altro invio muove `P`.
+
+⚠️ **Migration applicata al SOLO database sacrificabile.**
+
+##### Il confronto vale anche per l'allineamento iniziale
+
+⭐ **Deciso dal proprietario**: il confronto riguarda le scritture **verso**
+Shopify, quindi anche la prima. `asserisci()` legge `R` fresco e lo manda come
+`changeFromQuantity`: se il canale si muove fra lettura e scrittura, Shopify
+**rifiuta** e la coppia esce come fallita, invece di sovrascrivere alla cieca.
+
+⚠️ **L'import Shopify → VestiFlow è un'altra direzione** e questo confronto non
+la riguarda: là non si stanno modificando le quantità sul canale.
+
+##### La sequenza collaudata, per intero
+
+```text
+1  partenza     VestiFlow 10, Shopify 7, nessuna base
+   Allinea      ->  canale 10, P=10, L=0, C=0        la base e' STABILITA
+2  vendita      -1 locale  ->  canale 9              il meno viaggia
+3  carico       +3 locale  ->  canale 12             il piu' viaggia
+4  ordine       Shopify applica da se', noi acquisiamo
+                ->  nessuna seconda sottrazione, canale 11
+```
+
+Più: il **Disponibile negativo** che pubblica 0 e conserva il debito in `L`; la
+coppia **già allineata** che non riscrive e — dichiarato — **non riceve la
+base**, perché non avendo scritto non sappiamo di aver messo noi quel valore; la
+**ripresa** che non duplica; le due **sedi** con esiti distinti in una chiamata
+sola; lo **scope mancante** che esclude senza toccare il canale.
+
+⭐ **Sei falsificazioni, sei rosse** — e tre erano verdi al primo giro: due erano
+buchi veri nelle prove (la guardia dell'inizializzazione e il conteggio per
+coppia), il terzo un filtro sbagliato nello script.
+
+#### 31.17 · ⛔ I CINQUE RILIEVI sulla partenza — trovati leggendo, corretti — 10/09/2026
+
+> ⭐ **Tutti e cinque veri, tutti riprodotti prima di toccare il codice.** §31.16
+> dichiarava la partenza collaudata: lo era per i casi che avevo pensato io.
+
+```text
+1  oltre le prime 50 coppie non avanzava        riprodotto:  50 invece di 120
+2  quantita' gia' uguali -> base mai stabilita  riprodotto:  null invece di 10
+3  vendita persa nella prima scrittura          riprodotto:  0 invece di -1
+4  presa fallita -> calcolo ordinario           riprodotto:  non allineava
+5  «restano» ignorava le fallite                riprodotto:  0 invece di 1
+```
+
+##### ⛔ 3 · IL PIÙ GRAVE, e la sua correzione risolve anche il 2
+
+> **I contatori NASCONO ALLA PRESA, non alla conferma.**
+
+Finché `L` è `NULL`, `registraOrigine` fa `increment` su `NULL` e il risultato
+resta `NULL`: una vendita entrata fra la presa e la conferma della **prima**
+scrittura spariva dalla contabilità degli invii. Shopify a 10, VestiFlow a 9, e
+**nessun −1 da recuperare**.
+
+⭐ Nascendo prima della finestra, da quel momento ogni movimento locale accumula,
+e lo scarico alla conferma toglie esattamente quanto è stato trasmesso.
+
+⚠️ **Se la scrittura poi fallisce**, la riga resta con i contatori a zero e senza
+ultimo confermato: il push ordinario esce su `base_assente` e la coppia si
+ripresenta al prossimo Allinea. È lo stato onesto «entrata nel regime, mai
+pubblicata» — non una base inventata.
+
+##### ⛔ 2 · La partenza deve partire anche quando le quantità coincidono
+
+⛔ **Qui §31.16 dichiarava il comportamento come voluto**, e la prova lo
+confermava: «non abbiamo scritto, quindi non sappiamo di aver messo noi quel
+valore». ⭐ **Il ragionamento era eccessivo, e il proprietario l'ha respinto**:
+VestiFlow 10 e Shopify 10 è il caso **normale** dopo un import iniziale, e
+uscire di lì senza base lasciava la coppia fuori dalla sincronizzazione continua
+**per sempre** — ripremere non cambiava niente, e l'unico rimedio sarebbe stato
+cambiare una quantità per finta.
+
+> **Per fissare la base serve sapere quanto vale il canale, non averlo scritto
+> noi.** E `R` è una lettura FRESCA: lo sappiamo.
+
+⭐ Quando `T === R` si fa **presa e conferma senza scrivere**: nessuna chiamata
+al canale, nessuna quota, e la coppia entra nel regime. L'esito resta «già
+allineata» — ⛔ non `pushed`, che sarebbe falso.
+
+##### ⛔ 1 · Il tetto era uno solo, e le già allineate lo consumavano
+
+```text
+70 coppie su una sede, tetto 50
+   passata 1   50 fatte
+   passata 2   20 da fare + 30 gia' a posto  ->  tetto pieno  ->  STOP
+   la seconda sede non veniva raggiunta MAI
+```
+
+⭐ **Due tetti, come nella coda**: 50 **scritture** e 200 **esaminate**. Una
+coppia già allineata costa una lettura, non una scrittura, e non deve comprare
+il diritto di fermare la passata. Più l'ordinamento «chi non ha la base viene
+prima» e la marcatura `lastAttemptAt` scritta **prima** di tentare — la stessa
+rotazione del ritentativo, non un meccanismo nuovo.
+
+##### ⛔ 4 · Dopo una presa fallita il riallineamento cambiava calcolo
+
+Il ciclo richiamava sempre `componi()`, cioè il calcolo della sincronizzazione
+ordinaria: su una riga senza base non compone nulla, e con l'ultimo confermato
+assente usciva `base_assente` — il comando falliva **proprio sulle righe che
+deve inizializzare**. ⚠️ E gli scarichi fotografati restavano quelli del giro
+prima, quindi i contatori si sarebbero aggiornati su numeri vecchi.
+
+##### ⛔ 5 · «Restano» non contava il lavoro residuo
+
+⭐ Sono **due numeri diversi**, e vanno letti insieme:
+
+|             |                                                                                   |
+| ----------- | --------------------------------------------------------------------------------- |
+| `senzaBase` | l'avanzamento della PARTENZA: a partenza finita va a zero e ci resta              |
+| `restano`   | il lavoro residuo dell'OPERAZIONE: risale ogni volta che un allineamento fallisce |
+
+⛔ **E si sommano solo le fallite che la base CE L'AVEVANO**: una coppia insieme
+senza base e fallita verrebbe contata due volte, e il residuo risulterebbe più
+grande del vero.
+
+⛔ **Un sesto punto, trovato correggendo il quinto**: dopo che i contatori
+nascono alla presa, una coppia la cui scrittura è fallita ha `L = 0` e l'ultimo
+confermato ancora `NULL`. Contando solo il primo risultava a posto, e il comando
+diceva «finito» su una coppia che non ha mai pubblicato niente. Il conteggio
+guarda **entrambi**.
+
+##### Le falsificazioni, e le due che erano cieche
+
+⭐ **Otto guasti, otto prove rosse.** ⚠️ Ma due erano **verdi** al primo giro, e
+la ragione è istruttiva: la prova delle 120 coppie non distingueva né il tetto
+sbagliato né l'ordinamento, perché 120 sta **sotto** il tetto di scansione e le
+coppie erano **tutte** da scrivere — le due condizioni in cui quei difetti non
+si manifestano.
+
+Servivano due prove mirate, e ora ci sono:
+
+```text
+1a  60 coppie TUTTE con base, 10 da correggere      l uso RICORRENTE
+1b  210 coppie oltre il tetto di scansione          l ordinamento torna a decidere
+```
+
+⚠️ **Tre prove precedenti asserivano il vecchio comportamento** e sono state
+adeguate — comprese quelle che dichiaravano «la base non si stabilisce», che
+erano la descrizione del difetto 2.
+
+#### 31.18 · ⛔ I QUATTRO CASI rimasti scoperti — trovati leggendo, corretti — 10/09/2026
+
+> ⭐ **Seconda tornata sulla stessa area**, e nessuno dei quattro era ipotetico:
+> tutti riprodotti prima di toccare il codice.
+
+##### ⛔ 1 · La rotazione valeva DENTRO una sede, non FRA le sedi
+
+```text
+sede A: 205 coppie gia' a posto     sede B: 5 da correggere
+   ogni passata esamina 200 coppie di A e si interrompe
+   la passata dopo riparte ANCORA da A  ->  B non viene raggiunta MAI
+```
+
+⛔ **La prova sulle 210 coppie non lo vedeva**, perché usava una sede sola: il
+difetto nasce proprio dall'ordine in cui il ciclo attraversa le sedi.
+
+⭐ **Il ciclo per sede è stato tolto.** Una **selezione unica** su tutte le sedi
+collegate, ordinata globalmente — non pronte prima, poi le meno recentemente
+esaminate — e l'esito «per sede» si costruisce raggruppando. È anche più
+semplice del ciclo con la capienza spartita.
+
+##### ⛔ 2 · Un primo Allinea RIFIUTATO attivava comunque il regime nuovo
+
+⚠️ **La spiegazione «resta senza ultimo confermato, quindi viene fermata» valeva
+solo per le righe COMPLETAMENTE NUOVE.** Una riga preesistente ha `P`
+valorizzato e `L` ancora `NULL`: la presa mette `L` a zero, il canale rifiuta, e
+il vecchio `P` resta — il codice vede una coppia inizializzata benché
+l'allineamento non sia riuscito.
+
+⛔ **E la conseguenza è peggiore dell'inizializzazione**: con `L = 0` e il
+disallineamento acceso, il **recupero smette di correggere** — il valore composto
+con `L = 0` non produce nessuna scrittura — mentre con `L` `NULL` avrebbe
+ripubblicato il valore assoluto.
+
+⭐ **La chiusura senza conferma ANNULLA l'inizializzazione**, e solo se i
+contatori sono ancora a zero:
+
+|                         |                                                                     |
+| ----------------------- | ------------------------------------------------------------------- |
+| contatori a zero        | tornano a `NULL`: la riga esce dal regime, come prima del tentativo |
+| un movimento è arrivato | **restano**: quel lavoro esiste e va trasmesso                      |
+
+⚠️ **Serve sapere se è stata QUELLA presa a farli nascere**, da cui
+`pending_ha_inizializzato`. ⛔ Senza, si annullerebbero anche i contatori di una
+riga che era già nel regime nuovo.
+
+⚠️ **Con un tentativo che resta APERTO i contatori NON si annullano**, ed è
+voluto: se la chiamata solleva non sappiamo se la scrittura sia arrivata, e se lo
+è i movimenti successivi devono accumulare. Ha una prova sua.
+
+##### ⛔ 3 · «Non serve scrivere» sopravviveva al ricalcolo
+
+```text
+VestiFlow 10, Shopify 10   ->  «basta la base»
+una vendita: VestiFlow 9   ->  la presa fallisce
+il ricalcolo trova che bisogna inviare 9
+   ma la decisione di NON scrivere e' rimasta  ->  si conferma 9 senza mandarlo
+   Shopify resta a 10
+```
+
+⭐ Si azzera prima di ricomporre. ⛔ **E la direzione opposta era un secondo
+difetto**: se al primo giro i valori differivano e al ricalcolo coincidevano, il
+riallineamento usciva dall'uscita anticipata «invariata» — senza prendere e senza
+confermare — e la coppia restava fuori dal regime nuovo. Quel ramo ora esclude il
+riallineamento, il cui caso è «prendi e conferma senza scrivere».
+
+##### ⛔ 4 · «Restano» usava criteri incoerenti
+
+⛔ La selezione considerava «con base» una riga col solo `L`; il conteggio
+pretendeva anche `P`. Dopo un primo rifiuto con un movimento in mezzo — `L = −1`,
+`P` `NULL` — la coppia risultava **pronta** di qua e **non pronta** di là: al
+secondo rifiuto veniva contata **due volte**.
+
+⭐ **Un criterio solo, in entrambi i punti**: pronta = contatori **e** ultimo
+confermato. ⛔ E le **escluse già pronte** entrano nel residuo: prima una coppia
+esclusa spariva dal numero, come se fosse a posto.
+
+##### Le falsificazioni, e tre difetti nelle PROVE
+
+⭐ **Sette guasti, sette prove rosse** — ma ci sono voluti tre giri, e i tre
+problemi erano nelle prove, non nel codice:
+
+|                                                   |                                                                                                                                                       |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ⛔ il movimento inserito nella **lettura**        | cioè PRIMA della presa: `increment` su `NULL` restava `NULL`, e la prova non esercitava la finestra che voleva. Va inserito nella **scrittura**       |
+| ⛔ il guasto che **solleva** invece di rifiutare  | lascia il tentativo APERTO, quindi la chiusura non viene mai chiamata e la correzione non entra in gioco                                              |
+| ⛔ un filtro `-t` con una **maiuscola sbagliata** | «49 skipped»: la falsificazione risultava verde perché non eseguiva **niente**. È il falso verde più insidioso, perché somiglia a una prova che passa |
+
+#### 31.19 · ⛔ I TRE CASI della terza lettura — corretti — 10/09/2026
+
+> ⭐ **Terza tornata sulla stessa area.** Ogni volta la lettura ha trovato ciò
+> che le prove non coprivano: vale la pena tenerne il conto, perché è la misura
+> di quanto una prova verde dica poco da sola.
+
+##### ⛔ 1 · Dopo un rifiuto CON movimento la coppia risultava «pronta»
+
+⚠️ **Conservare il movimento è giusto, ma non dimostra che l'allineamento sia
+riuscito.** Restavano il vecchio `P` e un `L` valorizzato — e il criterio
+«pronta» li vede entrambi:
+
+```text
+P = 10 (vecchio)   L = -1 (movimento conservato)   allineamento RIFIUTATO
+   la coppia entra NON pronta      ->  non contata fra le pronte da rifare
+   la coppia esce PRONTA           ->  non contata fra le non pronte
+   residuo: ZERO, mentre il rifiuto c'e' stato
+```
+
+⭐ **Le fallite e le escluse si ricontano ORA**, sullo stato che la passata ha
+lasciato, non su quello d'ingresso. ⛔ E non si risolve cancellando il `−1`:
+quel lavoro esiste.
+
+###### ⛔ E il secondo difetto era peggiore: `C` che resta NULL
+
+I due contatori venivano annullati con due `CASE` **indipendenti**: poteva
+restare `L = −1` con `C` riportato a `NULL`. Da lì ogni acquisizione di canale
+sarebbe svanita su un `increment` di `NULL` — **la registrazione degli ordini
+persa in silenzio**.
+
+⭐ **La domanda è una sola: è rimasto del lavoro?** Se nessuno dei due si è
+mosso, la riga esce dal regime come prima del tentativo; se uno dei due porta
+qualcosa, **restano entrambi**. La prova continua dopo il rifiuto e verifica che
+un'acquisizione successiva venga registrata.
+
+##### ⛔ 2 · La priorità «non pronte per prime» AFFAMAVA le altre
+
+```text
+205 coppie stabilmente escluse (il canale non le risolve)  +  5 pronte da correggere
+   le 205 occupano le 200 posizioni a OGNI passata
+   la rotazione avviene DENTRO il gruppo prioritario  ->  le 5 non arrivano mai
+```
+
+⛔ **È lo stesso blocco di testa già pagato nella coda del ritentativo**, e per
+la stessa ragione: un criterio che precede la rotazione la annulla.
+
+⭐ **Basta `last_attempt_at`, che è anche la priorità giusta**: chi non è mai
+stata esaminata ha `NULL` e sta in testa — quindi alla prima passata vengono
+comunque le coppie nuove — e chi è stata guardata scende, qualunque sia stato
+l'esito.
+
+##### ⛔ 3 · Il residuo diceva ZERO senza aver guardato tutto
+
+```text
+300 coppie gia' inizializzate, tetto di scansione 200
+   le 200 lette risultano «gia' allineate», nessuna fallisce
+   restano: 0        ->  ma cento non sono state nemmeno LETTE
+```
+
+⚠️ `interrotto: true` segnalava il limite, **ma non rendeva corretto quel
+numero**: chi legge il numero è chi decide se ripremere.
+
+⭐ L'esito porta ora `nonEsaminate`, e `restano` lo comprende.
+
+##### ⚠️ Due difetti nelle PROVE, e uno è il secondo della serie
+
+|                                     |                                                                                                                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ⛔ un filtro `-t` **senza accento** | «non puo dire ZERO» contro «non può»: zero prove eseguite, e la falsificazione risultava VERDE. **Seconda volta in questo blocco** — la prima era una maiuscola |
+| ⚠️ una prova che dipendeva dal CASO | con 300 coppie miste, quante se ne esaminano dipendeva dall'ordine degli uuid. Rese tutte coincidenti col canale, a fermare la passata è solo il tetto          |
+
+⭐ **Il punto cieco è sempre lo stesso**: un filtro che non aggancia nulla è
+indistinguibile, nell'esito, da una prova che passa. Chi falsifica così deve
+verificare che la prova sia stata **eseguita**, non solo che sia verde.
+
+#### 31.20 · ⛔ La QUARTA lettura: la base valida, il residuo che converge — 10/09/2026
+
+##### ⛔ 1 · Era stato corretto il RIEPILOGO, non la validità della base
+
+⚠️ **La correzione precedente contava la coppia fra quelle da riprendere, e si
+fermava lì.** La decisione successiva — quella del percorso ordinario — vedeva
+ancora `L` valorizzato e il vecchio `P`, e considerava la coppia dentro il
+regime nuovo.
+
+⛔ **E non è un dettaglio di stato: lo scarico di `C` userebbe quel `P`.**
+L'invio ordinario fa `C -= (R − P)`, e con un `P` mai confermato **in questo
+regime** quel numero non significa niente — **corromperebbe il contatore delle
+acquisizioni**.
+
+⭐ **Quando il rifiuto lascia del lavoro, l'ultimo confermato si AZZERA.** La
+riga è nel regime nuovo ma non ha mai pubblicato: il push ordinario esce su
+`base_assente` e la coppia aspetta un Allinea riuscito. ⚠️ Il lavoro resta
+scritto in `L` — non si perde niente, si rimanda.
+
+###### La prova arriva alla FINE dell'operazione, non al primo esito
+
+```text
+Allinea rifiutato, con una vendita nella finestra
+   ->  L = -1 conservato, C = 0, ultimo confermato AZZERATO
+aggiornamento ordinario con un esecutore NUOVO
+   ->  base_assente, canale intatto, il lavoro ancora li'
+Allinea RIUSCITO
+   ->  confermato 9, L = 0, residuo 0        la partenza si chiude
+```
+
+###### ⚠️ E il commento diceva ancora l'assoluto — corretto l'11/09/2026
+
+⛔ **In `chiudiTentativoNonApplicato` restava scritto «`lastPushedAvailable` non
+si tocca, in nessuna direzione», e la nota salvata sulla riga diceva «Il valore
+confermato NON è stato aggiornato».** Erano vere fino al giorno prima: adesso
+l'eccezione esiste, ed è proprio quel percorso a farla.
+
+⭐ **Un commento che smentisce il codice è peggio di nessun commento**: chi lo
+legge chiude la domanda invece di aprirla. Ora il divieto dice «non AVANZA» — che
+resta assoluto — e l'eccezione è dichiarata accanto, con la ragione.
+
+⚠️ **E il messaggio di registro NOMINA la partenza fallita.** La chiusura usa
+`RETURNING`, così sa che cosa ha lasciato sulla riga: senza rileggerla direbbe la
+stessa frase per due esiti diversi — la base al suo posto e la base azzerata.
+
+##### ⛔ 2 · Il residuo sommava insiemi SOVRAPPOSTI, e non convergeva
+
+```text
+120 coppie senza base, 50 allineate
+   senzaBase 70  +  nonEsaminate 70  ->  140      ⛔ sono le STESSE 70
+```
+
+⭐ **`restano` non somma più `nonEsaminate`**: conta coppie **distinte**, e
+converge — ripremendo scende, e a zero non c'è più lavoro noto.
+
+###### ⛔ E «non esaminate in questa passata» non convergeva mai
+
+```text
+300 coppie, tetto di scansione 200
+   passata 1   ne guarda 200, ne restano fuori 100
+   passata 2   ne guarda 200 DIVERSE, ne restano fuori 100
+   il numero resta 100 per sempre, anche dopo averle controllate tutte
+```
+
+⚠️ **I due numeri si leggono ACCANTO, non addizionati**: «non l'ho ancora
+guardata» e «so che non è a posto» sono cose diverse. L'operazione è finita
+quando sono entrambi a zero.
+
+⛔ **Il rimedio di allora — «mai guardate» — è durato una lettura**: converge, ma
+al secondo uso del pulsante nasce a zero. Vedi §31.21.
+
+##### ⭐ La falsificazione FALLISCE DA SÉ quando non esegue niente
+
+⛔ **Due volte in questo lavoro una falsificazione è risultata VERDE perché il
+filtro `-t` non agganciava nessuna prova** — una maiuscola la prima volta, un
+accento la seconda. Zero prove eseguite e, nell'esito, indistinguibile da una
+prova che passa.
+
+⚠️ **Annotarlo non impediva che ricapitasse**, ed è successo. Ora lo strumento
+legge il conteggio delle prove eseguite e restituisce `NESSUNA PROVA` invece di
+un verde:
+
+```text
+[autoprova] filtro che non aggancia nulla -> NESSUNA PROVA  ✔ lo strumento se ne accorge
+```
+
+⭐ **E si autoprova**: la prima cosa che fa è lanciare un filtro inesistente e
+verificare di accorgersene. Una guardia che non si verifica è una guardia di cui
+non si sa niente.
+
+#### 31.21 · ⛔ I DUE CASI del SECONDO utilizzo — corretti — 11/09/2026
+
+> ⭐ **Quarta tornata, e la prima che guarda il pulsante premuto DUE volte.** Le
+> letture precedenti misuravano la prima pressione su righe nuove; questa parte
+> da un magazzino già in esercizio, dove ogni riga porta un `last_attempt_at` di
+> ieri. È lì che i due numeri mentivano.
+
+##### ⛔ 1 · «Mai guardate» dichiarava finito troppo presto
+
+⛔ **Al secondo uso di Allinea nessuna riga ha `last_attempt_at` a NULL** — glielo
+ha scritto l'allineamento di prima, o la coda del ritentativo. Il conto delle
+«mai guardate» nasce quindi a **zero**.
+
+```text
+300 coppie, tutte con last_attempt_at di ieri
+le prime 200 in rotazione sono a posto, le ultime 100 NO
+
+   giaAllineate  200      restano  0      nonEsaminate  0   ⛔ due zeri
+                                          il chiamante si ferma
+                                          e le 100 disallineate restano tali
+```
+
+⚠️ **E `restano` non poteva accorgersene, né è colpa sua**: le righe di quelle
+cento non dicono niente di sbagliato — nessuno le ha ancora **guardate**. Il
+disallineamento sta sul canale, e per saperlo bisogna leggerlo.
+
+###### ⭐ Il rimedio: l'istante dell'OPERAZIONE, e nient'altro
+
+> **Una coppia è verificata se la rotazione l'ha toccata DOPO l'inizio di questa
+> operazione.** Non «una volta», non «in questa passata».
+
+⭐ **Riusa la colonna che fa già ruotare la coda** (`last_attempt_at`): nessuna
+coda nuova, nessuna colonna nuova, nessun registro di avanzamento. L'unica cosa
+che si aggiunge è un **istante**, che l'esito restituisce e il chiamante ripassa
+alla pressione successiva.
+
+|                         |                                                                       |
+| ----------------------- | --------------------------------------------------------------------- |
+| **prima pressione**     | nessun istante: ne comincia una nuova, ed è giusto                    |
+| **pressioni dopo**      | si ripassa `operazioneIniziataAlle` dell'esito precedente             |
+| istante **illeggibile** | ⛔ si rifiuta: ignorarlo comincerebbe un'operazione nuova senza dirlo |
+| istante nel **futuro**  | si riporta ad adesso, o nulla risulterebbe mai verificato             |
+
+⛔ **E «non esaminate in questa PASSATA» non era l'alternativa**: con un perimetro
+più grande del tetto quel numero resta cento per sempre. Solo un istante che dura
+più di una passata può chiudere il giro.
+
+###### ⛔ Anche «interrotto» non convergeva, e nessuno poteva guardarlo
+
+⚠️ Diceva «il tetto di scansione è stato riempito»: con 300 coppie e un tetto di
+200 quella condizione è vera **a ogni passata, per sempre**. Un chiamante che ci
+si fermasse non si sarebbe fermato mai — quindi il segnale che avrebbe dovuto
+tenerlo in moto era **inutilizzabile**.
+
+⭐ Ora dice ciò che serve sapere: **resta qualcosa da guardare, o un tetto ha
+fermato la passata**. E a giro chiuso si spegne.
+
+##### ⛔ 2 · Una coppia FALLITA spariva dal residuo alla passata dopo
+
+⛔ **L'elenco delle coppie da riprendere si ricostruiva a ogni chiamata.** Una
+coppia già inizializzata che fallisce entra nel residuo della passata che l'ha
+vista; alla passata dopo la rotazione ne guarda altre, e di lei non resta niente.
+
+```text
+passata 1   la coppia 199 viene rifiutata dal canale     restano  1   ✔
+passata 2   la rotazione guarda le altre 200, tutte a posto
+                                                          restano  0   ⛔
+            ma sul canale quella coppia porta ancora 1 invece di 5
+```
+
+⚠️ **Non è un caso di laboratorio**: è la forma normale dell'uso ricorrente —
+qualcosa fallisce, si ripreme, e la rotazione nel frattempo è andata avanti.
+
+###### ⭐ Il rimedio: il residuo si legge dalle RIGHE, non dalla passata
+
+> **«restano» è una COUNT sola sul perimetro, e le condizioni sono quelle che le
+> colonne già dicono.**
+
+```text
+base assente             la partenza controllata non e' avvenuta
+mismatch_detected        il canale ha rifiutato: serve riconciliazione
+local_push_pending       c'e' un aggiornamento locale non trasmesso
+pending_key              un tentativo e' rimasto aperto: esito ignoto
+local_pending_delta ≠ 0  scostamento locale ancora da mandare
++ le coppie che QUESTA passata ha lasciato indietro
+```
+
+⭐ **Nessuna colonna nuova**: sono le stesse che il push scrive da sempre, e
+ognuna si spegne solo quando il lavoro è stato **fatto o verificato** — non
+quando la passata finisce.
+
+⚠️ **Le escluse per STRUTTURA restano nell'elenco della passata**, e non è una
+svista: collegamento escluso o negozio non connesso non scrivono niente sulla
+riga, quindi l'unico posto dove esistono è il conto di adesso. A ritrovarle
+pensa la rotazione, che nel giro dell'operazione le riattraversa.
+
+⭐ **Una COUNT sola risolve anche il doppio conteggio** senza doverlo evitare a
+mano: una coppia insieme senza base e fallita vale **uno**.
+
+##### ⭐ Le prove arrivano alla fine dell'operazione, e verificano il CANALE
+
+⛔ **Far convergere i numeri non basta**: due zeri si ottengono anche
+dimenticandosi delle coppie. Le due prove nuove chiudono guardando il negozio
+simulato, non il riepilogo —
+
+```text
+G   le 100 non viste vengono allineate davvero      canale 1 -> 5
+    e il chiamante si ferma perche' nonEsaminate = 0, non da solo
+H   la coppia rifiutata resta nel residuo per due passate
+    e alla fine il canale porta 5, mismatch_detected spento
+```
+
+⚠️ **La rotazione delle prove è DETERMINISTICA**, o non proverebbero niente: le
+coppie nascono con un `last_attempt_at` crescente per indice, così si sa **quali**
+il tetto lascia fuori. Senza, a decidere sarebbe l'ordine degli uuid — cioè il
+caso, come già successo una volta in §31.19.
+
+#### 31.22 · ⏸ CHECKPOINT del 11/09/2026 — e le due verifiche del completamento, APERTE
+
+> ⛔ **Non è un rilascio.** È uno stato conservato con i residui dichiarati: il
+> comando Allinea non è chiuso, e sotto c'è l'elenco di ciò che manca.
+
+##### Lo stato conservato
+
+|                       |                                                                       |
+| --------------------- | --------------------------------------------------------------------- |
+| `invio-composto`      | **57 / 57**                                                           |
+| unitarie API          | **2.645** verdi                                                       |
+| integrazione completa | **941 su 942** — l'unico rosso è **D5**, difetto aperto fuori mandato |
+| `npm run lint`        | uscita 0, guardie comprese                                            |
+| `tsc` app e prove     | pulito                                                                |
+| commit / push         | **nessuno**: l'albero resta locale                                    |
+
+##### ⛔ Prima di un push: che cosa attiva un deploy — misurato
+
+⭐ **Nessuno dei tre workflow GitHub fa deploy.** `ci.yml` e `security.yml`
+scattano su `main` e `develop` ma sono solo verifiche; `db-backup.yml` gira a
+tempo. In tutta `.github/` non c'è un `RAILWAY_TOKEN`, un `railway up`, un
+`vercel`, un `npm publish`.
+
+⛔ **Ma il deploy non passa da lì, e la catena vera è un'altra:**
+
+```text
+api/railway.toml     builder = dockerfile        (nessun ramo dichiarato)
+api/Dockerfile:39    CMD npx prisma migrate deploy && node dist/main.js
+docs/00-DECISIONI    «non e' deducibile dal repository ... lo sa solo il
+                      cruscotto del fornitore»
+```
+
+⚠️ **Se l'auto-deploy è attivo, le migration partono DA SOLE all'avvio
+dell'immagine**, contro il database **condiviso**. Non c'è un passo da
+autorizzare: è il comando di avvio del contenitore.
+
+| Ramo      | Deploy automatico                          | Che cosa si sa                                                                                                                                |
+| --------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `develop` | ⭐ **no**, per quanto il repository mostri | nessun file di piattaforma lo nomina                                                                                                          |
+| `main`    | ⛔ **non determinabile dai file**          | l'aggancio ramo→Railway vive solo nel cruscotto; la documentazione **testimonia** che Railway serve `main`, sullo stesso database di sviluppo |
+
+⛔ **E il carico va misurato, non stimato.** Misurato l'11/09/2026 su
+`feature/shopify-link-history`, **dopo `git fetch`**:
+
+```text
+25 commit avanti rispetto a origin/main   (e 25 anche rispetto a origin/develop)
+ 8 migration committate qui e assenti su origin/main
+ 6 migration ancora NON committate, solo locali
+--
+14 migration che un deploy applicherebbe, se tutte venissero spinte
+```
+
+⚠️ **`origin/main` è UN commit AVANTI a `origin/develop`**: non c'è un ramo
+indietro all'altro da recuperare. Qui il documento diceva altrove «main risulta
+205 commit indietro rispetto a develop» (§ del 14/08): è **superato** dalla
+fusione di inizio settembre.
+
+###### ⛔ Il primo conto era SBAGLIATO, e vale la pena sapere perché
+
+⛔ **Avevo scritto «985 commit avanti a main, 77 migration».** Erano misurati
+contro il ramo `main` **LOCALE**, fermo al **06/08/2026** — un riferimento che
+nessuno aggiorna perché su quel ramo non si lavora. Il ramo che conta è
+`origin/main`, che è di un mese dopo.
+
+```text
+refs/heads/main          06/08/2026   c4044d98    <- il ref stantio che avevo letto
+refs/remotes/origin/main 07/09/2026   969c19e8    <- quello vero
+```
+
+⚠️ **`git rev-list --count main..HEAD` non fallisce e non avvisa**: risponde un
+numero, e il numero è enorme abbastanza da sembrare un allarme fondato. È la
+stessa famiglia di difetti che questo documento insegue: **una misura muta e
+plausibile**. Chi misura una distanza da un ramo remoto scrive `origin/<ramo>`,
+e fa `git fetch` prima — altrimenti misura la propria copia di settimane fa.
+
+⚠️ **E «77» non erano migration: erano FILE** toccati sotto
+`api/prisma/migrations`, contati con `git diff --name-only ... | wc -l`. Le
+migration sono **cartelle**: si contano con `--diff-filter=A` e riducendo al
+primo livello di percorso.
+
+⭐ **Quindi: verso `main` non si spinge senza una decisione esplicita su quelle
+quattordici migration**, perché il deploy le applicherebbe da sé al condiviso —
+e restano quattordici anche se il ramo è vicino. Verso `develop` il repository
+non mostra alcun deploy — ⚠️ e «non lo mostra» non è «non esiste»: un secondo
+servizio agganciato a `develop` non sarebbe visibile da qui. Prima di spingere,
+la conferma va presa **sul cruscotto**, non nel codice.
+
+##### ⛔ 1 · «Verificata» non è un dato che esista — riprodotto
+
+⛔ **`last_attempt_at` si scrive PRIMA del tentativo**, ed è giusto così: è ciò
+che fa ruotare la coda anche quando il tentativo muore. Ma allora dice **«l'ho
+guardata»**, mai «l'ho controllata» — e l'operazione la legge come verificata.
+
+###### La riproduzione A — un arresto fra la marcatura e il controllo
+
+```text
+250 coppie, solo l'ultima in rotazione disallineata (canale 1, VestiFlow 5)
+passata 1   ne guarda 200, tutte a posto
+passata 2   marca la coppia 249 ... e il processo MUORE prima di guardarla
+ripresa     esecutore nuovo, stesso istante
+            -> nonEsaminate = 0        ⛔ era 0, doveva essere > 0
+```
+
+###### La riproduzione B — la coda del ritentativo, che scrive la stessa data
+
+⛔ **Gli scrittori di `last_attempt_at` sono DUE**: `segnaEsaminata`
+dell'allineamento e `retryPending` della coda, che gira **in coda a ogni import
+giacenze** (`shopify-inventory-pull.service.ts:171`). Entrambi scrivono prima di
+tentare, e i tentativi della coda non fanno il controllo che fa Allinea.
+
+```text
+la coppia disallineata e' in coda al ritentativo
+la coda passa: marca la data, il suo push esce «nessun invio» (L = 0)
+l'operazione prosegue e si DICHIARA CONCLUSA   nonEsaminate = 0
+il canale porta ancora 1 invece di 5           ⛔ nessuno l'ha guardata
+```
+
+⭐ **È il caso peggiore della famiglia**: non un numero sbagliato, ma
+un'operazione che si chiude dicendo di aver controllato tutto.
+
+###### ⛔ E `last_observed_at` non è l'alternativa
+
+⚠️ Le due colonne che sembrerebbero fatte apposta — `last_observed_at` e
+`last_observed_shopify_available` — **non le scrive mai il push**: l'unico
+scrittore in tutto `api/src` è il webhook di riconciliazione
+(`shopify-inventory-reconciliation.service.ts:86-91`). E `recuperoDaFermare` le
+**legge** per decidere: riusarle cambierebbe il recupero, non solo il conteggio.
+
+###### ⭐ Il rimedio minimo proposto — da confermare
+
+> **«Verificata in questa operazione» si legge da `last_pushed_at`, non da
+> `last_attempt_at`.**
+
+⭐ **La premessa è misurata, non supposta**: dopo una passata su 200 coppie già
+allineate, **200 righe su 250** portano `last_pushed_at` valorizzato — perché il
+ramo `solo_base` conferma anche quando non scrive sul canale. Una coppia
+conclusa lascia quella data; una solo marcata no.
+
+```text
+da guardare  =  perimetro  −  verificate (last_pushed_at >= istante)  −  residuo
+```
+
+|                         |                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `last_attempt_at`       | **non si tocca**: serve alla rotazione, e va scritto prima                                                                            |
+| colonne nuove           | **nessuna**; nessuna coda, nessuna tabella                                                                                            |
+| la coda del ritentativo | non può più contaminare il conto: `last_pushed_at` avanza **solo** a giro concluso — e se avanza, il canale porta davvero quel valore |
+
+⛔ **Resta scoperto UN esito, e va deciso: `level_not_found` sul canale.** Una
+coppia il cui articolo non ha un livello su quella sede viene letta, non lascia
+niente sulla riga e non è nel residuo: sarebbe riesaminata a ogni giro e
+l'operazione non si chiuderebbe mai.
+
+| Le due strade   |                                                                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **marcarla**    | l'unico marcatore esistente è `mismatch_detected` + nota. ⚠️ La farebbe entrare anche nella **coda del ritentativo**, che seleziona su quella colonna |
+| **dichiararla** | lasciarla fuori e accettare che quel giro non si chiuda, dicendolo nel riepilogo                                                                      |
+
+##### ⛔ 2 · L'esclusione non sta sulla riga di stato — riprodotto
+
+```text
+300 coppie a posto, una col COLLEGAMENTO CHIUSO (l'ultima della prima passata)
+passata 1   escluse 1,  restano 1     ✔
+passata 2   la rotazione ne guarda altre 200, tutte a posto
+            escluse 0,  restano 0     ⛔ indistinguibile da una allineata
+```
+
+⛔ **La causa**: `collegamento_escluso` non scrive niente sulla riga di stato —
+la coppia ha base, contatori a zero, nessun marcatore. Entrava nel residuo solo
+per l'elenco della passata, che si ricostruisce a ogni chiamata. È il difetto di
+§31.21 rimasto aperto **per dichiarazione**, e ora misurato.
+
+###### ⭐ Il rimedio minimo proposto — da confermare
+
+⭐ **Lo stato persistente ESISTE**, ed è lo storico dei collegamenti: la stessa
+domanda che il push fa in TypeScript
+(`shopify-link-history.service.ts:346-390`) è già scritta in SQL altrove
+(`tenant-backup-storico.util.ts:300-320`). Va aggiunta alla COUNT del residuo:
+
+```text
+EXISTS ( identita per (shop_id, gid della variante)  AND
+         ( local_deleted_at valorizzato
+        OR original_variant_id diverso dalla variante
+        OR nessun periodo con status = 'active' ) )
+```
+
+⚠️ **Il GID va NORMALIZZATO, o sbaglia in silenzio.** In produzione
+`product_variants.shopify_variant_id` contiene l'id **numerico**; nelle prove di
+massa contiene un GID **già formato**. Concatenare il prefisso a occhi chiusi
+produce `gid://…/gid://…` e la coppia **non** risulta esclusa: verde, e sbagliato.
+
+##### ⛔ E il ciclo del chiamante NON è `restano > 0` — correzione a §31.21
+
+⚠️ **Un'esclusione è permanente**: non esiste oggi un percorso che riapra un
+periodo chiuso (`registraVariante` rifiuta, e un trigger lo vieta). Quindi
+`restano` può restare **maggiore di zero per sempre**, ed è corretto che lo sia.
+
+⛔ **Ne discende che le prove `G` e `H` insegnano un ciclo sbagliato**: usano
+`while (interrotto || restano > 0)`, che con una coppia esclusa non finirebbe
+mai. Il segnale del «ripremi» è **`interrotto`**, cioè «resta qualcosa da
+guardare»; `restano` è il **rapporto per una persona**, non un contatore da
+azzerare.
+
+```text
+si ripreme finche'   interrotto        resta lavoro da GUARDARE
+si legge alla fine   restano           che cosa non e' a posto, e non lo sara' da se'
+```
+
+##### Dove sta la riproduzione — NEL REPOSITORY
+
+⭐ Le tre prove (`I`, `I-bis`, `J`) **non sono nella suite**, perché oggi sarebbero
+rosse: una suite rossa la si impara a ignorare, e il primo difetto vero passa
+inosservato. Ma **sono versionate**, in `api/src/test/riproduzioni/`:
+
+```text
+README.md                            che cosa riproduce ognuna, e come si eseguono
+allinea-verifiche-aperte.blocco.txt  il codice delle tre prove
+innesta.mjs                          le innesta nella suite, e le ritira
+```
+
+⚠️ **Non sono commentate né saltate**: un `it.skip` è la stessa cosa di un filtro
+che non aggancia niente — verde, e cieco. Stanno **fuori** dai file che vitest
+raccoglie, quindi non possono risultare verdi per sbaglio.
+
+⭐ **Rientrano insieme al rimedio**: chi chiude il difetto le innesta, le vede
+diventare verdi e le lascia dentro.
+
+#### 31.13-bis · ⏸ La proposta originale — resta per la parte sulle righe esistenti
+
+> ⛔ **Non autorizzato.** Viene **dopo** §31.11 (la lettura per sede, per identificativo), che ne è
+> il prerequisito: senza `R` fresco non c'è né il confronto del primo invio né il valore composto.
+
+**Che cosa chiude**: la separazione delle origini di §30. Da qui in poi una variazione locale e un
+effetto di canale smettono di essere indistinguibili — che è il difetto da cui è partito tutto.
+
+##### ⛔ IL PRIMO INVIO ASSOLUTO È RITIRATO — la partenza è una PROCEDURA, non un automatismo
+
+> ⭐ **Deciso dal proprietario il 10/09/2026.** La sezione qui sotto proponeva che una riga senza
+> base entrasse nel regime nuovo con un invio assoluto confrontato sul **remoto appena letto**.
+> ⛔ **Non si applica**: la base di confronto è e resta **l'ultimo confermato**
+> (`lastPushedAvailable`), e sostituirla cambierebbe una protezione esistente.
+
+⭐ **Al suo posto c'è qualcosa di meglio, e viene dall'esercizio, non dal codice**: il primo
+allineamento si fa **una volta, a fasi controllate**, e da lì si riparte puliti — §31.-1.
+
+```text
+1  ACQUISIRE tutti gli ordini pendenti, ripetendo finche' non arriva piu' niente
+2  SOLO ALLORA allineare le quantita'
+```
+
+⛔ **Fermare le vendite su Shopify non è un nostro passo** (§31.-1): è una scelta del titolare,
+che può anche accollarsi il rischio e allineare a negozio aperto. La sincronizzazione, dal canto
+nostro, **non si sospende mai**.
+
+⛔ **L'ordine dei due passi NON è indifferente, ed è qui il buco.** Un ordine **già compreso**
+nelle quantità iniziali ma **non ancora acquisito** viene sottratto **una seconda volta** quando
+arriva:
+
+```text
+allineo prima, acquisisco dopo
+   Shopify 9 (l ordine e' gia' applicato)  ->  allineo VestiFlow a 9
+   arriva l ordine  ->  VestiFlow 8, Shopify 9
+   il -1 e' stato contato DUE volte, e la divergenza resta
+```
+
+⭐ **Acquisendo prima, l'allineamento avviene su uno stato che già li contiene**, e non arriva più
+niente a sottrarli. ⚠️ **E l'acquisizione va ripetuta finché non è a vuoto**: un orario non
+garantisce che non ne manchi uno.
+
+⚠️ **La stessa regola vale per il tasto Allinea** (§31.12): allineare **prima** di aver acquisito
+gli ordini significa asserire un valore a cui manca ciò che è in viaggio.
+
+⛔ **Ma NON è il tasto Allinea a doverli acquisire** (§31.-1): gli ordini arrivano da soli, e il
+loro recupero appartiene alla sincronizzazione continua. Il tasto corregge le disponibilità.
+
+⭐ **La conseguenza sul nostro problema resta grossa**: la partenza controllata è la risposta alla
+domanda «come si stabilisce la base senza inventarla». Non si calcola e non si deduce — **si
+creano le condizioni in cui è vera**, una volta sola.
+
+##### ⏸ La forma automatica, conservata solo come alternativa RESPINTA
+
+Il problema, in una riga: `L₀ = 0` perde il residuo negativo, `L₀ = A − R` inventa lavoro quando
+c'è un ordine non acquisito, e **nessun test di sola osservazione discrimina** (§31.4, 49
+fotografie su 55 ambigue).
+
+⭐ **Ma «quanto vale `L`» conta solo quando si sta per inviare.** Una riga che non invia non ha
+bisogno di una base. Da cui:
+
+> **Non si assegna nessuna base. `L` nasce NULL, e la riga entra nel regime nuovo alla PRIMA
+> CONFERMA DI UNA NOSTRA SCRITTURA.**
+
+⭐ **Perché non è un'inferenza sul passato**: nel momento in cui **noi** scriviamo `max(0, A_w)` e
+Shopify conferma, sappiamo che cosa porta il canale — **ce l'abbiamo messo noi**. Non stiamo
+deducendo `U₀ = 0`: stiamo registrando una nostra scrittura.
+
+```text
+riga senza base     L = NULL
+primo invio         ASSOLUTO  T = max(0, A_w),  confronto sul remoto APPENA LETTO
+conferma            la stessa forma per scarico di 31.12, con L_w = 0 e C_w = 0
+                       ->  L = A_w - T      (il residuo negativo, o zero)
+                       ->  C = 0
+dal secondo invio   valore composto  T = max(0, R + L)
+```
+
+⭐ **La transizione non è un percorso a parte: è la prima conferma con la contabilità nuova**, e
+riusa il tentativo persistente esattamente com'è.
+
+⛔ **`L` è NULL, non zero, e la differenza è strutturale**: il percorso composto **richiede** un
+`L` non nullo, quindi su una riga senza base **non può partire**. L'impossibilità sta nel tipo,
+non in un controllo che qualcuno può dimenticare. ⚠️ E un NULL non si somma mai come zero — è il
+difetto che §31.4 aveva già segnalato.
+
+##### ⚠️ Che cosa la transizione NON risolve
+
+⛔ **Il primo invio ha lo stesso difetto del push di oggi**: se c'è un ordine in volo non
+acquisito, scrivere `max(0, A)` lo sovrascrive. **Non è un difetto nuovo — è quello che il push fa
+già adesso, a ogni giro**, e questo blocco non lo introduce né lo cura.
+
+⭐ Dal **secondo** invio in poi la riga usa il valore composto, che quel difetto non ce l'ha.
+Quindi la transizione è **non peggiore di oggi sul primo invio, e migliore da lì in poi** — ed è
+il massimo affermabile senza il pulsante e senza le decisioni aperte.
+
+⚠️ **Le righe che non inviano mai restano senza base, per sempre**, e non è un problema: sono
+quelle senza attività locale, che non hanno niente da trasmettere. La popolazione si drena da sé,
+riga per riga, **senza migrazione e senza finestra di manutenzione**.
+
+⛔ **Tranne le righe il cui push fallisce sempre** — `collegamento_escluso`, `base_assente`,
+rifiuti ripetuti: restano ferme dove sono, cioè come oggi. Sono le stesse che bloccano la coda
+(§31.9, prerequisito 1).
+
+##### ⭐ I due regimi convivono, e il blocco è reversibile riga per riga
+
+Una riga con `L = NULL` si comporta **esattamente come oggi**; una con `L` valorizzato usa il
+regime nuovo. Nessun momento di passaggio, nessuna migrazione dei dati, nessun ordine imposto.
+
+##### Che cosa comprende
+
+```text
+1  le colonne  L Int?  e  C Int?  piu' il marcatore origineNonAccertata
+2  la dichiarazione dell ORIGINE ai due colli di bottiglia
+     applyInventoryDelta   (46 punti in 9 file)  ->  L
+     applyCommittedDelta   ( 7 punti in 2 file)  ->  L oppure C, secondo il chiamante
+3  il primo invio assoluto col confronto sul remoto letto, e la conferma che stabilisce la base
+4  dal secondo invio: valore composto e condizione a DUE termini (L != 0 E T != R)
+```
+
+⚠️ **Il punto 2 è quello con la reach vera**, ed è anche il solo che tocca percorsi fuori da
+Shopify: i due util sono attraversati da vendite, carichi, rettifiche, trasferimenti e inventari.
+⛔ **La deroga della Vendita manuale va guardata lì**: aggiorna la giacenza **senza** creare
+`StockMovement`, quindi l'origine va agganciata alla scrittura del livello — non ai movimenti.
+
+##### Che cosa NON comprende — e sono decisioni, non lavoro
+
+|                                    | perché resta fuori                                               |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| il segnale `S`                     | serve `C` esatto, che serve §30.10 — le origini non chiarite     |
+| l'innesco automatico               | §31.9: tre prerequisiti e una scelta su dove metterlo            |
+| il pulsante di riallineamento      | §31.10 punto 6: **nessuna sovrascrittura incerta è autorizzata** |
+| `read_reports` · `read_all_orders` | §31.10 punti 4 e 5                                               |
+
+##### Prove di accettazione
+
+| #   |                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | riga **senza base**: il percorso composto **non parte** — e non perché un controllo lo vieta, perché `L` è NULL                                                        |
+| 2   | transizione su riga in **oversell** (`A = −3`): dopo la conferma `L = −3`, e il debito è conservato                                                                    |
+| 3   | transizione su riga **allineata** (`A = 10`): dopo la conferma `L = 0`                                                                                                 |
+| 4   | **operazione locale fra la fotografia e la conferma**: sopravvive — è il caso F con `L_w = 0`                                                                          |
+| 5   | **conferma tardiva** su riga senza base: non stabilisce nessuna base (`count = 0`, nessuna scrittura)                                                                  |
+| 6   | riga **con** base e riga **senza** base convivono nello stesso lotto senza interferire                                                                                 |
+| 7   | ⛔ **limite registrato, non superato**: il primo invio con un ordine in volo sovrascrive, **come oggi**. La prova lo fotografa come limite noto, non come esito atteso |
 
 ---
 

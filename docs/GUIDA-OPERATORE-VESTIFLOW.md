@@ -415,17 +415,53 @@ UI: **Impostazioni → Profilo** (tenant) e **Impostazioni** operatore (`/app/ad
 
 ## 9. Integrazione Shopify (tecnica)
 
+### Quantità: piano operativo confermato il 10/09/2026
+
+> **Stato: regole approvate da implementare e collaudare, non descrizione di un nuovo comando
+> già disponibile.** Riferimento normativo: `24-specifica-ciclo-vita-catalogo-e-sincronizzazione-shopify-v2.md`
+> §8.11. La presenza dei pulsanti attuali non certifica il comportamento richiesto qui.
+
+- **Partenza:** preparare e allineare i dati in più passaggi se ci sono ordini online pendenti.
+  Gli effetti già compresi nelle quantità iniziali non vanno sottratti di nuovo all'acquisizione.
+- **Vendite aperte o ferme:** lo decide l'operatore nel proprio negozio. VestiFlow non ferma
+  le vendite, non ne richiede la sospensione e mantiene operativa la sincronizzazione durante
+  l'allineamento. Allineare a vendite aperte comporta il rischio di nuovi ordini durante il giro
+  e di successive correzioni; una passata non garantisce che non manchi più alcun evento.
+- **Attività ordinaria:** vendita o carico in VestiFlow generano gli effetti locali da trasmettere.
+  Un ordine Shopify viene acquisito senza rimandare l'effetto che Shopify ha già applicato.
+- **Non rettificare le quantità nell'admin Shopify:** gestirle in VestiFlow. Una modifica fatta
+  sul canale, anche da un'altra applicazione, non viene copiata nella giacenza locale e può
+  lasciare uno scarto. Il regime continuo non promette di correggere da solo quelle rettifiche.
+- **Comando Allinea previsto:** quando l'operatore lo richiede, controllare le differenze e
+  riallineare le disponibilità **Shopify a VestiFlow**, non il contrario. Non pubblica prodotti,
+  non cambia prezzi e non modifica lo stato degli ordini Shopify. **Mostra le differenze e chiede
+  conferma prima di scrivere** (deciso il 10/09/2026): una differenza anomala va vista prima di
+  propagarla.
+  **Non è il comando che fa arrivare gli ordini** (deciso il 10/09/2026): gli ordini arrivano da
+  soli con la sincronizzazione continua, e quelli persi per un guasto si recuperano
+  automaticamente — Shopify non garantisce ogni consegna. Prima del confronto può starci un
+  controllo di freschezza, che non è una reimportazione di tutti gli ordini.
+  Può essere ripetuto, anche la sera; l'orario non rende impossibile un ordine in transito.
+  L'esito deve distinguere invii confermati, rifiuti, guasti e situazioni ancora da recuperare.
+- **Limite da comunicare:** il rischio accettato a vendite aperte riguarda quell'allineamento
+  esplicito. Non giustifica doppi invii, lavoro locale perso o vendite online sovrascritte dalla
+  sincronizzazione ordinaria. Una sovrascrittura registrata non rende annullabili le vendite
+  eventualmente avvenute nel frattempo.
+
+La pausa d'emergenza è un comando separato: non è una fase automatica dell'allineamento e non
+sospende le vendite Shopify. Non presentare come rilasciate le funzioni ancora da completare.
+
 ### Ownership sync (riepilogo)
 
-| Entità                                                      | Owner                  | Note                                                                                                |
-| ----------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- |
-| Catalogo prodotti **VestiFlow** (`catalogOrigin=vestiflow`) | VestiFlow              | CRUD completo; push al save; delete write-through verso Shopify se `shopifyProductId`               |
-| Catalogo prodotti **Shopify** (`catalogOrigin=shopify`)     | Shopify                | Pull import/webhook; in VF solo PATCH stagione + `purchasePriceMinor`; no delete/sync manuale/media |
-| Clienti, ordini online                                      | Shopify                | Read-only in VF                                                                                     |
-| Giacenze                                                    | Condiviso              | VF: carichi/rettifiche; Shopify: vendite                                                            |
-| Location                                                    | Shopify master         | Import + mapping; cleanup sedi stale; **operatività VF** via `licensedInVf` + piano tenant          |
-| Ordini fornitori                                            | Solo VestiFlow         | —                                                                                                   |
-| Anagrafica tenant                                           | Solo VestiFlow (admin) | `GET /tenant/company` read-only in UI **Sede fisica**                                               |
+| Entità                                                      | Owner                                             | Note                                                                                                                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalogo prodotti **VestiFlow** (`catalogOrigin=vestiflow`) | VestiFlow                                         | CRUD completo; push al save; delete write-through verso Shopify se `shopifyProductId`                                                                     |
+| Catalogo prodotti **Shopify** (`catalogOrigin=shopify`)     | Shopify                                           | Pull import/webhook; in VF solo PATCH stagione + `purchasePriceMinor`; no delete/sync manuale/media                                                       |
+| Clienti, ordini online                                      | Shopify                                           | Read-only in VF                                                                                                                                           |
+| Giacenze                                                    | VestiFlow, con acquisizione degli effetti Shopify | Gestione quantità in VF; ordini Shopify acquisiti senza reinvio. Rettifiche manuali sul canale non copiate in VF; riallineamento esplicito secondo §8.11. |
+| Location                                                    | Shopify master                                    | Import + mapping; cleanup sedi stale; **operatività VF** via `licensedInVf` + piano tenant                                                                |
+| Ordini fornitori                                            | Solo VestiFlow                                    | —                                                                                                                                                         |
+| Anagrafica tenant                                           | Solo VestiFlow (admin)                            | `GET /tenant/company` read-only in UI **Sede fisica**                                                                                                     |
 
 ### Origine catalogo (`catalogOrigin` / `shopifyCatalogLinkKind`)
 
@@ -616,10 +652,24 @@ L'errore vero di Shopify, se si prova lo stesso: `Access denied for publishableP
 
 La versione è **fissata** a `2026-07` (`SHOPIFY_API_VERSION`; mai `latest` né `unstable`). Le note qui sotto sono **misurate** contro uno shop di sviluppo il 03/09/2026 dal gate `npm run test:shopify:contract`, non dedotte dalla documentazione: sono i punti in cui `2026-07` si comporta diversamente da quanto ci si aspetterebbe, e ognuno era già costato un errore.
 
-**`inventorySetQuantities` — tre trappole nella stessa mutation**
+**`inventorySetQuantities` — le trappole nella stessa mutation**
 
-1. `InventorySetQuantitiesInput` **non ha `ignoreCompareQuantity`**. Mandarlo fa rifiutare l'intera mutation. Chi vuole scrivere senza confronto **omette** il campo di confronto, non alza una bandiera.
+1. `InventorySetQuantitiesInput` **non ha `ignoreCompareQuantity`**. Mandarlo fa rifiutare l'intera mutation.
+
+   ⛔ **Qui c'era «chi vuole scrivere senza confronto OMETTE il campo». È il contrario**, corretto il 09/09/2026: `changeFromQuantity` è **obbligatorio**, a disattivare il confronto è un **`null` esplicito**, e **omettere il campo è un errore**. ⚠️ Che VestiFlow non debba mai usare `null` è una regola **nostra**, e la fa rispettare il servizio: senza un ultimo valore confermato non si invia affatto.
+
 2. Il confronto concorrenziale si chiama **`changeFromQuantity`**, non `compareQuantity`. Se non corrisponde alla quantità persistita, Shopify risponde con un `userErrors` — «The changeFromQuantity argument no longer matches the persisted quantity» — e **non scrive**. È la protezione contro due scritture che si sovrascrivono in silenzio: va tenuta.
+
+   ⛔ **Ma non tutti gli `userErrors` sono rifiuti.** `IDEMPOTENCY_CONCURRENT_REQUEST` significa che l'operazione con quella chiave **è ancora in corso**: chiuderla come un rifiuto perde la chiave e, al giro dopo, apre un invio nuovo mentre il primo sta andando a segno. La selezione deve quindi chiedere **`code`** oltre a `field` e `message`, e la lettura sta in `shopify-inventory-user-error.util.ts`.
+
+   ⚠️ **`userErrors` assente non è `userErrors` vuoto.** Un payload mancante o malformato è un esito **ignoto**, non una riuscita: non deve aggiornare l'ultimo valore confermato né chiudere il tentativo.
+
+   ⛔ **E i codici si riconoscono per UGUAGLIANZA, mai per somiglianza del nome.** `InventorySetQuantitiesUserErrorCode` è **documentato pubblicamente** (diciassette valori, letti il 10/09/2026): non serve interrogare un negozio. Un riconoscimento per frammenti (`COMPARE`, `STALE`, `INVALID`, `MISMATCH`) non è prudente — **promuove uno sconosciuto a una classe che conclude**, e quella chiude il tentativo. Due contro esempi veri: `COMPARE_QUANTITY_REQUIRED` è un **parametro mancante**, non una divergenza di quantità; `IDEMPOTENCY_KEY_PARAMETER_MISMATCH` dice che i parametri non corrispondono, **non** che l'operazione di allora non sia stata applicata.
+
+   ⚠️ **E il MESSAGGIO non decide.** Sullo shop il confronto fallito ha risposto «The changeFromQuantity argument no longer matches the persisted quantity», mentre l'enum lo descrive «The changeFromQuantity value does not match persisted value»: due testi per lo stesso codice. Il messaggio resta informativo, il codice classifica.
+
+   ⚠️ **Documentato ≠ collaudato.** I diciassette codici sono documentati; **nessuno** è stato provocato su uno shop vero. E la pagina non si è lasciata ancorare a una versione: il percorso di `2025-07` ha restituito lo stesso contenuto dichiarando `2026-07`.
+
 3. La direttiva **`@idempotent(key:)` sta sul CAMPO, non sull'operazione**. Scritta dopo le variabili della `mutation` viene rifiutata: «'@idempotent' can't be applied to mutations (allowed: fields)». Forma corretta:
 
 ```graphql

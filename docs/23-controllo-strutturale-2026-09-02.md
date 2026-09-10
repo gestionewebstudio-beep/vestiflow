@@ -3,6 +3,10 @@
 **Aperto:** 02/09/2026 · **Ramo:** `feature/pagamenti-tesoriera` (611 commit avanti su
 `develop`, 813 su `main`, zero indietro: contiene tutto)
 
+**Riverificato:** 10/09/2026 su `feature/shopify-link-history`, in sola lettura. **Cinque
+difetti chiusi**, uno **peggiorato**, uno **trasformato** (vedi [1a](#1a)). Ogni voce chiusa
+porta la data e come è stata chiusa; nessuna è stata cancellata.
+
 **A che serve:** censire difetti trovati **leggendo il codice**, non i documenti. Ogni voce
 cita il file e la riga, e dice se il difetto è attivo oggi o condizionato.
 
@@ -18,36 +22,43 @@ del repository e ne aveva ereditato le conclusioni. Dal secondo giro il criterio
 
 ## Indice per gravità
 
-| #         | Difetto                                                           | Attivo oggi                        |
+☑ **chiuso** · ⛔ **aperto** · ⚠️ **aperto a condizione** · 🔄 **trasformato: c'è ancora, in
+un'altra forma**
+
+| #         | Difetto                                                           | Stato al 10/09/2026                |
 | --------- | ----------------------------------------------------------------- | ---------------------------------- |
-| [1](#1)   | I documenti di vendita non passano dal motore IVA comune          | ✅ sì                              |
-| [1a](#1a) | Reverse charge in vendita: totale gonfiato dell'IVA               | ⚠️ se il codice porta aliquota>0   |
-| [1b](#1b) | L'aliquota IVA è arrotondata a intero e finisce nel calcolo       | ✅ sì                              |
+| [1](#1)   | I documenti di vendita non passano dal motore IVA comune          | ⛔ aperto                          |
+| [1a](#1a) | Reverse charge in vendita: totale gonfiato dell'IVA               | 🔄 **trasformato** — si è spostato |
+| [1b](#1b) | L'aliquota IVA è arrotondata a intero e finisce nel calcolo       | ⛔ aperto                          |
 | [1c](#1c) | **Modalità ivata: si scorpora un'IVA che non c'è → prezzo −18%**  | ⚠️ reverse charge + modo ivato     |
 | [2](#2)   | Due formule di testata diverse, una è quella dichiarata errata    | ⚠️ solo con sconto documento       |
 | [3](#3)   | Due sistemi di numerazione, e un commento afferma il contrario    | ⚠️ latente                         |
-| [4](#4)   | Corrispettivi: raggruppati in UTC, stampati in ora italiana       | ✅ sì                              |
-| [5](#5)   | «Movimenta magazzino» non conosce `ProductKind.service`           | ✅ sì                              |
-| [6](#6)   | Quantità intere ovunque, con unità di misura continue             | ✅ sì                              |
-| [7](#7)   | Le giacenze possono restare disallineate da Shopify, in muto      | ✅ sì                              |
-| [8](#8)   | Il conteggio delle ripubblicazioni riuscite è falso               | ✅ sì                              |
-| [9](#9)   | La guardia sui permessi salta 8 controller su 33                  | ✅ sì (guardia, non codice)        |
-| [10](#10) | `update()` è un metodo da 885 righe con 65 rami                   | ✅ sì                              |
-| [11](#11) | Lost update sul ricevuto dell'ordine fornitore                    | ✅ sì                              |
-| [12](#12) | OAuth Shopify: scritture non compensate, stato ibrido             | ⚠️ se la chiamata a Shopify cade   |
-| [13](#13) | Eliminazione prodotto: Shopify prima, locale dopo                 | ⚠️ se la cancellazione locale cade |
-| [14](#14) | Ricerca testuale senza indici: scansione a ogni battuta           | ✅ sì                              |
-| [15](#15) | **Le vendite a DDT e Fattura valgono 0 € nel cruscotto**          | ✅ sì                              |
-| [16](#16) | La Nota di credito non riduce i ricavi, il Reso al banco sì       | ✅ sì                              |
-| [17](#17) | Pagamenti: le rate esistono solo in acquisto e non hanno azione   | ✅ sì (funzione incompleta)        |
-| [18](#18) | La dashboard carica l'intero inventario in memoria                | ✅ sì                              |
-| [19](#19) | **Inventario fisico: il delta si applica a uno stato cambiato**   | ✅ sì — P0                         |
-| [20](#20) | **Finalize inventario: effetti applicati, poi 403 sul documento** | ✅ sì — P0                         |
-| [21](#21) | **Doppio finalize concorrente: nessun claim atomico**             | ✅ sì — P0                         |
-| [22](#22) | Restore delle prenotazioni non atomico: Impegnata duplicata       | ✅ sì                              |
-| [23](#23) | Il prezzo di vendita finisce nella colonna del COSTO              | ✅ sì                              |
-| [24](#24) | I movimenti manuali scavalcano il registro seriali                | ✅ sì                              |
-| [25](#25) | I test su PostgreSQL reale non girano in CI                       | ✅ sì                              |
+| [4](#4)   | Corrispettivi: raggruppati in UTC, stampati in ora italiana       | ⛔ aperto                          |
+| [5](#5)   | «Movimenta magazzino» non conosce `ProductKind.service`           | ⛔ aperto                          |
+| [6](#6)   | Quantità intere ovunque, con unità di misura continue             | ⛔ aperto                          |
+| [7](#7)   | Le giacenze possono restare disallineate da Shopify, in muto      | ⚠️ **parziale**: [7a](#7a) chiuso  |
+| [8](#8)   | Il conteggio delle ripubblicazioni riuscite è falso               | ☑ **chiuso 10/09**                 |
+| [9](#9)   | La guardia sui permessi salta 8 controller su 33                  | ⛔ aperto (guardia, non codice)    |
+| [10](#10) | `update()` è un metodo da **912** righe                           | ⛔ **peggiorato**: era 885         |
+| [11](#11) | Lost update sul ricevuto dell'ordine fornitore                    | ⛔ aperto                          |
+| [12](#12) | OAuth Shopify: scritture non compensate, stato ibrido             | ☑ **chiuso 10/09**                 |
+| [13](#13) | Eliminazione prodotto: Shopify prima, locale dopo                 | ⏸ da riverificare (percorso nuovo) |
+| [14](#14) | Ricerca testuale senza indici: scansione a ogni battuta           | ⛔ aperto                          |
+| [15](#15) | **Le vendite a DDT e Fattura valgono 0 € nel cruscotto**          | ☑ **chiuso 10/09**                 |
+| [16](#16) | La Nota di credito non riduce i ricavi, il Reso al banco sì       | ⛔ aperto                          |
+| [17](#17) | Pagamenti: le rate esistono solo in acquisto e non hanno azione   | ⛔ aperto (funzione incompleta)    |
+| [18](#18) | La dashboard carica l'intero inventario in memoria                | ⛔ aperto                          |
+| [19](#19) | **Inventario fisico: il delta si applica a uno stato cambiato**   | ⛔ aperto — P0                     |
+| [20](#20) | **Finalize inventario: effetti applicati, poi 403 sul documento** | ⛔ aperto — P0                     |
+| [21](#21) | **Doppio finalize concorrente: nessun claim atomico**             | ⛔ aperto — P0                     |
+| [22](#22) | Restore delle prenotazioni non atomico: Impegnata duplicata       | ⛔ aperto                          |
+| [23](#23) | Il prezzo di vendita finisce nella colonna del COSTO              | ⛔ aperto                          |
+| [24](#24) | I movimenti manuali scavalcano il registro seriali                | ⛔ aperto                          |
+| [25](#25) | I test su PostgreSQL reale non girano in CI                       | ☑ **chiuso 10/09**                 |
+
+⚠️ **Le tre voci Shopify chiuse ([7a](#7a), [8](#8), [12](#12)) sono state lette mentre quei
+file erano in lavorazione** in un'altra sessione: sono chiuse in ciò che c'era su disco il
+10/09, e vanno riconfermate al commit.
 
 ---
 
@@ -74,6 +85,35 @@ li conosce entrambi; il percorso che emette le fatture no.
 <a id="1a"></a>
 
 ### 1a · Reverse charge in vendita: il totale è gonfiato dell'IVA
+
+> 🔄 **RIVERIFICATO IL 10/09/2026 — il difetto NON è chiuso: si è SPOSTATO.**
+>
+> `computeTotals` non ricalcola più l'imposta dall'aliquota: quando non c'è sconto
+> documento **somma il valore già determinato sulla riga**, come prescrive «il riepilogo
+> SOMMA, non ricalcola».
+>
+> ```ts
+> // documents.service.ts — computeTotals
+> if (docDiscount === 0) return sum + line.lineVatTotalMinor;
+> ```
+>
+> ⛔ **Ma il valore che somma nasce senza `calculationMode`.**
+> `document-line-economic-totals.util.ts:46-52` riceve tre parametri —
+> `netExactMinor`, `totalMinor`, `ratePercent` — e fa
+> `lineVatFromNetExact(netExactMinor, ratePercent)`. La modalità di calcolo non entra
+> nella firma, quindi non può entrare nel risultato.
+>
+> **Una fattura in reverse charge ha ancora l'IVA nel totale**, e da oggi ce l'ha anche
+> **persistita sulla riga** in `lineVatTotalMinor` / `lineGrossTotalMinor` — da dove la
+> legge il cruscotto (vedi [15](#15), che quelle colonne le ha appena riempite).
+>
+> ⭐ **Il progresso è reale e va riconosciuto**: prima l'uguaglianza «testata IVA = somma
+> delle IVA di riga» non si poteva nemmeno verificare, perché il valore di riga non veniva
+> scritto. Ora il sistema è **coerente**. Non è ancora **corretto**.
+>
+> ⚠️ **E il punto di correzione è cambiato**: non è più `computeTotals`, è
+> `documentLineEconomicTotals` — che oggi non riceve nemmeno il dato che gli servirebbe.
+> Correggere la testata non servirebbe più a niente.
 
 `computeTotals` somma l'imposta di ogni riga con `vatRatePercent > 0`, senza chiedersi se
 vada addebitata.
@@ -331,7 +371,25 @@ Quattro fatti che si sommano:
 ⛔ Se il push fallisce (rete, quota, riavvio), Shopify **non cambia**, quindi **non manda
 nessun webhook**, quindi nessuna riconciliazione parte. La divergenza è permanente.
 
-### 7a · Il rimedio non può funzionare nel caso più comune
+### 7a · ☑ CHIUSO il 10/09/2026 — il rimedio non poteva funzionare nel caso più comune
+
+> ☑ **Chiuso.** Esiste ora un **percorso interno di recupero**,
+> `ripubblicaDisallineamento`, che il republish invoca al posto del push ordinario
+> (`shopify-inventory-republish.service.ts:170`). La guardia è condizionata al percorso:
+>
+> ```ts
+> // shopify-inventory-push.service.ts
+> if (!recupero && base === publishable) return { pushed: false, reason: 'unchanged', … };
+> ```
+>
+> ⭐ **La guardia resta dov'era — è giusta per il push ordinario** — e viene scavalcata solo
+> da chi sta riparando un disallineamento. Il flag `mismatchDetected` non è più una coda che
+> non si svuota.
+>
+> ⚠️ **Letto mentre il file era in lavorazione** in un'altra sessione: da riconfermare al
+> commit.
+
+Com'era, e perché non si vedeva:
 
 ```text
 push riuscito                        lastPushedAvailable = 10
@@ -398,9 +456,17 @@ un negozio di prova US/USD è già collegato al progetto.
 
 <a id="8"></a>
 
-## 8 · ⛔ Il conteggio delle ripubblicazioni riuscite è falso
+## 8 · ☑ CHIUSO il 10/09/2026 — il conteggio delle ripubblicazioni riuscite era falso
 
-`shopify-inventory-republish.service.ts:74-76` fa `succeeded += 1` dopo
+> ☑ **Chiuso**, e la correzione porta con sé la propria memoria: il file dichiara oggi
+> «⛔ **Qui c'era `succeeded`, e contava ogni chiamata che non aveva sollevato**». Gli esiti
+> del push vengono ora distinti invece di essere contati tutti come riusciti.
+>
+> ⚠️ **Letto mentre il file era in lavorazione**: da riconfermare al commit.
+
+Com'era:
+
+`shopify-inventory-republish.service.ts:74-76` faceva `succeeded += 1` dopo
 `await pushLevel(...)`. Ma `pushLevel` **cattura l'errore internamente** e ritorna
 `{ pushed: false, reason: 'shopify_error' }` (`shopify-inventory-push.service.ts:144`): non
 rilancia mai, quindi il `catch` non scatta.
@@ -436,13 +502,19 @@ più.
 
 <a id="10"></a>
 
-## 10 · ⛔ `documents.service.update()` è un metodo da 885 righe
+## 10 · ⛔ `documents.service.update()` è un metodo da 912 righe — e cresce
 
 Misurato su `api/src/documents/documents.service.ts:1539`:
 
 ```text
-885 righe · 65 rami if/else · 40 await · 9 livelli di annidamento
+02/09/2026    885 righe · 65 rami if/else · 40 await · 9 livelli di annidamento
+10/09/2026    912 righe                                    ⛔ +27 in otto giorni
 ```
+
+⚠️ **È l'unica voce di questo elenco che è PEGGIORATA.** Nello stesso periodo in cui
+[15](#15) è stato chiuso proprio dentro questo file, il metodo che lo conteneva è cresciuto:
+correggere qui costa aggiungere, perché non c'è dove mettere le cose se non nel corpo che
+c'è già.
 
 È il metodo che salva la modifica di **nove tipi documento**, con transazione, movimenti,
 riconciliazioni, prenotazioni e numerazione dentro lo stesso corpo.
@@ -507,7 +579,24 @@ dell'ordine fornitore quella disciplina non è stata applicata.
 
 ## 12 · ⛔ OAuth Shopify: le scritture non sono compensate
 
-`api/src/shopify/shopify-oauth.service.ts`, in quest'ordine:
+> ☑ **CHIUSO il 10/09/2026 — l'ordine è stato invertito.** La lettura dell'identità del
+> negozio viene **prima** di qualunque scrittura, è protetta, e il fallimento **rifiuta la
+> connessione senza aver scritto niente**:
+>
+> ```text
+> :255  getShopIdentity(...)   dentro try/catch
+>       ↳ fallisce → logger.warn + redirect `shopify=shop_identity_unavailable`
+>                    ⭐ nessuna credenziale salvata, nessuno state consumato
+> :289  $transaction           ← ora viene DOPO
+> ```
+>
+> ⭐ **Non è una toppa sul catch: è la sequenza corretta.** Leggere prima di scrivere toglie
+> lo stato ibrido invece di ripararlo, ed è la forma che vale anche per [13](#13), che ha la
+> stessa causa.
+>
+> ⚠️ **Letto mentre il file era in lavorazione**: da riconfermare al commit.
+
+Com'era — `api/src/shopify/shopify-oauth.service.ts`, in quest'ordine:
 
 ```text
 :151  $transaction  →  salva la credenziale cifrata E cancella lo ShopifyOAuthState
@@ -526,9 +615,18 @@ comportano come connesse, mentre il pannello dichiara il contrario.
 
 <a id="13"></a>
 
-## 13 · ⛔ Eliminazione prodotto: prima Shopify, poi il locale, senza compensazione
+## 13 · ⏸ Eliminazione prodotto: prima Shopify, poi il locale, senza compensazione
 
-`api/src/products/products.service.ts:897-917` cancella il prodotto **su Shopify**, poi
+> ⏸ **DA RIVERIFICARE — il percorso è cambiato, l'esito no.** Al 10/09/2026
+> `channelSync.deleteProduct` non compare più in `products.service.ts`, ed è nato un
+> **cestino** (`product-trash.util.ts`, `trash-product.dto.ts`). La `prisma.product.delete`
+> esiste ancora (`:975`), ma l'ordine delle scritture cross-sistema va rimisurato sul
+> percorso nuovo prima di dire se il difetto resta.
+>
+> ⛔ **Non lo dichiaro chiuso**: «il codice è cambiato» non è «il difetto è stato
+> corretto», e su questa distinzione questo documento è nato.
+
+Com'era — `api/src/products/products.service.ts:897-917` cancellava il prodotto **su Shopify**, poi
 esegue `prisma.product.delete`. Se la cancellazione locale fallisce (vincolo residuo,
 timeout, deadlock), il prodotto è già sparito dal negozio online e resta nel gestionale —
 il contrario di quello che il messaggio d'errore promette per il caso `shopify_error`
@@ -582,9 +680,33 @@ richiede un indice funzionale su `lower()`.
 
 <a id="15"></a>
 
-## 15 · ⛔ Le vendite a DDT e Fattura valgono ZERO nel cruscotto, col costo pieno
+## 15 · ☑ CHIUSO il 10/09/2026 — le vendite a DDT e Fattura valevano ZERO nel cruscotto
 
-La catena, verificata anello per anello:
+> ☑ **Chiuso, e chiuso bene: la guardia sta nel COMPILATORE.**
+>
+> L'anello rotto era il quarto — `toLineCreateData` faceva `...rest` di `ComputedLine`, e
+> ciò che il tipo non dichiarava non arrivava al database. Ora:
+>
+> ```text
+> ComputedLine                   dichiara lineVatTotalMinor e lineGrossTotalMinor  (:353, :355)
+> toLineCreateData               le scrive UNA PER UNA, elencate                   (:4245-4246)
+> DocumentLineWriteData          le rende OBBLIGATORIE: dimenticarne una NON COMPILA
+> ```
+>
+> ⭐ **Il commento nel codice cita la misura di questo documento** — «il difetto misurato il
+> 02/09/2026» — e spiega la scelta con la frase che vale più della correzione: _«Uno spread
+> scrive quello che c'è; un elenco dice quello che ci deve essere»_.
+>
+> ⭐ **E `document-line-economic-totals.util.ts:60-66` dichiara perché `tsc` non poteva
+> accorgersene**: lo schema dà `@default(0)` a quelle colonne, quindi il tipo generato da
+> Prisma le rende facoltative. _«È esattamente così che il difetto è sopravvissuto a 112
+> prove e 3.730 righe di test.»_
+>
+> ⚠️ **Ma leggi [1a](#1a) prima di considerare risolto il cruscotto**: le colonne ora si
+> riempiono, e per una riga in reverse charge si riempiono con un'IVA che non andrebbe
+> addebitata. Il numero non è più zero; non è ancora quello giusto.
+
+Com'era — la catena, verificata anello per anello:
 
 ```text
 1  document-stock-unload-sync.util.ts:203
@@ -928,19 +1050,34 @@ giacenza numerica resta giusta, il registro dei pezzi no.
 
 <a id="25"></a>
 
-## 25 · ⛔ I test che prenderebbero questi difetti non girano mai
+## 25 · ☑ CHIUSO il 10/09/2026 — i test che prendono questi difetti ora girano
+
+> ☑ **Chiuso.** La CI esegue la suite su PostgreSQL reale, con l'ambiente preparato prima:
+>
+> ```text
+> ci.yml:172   Ruoli del solo PostgreSQL TEST          psql … 01-ruoli-supabase.sql
+> ci.yml:174   Installazione e aggiornamento con dati rappresentativi
+> ci.yml:176   Integrazione API e database             npm run test:integration
+> ```
+>
+> ⭐ **È il difetto più importante dell'elenco ad essere stato chiuso**, e non per gravità
+> propria: è **la rete che rende falsificabili gli altri**. [19](#19), [21](#21), [22](#22)
+> e [11](#11) sono difetti di concorrenza transazionale — nessun test unitario con mock può
+> vederli, e senza questo gate una loro correzione non avrebbe avuto niente che la tenesse
+> ferma.
+>
+> ⚠️ **Non li prende automaticamente**: il gate ora esiste, le prove che li coprono vanno
+> comunque scritte. Ma da oggi hanno dove girare.
+
+Com'era:
 
 ```text
 api/package.json:20     "test:integration": vitest --config vitest.integration.config.ts
 .github/workflows/ci.yml   occorrenze di "test:integration":  0
 ```
 
-La suite su **PostgreSQL reale** esiste, è isolata e ha barriere contro le scritture fuori
-ambiente — ed è opt-in. La CI esegue unit, component, E2E e uno smoke dell'API.
-
-⛔ **I difetti [19](#19), [21](#21), [22](#22) e [11](#11) sono esattamente quelli che solo
-un test transazionale concorrente può prendere.** Nessuno di loro fa arrossare la CI di
-oggi, e non lo farebbe nemmeno dopo la correzione: non c'è il gate che le protegga.
+La suite su **PostgreSQL reale** esisteva, isolata e con barriere contro le scritture fuori
+ambiente — ed era opt-in. La CI eseguiva unit, component, E2E e uno smoke dell'API.
 
 ---
 
@@ -1070,8 +1207,29 @@ rivendicate atomicamente**: [11](#11), [19](#19), [21](#21), [22](#22), e in par
 del `count` — **è già in casa** (`DocumentsService.cancel`, `consumeReservationTx`,
 `applyInventoryDelta`) e non è stato esteso.
 
-⚠️ **Nessuna delle due radici è visibile dalla CI di oggi** ([25](#25)): la A perché client
-e server sbagliano uguale, la B perché i test transazionali su PostgreSQL non girano.
+⚠️ **La radice A non è ancora visibile dalla CI**, perché client e server sbagliano uguale.
+⭐ **La B ora sì**: [25](#25) è chiuso, e i test transazionali su PostgreSQL girano.
+
+### 🔄 Bilancio della riverifica del 10/09/2026
+
+```text
+☑ chiusi        15 · 25 · 8 · 7a · 12          cinque su venticinque
+🔄 trasformato  1a       la correzione l'ha spostato, non tolto
+⛔ peggiorato   10       885 → 912 righe
+⏸ da rimisurare 13       percorso riscritto, esito non accertato
+```
+
+⭐ **Le due chiusure che contano più delle altre sono [15](#15) e [25](#25), e per la stessa
+ragione: hanno lasciato una guardia.** Il primo l'ha messa nel compilatore (un tipo che non
+si può dimenticare di riempire), il secondo nella CI (un gate dove le prove di concorrenza
+possono girare). Le altre tre correggono un comportamento; queste due impediscono a un
+difetto di tornare.
+
+⛔ **E [1a](#1a) è l'avvertimento da tenere in testa**: una correzione può rendere un
+sistema **coerente** senza renderlo **corretto**, e da fuori le due cose si somigliano. Il
+totale di testata ora coincide con la somma delle righe — verificabile, ordinato, e ancora
+sbagliato sul reverse charge. Una voce si spunta quando il **comportamento** è giusto, non
+quando il codice è cambiato.
 
 ⛔ **Non è una serie di bug da correggere uno a uno**: è un percorso che non è mai stato
 ricondotto al motore comune, mentre gli altri quattro (Arrivo merce, Ordine fornitore,

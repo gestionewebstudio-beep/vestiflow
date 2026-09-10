@@ -128,14 +128,14 @@ Tolte dalla tabella perché **decise**, non perché attraversate. Restano elenca
 già elencate sopra. Un punto che non compare in nessuna delle due liste è
 **deciso**: si applica la sezione che lo argomenta.
 
-| #   | Punto aperto                                                                     | Dove              | Perché non si può dedurre                                                                                                                                  |
-| --- | -------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **termine definitivo** per una sede non eliminabile                              | §1.13.4           | la proposta corrente è «Disattiva», non «Sospendi». La regola funzionale è decisa e non dipende dal nome                                                   |
-| 2   | **comportamento della sede collegata quando viene disattivata localmente**       | §1.13.5           | il comportamento proposto è registrato per non perderlo, non perché sia acquisito                                                                          |
-| 3   | **conseguenza del rifiuto** di recuperare gli ordini mancanti alla riconnessione | §1.15.4           | avviso permanente, o blocco del riallineamento delle quantità: due strade difendibili                                                                      |
-| 4   | **dettagli operativi** del primo allineamento degli articoli                     | §12.0, §12.6      | le due direzioni sono approvate; la procedura dell'operatore, gli schermi e il trattamento dei cataloghi gia' popolati non lo sono                         |
-| 5   | **giacenze iniziali per sede** al primo allineamento                             | §12.0, §12.9      | importare le anagrafiche non autorizza a sommare o sovrascrivere quantita'. Resta aperta anche la quantita' di partenza di un articolo creato in VestiFlow |
-| 6   | **audit persistente e backup pre-operazione**                                    | `docs/DA-FARE.md` | progettazione e implementazione: di una cancellazione oggi resta una riga di log sul container, che il riavvio perde                                       |
+| #   | Punto aperto                                                                     | Dove                     | Perché non si può dedurre                                                                                                                                                                                                                                                                                                            |
+| --- | -------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **termine definitivo** per una sede non eliminabile                              | §1.13.4                  | la proposta corrente è «Disattiva», non «Sospendi». La regola funzionale è decisa e non dipende dal nome                                                                                                                                                                                                                             |
+| 2   | **comportamento della sede collegata quando viene disattivata localmente**       | §1.13.5                  | il comportamento proposto è registrato per non perderlo, non perché sia acquisito                                                                                                                                                                                                                                                    |
+| 3   | **conseguenza del rifiuto** di recuperare gli ordini mancanti alla riconnessione | §1.15.4                  | avviso permanente, o blocco del riallineamento delle quantità: due strade difendibili                                                                                                                                                                                                                                                |
+| 4   | **dettagli operativi** del primo allineamento degli articoli                     | §12.0, §12.6             | le due direzioni sono approvate; la procedura dell'operatore, gli schermi e il trattamento dei cataloghi gia' popolati non lo sono                                                                                                                                                                                                   |
+| 5   | ✅ **giacenze iniziali per sede** — CHIUSA il 10/09/2026                         | `docs/DA-FARE.md` §31.-1 | il piano di funzionamento la scioglie: la base **non si calcola e non si deduce**, si crea con una **partenza controllata a fasi** (ordini acquisiti prima, quantita' allineate dopo). E' una **procedura, non un obbligo** verificato dal prodotto. ⏸ Resta aperta solo la quantita' di partenza di un articolo creato in VestiFlow |
+| 6   | **audit persistente e backup pre-operazione**                                    | `docs/DA-FARE.md`        | progettazione e implementazione: di una cancellazione oggi resta una riga di log sul container, che il riavvio perde                                                                                                                                                                                                                 |
 
 ### ⏸ Voci APERTE dal 06/09/2026 — ciclo di vita e stato Shopify
 
@@ -3076,6 +3076,146 @@ dei campi (§9.2), i movimenti e le regole delle quantità non cambiano.
 
 ---
 
+### 8.11 Il FUNZIONAMENTO RICHIESTO — regole CONFERMATE, 09-10/09/2026
+
+> ✅ **Confermate dal proprietario.** Prevalgono da subito, ciascuna per sé (§0). ⛔ Non
+> autorizzano codice: lo stato e la differenza da colmare stanno in `DA-FARE.md`, le prove
+> nello scenario `N` del piano di collaudo.
+>
+> ⭐ **Raccordo con il quadro funzionale.** `SINCRONIZZAZIONE-QUADRO-FUNZIONALE.md` è la
+> lettura d'insieme preparata dal proprietario; **questa sezione ne è la resa normativa**, e le
+> due non vanno tenute allineate a mano su tutto: qui entra **solo ciò che il quadro marca come
+> richiesto**. L'aggiornamento del **10/09/2026** recepisce la partenza controllata, la scelta
+> dell'operatore sulle vendite aperte, il regime continuo e il comando Allinea. Supera le
+> precedenti proposte incompatibili su questi punti, ma non le trasforma in codice già pronto.
+> Restano aperti i dettagli tecnici non decisi e le scelte sulle importazioni da file e sulla
+> colonna sì/no. Lo stato applicativo resta in `DA-FARE`.
+>
+> ⚠️ **Non ripetono la matrice dei campi (§9.2), i movimenti né le regole delle quantità**: le
+> presuppongono.
+
+#### 8.11.1 Prima configurazione — sedi
+
+Per gestire il magazzino serve **almeno una sede operativa VestiFlow**. I collegamenti con le
+location Shopify sono **uno-a-uno** e li sceglie **l'operatore**.
+
+⛔ **Nessuna somma automatica delle quantità di sedi diverse.** ⛔ **Nessun collegamento
+indovinato dal nome**: un nome uguale non è un'identità.
+
+#### 8.11.2 Prima configurazione — catalogo
+
+Si sceglie **una direzione iniziale**: Shopify → VestiFlow, oppure VestiFlow → Shopify (le due
+direzioni di §12.0).
+
+⛔ **La fusione automatica di due cataloghi già popolati è ESCLUSA da questa fase.** ⛔ E la
+scelta non autorizza **cancellazioni o sovrascritture** del catalogo di destinazione.
+
+**Partenza delle quantità — decisione del 10/09/2026.** Dopo la mappatura delle sedi,
+l'allineamento iniziale si svolge in una o più fasi controllate: si acquisiscono e si verificano
+gli ordini online pendenti del periodo gestito e si sistemano le differenze. Un effetto già
+compreso nelle quantità iniziali non deve essere contato di nuovo quando arriva l'ordine.
+Un ordine aperto ma già correttamente impegnato non deve essere evaso per consentire l'avvio.
+
+**VestiFlow non ferma le vendite Shopify e non ne richiede la sospensione come condizione di
+esecuzione.** È l'operatore a scegliere se fermarle dal negozio oppure allineare a vendite
+aperte, accettando il rischio di nuovi ordini durante l'operazione e di ulteriori passaggi.
+La sincronizzazione resta operativa durante l'allineamento; non si introduce un blocco di
+manutenzione che impedisca gli scambi necessari.
+
+La preparazione stabilisce il punto di partenza del regime continuo. Non equivale a inizializzare
+le righe con una sovrascrittura automatica alla prima vendita o al primo carico locale.
+I dettagli precedentemente proposti per il wizard (§12) non sono autorizzati da questo flusso.
+
+#### 8.11.3 Attività ordinaria
+
+La matrice canonica dei campi (§9.2) **resta invariata**, e **la scelta iniziale non cambia la
+direzione della sincronizzazione successiva**: è un punto di partenza, non un regime.
+
+⛔ **VestiFlow deve funzionare integralmente anche senza Shopify.**
+
+#### 8.11.4 Ordini — il confine temporale
+
+Alla **prima connessione** si registra un **confine temporale**: entrano soltanto gli ordini
+creati **da quel momento in poi**.
+
+⛔ **Una pausa o una riconnessione allo stesso negozio NON sposta quel confine**, e non deve
+far dimenticare gli ordini del periodo intermedio.
+
+⚠️ **Che cosa un ordine autorizza, e che cosa no.** Le informazioni dell'ordine devono
+identificare **articoli, quantità ordinate e sedi interessate**. ⛔ **Non sono
+un'autorizzazione a copiare la disponibilità Shopify nella giacenza locale.**
+
+#### 8.11.5 Quantità e ORIGINE degli effetti
+
+| Origine dell'effetto         | Che cosa deve succedere                                                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **già applicato da Shopify** | si **acquisisce** in VestiFlow, e per quella sola acquisizione **non** parte un reinvio automatico della disponibilità al canale |
+| **operazione locale**        | genera un **aggiornamento da trasmettere**                                                                                       |
+
+⛔ **L'arrivo di un ordine Shopify non deve cancellare aggiornamenti locali ancora pendenti.**
+
+⛔ **Nessun invio della sincronizzazione continua deve sovrascrivere vendite online non ancora acquisite**, e la protezione
+dev'essere **effettiva**: non bastano dichiarare VestiFlow autorevole, attendere qualche
+secondo, o confrontare due numeri uguali.
+
+Una vendita locale genera il proprio effetto da sottrarre, un carico quello da aggiungere;
+un effetto acquisito da Shopify non viene rispedito. Restano invariate le regole della quantità
+pubblicabile e dei negativi: non è un'autorizzazione a inviare delta grezzi senza tali regole.
+Il risultato richiesto è la convergenza dopo l'elaborazione, non l'uguaglianza istantanea durante
+il transito degli eventi.
+
+**Rettifiche manuali Shopify.** Non diventano giacenza o movimenti VestiFlow e non vengono
+corrette automaticamente imponendo il totale locale. L'operatore deve gestire le quantità in
+VestiFlow; se interviene nell'admin Shopify o tramite altri sistemi, l'eventuale scarto resta
+fuori dalla garanzia di allineamento ordinario e si corregge col comando esplicito di §8.11.7.
+Il limite va spiegato nelle guide. Non esonera dall'acquisire ordini o dal conservare gli effetti
+locali pendenti.
+
+#### 8.11.6 Emergenza e ripresa
+
+Serve una **sospensione riconoscibile**, **distinta dalla cancellazione dei collegamenti**.
+
+⛔ Non deve **archiviare prodotti**, **azzerare quantità** né **interrompere il lavoro locale**.
+
+La pausa esplicita ferma ingressi e uscite; alla riattivazione si recupera il periodo sospeso e
+il lavoro locale conservato. La sospensione per articolo o variante vale su tutte le sue sedi.
+È distinta dall'allineamento: non si attiva automaticamente per la preparazione iniziale o per
+Allinea, e non spegne le vendite del negozio Shopify.
+
+#### 8.11.7 Riallineamento manuale, e importazioni massive
+
+**Decisione del 10/09/2026:** il comando **Allinea** è richiedibile dall'operatore quando vuole,
+anche a vendite aperte. Controlla le differenze per variante e sede e porta **Shopify alle
+disponibilità pubblicabili di VestiFlow**, mai il contrario.
+Non riscrive le coppie uguali e non sospende automaticamente sincronizzazione o vendite.
+
+Il suo effetto su Shopify è limitato alle disponibilità: non pubblica catalogo, non cambia prezzi
+e non modifica lo stato degli ordini. **Resta da confermare** se il pulsante debba acquisire
+automaticamente prima gli ordini del periodo gestito o usare quelli acquisiti dal percorso
+ordinario o manuale. Il recupero automatico non è stato deciso implicitamente dal nome Allinea.
+
+La scelta di eseguirlo a vendite aperte comporta un rischio residuo accettato: fra recupero e
+scrittura può arrivare un ordine non ancora acquisito e può essere necessaria una nuova passata.
+Una lista vuota o due quantità uguali non provano che gli eventi siano esauriti; non si promette
+che un singolo giro chiuda sempre ogni scarto. Registrare una sovrascrittura la rende tracciabile,
+non annulla eventuali vendite prodotte da una quantità errata.
+
+Questa decisione riguarda il riallineamento esplicito, non autorizza un invio ordinario a imporre
+un totale incompleto. Restano le protezioni su tenant, negozio, sedi, identità escluse,
+concorrenza, idempotenza, esiti incerti e modifiche locali sopraggiunte. Un errore tecnico non
+diventa un successo per il solo fatto che l'operatore ha accettato il rischio degli ordini in volo.
+La forma della UI oltre al comando richiesto non è definita qui.
+
+**Stato: funzionamento approvato, non dichiarato implementato da questa modifica documentale.**
+Implementazione e collaudi restano in `DA-FARE` §31. Il ritentativo di un invio e il riallineamento
+esplicito restano operazioni diverse.
+
+Le **importazioni massive** servono anche durante l'attività ordinaria, da file come CSV
+Shopify e XML fornitori. ⛔ **Un file non dimostra un collegamento remoto**, e ⛔ **la
+disponibilità del fornitore non è la giacenza VestiFlow.**
+
+---
+
 ## 9. Proprietà e direzione dei campi — MATRICE CANONICA
 
 > ✅ **Decisione confermata** (03/09/2026)
@@ -3758,9 +3898,9 @@ regola funzionale già scritta.
 
 ### 12.0 Il primo allineamento degli ARTICOLI — due direzioni approvate, 07/09/2026
 
-> **Stato: due direzioni iniziali approvate; dettagli operativi e giacenze
-> iniziali ancora aperti; implementazione dell'onboarding non ancora
-> autorizzata.**
+> **Stato aggiornato al 10/09/2026:** due direzioni iniziali approvate e partenza controllata
+> delle quantità confermata in §8.11.2. Restano da realizzare i dettagli tecnici; il wizard
+> completo qui proposto non è autorizzato implicitamente da quelle decisioni.
 
 ⭐ **La COMPLETEZZA di questo allineamento è ora un requisito confermato, e vive in §8.9.1**:
 nessuna priorità fra campi, un articolo parziale non è completato, e interruzioni o
@@ -4079,10 +4219,12 @@ Un lordo 25,00 al 22% deve tornare 25,00 dopo scorporo e ricomposizione.
 
 ### 12.9 Step 6 — Baseline inventariale
 
-> ⏸ **La scelta delle giacenze iniziali per sede è APERTA** (§12.0). Le due
-> direzioni approvate riguardano le **anagrafiche**: importarle o crearle non
-> autorizza a sommare né a sovrascrivere quantità. Quanto segue resta la
-> proposta precedente, non una decisione.
+> **Aggiornamento del 10/09/2026:** il funzionamento della partenza controllata, anche in più
+> passaggi e a vendite aperte per scelta dell'operatore, è approvato in §8.11.2. Non è più una
+> domanda aperta su come l'utente debba lavorare. Le modalità tecniche di questo step restano
+> invece una proposta: il documento di apertura e il wizard descritti sotto non sono autorizzati
+> implicitamente. La scelta del catalogo non autorizza somme di sedi né un riallineamento
+> automatico nascosto nel primo invio ordinario.
 
 Le quantità vengono trattate solo dopo la mappatura location.
 
