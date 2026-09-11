@@ -3249,28 +3249,30 @@ oggi superate: «Nome, descrizione, brand → bidirezionale», «Immagini e arri
 → bidirezionale per allowlist», «Categorie/collezioni/metafield → Shopify o configurazione
 esplicita». È sostituita per intero, e la direzione di ogni campo è ora **decisa**.
 
-| Dato                                            | Direzione                                                              |
-| ----------------------------------------------- | ---------------------------------------------------------------------- |
-| Nome VestiFlow (`Product.name`)                 | **solo VestiFlow**                                                     |
-| Nome Shopify (`shopifyTitle`)                   | **bidirezionale**                                                      |
-| Descrizione                                     | **VestiFlow → Shopify**                                                |
-| Categoria VestiFlow                             | **solo VestiFlow**                                                     |
-| Tipo prodotto Shopify (`productType`)           | **bidirezionale**                                                      |
-| Categoria standard Shopify                      | **bidirezionale**                                                      |
-| Brand VestiFlow / vendor Shopify                | **bidirezionale**                                                      |
-| Tag                                             | **bidirezionali**                                                      |
-| Collezioni manuali                              | **bidirezionali** per l'appartenenza del prodotto                      |
-| Collezioni automatiche                          | **Shopify → VestiFlow**, per la sola visualizzazione dell'appartenenza |
-| Immagine principale                             | **bidirezionale**                                                      |
-| Immagini Shopify aggiuntive                     | **solo Shopify**, non gestite da VestiFlow                             |
-| SEO                                             | **solo Shopify**, non gestita da VestiFlow                             |
-| Metafield configurati in VestiFlow              | **bidirezionali**                                                      |
-| Metafield non configurati                       | **solo Shopify**, mai modificati da VestiFlow                          |
-| SKU e barcode                                   | **bidirezionali**                                                      |
-| Prezzi di vendita                               | **VestiFlow → Shopify**                                                |
-| Quantità                                        | **VestiFlow → Shopify**                                                |
-| Vendita oltre disponibilità (`inventoryPolicy`) | **bidirezionale**                                                      |
-| Opzioni e varianti                              | **bidirezionali**, con le regole sulla cancellazione di §11.1 e §11.7  |
+| Dato                                            | Direzione                                                                  |
+| ----------------------------------------------- | -------------------------------------------------------------------------- |
+| Nome VestiFlow (`Product.name`)                 | **solo VestiFlow**                                                         |
+| Nome Shopify (`shopifyTitle`)                   | **bidirezionale**                                                          |
+| Descrizione                                     | **bidirezionale** _(11/09/2026)_                                           |
+| Categoria VestiFlow                             | **solo VestiFlow** — mai inviata, mai sovrascritta                         |
+| Tipo prodotto Shopify (`productType`)           | **bidirezionale**, in un campo **suo**                                     |
+| Categoria standard Shopify                      | **bidirezionale**                                                          |
+| Brand VestiFlow / vendor Shopify                | **bidirezionale**                                                          |
+| Tag                                             | **bidirezionali**                                                          |
+| Collezioni manuali                              | **bidirezionali** per l'appartenenza del prodotto                          |
+| Collezioni automatiche                          | **Shopify → VestiFlow**, per la sola visualizzazione dell'appartenenza     |
+| Immagine principale                             | **bidirezionale**                                                          |
+| Immagini Shopify aggiuntive                     | **solo Shopify**, non gestite da VestiFlow                                 |
+| SEO                                             | **solo Shopify** — VestiFlow non la gestisce ne la mostra (§9.11)          |
+| Metafield configurati in VestiFlow              | **bidirezionali**                                                          |
+| Metafield non configurati                       | **solo Shopify**, mai modificati da VestiFlow                              |
+| SKU e barcode                                   | **bidirezionali**                                                          |
+| Prezzi di vendita                               | **VestiFlow → Shopify**                                                    |
+| Prezzo barrato                                  | **bidirezionale** con Shopify attivo; senza Shopify, locale _(11/09)_      |
+| Costo d’acquisto                                | **comanda VestiFlow**: negli AGGIORNAMENTI Shopify non lo scrive _(11/09)_ |
+| Quantità                                        | **VestiFlow → Shopify**                                                    |
+| Vendita oltre disponibilità (`inventoryPolicy`) | **bidirezionale**                                                          |
+| Opzioni e varianti                              | **bidirezionali**, con le regole sulla cancellazione di §11.1 e §11.7      |
 
 ### 9.3 Nome VestiFlow e Nome Shopify
 
@@ -3287,14 +3289,23 @@ etichetta nella scheda — sta in **§1.9**. Qui resta il minimo che la matrice 
 
 ### 9.4 Descrizione
 
-- la descrizione viene inviata **esclusivamente da VestiFlow a Shopify**;
-- una modifica eseguita direttamente **su Shopify non aggiorna VestiFlow**;
-- un invio successivo da VestiFlow può quindi **sostituire** la descrizione presente su
-  Shopify.
+> ✅ **Decisione del proprietario, 11/09/2026.** Prevale su quanto c'era qui.
 
-⚠️ **Questo comportamento va dichiarato nell'interfaccia** (§9.9). Chi scrive la descrizione
-nell'admin Shopify non ha modo di sapere che il prossimo salvataggio dal gestionale la
-sovrascriverà, e lo scoprirebbe solo dopo averla persa.
+- la descrizione si sincronizza in **entrambe le direzioni**;
+- vale la regola generale dei campi bidirezionali (§9.1): **prevale l'ultima modifica
+  valida salvata**, e l'eco di una scrittura appena inviata **non** genera una nuova
+  modifica.
+
+⛔ **Qui c'era «esclusivamente da VestiFlow a Shopify»**, con l'avvertenza che un invio
+successivo poteva sostituire la descrizione scritta nell'admin. Non vale piu' — e va
+ricordato **perche'** cadeva: rendeva la descrizione l'unico campo testuale che si poteva
+perdere lavorando dove capita, e **il codice la importava comunque**. Specifica e
+implementazione dicevano due cose diverse, e nessuna delle due se ne accorgeva.
+
+⚠️ **La decisione ha un prerequisito che NON è ancora deciso**: un campo bidirezionale
+regge solo se esiste il meccanismo di §9.10 — origine della scrittura, istanti, hash,
+riconoscimento dell'eco. Finche' quello resta una proposta, «prevale l'ultima modifica»
+non ha un modo dichiarato di stabilire **quale** sia l'ultima.
 
 ### 9.5 Categorie: quattro concetti distinti, non sinonimi
 
@@ -3308,8 +3319,29 @@ sovrascriverà, e lo scoprirebbe solo dopo averla persa.
 La **Categoria VestiFlow** è una classificazione esclusivamente gestionale: non viene inviata
 a Shopify e non viene sovrascritta da Shopify.
 
-Il **Tipo prodotto Shopify** è un campo Shopify separato, memorizzato in VestiFlow e
-sincronizzato in entrambe le direzioni.
+⛔ **In particolare non si mescola col Tipo prodotto Shopify**, in nessuna delle due
+direzioni: non parte come `product_type`, e `product_type` non ci rientra dentro.
+
+Il **Tipo prodotto Shopify** è un campo Shopify separato, memorizzato in VestiFlow **in una
+colonna sua** e sincronizzato in entrambe le direzioni. È questo — e solo questo — il campo
+che comunica con `productType` di Shopify.
+
+#### ⏸ Oggi i due campi vivono in UNA colonna sola — misurato l’11/09/2026
+
+⛔ **Il mescolamento è simmetrico, e nessuna colonna dedicata esiste:**
+
+```text
+in ENTRATA   remote.product_type  ->  Product.category
+             (shopify-product-pull.service.ts, campo `category` di productData)
+in USCITA    Product.category     ->  product_type
+             (shopify-product-payload.util.ts: `productType: product.category`)
+colonna      shopifyProductType   ->  NON esiste in schema.prisma
+```
+
+⚠️ **Ne discende che oggi `Product.category` contiene valori di DUE provenienze**, e da
+fuori non si distinguono: quelli scritti da un operatore e quelli arrivati da Shopify. La
+separazione va fatta **conservando i dati**, e come trattare gli ambigui è una decisione
+aperta — non un dettaglio di migrazione.
 
 La **Categoria standard Shopify** è un nodo della tassonomia ufficiale Shopify:
 
@@ -3382,15 +3414,75 @@ Testi funzionali minimi:
 | **Tipo prodotto Shopify**                  | «Si sincronizza in entrambe le direzioni con Shopify.»                                         |
 | **Categoria standard Shopify**             | «Categoria della tassonomia ufficiale Shopify. Si sincronizza in entrambe le direzioni.»       |
 | **Collezioni**                             | «Le appartenenze manuali si sincronizzano. Quelle automatiche dipendono dalle regole Shopify.» |
-| **Descrizione**                            | «Viene inviata da VestiFlow a Shopify. Le modifiche fatte su Shopify non vengono importate.»   |
+| **Descrizione**                            | «Si sincronizza in entrambe le direzioni con Shopify.»                                         |
 | **Immagine**                               | «VestiFlow sincronizza soltanto l'immagine principale.»                                        |
 | **Metafield**                              | «Si sincronizzano soltanto i campi Shopify configurati in VestiFlow.»                          |
 | **Continua a vendere senza disponibilità** | «Impostazione Shopify sincronizzata in entrambe le direzioni. Non modifica la giacenza.»       |
+
+### 9.11 Prezzo barrato, costo e SEO
+
+> ✅ **Decisioni del proprietario, 11/09/2026.**
+
+**Prezzo barrato.** È **bidirezionale quando Shopify è attivo**, e rispetta le sospensioni
+della sincronizzazione come ogni altro campo. Senza Shopify resta un dato gestito
+localmente. ⭐ La ragione: il barrato esiste per **mostrare lo sconto al cliente**, e chi
+fa una promozione la fa dove la vede.
+
+**Costo d’acquisto.** Lo **comanda VestiFlow**. Negli aggiornamenti Shopify non lo
+sovrascrive, non lo azzera e non lo modifica; un eventuale invio verso Shopify porta il
+valore di VestiFlow. ⭐ La ragione: il costo lo determina l’arrivo merce, e da lui dipende
+il margine di ogni report.
+
+⏸ **L’acquisizione del costo durante la PRIMA IMPORTAZIONE è DA DEFINIRE NEL PERCORSO
+INIZIALE** (§9.12): non è vietata, ed è un’altra cosa. ⛔ «Comanda VestiFlow» governa la
+sincronizzazione **successiva** — usarla per impedire l’acquisizione di partenza sarebbe
+proprio il prestito di argomenti fra i due momenti che §9.12 esclude.
+
+**SEO.** Si gestisce **esclusivamente su Shopify**. VestiFlow non la modifica, non la
+cancella e non offre campi per scriverla; nessun invio da VestiFlow può toccarla.
+
+⚠️ **I dati SEO già memorizzati NON si cancellano per questa decisione.** Conservazione
+e gestione funzionale sono due cose diverse: le colonne restano dove sono, semplicemente
+non si espongono nell’interfaccia e non si arricchiscono. Cancellarle sarebbe una perdita
+decisa per simmetria, e la simmetria non è una ragione.
+
+### 9.12 Partenza iniziale e sincronizzazione continua sono due momenti
+
+> ✅ **Chiarimento del proprietario, 11/09/2026.**
+
+|                               |                                                                                                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Partenza iniziale**         | l’utente sceglie se portare il catalogo **da Shopify a VestiFlow** o **da VestiFlow a Shopify**. Le modalità di acquisizione appartengono a quel percorso |
+| **Sincronizzazione continua** | valgono le regole **per campo** di questo capitolo                                                                                                        |
+
+⛔ **Le due non si prestano gli argomenti l’una all’altra.** Non si usano le regole della
+sincronizzazione continua per impedire un’acquisizione iniziale, né la prima importazione
+per autorizzare sovrascritture successive.
+
+⭐ **E le regole per campo NON guardano dove è nato l’articolo.** Un prodotto creato in
+VestiFlow e uno arrivato da Shopify hanno **la stessa gestione**: decide il **campo**, non
+la provenienza.
+
+⛔ **Oggi non è così**, ed è misurato: per un prodotto di origine VestiFlow l’import
+aggiorna **solo** `shopifyTitle` e poi esce (`shouldSkipShopifyCatalogImport`). Nessun
+campo bidirezionale torna indietro.
+
+⚠️ **La guardia non si toglie e basta**: senza le regole per campo al suo posto
+passerebbe l’aggiornamento intero, compresi i campi che devono restare di VestiFlow —
+categoria e costo. Si sostituisce, non si rimuove.
 
 ### 9.10 Ultimo scrittore non significa sovrascrittura cieca
 
 > 🔧 **Proposta tecnica da verificare** — il MECCANISMO, non la regola. Che prevalga l'ultima
 > modifica valida salvata, e che l'eco non generi una nuova modifica, è **deciso** in §9.1.
+
+⛔ **Precisazione del proprietario, 11/09/2026.** Era stata proposta un'**impronta** del
+valore sincronizzato come meccanismo minimo. Non basta, e non è approvata: **riconoscere
+un'eco non stabilisce l'ordine delle modifiche.** Un'impronta dice «questo l'ho
+già visto», non «questo è arrivato dopo».
+
+⛔ **E non è approvata la regola «vince il remoto».** Un conflitto fra una modifica locale
+non ancora inviata e una remota **non si risolve facendo vincere automaticamente Shopify**.
 
 Per i campi bidirezionali conservare:
 
@@ -3895,6 +3987,78 @@ regola funzionale già scritta.
 > 🔧 **PROPOSTA DA ESAMINARE — l'intero capitolo.**
 >
 > I nove passi qui descritti sono una forma ipotizzata del wizard, non un flusso approvato. Nessuna sottosezione di questo capitolo autorizza un'implementazione.
+
+### 12.-1 ✅ LA PRIMA CONNESSIONE HA TRE FASI — deciso dal proprietario, 11/09/2026
+
+> **Una sezione «Prima connessione Shopify» nelle Impostazioni, separata dai comandi della
+> sincronizzazione ordinaria.**
+
+| Fase                                    | Che cosa succede                                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **1 · Scelte iniziali**                 | si decide se **importare** il catalogo da Shopify a VestiFlow o **esportarlo** da VestiFlow a Shopify |
+| **2 · Configurazione**                  | si collegano le sedi VestiFlow alle sedi Shopify e si completano le impostazioni necessarie           |
+| **3 · Riepilogo, controlli e conferma** | si vede che cosa verrà fatto, quali sedi sono associate e quali anomalie ci sono; si conferma         |
+
+#### ⛔ Prima della conferma finale non si trasferisce NIENTE
+
+⛔ **Le prime due fasi e il riepilogo non trasferiscono catalogo né quantità, e non avviano
+la sincronizzazione continua.** Preparano le scelte, e basta.
+
+⭐ **Salvare le scelte e la configurazione è permesso**, ed è il senso stesso delle prime
+due fasi: la direzione scelta e le sedi collegate si conservano, così l’operatore può
+interrompere e riprendere senza rifare tutto.
+
+⭐ **E leggere è permesso**: i controlli hanno bisogno di sapere che cosa c’è dalle due
+parti, e leggere non cambia niente.
+
+⛔ **Ciò che resta vietato prima della conferma è preciso, e non di più:**
+
+```text
+vietato    trasferire il CATALOGO
+vietato    trasferire le QUANTITA
+vietato    avviare la sincronizzazione CONTINUA
+permesso   salvare scelte e configurazione, e leggere per i controlli
+```
+
+⭐ **Il trasferimento parte soltanto dopo la conferma finale.** È la riga che separa una
+preparazione reversibile da un’operazione che tocca due cataloghi.
+
+#### ⛔ La conferma AVVIA, non dichiara riuscito
+
+⚠️ **Confermare fa partire l’operazione: non equivale a dire che è andata bene.** L’esito
+deve mostrare **le eventuali anomalie** prima di dichiarare conclusa la partenza e attiva la
+sincronizzazione continua.
+
+⭐ È la stessa disciplina del comando Allinea (§31.23 di `DA-FARE`) **quanto alla
+TRASPARENZA DELL’ESITO**: un’operazione che si dichiara conclusa senza dire che cosa non è
+riuscito manda l’operatore a fidarsi di un elenco che non ha visto.
+
+⛔ **Il richiamo si ferma lì.** Non decide che cosa succede alla sincronizzazione continua
+**in presenza di anomalie**: se si attivi lo stesso, se attenda, se dipenda dal tipo di
+anomalia. ⏸ Quella condizione è **da definire nel blocco della partenza iniziale**, e non
+si deduce dal comportamento di un altro comando.
+
+#### Se entrambi i lati hanno articoli
+
+Resta la **preparazione controllata**, senza fusioni automatiche: la regola è nel quadro
+funzionale (`SINCRONIZZAZIONE-QUADRO-FUNZIONALE.md` §2) e non si duplica qui.
+
+#### Dopo la partenza, tre cose restano separate
+
+```text
+sincronizzazione dei dati ARTICOLO     le regole per campo (§9)
+Allinea giacenze                       solo le quantita, VestiFlow -> Shopify
+sospensione e riattivazione            un comando suo
+```
+
+⚠️ **E questa sezione non riapre §9**: le regole per campo valgono **dopo** la partenza, e
+non guardano da dove è nato l’articolo (§9.12).
+
+⏸ **Registrata, non avviata.** Nessun blocco implementativo parte da qui: resta distinta dal
+lavoro in corso sulla sincronizzazione per campo.
+
+⛔ **I nove passi qui sotto restano una PROPOSTA**, e dove divergono da questa sezione vince
+questa: le tre fasi sono decise, la loro suddivisione interna no.
 
 ### 12.0 Il primo allineamento degli ARTICOLI — due direzioni approvate, 07/09/2026
 

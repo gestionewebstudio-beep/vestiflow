@@ -8,29 +8,39 @@ Le regole richieste sono distinte dalle proposte e dalle scelte aperte. Le decis
 
 ## 1. I cinque momenti da non confondere
 
-| Momento | Risultato richiesto |
-| --- | --- |
-| Prima configurazione | Scegliere le sedi collegate e da dove partire con il catalogo. |
-| Attività ordinaria | Sincronizzare secondo la matrice dei campi, senza perdere aggiornamenti. |
-| Emergenza | Sospendere la sincronizzazione conservando dati e collegamenti. |
-| Ripresa e riallineamento manuale | Considerare il periodo non sincronizzato e correggere differenze verificate. |
-| Importazione da file | Preparare e controllare articoli nuovi o aggiornamenti, anche a gestione già avviata. |
+| Momento                          | Risultato richiesto                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| Prima configurazione             | Scegliere le sedi collegate e da dove partire con il catalogo.                        |
+| Attività ordinaria               | Sincronizzare secondo la matrice dei campi, senza perdere aggiornamenti.              |
+| Emergenza                        | Sospendere la sincronizzazione conservando dati e collegamenti.                       |
+| Ripresa e riallineamento manuale | Considerare il periodo non sincronizzato e correggere differenze verificate.          |
+| Importazione da file             | Preparare e controllare articoli nuovi o aggiornamenti, anche a gestione già avviata. |
 
 VestiFlow deve funzionare integralmente anche senza Shopify. Per un'azienda senza modulo Shopify non devono comparire comandi, campi o errori del canale.
 
+**Deciso l’11/09/2026 — la prima connessione ha TRE FASI**, in una sezione delle Impostazioni separata dai comandi della sincronizzazione ordinaria: **1)** scelte iniziali, cioè importare da Shopify o esportare da VestiFlow; **2)** configurazione delle sedi e delle impostazioni; **3)** riepilogo, controlli e conferma finale.
+
+⛔ **Prima della conferma non si trasferisce catalogo né quantità, e non parte la sincronizzazione continua.** Si possono invece **salvare le scelte e la configurazione** — così si interrompe e si riprende senza rifare tutto — e leggere i dati necessari ai controlli.
+
+⚠️ **La conferma AVVIA l’operazione, non la dichiara riuscita**: l’esito deve mostrare le eventuali anomalie prima di dire che la partenza è conclusa e la sincronizzazione attiva. Il dettaglio sta in `24` §12.-1.
+
 ## 2. Catalogo iniziale: preparazione manuale sì, fusione automatica no
 
-| Situazione | Percorso richiesto |
-| --- | --- |
-| VestiFlow vuoto, Shopify popolato | Importare il catalogo da Shopify conservando i suoi identificativi. |
-| Shopify vuoto, VestiFlow popolato | Pubblicare da VestiFlow e registrare gli identificativi restituiti da Shopify. |
-| Entrambi popolati | Preparazione manuale e controllata, anche esportando da Shopify e importando tramite file in VestiFlow. Nessuna fusione automatica. |
+| Situazione                        | Percorso richiesto                                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| VestiFlow vuoto, Shopify popolato | Importare il catalogo da Shopify conservando i suoi identificativi.                                                                 |
+| Shopify vuoto, VestiFlow popolato | Pubblicare da VestiFlow e registrare gli identificativi restituiti da Shopify.                                                      |
+| Entrambi popolati                 | Preparazione manuale e controllata, anche esportando da Shopify e importando tramite file in VestiFlow. Nessuna fusione automatica. |
 
 **Precisazione del proprietario:** escludere la fusione automatica non vieta all'utente di preparare i dati manualmente. Non autorizza nemmeno cancellazioni o sovrascritture implicite del catalogo di destinazione.
 
 Importare dati e collegare articoli remoti sono due azioni diverse. Il collegamento deve conservare o acquisire gli identificativi Shopify reali del negozio corretto. Se il file non li contiene, nome, SKU e barcode non diventano automaticamente prove d'identità. Il percorso deve evitare sia doppioni locali sia nuove copie remote di articoli già esistenti.
 
 La direzione iniziale non cambia la sincronizzazione successiva: vale sempre la matrice canonica dei campi, che qui non viene duplicata.
+
+**Aggiornata l’11/09/2026, dal proprietario** (la regola vive in `24` §9.2, qui solo il puntatore): la **descrizione** è bidirezionale; il **Tipo prodotto Shopify** è bidirezionale e ha un campo suo, ed è l’unico che comunica con `productType`; la **Categoria VestiFlow** resta esclusivamente interna — non parte verso Shopify e non viene sovrascritta dal tipo prodotto. La categoria standard della tassonomia non cambia regola.
+
+⛔ **Oggi i due campi categoria vivono in una colonna sola, in entrambe le direzioni** (`24` §9.5). Separarli richiede di conservare i dati esistenti: come trattare i valori ambigui è una decisione aperta, non un dettaglio di migrazione.
 
 **Decisione confermata il 10/09/2026 — partenza controllata.** L'allineamento iniziale si svolge anche in più fasi, acquisendo e controllando gli ordini online pendenti e correggendo le differenze prima di considerare conclusa la preparazione. Un ordine già compreso nelle quantità di partenza non deve essere sottratto di nuovo quando viene acquisito. Non occorre che tutti gli ordini siano evasi: occorre distinguere gli effetti già contabilizzati da quelli ancora da acquisire.
 
@@ -55,10 +65,10 @@ Alla prima connessione si registra un confine temporale. Si acquisiscono gli ord
 
 L'ordine fornisce articoli, quantità ordinate e sedi interessate: **non fornisce una giacenza da copiare**. VestiFlow applica gli effetti previsti su impegni e movimenti. Il Disponibile resta Giacenza meno Impegnata; le quantità locali possono essere negative secondo le regole del gestionale.
 
-| Origine | Comportamento richiesto |
-| --- | --- |
+| Origine                          | Comportamento richiesto                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Effetto già applicato da Shopify | Acquisirlo in VestiFlow senza generare, per quella sola acquisizione, un reinvio automatico della disponibilità al canale. |
-| Operazione locale | Generare l'aggiornamento da trasmettere, senza sovrascrivere vendite online non ancora acquisite. |
+| Operazione locale                | Generare l'aggiornamento da trasmettere, senza sovrascrivere vendite online non ancora acquisite.                          |
 
 L'arrivo di un ordine Shopify non deve cancellare aggiornamenti locali ancora pendenti. Ricevere due volte lo stesso evento non deve duplicare gli effetti.
 
@@ -96,12 +106,12 @@ Nel primo allineamento ogni articolo deve essere completo per i campi previsti. 
 
 ## 7. Le scelte ancora aperte
 
-| Scelta | Limite già fermo |
-| --- | --- |
-| Dettagli tecnici della partenza controllata | Il flusso e la scelta di lavorare a vendite aperte sono approvati in §2 e §5. Non imporre zeri, sommare sedi o usare il primo invio ordinario per inventare la base. |
-| Recupero dopo la pausa d'emergenza | Ingressi e uscite si fermano su scelta esplicita e si recuperano alla riattivazione. La copertura degli eventi e i limiti di accesso vanno realizzati e dichiarati, non dedotti da una lista vuota. |
-| Conferma delle importazioni e colonna sì/no | Distinguere articoli nuovi da aggiornamenti di quelli già collegati. |
-| Invii sicuri e recuperabili | Dimostrare la gestione di ordini in ritardo, modifiche locali e risposte perse. Code, worker e altre soluzioni non sono autorizzati per il solo fatto di essere citati. |
+| Scelta                                      | Limite già fermo                                                                                                                                                                                    |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dettagli tecnici della partenza controllata | Il flusso e la scelta di lavorare a vendite aperte sono approvati in §2 e §5. Non imporre zeri, sommare sedi o usare il primo invio ordinario per inventare la base.                                |
+| Recupero dopo la pausa d'emergenza          | Ingressi e uscite si fermano su scelta esplicita e si recuperano alla riattivazione. La copertura degli eventi e i limiti di accesso vanno realizzati e dichiarati, non dedotti da una lista vuota. |
+| Conferma delle importazioni e colonna sì/no | Distinguere articoli nuovi da aggiornamenti di quelli già collegati.                                                                                                                                |
+| Invii sicuri e recuperabili                 | Dimostrare la gestione di ordini in ritardo, modifiche locali e risposte perse. Code, worker e altre soluzioni non sono autorizzati per il solo fatto di essere citati.                             |
 
 ## 8. Prove essenziali, non nuove regole
 
