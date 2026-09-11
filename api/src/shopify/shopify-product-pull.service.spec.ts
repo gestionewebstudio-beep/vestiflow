@@ -337,3 +337,117 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»'
     expect(chiamata.data['shopifyTitle']).toBe('Maglia in cotone blu — collezione estate 2026');
   });
 });
+
+/**
+ * ⛔ UN DATO NON RICEVUTO NON È UN DATO CANCELLATO.
+ *
+ * L'arricchimento — SEO, collezioni, metafield, costi, tassonomia — è una
+ * chiamata a parte, e **può cadere**: il codice lo registra e prosegue con
+ * l'import, che è la scelta giusta. Ma se l'esito assente viene scritto come
+ * `null`, come elenco vuoto o come zero, un guasto di rete **cancella dati che
+ * nessuno ha cancellato**.
+ *
+ * ⭐ **La distinzione che regge tutto**: `enrichment` assente significa «non
+ *    lo so», e allora si conserva; `enrichment` presente con `null` o `[]`
+ *    significa «Shopify dice che non c'è», e allora si applica.
+ *
+ * ⚠️ Nel codice la differenza era già stata vista per tassonomia, stagione e
+ *    metafield — che ripiegano su `existing` — e non per SEO, collezioni e
+ *    costo. Tre campi protetti e tre no, nello stesso oggetto.
+ */
+describe('⛔ un arricchimento CADUTO non cancella quello che c era', () => {
+  const ESISTENTE = {
+    id: 'prod-1',
+    tenantId: 'tenant-1',
+    name: 'Maglia',
+    shopifyTitle: 'Maglia in cotone blu — collezione estate 2026',
+    catalogOrigin: 'shopify',
+    variants: [],
+    images: [],
+    shopifyLastError: null,
+    seoTitle: 'Maglia estate — spedizione gratis',
+    seoDescription: 'La maglia in cotone della collezione estate.',
+    shopifyCollections: [{ id: 'gid://shopify/Collection/1', title: 'Estate 2026' }],
+    shopifyMetafields: [],
+    shopifyCategoryMetafields: [],
+    purchasePriceMinor: 1200,
+    season: 'Estate 2026',
+    shopifyTaxonomyCategoryId: 'gid://shopify/TaxonomyCategory/aa-1',
+    shopifyTaxonomyCategoryFullName: 'Abbigliamento',
+  };
+
+  /** I campi scritti sul prodotto dall'aggiornamento. */
+  function scrittiSulProdotto(tx: { product: { update: ReturnType<typeof vi.fn> } }) {
+    const chiamata = tx.product.update.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+    return chiamata.data;
+  }
+
+  it('⛔ la SEO NON si azzera', async () => {
+    const { service, tx } = creaService(ESISTENTE);
+
+    await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+    const dati = scrittiSulProdotto(tx);
+    expect(dati['seoTitle']).toBe('Maglia estate — spedizione gratis');
+    expect(dati['seoDescription']).toBe('La maglia in cotone della collezione estate.');
+  });
+
+  it('⛔ le COLLEZIONI non si svuotano', async () => {
+    const { service, tx } = creaService(ESISTENTE);
+
+    await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+    expect(scrittiSulProdotto(tx)['shopifyCollections']).toEqual([
+      { id: 'gid://shopify/Collection/1', title: 'Estate 2026' },
+    ]);
+  });
+
+  it('⛔ il COSTO non va a zero', async () => {
+    // ⚠️ Un articolo comprato a 12,00 che risulta a costo zero falsa il
+    //    margine di ogni report, e nessuno se ne accorge guardando la scheda.
+    const { service, tx } = creaService(ESISTENTE);
+
+    await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+    expect(scrittiSulProdotto(tx)['purchasePriceMinor']).toBe(1200);
+  });
+
+  it('⭐ e quelli già protetti restano protetti', async () => {
+    // ⭐ La correzione non deve rompere i tre che ripiegavano già su `existing`.
+    const { service, tx } = creaService(ESISTENTE);
+
+    await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+    const dati = scrittiSulProdotto(tx);
+    expect(dati['season']).toBe('Estate 2026');
+    expect(dati['shopifyTaxonomyCategoryId']).toBe('gid://shopify/TaxonomyCategory/aa-1');
+  });
+
+  it('⭐ ma una cancellazione RICEVUTA si applica', async () => {
+    // ⭐ **Questa è l'altra metà della regola.** Se Shopify risponde e dice che
+    //    la SEO non c'è e le collezioni sono zero, quella è una cancellazione
+    //    vera: conservarla per prudenza sarebbe l'errore opposto — VestiFlow
+    //    mostrerebbe per sempre un dato che sul canale non esiste più.
+    const { service, tx, enrichProduct } = creaService(ESISTENTE);
+    enrichProduct.mockResolvedValue({
+      tags: [],
+      seoTitle: null,
+      seoDescription: null,
+      season: null,
+      collections: [],
+      metafields: [],
+      variantPurchasePriceMinor: new Map<number, number>(),
+      taxonomyCategoryId: null,
+      taxonomyCategoryFullName: null,
+      categoryMetafields: [],
+    });
+
+    await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+    const dati = scrittiSulProdotto(tx);
+    expect(dati['seoTitle']).toBeNull();
+    expect(dati['seoDescription']).toBeNull();
+    expect(dati['shopifyCollections']).toEqual([]);
+  });
+});
+

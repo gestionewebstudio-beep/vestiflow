@@ -9823,6 +9823,72 @@ ciò che non lo è — c'è ed è provato. Quello che manca è il comando nel pa
 Shopify con l'avanzamento e l'elenco a pagine, **e va guardato a schermo**: una
 resa visiva non la dimostra nessuna suite.
 
+#### 31.24 · ⛔ UN DATO NON RICEVUTO NON È UN DATO CANCELLATO — 11/09/2026
+
+> **L'arricchimento del catalogo è una chiamata a parte, e può cadere. Quando
+> cade, l'import prosegue — ed è giusto. Ma l'esito assente veniva scritto come
+> `null`, come elenco vuoto e come zero: un guasto di rete che si traveste da
+> modifica.**
+
+##### Che cosa si perdeva, misurato
+
+```text
+seoTitle            «Maglia estate — spedizione gratis»  ->  null
+seoDescription      «La maglia in cotone…»               ->  null
+shopifyCollections  [ Estate 2026 ]                      ->  []
+purchasePriceMinor  1200                                 ->  0
+```
+
+⛔ **Il costo a zero è il peggiore dei quattro**: falsa il margine di ogni
+report, e nessuno se ne accorge guardando la scheda dell'articolo.
+
+##### ⭐ La distinzione, ed è tutta la correzione
+
+```text
+enrichment ASSENTE            «non lo so»                  ->  si CONSERVA
+enrichment PRESENTE con null  «Shopify dice che non c'è»   ->  si APPLICA
+```
+
+⭐ **Il rimedio è un ternario, non un `??`.** Con l'oggetto in mano si usa il suo
+valore **anche se è `null`** — quella è una cancellazione ricevuta, e conservarla
+per prudenza sarebbe l'errore opposto: VestiFlow mostrerebbe per sempre un dato
+che sul canale non esiste più.
+
+⚠️ **Tre campi erano già protetti e tre no, dentro lo stesso oggetto.**
+Tassonomia, stagione e metafield ripiegavano su `existing`; SEO, collezioni e
+costo no. E il ramo delle VARIANTI proteggeva già il costo
+(`?? matched?.purchasePriceMinor ?? 0`): mancava solo sul prodotto.
+
+##### ⛔ Le due prove di controllo, che non sono decorazione
+
+Oltre alle tre riproduzioni, due prove misurano che la correzione **non rompa il
+comportamento opposto**:
+
+|                                |                                                  |
+| ------------------------------ | ------------------------------------------------ |
+| i campi già protetti           | stagione e tassonomia restano intatte            |
+| una cancellazione **ricevuta** | SEO a `null` e collezioni vuote **si applicano** |
+
+⭐ Erano **verdi già prima** della correzione: servono a dimostrare che non è
+stata la conservazione a vincere su tutto.
+
+##### ⚠️ Nessuna direzione cambiata, e non è una dimenticanza
+
+Un costo **presente** su Shopify continua ad arrivare esattamente come prima.
+Che Shopify non scriva più il costo negli aggiornamenti è una **regola per
+campo** (`24` §9.11), e appartiene al blocco che sostituisce la guardia
+d'origine — una modifica alla volta.
+
+##### ⛔ E una svista mia, che con `includes` non fallisce mai da sé
+
+La prima sostituzione ha agganciato la **fixture sbagliata**: cercavo una riga
+indentata di quattro spazi, e ne esiste una di sei che la contiene come
+sottostringa. Se ne sono accorte le prove.
+
+⚠️ **Una sostituzione per sottostringa non ha modo di dire «era l'altra».** Quando
+l'ancora è una riga di codice indentata, l'indentazione fa parte dell'ancora — e
+va verificato che sia unica, non che sia presente.
+
 #### 31.13-bis · ⏸ La proposta originale — resta per la parte sulle righe esistenti
 
 > ⛔ **Non autorizzato.** Viene **dopo** §31.11 (la lettura per sede, per identificativo), che ne è

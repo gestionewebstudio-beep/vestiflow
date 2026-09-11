@@ -457,9 +457,25 @@ export class ShopifyProductPullService {
         enrichment?.taxonomyCategoryFullName ?? existing?.shopifyTaxonomyCategoryFullName ?? null,
       season: enrichment?.season ?? existing?.season ?? null,
       tags: [...tags],
-      seoTitle: enrichment?.seoTitle ?? null,
-      seoDescription: enrichment?.seoDescription ?? null,
-      shopifyCollections: (enrichment?.collections ?? []) as unknown as Prisma.InputJsonValue,
+      // ⛔ **`enrichment` ASSENTE non e' «Shopify dice che non c'e'»: e' «non
+      //    lo so».** L'arricchimento e' una chiamata a parte e puo' cadere; il
+      //    codice la registra e prosegue, ed e' giusto. Ma scrivere l'esito
+      //    assente come `null` o come elenco vuoto CANCELLA dati che nessuno
+      //    ha cancellato — un guasto di rete che si traveste da modifica.
+      //
+      // ⭐ **La distinzione e' il ternario, non il `??`**: con l'oggetto in mano
+      //    si usa il suo valore **anche se e' `null`** — quella e' una
+      //    cancellazione RICEVUTA, e va applicata. Senza l'oggetto si conserva.
+      //
+      // ⚠️ Tassonomia, stagione e metafield qui sotto ripiegavano gia' su
+      //    `existing`: erano tre campi protetti e tre no, nello stesso oggetto.
+      seoTitle: enrichment ? enrichment.seoTitle : (existing?.seoTitle ?? null),
+      seoDescription: enrichment
+        ? enrichment.seoDescription
+        : (existing?.seoDescription ?? null),
+      shopifyCollections: (enrichment
+        ? enrichment.collections
+        : (existing?.shopifyCollections ?? [])) as unknown as Prisma.InputJsonValue,
       shopifyMetafields: resolveImportedShopifyMetafields(
         enrichment?.metafields,
         existing?.shopifyMetafields,
@@ -649,9 +665,18 @@ export class ShopifyProductPullService {
         compareAtPriceMinor: firstRemote?.compare_at_price
           ? shopifyDecimalToMinor(firstRemote.compare_at_price)
           : null,
+        // ⛔ **Il costo non si azzera.** Un articolo comprato a 12,00 che
+        //    risulta a costo zero falsa il margine di ogni report, e nessuno
+        //    se ne accorge guardando la scheda.
+        //
+        // ⭐ Stesso ripiego che il ramo delle VARIANTI aveva gia'
+        //    (`?? matched?.purchasePriceMinor ?? 0`): qui mancava, e basta un
+        //    arricchimento caduto per perdere il costo di tutto il catalogo.
         purchasePriceMinor: firstRemote
-          ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ?? 0)
-          : 0,
+          ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ??
+            existing.purchasePriceMinor ??
+            0)
+          : (existing.purchasePriceMinor ?? 0),
       },
     });
 
