@@ -46,41 +46,23 @@
       periodo attivo ed è azzerabile con «Tutti»: un filtro predefinito che non
       si vede è un elenco che mente su quanto sta mostrando.
     -->
-    <app-select-menu
-      chipLabel="Periodo"
+    <!--
+      ⭐ Il selettore è quello condiviso, estratto dai Corrispettivi (11/09/2026).
+      Le decisioni del 06/09 restano: le due date sono SEMPRE visibili
+      (`datesAlways`, la coppia in un contenitore suo dentro il componente), e
+      il registro si apre su Oggi.
+    -->
+    <app-period-filter
+      idPrefix="ops"
       [options]="periodOptions"
       [value]="periodo()"
-      ariaLabel="Filtra per periodo"
-      placeholder="Tutto"
-      [compact]="true"
-      [fitContent]="true"
+      [dateFrom]="da()"
+      [dateTo]="a()"
+      [datesAlways]="true"
       (valueChange)="cambiaPeriodo($event ?? '')"
+      (dateFromChange)="cambiaData('da', $event)"
+      (dateToChange)="cambiaData('a', $event)"
     />
-    <!--
-      ⛔ **Le due date restano una COPPIA, in un contenitore loro.**
-
-      Il mixin `list-date-period` le dispone in due colonne sotto `md` e calcola
-      la larghezza del calendario come `calc(200% + gap)`, cioè sull'intera
-      coppia. Mettendo il selettore Periodo come terzo figlio dello stesso
-      contenitore quella matematica si rompe: misurato nel browser il
-      06/09/2026, il calendario usciva dallo schermo — visibile solo al **51%**.
-    -->
-    <div class="ops__dates">
-      <app-date-input
-        inputId="ops-da"
-        ariaLabel="Dal"
-        [value]="da()"
-        [compact]="true"
-        (valueChange)="cambiaData('da', $event)"
-      />
-      <app-date-input
-        inputId="ops-a"
-        ariaLabel="Al"
-        [value]="a()"
-        [compact]="true"
-        (valueChange)="cambiaData('a', $event)"
-      />
-    </div>
   </div>
 
   <div filters>

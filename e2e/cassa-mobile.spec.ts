@@ -21,7 +21,8 @@ test('mobile: date e calendari restano interamente dentro entrambi i registri', 
         expect(bounds.x).toBeGreaterThanOrEqual(0);
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
       }
-      for (const name of ['Dal', 'Al']) {
+      // ⚠️ Le etichette sono quelle del selettore condiviso (11/09/2026), cioè dei Corrispettivi.
+      for (const name of ['Data inizio', 'Data fine']) {
         await fields
           .filter({ has: page.getByRole('textbox', { name, exact: true }) })
           .getByRole('button', { name: 'Apri calendario' })
@@ -156,11 +157,32 @@ test('mobile: filtro in fondo, azzeramento e testi lunghi a diverse larghezze', 
     await page.screenshot({ path: info.outputPath(`mobile-${viewport.width}.png`) });
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.evaluate(() => {
-    const scroller = document.querySelector<HTMLElement>('.data-table-scroll')!;
-    scroller.scrollTop = scroller.scrollHeight;
-  });
-  await expect(page.locator('.data-table__row[data-row-id="d-299"]')).toBeInViewport();
+  /*
+    ⛔ **Qui c’era `scrollTop = scrollHeight` subito dopo il cambio di larghezza**, e
+    la prova era rossa in due passate complete su quattro (11/09/2026): il cambio
+    di larghezza azzera le misure delle card, il salto arrivava prima del render
+    delle distanziatrici nuove e si fermava a ~285 su 300 — e nessun gesto lo
+    riportava in fondo. Un utente non salta: scorre, e ogni gesto rimisura.
+    Riprodotto come gesto in `cassa-mobile-rotazione.spec.ts`: il motore arriva
+    in fondo prima e dopo la rotazione. Qui si scorre col dito, come lui.
+  */
+  const ultima = page.locator('.data-table__row[data-row-id="d-299"]');
+  const scatola = (await page.locator('.data-table-scroll').boundingBox())!;
+  await page.mouse.move(scatola.x + scatola.width / 2, scatola.y + scatola.height / 2);
+  // ⚠️ «Resa» non è «in vista»: la finestra rende anche una coda sotto il bordo.
+  //    Si scorre finché la card non sta DENTRO il contenitore.
+  const inVista = async (): Promise<boolean> => {
+    if (!(await ultima.isVisible())) {
+      return false;
+    }
+    const r = await ultima.boundingBox();
+    return r !== null && r.y >= scatola.y && r.y + r.height <= scatola.y + scatola.height;
+  };
+  for (let gesto = 0; gesto < 120 && !(await inVista()); gesto += 1) {
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(40);
+  }
+  await expect(ultima).toBeInViewport();
   await page.getByRole('button', { name: 'Filtri', exact: true }).tap();
   await page.getByRole('button', { name: 'Filtra per Numero', exact: true }).tap();
   await page.getByLabel('Cerca fra i valori di Numero', { exact: true }).fill('CS/2026/42');

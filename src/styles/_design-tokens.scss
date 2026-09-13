@@ -728,6 +728,15 @@
   //    niente (`14` §11.5 D3). Una pagina che ha bisogno di più o di meno lo
   //    ridichiara su di sé — è il canale previsto da `regole-stile-ui` §5.
   --table-scroll-max-h: 70dvh;
+  // ⭐ Altezza MINIMA della zona dati di una pagina elenco (11/09/2026).
+  //    Sotto questa misura la zona non cede più: è la pagina a scorrere.
+  //    Misurato su un telefono da 390px in orizzontale: testata, schede,
+  //    barra e piede ancorato si prendevano tutti i 330px sotto la topbar e
+  //    all’elenco restavano ZERO pixel. 180px sono due card e mezza da 71:
+  //    abbastanza per capire che è un elenco e che continua, e con il piede
+  //    più alto (la Cassa, 139px) stanno insieme nei 330 una volta scorsa
+  //    via la testata.
+  --list-data-min-h: 11.25rem; // 180px
 
   // ── 4. Z-INDEX ─────────────────────────────────────────────────────────────
   --z-base: 0;

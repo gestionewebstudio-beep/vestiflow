@@ -10,20 +10,38 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '@core/auth';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
+import { formatDate, formatDateTimeShort } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
-import type { CashMovementType, CashSessionDetail } from '@domain/cash/models/cash.model';
+import type {
+  CashDeviceChange,
+  CashMovementType,
+  CashSessionDetail,
+  CashSessionMovement,
+} from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableSection,
+  DataTableSort,
+} from '@shared/components/data-table/data-table.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { FormSectionComponent } from '@shared/components/form-section/form-section.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
+import { colonna } from '@shared/table-columns/column-catalog';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+
+/** Un documento della sessione, come lo rende `CashSessionDetail`. */
+type DocumentoSessione = CashSessionDetail['documents'][number];
 
 /**
  * Il dettaglio di una sessione: quadratura, movimenti, documenti, dispositivo.
@@ -39,6 +57,8 @@ import { MoneyInputComponent } from '@shared/components/money-input/money-input.
   imports: [
     BackButtonComponent,
     ButtonComponent,
+    DataTableComponent,
+    DataTableRowCardDirective,
     DatePipe,
     ErrorStateComponent,
     FormSectionComponent,
@@ -55,6 +75,7 @@ export class CashSessionDetailComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly id = computed(() => this.params().get('id') ?? '');
@@ -144,6 +165,162 @@ export class CashSessionDetailComponent {
   protected etichettaMovimento(tipo: string): string {
     return tipo === 'deposit' ? 'Versamento' : 'Prelievo';
   }
+
+  // ── I tre elenchi di registrazioni, sul MOTORE comune (`docs/26` A19) ────
+  // Cassetto, operazioni della sessione e cambi di registratore erano tre
+  // `<ul>` con la stessa veste scritta a mano. Sono elenchi di consultazione:
+  // colonne dal catalogo, ordinamento, card sotto `lg`. Nessun totale: un
+  // versamento e un prelievo non si sommano, e i totali della sessione
+  // stanno già nella quadratura.
+  protected readonly ordineCassetto = signal<readonly DataTableSort[]>([]);
+  protected readonly ordineDocumenti = signal<readonly DataTableSort[]>([]);
+  protected readonly ordineCambi = signal<readonly DataTableSort[]>([]);
+
+  protected readonly formatDate = formatDate;
+  protected readonly idDi = (r: { readonly id: string }): string => r.id;
+
+  protected readonly colonneCassetto: readonly ResolvedTableColumn[] = [
+    { ...colonna('type', { defaultVisible: true, cardTitle: true }), pinned: false },
+    {
+      id: 'amount',
+      label: 'Importo',
+      numeric: true,
+      summable: false,
+      defaultVisible: true,
+      defaultWidthPx: 120,
+      pinned: false,
+    },
+    { id: 'reason', label: 'Causale', defaultVisible: true, pinned: false },
+    {
+      ...colonna('createdAt', { label: 'Quando', defaultVisible: true, defaultWidthPx: 130 }),
+      pinned: false,
+    },
+    {
+      id: 'operator',
+      label: 'Operatore',
+      defaultVisible: true,
+      defaultWidthPx: 160,
+      pinned: false,
+    },
+  ];
+  protected readonly testoCassetto = (m: CashSessionMovement, id: string): string => {
+    switch (id) {
+      case 'type':
+        return this.etichettaMovimento(m.type);
+      case 'amount':
+        return this.soldi(m.amountMinor);
+      case 'reason':
+        return m.reason;
+      case 'createdAt':
+        return formatDateTimeShort(m.createdAt);
+      case 'operator':
+        return m.createdByName;
+      default:
+        return '';
+    }
+  };
+  protected readonly sezioniCassetto = computed<readonly DataTableSection<CashSessionMovement>[]>(
+    () => [
+      {
+        id: 'cassetto',
+        rows: ordinaPerColonne(this.sessione()?.movements ?? [], this.ordineCassetto(), {
+          cellText: this.testoCassetto,
+          numeroDi: (m, id) => (id === 'amount' ? m.amountMinor : null),
+          dataDi: (m, id) => (id === 'createdAt' ? m.createdAt : null),
+        }),
+      },
+    ],
+  );
+
+  protected readonly colonneDocumenti: readonly ResolvedTableColumn[] = [
+    {
+      ...colonna('documentDate', { defaultVisible: true, defaultWidthPx: 110, cardTitle: true }),
+      pinned: false,
+    },
+    { ...colonna('type', { defaultVisible: true, defaultWidthPx: 100 }), pinned: false },
+    {
+      ...colonna('reference', { label: 'Numero', display: 'code', defaultVisible: true }),
+      pinned: false,
+    },
+    { id: 'operator', label: 'Operatore', defaultVisible: true, pinned: false },
+    { ...colonna('status', { defaultVisible: true, defaultWidthPx: 110 }), pinned: false },
+    {
+      ...colonna('total', { summable: false, defaultVisible: true, defaultWidthPx: 120 }),
+      pinned: false,
+    },
+  ];
+  protected readonly testoDocumento = (d: DocumentoSessione, id: string): string => {
+    switch (id) {
+      case 'documentDate':
+        return formatDate(d.documentDate);
+      case 'type':
+        return d.kind === 'sale' ? 'Vendita' : 'Reso';
+      case 'reference':
+        return d.reference;
+      case 'operator':
+        return d.createdByName;
+      case 'status':
+        return d.status === 'cancelled' ? 'Annullato' : d.status;
+      case 'total':
+        return this.soldi(d.totalMinor);
+      default:
+        return '';
+    }
+  };
+  protected readonly etichettaDocumento = (d: DocumentoSessione): string =>
+    `${d.kind === 'sale' ? 'Vendita' : 'Reso'} ${d.reference}`;
+  protected readonly sezioniDocumenti = computed<readonly DataTableSection<DocumentoSessione>[]>(
+    () => [
+      {
+        id: 'documenti',
+        rows: ordinaPerColonne(this.sessione()?.documents ?? [], this.ordineDocumenti(), {
+          cellText: this.testoDocumento,
+          numeroDi: (d, id) => (id === 'total' ? d.totalMinor : null),
+          dataDi: (d, id) => (id === 'documentDate' ? d.documentDate : null),
+        }),
+      },
+    ],
+  );
+  /** Il clic di riga apre il dettaglio dell’operazione, come prima faceva il link. */
+  protected apriDocumento(d: DocumentoSessione): void {
+    void this.router.navigate(['/app/cassa/operazioni', d.id]);
+  }
+
+  protected readonly colonneCambi: readonly ResolvedTableColumn[] = [
+    { id: 'reason', label: 'Causale', defaultVisible: true, cardTitle: true, pinned: false },
+    {
+      ...colonna('createdAt', { label: 'Quando', defaultVisible: true, defaultWidthPx: 130 }),
+      pinned: false,
+    },
+    {
+      id: 'operator',
+      label: 'Operatore',
+      defaultVisible: true,
+      defaultWidthPx: 160,
+      pinned: false,
+    },
+  ];
+  protected readonly testoCambio = (c: CashDeviceChange, id: string): string => {
+    switch (id) {
+      case 'reason':
+        return c.reason;
+      case 'createdAt':
+        return formatDateTimeShort(c.createdAt);
+      case 'operator':
+        return c.changedByName;
+      default:
+        return '';
+    }
+  };
+  protected readonly sezioniCambi = computed<readonly DataTableSection<CashDeviceChange>[]>(() => [
+    {
+      id: 'cambi',
+      rows: ordinaPerColonne(this.sessione()?.deviceChanges ?? [], this.ordineCambi(), {
+        cellText: this.testoCambio,
+        dataDi: (c, id) => (id === 'createdAt' ? c.createdAt : null),
+      }),
+    },
+  ]);
 }
 
 function messaggio(errore: unknown, riserva: string): string {

@@ -136,7 +136,7 @@ describe('CashRegisterComponent', () => {
     expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
     await user.type(quantity, '12');
     expect(quantity).toHaveValue('12');
-    expect(screen.getAllByText('1464,00 €').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('1.464,00 €').length).toBeGreaterThan(0);
     // La quota originale non viene riscritta per inseguire il nuovo totale.
     expect(screen.getByLabelText('Importo Contanti')).toHaveValue('122,00');
     expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();

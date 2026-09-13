@@ -394,9 +394,21 @@
 /// `app-pagination` si schiaccia **prima** che le righe cedano — il contrario
 /// esatto del modello.
 ///
-/// ⚠️ **Sotto `lg` si smonta tutto**: la tabella è a card e scorre con la
-/// pagina. Uno scroll dentro uno scroll sotto il dito è la trappola classica del
-/// mobile.
+/// ⛔ **QUI C’ERA «sotto `lg` si smonta tutto», con un blocco che rimetteva
+/// l’host a `display: block; flex: none`** — e rompeva il piede ancorato
+/// (11/09/2026). Era vero prima del 31/08, quando sotto `lg` la tabella
+/// scorreva con la pagina; da quando il piede si ancora su OGNI elenco
+/// (`regole-stile-ui` §5, «vale per ogni elenco»), la catena delle altezze
+/// deve reggere anche sul telefono: `.shell__content` → host della pagina →
+/// telaio → zona dati. Con l’host a `block`, il telaio cresceva quanto le
+/// card, la pagina scorreva tutta e il piede — totali e comandi, «Nuovo»
+/// compreso — finiva in fondo a trenta giorni di ordini. Corrispettivi e Cassa
+/// l’avevano già corretto nel proprio foglio; le otto pagine che passano da
+/// qui no. Misurato sugli Ordini cliente a 390×780: piede a 530px con due
+/// card, cioè non ancorato.
+///
+/// ⭐ La catena è la stessa a ogni larghezza; a cambiare sotto `lg` è solo la
+/// zona dati del telaio, che diventa lei la regione che scorre.
 ///
 /// @param {String} $block - il blocco BEM della pagina, senza punto
 /// @param {String} $elenco - il selettore dell'elenco che cresce (es. `app-supplier-table`)
@@ -429,18 +441,5 @@
   .#{$block} > #{$elenco} {
     flex: 1;
     min-block-size: 0;
-  }
-
-  @include bp.media-down('lg') {
-    :host {
-      display: block;
-      flex: none;
-    }
-
-    .#{$block},
-    .#{$block} > #{$elenco} {
-      flex: none;
-      min-block-size: auto;
-    }
   }
 }

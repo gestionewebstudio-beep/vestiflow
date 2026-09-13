@@ -101,57 +101,8 @@
   font-weight: var(--font-weight-regular);
 }
 
-.sd__movements,
-.sd__documents {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-
-  li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-8);
-    padding: var(--space-4) var(--space-8);
-    font-size: var(--text-xs);
-    background: var(--color-surface-soft);
-    border-radius: var(--radius-sm);
-  }
-
-  a {
-    color: var(--color-link);
-    font-weight: var(--font-weight-semibold);
-  }
-}
-
-.sd__doc--cancelled {
-  text-decoration: line-through;
-  color: var(--color-text-subtle);
-}
-
-.sd__mov-type {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.sd__mov-amount,
-.sd__doc-total {
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--font-weight-semibold);
-}
-
-.sd__mov-reason {
-  flex: 1;
-  min-inline-size: 0;
-  color: var(--color-text);
-}
-
-.sd__mov-when {
-  color: var(--color-text-muted);
-}
+// ⭐ Cassetto, operazioni e cambi di registratore sono sul motore comune
+//    (`docs/26` A19): qui c’erano tre `<ul>` vestiti a mano.
 
 .sd__mov-form {
   display: flex;

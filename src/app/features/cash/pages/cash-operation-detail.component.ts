@@ -14,13 +14,20 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
+import { formatDateTimeShort } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
-import type { CashOperationDetail } from '@domain/cash/models/cash.model';
+import type { CashOperationDetail, CashOperationMovement } from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { DocumentLinesTableComponent } from '@domain/documents/components/document-lines-table/document-lines-table.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
 import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableSection,
+  DataTableSort,
+} from '@shared/components/data-table/data-table.model';
 import {
   DetailFactsComponent,
   type DetailFact,
@@ -28,6 +35,9 @@ import {
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { FormSectionComponent } from '@shared/components/form-section/form-section.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { colonna } from '@shared/table-columns/column-catalog';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 /**
  * Il dettaglio di un'operazione di Cassa: righe, quote, resto, movimenti,
@@ -46,6 +56,8 @@ import { InlineBannerComponent } from '@shared/components/inline-banner/inline-b
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     BackButtonComponent,
+    DataTableComponent,
+    DataTableRowCardDirective,
     DatePipe,
     DetailFactsComponent,
     DocumentLinesTableComponent,
@@ -101,6 +113,61 @@ export class CashOperationDetailComponent {
       },
     ];
   });
+
+  // ── I movimenti di magazzino, sul MOTORE comune (`docs/26` A19) ──────────
+  // Erano una riga di testo per movimento («sale · SKU · 2 pezzi · data»):
+  // lo stesso elenco che il Dettaglio vendita online rende sul motore (A16).
+  protected readonly ordineMovimenti = signal<readonly DataTableSort[]>([]);
+  protected readonly rigaMovimentoId = (m: CashOperationMovement): string => m.id;
+  protected readonly colonneMovimenti: readonly ResolvedTableColumn[] = [
+    { ...colonna('type', { defaultVisible: true, cardTitle: true }), pinned: false },
+    { ...colonna('sku', { defaultVisible: true, defaultWidthPx: 140 }), pinned: false },
+    {
+      id: 'quantity',
+      label: 'Quantità',
+      numeric: true,
+      defaultVisible: true,
+      defaultWidthPx: 100,
+      pinned: false,
+    },
+    {
+      ...colonna('createdAt', { label: 'Data', defaultVisible: true, defaultWidthPx: 150 }),
+      pinned: false,
+    },
+    { id: 'operator', label: 'Operatore', defaultVisible: true, pinned: false },
+  ];
+  protected readonly testoMovimento = (m: CashOperationMovement, id: string): string => {
+    switch (id) {
+      case 'type':
+        return m.type;
+      case 'sku':
+        return m.sku ?? '—';
+      case 'quantity':
+        return String(m.quantity);
+      case 'createdAt':
+        return formatDateTimeShort(m.createdAt);
+      case 'operator':
+        return m.createdByName;
+      default:
+        return '';
+    }
+  };
+  private readonly numeroMovimento = (m: CashOperationMovement, id: string): number | null =>
+    id === 'quantity' ? m.quantity : null;
+  private readonly dataMovimento = (m: CashOperationMovement, id: string): string | null =>
+    id === 'createdAt' ? m.createdAt : null;
+  protected readonly sezioniMovimenti = computed<
+    readonly DataTableSection<CashOperationMovement>[]
+  >(() => [
+    {
+      id: 'movimenti',
+      rows: ordinaPerColonne(this.operazione()?.stockMovements ?? [], this.ordineMovimenti(), {
+        cellText: this.testoMovimento,
+        numeroDi: this.numeroMovimento,
+        dataDi: this.dataMovimento,
+      }),
+    },
+  ]);
 
   /** I collegamenti, per `app-detail-facts`. */
   protected readonly fatti = computed<readonly DetailFact[]>(() => {
