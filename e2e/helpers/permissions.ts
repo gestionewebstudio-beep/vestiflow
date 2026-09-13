@@ -78,7 +78,8 @@ export async function countSelectMenuOptions(page: Page, ariaLabel: string): Pro
 }
 
 export function shopifySettingsPanel(page: Page) {
-  return page.getByRole('region', { name: 'Integrazione Shopify' });
+  // Dal 13/09/2026 la regione prende il nome dal titolo di pagina, «Shopify».
+  return page.getByRole('region', { name: 'Shopify', exact: true });
 }
 
 export function tenantCompanyPanel(page: Page) {

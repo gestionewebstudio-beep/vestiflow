@@ -28,6 +28,37 @@ interface MockCredential {
 }
 
 const MOCK_USERS: readonly MockCredential[] = [
+  /**
+   * ⭐ L’AMMINISTRATORE DI PIATTAFORMA dell’auth finta (11/09/2026): senza,
+   * le pagine di amministrazione — clienti registrati, utenti di un tenant —
+   * non si possono guardare in un browser senza API (`docs/26` A13, A14).
+   * Stesso tenant del titolare, con il solo flag in più.
+   */
+  {
+    password: 'admin123',
+    user: {
+      id: 'user-admin',
+      tenantId: TENANT_ID,
+      email: 'admin@vestiflow.test',
+      displayName: 'Ada Amministratrice',
+      avatarUrl: null,
+      role: UserRole.Owner,
+      storeIds: ['store-milano', 'store-napoli'],
+      isActive: true,
+      isPlatformAdmin: true,
+      tenantChannelProfile: TenantChannelProfile.Shopify,
+      manualUnloadEnabled: true,
+      tenantName: 'Negozio Demo',
+      hasAllLocationsAccess: true,
+      assignedLocationIds: [],
+      assignedLocations: [],
+      defaultLocationId: null,
+      defaultLocation: null,
+      permissions: [],
+      createdAt: SEED_DATE,
+      updatedAt: SEED_DATE,
+    },
+  },
   {
     password: 'owner123',
     user: {
@@ -96,6 +127,92 @@ const MOCK_USERS: readonly MockCredential[] = [
       hasAllLocationsAccess: false,
       assignedLocationIds: ['loc-napoli'],
       assignedLocations: [{ id: 'loc-napoli', name: 'Napoli' }],
+      defaultLocationId: null,
+      defaultLocation: null,
+      permissions: [],
+      createdAt: SEED_DATE,
+      updatedAt: SEED_DATE,
+    },
+  },
+  /**
+   * ⭐ Chi ha il SOLO permesso di un comando Shopify (11/09/2026): senza
+   * «Sezione Impostazioni», deve comunque raggiungere Impostazioni → Shopify
+   * ed eseguire «Allinea giacenze su Shopify» — e nient’altro.
+   */
+  {
+    password: 'sync123',
+    user: {
+      id: 'user-sync',
+      tenantId: TENANT_ID,
+      email: 'sync@vestiflow.test',
+      displayName: 'Sara Sincroni',
+      avatarUrl: null,
+      role: UserRole.Manager,
+      storeIds: ['store-milano'],
+      isActive: true,
+      isPlatformAdmin: false,
+      tenantChannelProfile: TenantChannelProfile.Shopify,
+      manualUnloadEnabled: true,
+      tenantName: 'Negozio Demo',
+      hasAllLocationsAccess: true,
+      assignedLocationIds: [],
+      assignedLocations: [],
+      defaultLocationId: null,
+      defaultLocation: null,
+      permissions: ['section.inventory', 'inventory.import_export'],
+      createdAt: SEED_DATE,
+      updatedAt: SEED_DATE,
+    },
+  },
+  /**
+   * ⭐ Chi ha la combinazione dell’API per «Importa clienti» — «Esportare
+   * dati» E «Gestire clienti» — e nient’altro di Shopify (11/09/2026):
+   * raggiunge la pagina, vede quel solo comando, non «Importa ordini».
+   */
+  {
+    password: 'clienti123',
+    user: {
+      id: 'user-clienti',
+      tenantId: TENANT_ID,
+      email: 'clienti@vestiflow.test',
+      displayName: 'Clara Clienti',
+      avatarUrl: null,
+      role: UserRole.Manager,
+      storeIds: ['store-milano'],
+      isActive: true,
+      isPlatformAdmin: false,
+      tenantChannelProfile: TenantChannelProfile.Shopify,
+      manualUnloadEnabled: true,
+      tenantName: 'Negozio Demo',
+      hasAllLocationsAccess: true,
+      assignedLocationIds: [],
+      assignedLocations: [],
+      defaultLocationId: null,
+      defaultLocation: null,
+      permissions: ['section.customers', 'customers.manage', 'reports.export'],
+      createdAt: SEED_DATE,
+      updatedAt: SEED_DATE,
+    },
+  },
+  /** Il titolare di un tenant SENZA modulo Shopify: nessuna pagina Shopify da raggiungere. */
+  {
+    password: 'gestionale123',
+    user: {
+      id: 'user-gestionale',
+      tenantId: 'tenant-gestionale',
+      email: 'gestionale@vestiflow.test',
+      displayName: 'Gino Gestionale',
+      avatarUrl: null,
+      role: UserRole.Owner,
+      storeIds: ['store-milano'],
+      isActive: true,
+      isPlatformAdmin: false,
+      tenantChannelProfile: TenantChannelProfile.Gestionale,
+      manualUnloadEnabled: true,
+      tenantName: 'Bottega senza canale',
+      hasAllLocationsAccess: true,
+      assignedLocationIds: [],
+      assignedLocations: [],
       defaultLocationId: null,
       defaultLocation: null,
       permissions: [],

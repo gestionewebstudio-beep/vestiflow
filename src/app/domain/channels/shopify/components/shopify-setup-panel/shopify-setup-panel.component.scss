@@ -1,0 +1,248 @@
+// La PRIMA CONNESSIONE: tre fasi impilate, quella corrente in evidenza. Stessa
+// grammatica dei blocchi di sincronizzazione del pannello che la ospita
+// (`shopify-integration-panel`): titolo con filo di brand, blocchi bordati.
+
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.setup__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+// ⛔ Qui c'era la barretta verticale in --color-primary: respinta dal proprietario
+//    (01/09/2026, «blocchetti neri»), rientrata e tolta di nuovo il 13/09/2026.
+//    Il colore sta sul testo (`_anagrafica.scss`); la guardia è check:barrette-titolo.
+.setup__title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.setup__intro,
+.setup__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.setup__head-sep {
+  color: var(--color-text-subtle);
+}
+
+// La fotografia delle sedi di allora: location → scelta, una per riga.
+.setup__sedi-allora {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.setup__sedi-allora > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.setup__sedi-allora dt {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.setup__sedi-allora dd {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+// ⛔ Qui c'era lo storico RICHIUDIBILE (details chiuso di serie): superato il
+//    13/09/2026 — a percorso concluso le fasi si leggono normalmente (docs/29 §3).
+
+.setup__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+// ⛔ Qui le fasi non correnti avevano il fondo grigio (`--color-surface-soft`): a
+//    percorso concluso nessuna è corrente e diventavano grigie tutte e tre, col
+//    testo sopra a poco contrasto (proprietario, 13/09/2026: «lo sfondo grigio non
+//    mi piace, soprattutto sotto alle scritte»). Le divide il bordo, non la campitura.
+.setup__fase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.setup__fase--corrente {
+  border-color: var(--color-focus);
+}
+
+.setup__fase-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.setup__fase-numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.setup__fase-valore {
+  margin-inline-start: auto;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.setup__scelte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.setup__direzioni,
+.setup__riepilogo {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.setup__direzioni dt,
+.setup__riepilogo dt {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-field-label);
+}
+
+.setup__direzioni dd,
+.setup__riepilogo dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+// Le variazioni previste sono sul motore comune: qui il motore NON riempie la
+// finestra (è un blocco dentro un `details`, la pagina scorre intera), quindi ha
+// il tetto — la stessa scelta delle non allineate di Allinea (`docs/26` A3).
+.setup__quantita {
+  max-block-size: var(--table-scroll-max-h);
+}
+
+.setup__gid {
+  margin-inline-start: var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+}
+
+// I casi irrisolti: aperti e davanti al pulsante, con il tono dell’avviso.
+.setup__irrisolti {
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-warning);
+  border-radius: var(--radius-md);
+  background-color: var(--color-warning-subtle);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.setup__irrisolti-titolo {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.setup__irrisolti-elenco {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: var(--space-5);
+}
+
+.setup__irrisolti-tipo {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-warning);
+}
+
+.setup__dettaglio {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.setup__dettaglio summary {
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold);
+}
+
+.setup__dettaglio ul {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: var(--space-5);
+}
+
+.setup__blocchi {
+  margin: 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-6);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning);
+  font-size: var(--text-sm);
+}
+
+.setup__esito {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-info-subtle);
+}
+
+.setup__esito-riga {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.setup__esito-titolo {
+  font-weight: var(--font-weight-semibold);
+}
+
+// Il fermo si legge in una riga: il colore dell'avviso, non un banner.
+.setup__esito-fermo {
+  color: var(--color-warning);
+}
+
+.setup__azioni {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

@@ -42,6 +42,7 @@ import {
   canManageSettingsCompany,
   canManageShopifyConnection,
   canManageSupplierOrders,
+  canReachShopifySettings,
   canManageTikTokConnection,
   canOpenRetailRegister,
   canReceiveSupplierOrders,
@@ -49,7 +50,8 @@ import {
   canSyncCatalogFromShopify,
   canSyncInventoryFromShopify,
   canSyncProductToShopify,
-  canSyncShopifyOperationalData,
+  canSyncCustomersFromShopify,
+  canSyncOrdersFromShopify,
   canViewCustomers,
   canViewDocFamily,
   canViewDocuments,
@@ -173,6 +175,65 @@ describe('tenant-permissions.util', () => {
     expect(canSyncInventoryFromShopify(catalogOnly)).toBe(false);
   });
 
+  /**
+   * ⭐ Impostazioni → Shopify si raggiunge con il permesso di UN comando
+   * (11/09/2026): i quattro casi chiesti dal proprietario, uno per riga.
+   */
+  it('canReachShopifySettings: titolare sì, un solo permesso di sync sì, nessun permesso no, tenant senza Shopify no', () => {
+    // titolare
+    expect(canReachShopifySettings(userWithRole(UserRole.Owner))).toBe(true);
+    // un solo permesso di sincronizzazione, senza «Sezione Impostazioni»
+    expect(
+      canReachShopifySettings(
+        userWithRole(UserRole.Manager, { permissions: [TenantPermission.InventoryImportExport] }),
+      ),
+    ).toBe(true);
+    expect(
+      canReachShopifySettings(
+        userWithRole(UserRole.Clerk, { permissions: [TenantPermission.CatalogImportExport] }),
+      ),
+    ).toBe(true);
+    // ⚠️ «Esportare dati» da solo non è il permesso di nessun comando: non apre
+    //    la pagina. Con la combinazione dell’API (clienti, oppure ordini) sì.
+    expect(
+      canReachShopifySettings(
+        userWithRole(UserRole.Clerk, { permissions: [TenantPermission.ReportsExport] }),
+      ),
+    ).toBe(false);
+    expect(
+      canReachShopifySettings(
+        userWithRole(UserRole.Clerk, {
+          permissions: [TenantPermission.ReportsExport, TenantPermission.CustomersManage],
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      canReachShopifySettings(
+        userWithRole(UserRole.Clerk, {
+          permissions: [
+            TenantPermission.ReportsExport,
+            TenantPermission.SectionReports,
+            docViewPermission('online_sale'),
+          ],
+        }),
+      ),
+    ).toBe(true);
+    // nessuno dei permessi di sync: «Sezione Impostazioni» da sola non basta
+    expect(
+      canReachShopifySettings(
+        userWithRole(UserRole.Manager, { permissions: [TenantPermission.SectionSettings] }),
+      ),
+    ).toBe(false);
+    expect(canReachShopifySettings(userWithRole(UserRole.Clerk, { permissions: [] }))).toBe(false);
+    // tenant senza modulo Shopify: nemmeno il titolare
+    expect(
+      canReachShopifySettings(
+        userWithRole(UserRole.Owner, { tenantChannelProfile: TenantChannelProfile.Gestionale }),
+      ),
+    ).toBe(false);
+    expect(canReachShopifySettings(null)).toBe(false);
+  });
+
   it('canDeleteProducts e connessioni canali sono owner-only', () => {
     expect(canDeleteProducts(userWithRole(UserRole.Manager))).toBe(false);
     expect(canDeleteProducts(userWithRole(UserRole.Admin))).toBe(true);
@@ -182,17 +243,47 @@ describe('tenant-permissions.util', () => {
     expect(canManageTikTokConnection(userWithRole(UserRole.Clerk))).toBe(false);
   });
 
-  it('canExportOperationalData e sync Shopify operativo', () => {
+  it('canExportOperationalData e sync prodotto verso Shopify', () => {
     expect(canExportOperationalData(userWithRole(UserRole.Manager))).toBe(true);
     expect(canExportOperationalData(userWithRole(UserRole.Clerk))).toBe(false);
-    expect(canSyncShopifyOperationalData(userWithRole(UserRole.Clerk))).toBe(false);
-    expect(
-      canSyncShopifyOperationalData(
-        userWithRole(UserRole.Clerk, { permissions: [TenantPermission.ReportsExport] }),
-      ),
-    ).toBe(true);
     expect(canSyncProductToShopify(userWithRole(UserRole.Manager))).toBe(true);
     expect(canSyncProductToShopify(userWithRole(UserRole.Clerk))).toBe(false);
+  });
+
+  /**
+   * ⭐ Clienti e ordini da Shopify: le combinazioni dell’API, non il solo
+   * `reports.export` (11/09/2026). Ogni gruppo è necessario: togliendone uno
+   * il comando sparisce, e «Esportare dati» da solo non apre niente.
+   */
+  it('canSyncCustomersFromShopify: «Esportare dati» E «Gestire clienti», nessuno dei due da solo', () => {
+    const con = (permissions: TenantPermissionKey[]) =>
+      canSyncCustomersFromShopify(userWithRole(UserRole.Clerk, { permissions }));
+    expect(con([TenantPermission.ReportsExport, TenantPermission.CustomersManage])).toBe(true);
+    expect(con([TenantPermission.ReportsExport])).toBe(false);
+    expect(con([TenantPermission.CustomersManage])).toBe(false);
+    expect(con([TenantPermission.SectionCustomers, TenantPermission.ReportsExport])).toBe(false);
+    expect(canSyncCustomersFromShopify(userWithRole(UserRole.Manager))).toBe(true);
+    expect(canSyncCustomersFromShopify(userWithRole(UserRole.Clerk))).toBe(false);
+  });
+
+  it('canSyncOrdersFromShopify: «Esportare dati» E (Vendite o Report) E «Vendite online», tutti e tre', () => {
+    const con = (permissions: TenantPermissionKey[]) =>
+      canSyncOrdersFromShopify(userWithRole(UserRole.Clerk, { permissions }));
+    const online = docViewPermission('online_sale');
+    expect(con([TenantPermission.ReportsExport, TenantPermission.SectionSales, online])).toBe(true);
+    expect(con([TenantPermission.ReportsExport, TenantPermission.SectionReports, online])).toBe(
+      true,
+    );
+    // manca la famiglia
+    expect(con([TenantPermission.ReportsExport, TenantPermission.SectionSales])).toBe(false);
+    // manca la sezione
+    expect(con([TenantPermission.ReportsExport, online])).toBe(false);
+    // manca «Esportare dati»
+    expect(con([TenantPermission.SectionSales, online])).toBe(false);
+    // la combinazione dei clienti non apre gli ordini
+    expect(con([TenantPermission.ReportsExport, TenantPermission.CustomersManage])).toBe(false);
+    expect(canSyncOrdersFromShopify(userWithRole(UserRole.Manager))).toBe(true);
+    expect(canSyncOrdersFromShopify(userWithRole(UserRole.Clerk))).toBe(false);
   });
 
   it('canManageMfa include platform admin', () => {
@@ -616,7 +707,8 @@ describe('tenant-permissions.util — titolare e utente assente', () => {
     canImportExportInventory,
     canSyncCatalogFromShopify,
     canSyncInventoryFromShopify,
-    canSyncShopifyOperationalData,
+    canSyncCustomersFromShopify,
+    canSyncOrdersFromShopify,
     canSyncProductToShopify,
     canDeleteProducts,
     canExportOperationalData,

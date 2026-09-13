@@ -7,21 +7,37 @@
 // TypeScript — ed era l'unica delle due integrazioni a non avere un componente
 // proprio.
 
+// ⭐ Densità da gestionale (proprietario, 13/09/2026: «elementare, da sito vetrina»):
+//    i pulsanti sono quelli di barra (28px, 12px), le sezioni si staccano di poco,
+//    i titoli portano il colore sul testo e un filo tinto — niente barrette.
 :host {
+  --button-h: var(--control-h-button);
+  --button-font-size: var(--text-xs);
+
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 // ── Elementi che la pagina Impostazioni disegna per se' ──────────────────────
 // Fuori da quel componente la cascata non li raggiunge piu': il pannello se li
 // dichiara, con gli stessi valori. Sono pochi e stabili; il giorno che
 // diventassero un pattern vero, salgono a componente condiviso.
-.shopify-integration__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+// ⭐ La CARD contiene solo la scheda aperta: le schede e la riga del negozio stanno
+//    sopra, a livello di pagina (mock approvato dal proprietario, 13/09/2026).
+.shopify-integration__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--card-pad-sm) var(--card-pad-md);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+// La frase d'apertura di una scheda: a larghezza di lettura.
+.shopify-integration__intro {
+  max-inline-size: var(--content-narrow);
 }
 
 .shopify-integration__muted {
@@ -52,6 +68,22 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text);
+}
+
+// La situazione attuale: un fatto fermo si legge dal colore dell'avviso.
+.shopify-integration__fact--fermo {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-semibold);
+}
+
+.shopify-integration__fact--ok {
+  color: var(--color-ok);
+}
+
+.shopify-integration__banner-link {
+  margin-inline-start: var(--space-1);
+  color: inherit;
+  text-decoration: underline;
 }
 
 .shopify-integration__field {
@@ -94,19 +126,6 @@
 }
 
 // ── Shopify ──────────────────────────────────────────────────────────────────
-.shopify-integration__shopify-status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.shopify-integration__shopify-domain {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text);
-}
-
 .shopify-integration__permissions {
   margin-block-start: var(--space-2);
   border: var(--border-width) solid var(--color-border);
@@ -256,92 +275,8 @@
   inline-size: 100%;
 }
 
-.shopify-integration__setup-status {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-2);
-  margin-block-end: var(--space-3);
-}
-
-.shopify-integration__setup-item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-raised, var(--color-surface));
-}
-
-.shopify-integration__setup-item--active {
-  border-color: var(--status-success-border);
-  background-color: var(--status-success-bg);
-}
-
-.shopify-integration__setup-item--partial {
-  border-color: var(--status-warning-border);
-  background-color: var(--status-warning-bg);
-}
-
-// Rosso solo sui fatti constatati: indirizzo che non e' il nostro, notifiche che mancano.
-// Mai su un'assenza di informazione.
-.shopify-integration__setup-item--problem {
-  border-color: var(--status-error-border);
-  background-color: var(--status-error-bg);
-}
-
-.shopify-integration__webhook-truth {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  margin-block-end: var(--space-3);
-}
-
-.shopify-integration__webhook-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--field-w-md), 1fr));
-  gap: var(--space-2) var(--space-4);
-  margin: 0;
-  min-inline-size: 0;
-  flex: 1 1 auto;
-}
-
-.shopify-integration__webhook-fact {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-inline-size: 0;
-
-  dt {
-    font-size: var(--text-2xs);
-    font-weight: var(--font-weight-semibold);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-caps);
-    color: var(--color-field-label);
-  }
-
-  dd {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--color-text);
-    overflow-wrap: anywhere;
-  }
-}
-
 .shopify-integration__webhook-address {
   font-family: var(--font-mono);
-}
-
-.shopify-integration__webhook-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
 }
 
 .shopify-integration__setup-copy {
@@ -398,14 +333,235 @@
   color: var(--color-text-muted);
 }
 
-.shopify-integration__bulk-sync {
+// ── Le quattro sezioni (11/09/2026): prima connessione, configurazione,
+//    sincronizzazione, stato ed esiti. Un titolo con il filo di brand, come
+//    le sezioni di un’anagrafica (`regole-stile-ui` §7-bis), e sotto il
+//    contenuto della sezione.
+.shopify-integration__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+// ⛔ Qui c'era la barretta verticale in --color-primary: respinta dal proprietario
+//    (01/09/2026), rientrata seguendo una regola non aggiornata, tolta il 13/09/2026.
+//    Il colore sta sul TESTO, il filo sotto è tinto: la forma di `_anagrafica.scss`.
+.shopify-integration__section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding-block-end: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  border-block-end: var(--border-width) solid
+    color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
+}
+
+// Il rimando: un link in linea che porta a un'altra scheda o a un elemento.
+.shopify-integration__rimando {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--color-link);
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+// Il conteggio e la data accanto al titolo di una sezione.
+.shopify-integration__section-meta {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+// ── La riga di stato del negozio, sopra le schede ──
+.shopify-integration__riga-stato-negozio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+// Il dominio è un identificativo: monospazio. I nomi delle sedi no.
+.shopify-integration__dominio {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+}
+
+.shopify-integration__secondario {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+// ── Una SCHEDA: il contenuto dell'area aperta ──
+.shopify-integration__scheda {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+}
+
+// ── Le RIGHE: la stessa griglia per flussi automatici, operazioni manuali ed esiti —
+//    funzione · descrizione · stato/esito · comando, VICINI (proprietario, 13/09/2026:
+//    «stati e pulsanti lontanissimi a destra»). La descrizione ha una larghezza di
+//    lettura e non stira la riga; lo spazio che avanza resta a destra.
+.shopify-integration__righe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+
+  // ⛔ Non una griglia per riga: l'ultima colonna seguirebbe il pulsante di QUELLA riga
+  //    e le righe non si incolonnerebbero (misurato a 1280 il 13/09/2026). Le colonne
+  //    sono del contenitore; ogni riga le eredita con `subgrid`.
+  // ⚠️ Da `lg`, non da `md`, e le due colonne fisse CEDONO fino a `--field-w-md`: con
+  //    colonne rigide in un contenitore stretto la descrizione si riduceva a una parola
+  //    per riga (misurato a 640px di finestra, 13/09/2026). Sotto `lg` le righe si impilano,
+  //    come le tabelle diventano card.
+  @include bp.media-up('lg') {
+    grid-template-columns:
+      minmax(var(--field-w-md), var(--field-w-lg)) minmax(0, var(--content-narrow))
+      minmax(var(--field-w-md), var(--field-w-lg)) auto;
+    justify-content: start;
+  }
+}
+
+.shopify-integration__riga {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  padding: var(--space-2) var(--space-1);
+  border-block-end: var(--border-width) solid var(--color-border-cell);
+  transition: box-shadow var(--transition-base) ease;
+
+  @include bp.media-up('lg') {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+}
+
+.shopify-integration__riga:last-child {
+  border-block-end: 0;
+}
+
+.shopify-integration__riga-nome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+// Il nome della funzione si legge: testo pieno, semibold — non attenuato.
+.shopify-integration__riga-titolo {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.shopify-integration__riga-nome .shopify-integration__direction {
+  white-space: normal;
+}
+
+.shopify-integration__riga-testo {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+// Il perimetro: su quali dati opera, in chiaro.
+.shopify-integration__riga-perimetro {
+  color: var(--color-text);
+}
+
+.shopify-integration__riga-stato {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--text-xs);
+  min-inline-size: 0;
+}
+
+// La conseguenza si legge: colore del testo, non attenuato.
+.shopify-integration__riga-dettaglio {
+  color: var(--color-text);
+}
+
+.shopify-integration__riga-azione {
+  display: flex;
+  justify-content: flex-start;
+
+  @include bp.media-down('md') {
+    --button-inline-size: 100%;
+  }
+}
+
+// ── Gli approfondimenti (notifiche, accesso): un details con sommario e meta ──
+.shopify-integration__dettagli {
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.shopify-integration__dettagli-sommario {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.shopify-integration__dettagli-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin-inline-start: auto;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.shopify-integration__dettagli-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block-start: var(--space-2);
+}
+
+// Le scelte sulle sedi, fuori dal percorso.
+.shopify-integration__scelte-sedi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+// Il rimando da un problema porta al comando e lo EVIDENZIA per un attimo:
+// chi legge vede dove è arrivato (`docs/29`).
+.shopify-integration__evidenziato {
+  box-shadow: 0 0 0 3px var(--color-focus-ring-alpha);
+  border-radius: var(--radius-sm);
+}
+
+// ⭐ La DIREZIONE è un’informazione accanto al titolo, non un comando: la
+//    sincronizzazione bidirezionale del catalogo resta una, e lo dice qui.
+.shopify-integration__direction {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-shopify);
+  white-space: nowrap;
 }
 
 .shopify-integration__bulk-sync-hint,
@@ -418,34 +574,7 @@
   line-height: var(--leading-normal);
 }
 
-.shopify-integration__bulk-sync-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.shopify-integration__shopify-management {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-block-start: var(--space-6);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
-}
-
-.shopify-integration__shopify-locations {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-block-start: var(--space-6);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
-}
-
+// Le scelte sulle sedi fuori dal percorso condividono la veste del blocco «Connessione e negozio».
 .shopify-integration__shopify-actions {
   display: flex;
   flex-wrap: wrap;
@@ -483,48 +612,32 @@
   font-weight: var(--font-weight-bold);
 }
 
+/* Colonne e Filtri sopra l’elenco: la barra densa di `regole-stile-ui`,
+   configurata dal CONTENITORE, con i sei token del telaio. */
+.shopify-integration__allinea-strumenti {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  --btn-min-height: var(--control-h-button);
+  --field-height: var(--control-h-button);
+  --field-h: var(--control-h-button);
+  --field-font-size: var(--text-xs);
+  --field-gap: var(--space-1);
+  --button-font-size: var(--text-xs);
+}
+
 /* ⭐ Le anomalie ci sono TUTTE: a contenere l'ingombro pensa il riquadro,
    che scorre. Paginare ne nasconderebbe una parte, ed e' proprio per
-   guardarle insieme che questo elenco esiste. */
+   guardarle insieme che questo elenco esiste.
+
+   ⚠️ Qui il motore NON riempie la finestra: è un blocco fra gli altri delle
+   Impostazioni, e la pagina scorre intera. Il tetto è lo stesso che aveva
+   l'elenco a mano; sotto `lg` la tabella è a card e scorre con la pagina. */
 .shopify-integration__allinea-elenco {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
   max-block-size: var(--table-scroll-max-h);
-  overflow-y: auto;
 }
 
-.shopify-integration__allinea-riga {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-2);
-  padding: var(--space-6) var(--space-8);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-soft);
-  font-size: var(--text-xs);
-}
-
-@include bp.media-up('md') {
-  .shopify-integration__allinea-riga {
-    grid-template-columns: 2fr 1fr 1fr 1.5fr;
-    align-items: baseline;
-  }
-}
-
-.shopify-integration__allinea-articolo {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.shopify-integration__allinea-variante,
-.shopify-integration__allinea-sede {
-  color: var(--color-text-muted);
-}
-
+/* Il motivo si legge dal colore: è l’anomalia, in tabella come sulla card. */
 .shopify-integration__allinea-motivo {
   color: var(--color-warning);
 }

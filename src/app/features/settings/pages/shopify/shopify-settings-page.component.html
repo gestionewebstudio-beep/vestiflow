@@ -1,0 +1,26 @@
+<section class="shopify-settings">
+  <header class="shopify-settings__header">
+    <div class="shopify-settings__heading">
+      <!-- ⭐ Indietro e titolo sulla STESSA riga, come le anagrafiche (regole-stile-ui §7-bis). -->
+      <div class="shopify-settings__title-row">
+        <app-back-button />
+        <h1 id="settings-shopify" class="shopify-settings__title">Shopify</h1>
+      </div>
+    </div>
+  </header>
+
+  <!--
+    ⭐ Niente card qui: la riga del negozio e le schede stanno a livello di pagina e
+       la card la disegna il pannello intorno alla sola scheda aperta (mock approvato
+       dal proprietario il 13/09/2026). Il sottotitolo che elencava le cinque aree
+       ripeteva le schede: tolto.
+  -->
+  <section class="shopify-settings__panel" aria-labelledby="settings-shopify">
+    <app-shopify-integration-panel
+      [locationSetupStatus]="locationSetupStatus()"
+      [mustChooseLocations]="mustChooseLocations()"
+      [scheda]="scheda()"
+      (locationsChanged)="onLocationsChanged()"
+    />
+  </section>
+</section>

@@ -23,19 +23,9 @@
   (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
+  <!-- ⭐ «Sincronizza» (ordini da Shopify) e il suo esito stanno in Impostazioni → Shopify
+       (11/09/2026): l’elenco degli ordini Shopify e i corrispettivi restano qui. -->
   <div warnings>
-    @if (shopifySyncError(); as message) {
-      <p class="sales-list__shopify-error" role="alert">{{ message }}</p>
-    }
-
-    @if (shopifyFeedback(); as feedback) {
-      <app-shopify-sync-feedback
-        [message]="feedback.message"
-        [tone]="feedback.tone"
-        (dismissed)="dismissShopifyFeedback()"
-      />
-    }
-
     @if (canExportData()) {
       <app-report-corrispettivi-export
         title="Corrispettivi Shopify"
@@ -69,50 +59,22 @@
     ⭐ Periodo resta in barra a ogni larghezza: è uno dei due che non entrano
     nelle colonne (`14` §0.2).
   -->
+  <!--
+    ⭐ Il selettore Periodo è quello condiviso, estratto dai Corrispettivi
+    (11/09/2026): voci dei movimenti, «Tutti» compreso, confini di sempre
+    (`resolveMovementPeriodRange`), Dal/Al con «Personalizzato» — com’era.
+  -->
   <div period>
-    <div class="sales-list__field">
-      <app-select-menu
-        chipLabel="Periodo"
-        [options]="periodOptions"
-        [value]="periodPreset()"
-        ariaLabel="Filtra per periodo"
-        placeholder="Tutto"
-        [compact]="true"
-        [fullWidth]="true"
-        [filterChip]="true"
-        (valueChange)="onPeriodPresetChange($event)"
-      />
-    </div>
-
-    @if (isCustomPeriod()) {
-      <div class="sales-list__field sales-list__field--date">
-        <label class="sales-list__label" for="sales-date-from">Dal</label>
-        <app-date-input
-          inputId="sales-date-from"
-          [value]="query().placedFrom ?? ''"
-          ariaLabel="Data inizio periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [max]="query().placedTo || undefined"
-          (valueChange)="onDateFromChange($event)"
-        />
-      </div>
-
-      <div class="sales-list__field sales-list__field--date">
-        <label class="sales-list__label" for="sales-date-to">Al</label>
-        <app-date-input
-          inputId="sales-date-to"
-          [value]="query().placedTo ?? ''"
-          ariaLabel="Data fine periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [min]="query().placedFrom || undefined"
-          (valueChange)="onDateToChange($event)"
-        />
-      </div>
-    }
+    <app-period-filter
+      idPrefix="sales-date"
+      [options]="periodOptions"
+      [value]="periodPreset()"
+      [dateFrom]="query().placedFrom ?? ''"
+      [dateTo]="query().placedTo ?? ''"
+      (valueChange)="onPeriodPresetChange($event)"
+      (dateFromChange)="onDateFromChange($event)"
+      (dateToChange)="onDateToChange($event)"
+    />
   </div>
 
   <div filters>

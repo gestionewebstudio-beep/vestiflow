@@ -1,8 +1,21 @@
+import type { User } from '@core/models/user.model';
+import {
+  canAccessSettingsSection,
+  canReachShopifySettings,
+} from '@core/permissions/tenant-permissions.util';
+
 /**
  * Destinazioni di secondo livello per la ricerca globale: pagine raggiungibili
  * ma assenti dalla sidebar (tab, sotto-registri, azioni rapide). La visibilita'
  * e' agganciata alla presenza della sezione padre nella nav (`parent`), che lo
  * shell filtra gia' per permessi ruolo.
+ *
+ * ⚠️ **Dove il padre non basta, decide `consentita`** (11/09/2026). Il confronto
+ * con la nav è per PREFISSO di rotta: a chi ha la voce «Impostazioni» che porta
+ * a `/app/settings/shopify` — il solo permesso di un comando Shopify, senza
+ * «Sezione Impostazioni» — la ricerca proponeva anche Codici IVA e Pagamenti,
+ * che la rotta gli avrebbe rifiutato. Una pagina si propone SOLO se è
+ * accessibile: il predicato è lo stesso della sua guardia di rotta.
  */
 export interface SecondaryPage {
   readonly label: string;
@@ -12,6 +25,8 @@ export interface SecondaryPage {
   readonly queryParams?: Readonly<Record<string, string>>;
   /** Route della voce nav che fa da guardia permessi (es. '/app/inventory'). */
   readonly parent: string;
+  /** Quando il padre non basta: il predicato della guardia di rotta della pagina. */
+  readonly consentita?: (user: User | null | undefined) => boolean;
 }
 
 export const SECONDARY_PAGES: readonly SecondaryPage[] = [
@@ -165,6 +180,7 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     icon: 'pi-percentage',
     route: '/app/settings/codici-iva',
     parent: '/app/settings',
+    consentita: canAccessSettingsSection,
   },
   {
     label: 'Pagamenti',
@@ -172,5 +188,14 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     icon: 'pi-credit-card',
     route: '/app/settings/pagamenti',
     parent: '/app/settings',
+    consentita: canAccessSettingsSection,
+  },
+  {
+    label: 'Shopify',
+    sub: 'Connessione e sincronizzazione con il negozio',
+    icon: 'pi-shopping-bag',
+    route: '/app/settings/shopify',
+    parent: '/app/settings',
+    consentita: canReachShopifySettings,
   },
 ];

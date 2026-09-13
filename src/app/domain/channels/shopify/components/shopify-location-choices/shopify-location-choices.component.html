@@ -1,0 +1,85 @@
+@if (locations().length === 0) {
+  <p class="scelte__vuoto">Nessuna location letta da Shopify.</p>
+} @else {
+  <!-- Una scelta per riga: è una MASCHERA, non un elenco (check:elenchi-fuori-motore). -->
+  <table class="scelte__tabella" aria-label="Location del negozio e scelta per ciascuna">
+    <thead>
+      <tr>
+        <th scope="col">Location Shopify</th>
+        <th scope="col">Su Shopify</th>
+        <th scope="col">Scelta</th>
+        <th scope="col">Sede VestiFlow</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (location of locations(); track location.shopifyLocationId) {
+        <tr>
+          <td data-label="Location Shopify">
+            {{ location.name }}
+            <span class="scelte__gid tabular-nums">#{{ location.shopifyLocationId }}</span>
+          </td>
+          <td data-label="Su Shopify">
+            <app-badge [tone]="location.active ? 'success' : 'neutral'" [flat]="true">
+              {{ location.active ? 'Attiva' : 'Non attiva' }}
+            </app-badge>
+          </td>
+          <td data-label="Scelta" class="scelte__cella-scelta">
+            @if (modificabile()) {
+              <!--
+                ⛔ Pannello FISSO, non assoluto: la cella porta `overflow: hidden`
+                dalla grammatica dei riepiloghi (il taglio a colonna) e un pannello
+                assoluto le resta DENTRO — invisibile, senza errori. Misurato sul
+                negozio vero il 13/09/2026: pannello nel DOM, 5 voci, visibile, e
+                al suo centro il browser vedeva il trigger della riga dopo. La
+                stessa via d'uscita dei filtri di colonna nel motore tabella.
+
+                ⛔ Ma SOLO nella tabella: sul telefono le righe sono card, niente
+                le ritaglia, e il pannello fisso — che si chiude a ogni
+                scorrimento — rendeva la scelta impossibile (prova a schermo del
+                13/09/2026: l'opzione spariva prima del tocco).
+              -->
+              <app-select-menu
+                [options]="opzioniSede(location)"
+                [value]="valoreSede(location)"
+                [panelFixed]="!compatta()"
+                placeholder="Decidi…"
+                [ariaLabel]="'Scelta per la location ' + location.name"
+                (valueChange)="onSedeScelta(location, $event)"
+              />
+            } @else {
+              <span>
+                @switch (location.choice) {
+                  @case ('lascia') {
+                    Lasciata fuori
+                  }
+                  @case ('crea') {
+                    Creata: {{ location.locationName ?? location.name }}
+                  }
+                  @case ('collega') {
+                    Collegata a {{ location.locationName }}
+                  }
+                  @default {
+                    —
+                  }
+                }
+              </span>
+            }
+          </td>
+          <!-- Collegata a VestiFlow, distinta da «attiva su Shopify» (proprietario, 13/09/2026). -->
+          <td data-label="Sede VestiFlow">
+            @if (
+              (location.choice === 'collega' || location.choice === 'crea') && location.locationName
+            ) {
+              <app-badge tone="success" [flat]="true">Collegata</app-badge>
+              {{ location.locationName }}
+            } @else if (location.choice === 'lascia') {
+              <span class="scelte__non-collegata">non collegata</span>
+            } @else {
+              <span class="scelte__non-collegata">—</span>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}

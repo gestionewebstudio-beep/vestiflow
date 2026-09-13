@@ -7,6 +7,19 @@
       [routerLinkActiveOptions]="{ exact: t.exact ?? true }"
     >
       {{ t.label }}
+      @if (t.stato) {
+        <span [class]="'nav-tabs__stato nav-tabs__stato--' + (t.tono ?? 'neutral')">
+          {{ t.stato }}
+        </span>
+      }
+      @if (t.conteggio !== undefined) {
+        <span
+          class="nav-tabs__conteggio tabular-nums"
+          [class.nav-tabs__conteggio--zero]="t.conteggio === 0"
+        >
+          {{ t.conteggio }}
+        </span>
+      }
     </a>
   }
 </nav>

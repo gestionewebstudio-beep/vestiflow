@@ -1,5 +1,3 @@
-<h2 id="settings-shopify" class="shopify-integration__title">Integrazione Shopify</h2>
-
 @if (shopifyBanner(); as banner) {
   <app-inline-banner
     [tone]="shopifyBannerTone()"
@@ -7,13 +5,23 @@
     (dismissed)="dismissBanner()"
   >
     @switch (banner) {
+      @case ('setup') {
+        Negozio collegato. Nessuna sincronizzazione è partita: completa la prima connessione —
+        scelte iniziali, sedi, controllo e conferma.
+      }
       @case ('connected') {
         Negozio collegato. Ordini, clienti e giacenze si aggiorneranno automaticamente quando attivi
         gli aggiornamenti automatici.
       }
       @case ('connected-warn') {
-        Negozio collegato. Verifica in basso eventuali avvisi su location o aggiornamenti
-        automatici: la sync potrebbe essere incompleta finché non risolvi.
+        Negozio collegato, con problemi aperti.
+        <button
+          type="button"
+          class="shopify-integration__banner-link"
+          (click)="vaiAllaScheda('problemi')"
+        >
+          Vedi problemi
+        </button>
       }
       @case ('error') {
         Autorizzazione Shopify non riuscita. Verifica dominio shop e configurazione app.
@@ -25,416 +33,921 @@
   </app-inline-banner>
 }
 
-@if (connectionLoading()) {
-  <app-table-skeleton [columns]="2" [rows]="3" />
-} @else if (shopifyConnectable()) {
-  <p class="shopify-integration__muted">
-    Nessuna connessione Shopify attiva. Inserisci il dominio dello shop e avvia l'autorizzazione
-    OAuth: i token restano solo sul server.
-  </p>
+<!--
+  ⭐ CINQUE SCHEDE, divise per uso (`docs/29` §3, deciso dal proprietario il 13/09/2026):
+     Prima connessione · Sincronizzazione automatica · Operazioni manuali · Problemi ed esiti ·
+     Connessione e sedi. Prima dell'attivazione si apre la prima; dopo, la sincronizzazione.
+     Le schede sono quelle condivise (`app-nav-tabs`), la scheda aperta è nella rotta.
+     Nessun motore, regola, permesso o effetto cambia: cambia dove si trova ogni cosa.
 
-  @if (canManageShopify()) {
-    <form
-      class="shopify-integration__connect-form"
-      [formGroup]="connectForm"
-      (ngSubmit)="connectShopify()"
-    >
-      <label
-        class="shopify-integration__field shopify-integration__field--connect"
-        for="shopify-shop"
-      >
-        <span class="shopify-integration__field-label">Dominio shop</span>
-        <div class="shopify-integration__connect-row">
-          <input
-            id="shopify-shop"
-            class="shopify-integration__input"
-            type="text"
-            formControlName="shop"
-            placeholder="mio-negozio.myshopify.com"
-            autocomplete="off"
-            spellcheck="false"
-            [attr.aria-invalid]="
-              connectForm.controls.shop.invalid && connectForm.controls.shop.touched
-            "
-          />
-          <app-button type="submit" [loading]="connectLoading()" [disabled]="connectLoading()">
-            Connetti Shopify
-          </app-button>
-        </div>
-        @if (connectForm.controls.shop.invalid && connectForm.controls.shop.touched) {
-          <span class="shopify-integration__field-error">Inserisci il dominio dello shop.</span>
-        }
-      </label>
-
-      @if (connectError(); as message) {
-        <p class="shopify-integration__shopify-error" role="alert">{{ message }}</p>
-      }
-    </form>
-  } @else {
-    <p class="shopify-integration__muted">
-      Solo titolare o amministratore possono collegare Shopify.
-    </p>
-  }
-} @else if (connectionError(); as appError) {
-  <app-error-state
-    [description]="appError.message"
-    retryLabel="Riprova"
-    (retry)="reloadConnection()"
-  />
-} @else if (connection(); as conn) {
-  <div class="shopify-integration__shopify-status">
-    <app-badge [tone]="connectionStatusTone(conn.status)">
+  ⚠️ Chi non gestisce la connessione (titolare) non può leggerla: l'API risponde
+  403. A lui si mostrano le sole operazioni manuali che il suo permesso concede,
+  con i loro esiti — senza fingere uno stato «non connesso».
+-->
+@if (schedeVisibili() && connection(); as conn) {
+  <!-- ── Il negozio, in una riga discreta: stato, dominio, da quando ── -->
+  <p class="shopify-integration__riga-stato-negozio">
+    <app-badge [flat]="true" [tone]="connectionStatusTone(conn.status)">
       {{ connectionStatusLabel(conn.status) }}
     </app-badge>
-    @if (conn.shopDomain) {
-      <span class="shopify-integration__shopify-domain tabular-nums">{{ conn.shopDomain }}</span>
+    <span class="shopify-integration__dominio">{{ conn.shopDomain ?? '—' }}</span>
+    @if (conn.lastConnectedAt) {
+      <span class="shopify-integration__secondario">
+        dal {{ formatDateTime(conn.lastConnectedAt) }}
+      </span>
     }
-  </div>
-
-  <dl class="shopify-integration__facts">
-    <div class="shopify-integration__fact">
-      <dt>Nome shop</dt>
-      <dd>{{ conn.displayName ?? '—' }}</dd>
-    </div>
-    <div class="shopify-integration__fact">
-      <dt>Versione API</dt>
-      <dd class="tabular-nums">{{ conn.apiVersion ?? '—' }}</dd>
-    </div>
-    <div class="shopify-integration__fact">
-      <dt>Ultima connessione</dt>
-      <dd class="tabular-nums">
-        {{ conn.lastConnectedAt ? formatDateTime(conn.lastConnectedAt) : '—' }}
-      </dd>
-    </div>
-    <div class="shopify-integration__fact">
-      <dt>Ultimo sync</dt>
-      <dd class="tabular-nums">
-        {{ conn.lastSyncAt ? formatDateTime(conn.lastSyncAt) : '—' }}
-      </dd>
-    </div>
-  </dl>
-
-  @if (conn.scopes?.length) {
-    <details class="shopify-integration__permissions">
-      <summary class="shopify-integration__permissions-summary">
-        <span class="shopify-integration__permissions-summary-label">Accesso a Shopify</span>
-        <span class="shopify-integration__permissions-summary-trailing">
-          <span class="shopify-integration__permissions-summary-meta">{{
-            shopifyScopesSummary()
-          }}</span>
-          <i
-            class="pi pi-chevron-right shopify-integration__permissions-summary-icon"
-            aria-hidden="true"
-          ></i>
-        </span>
-      </summary>
-      <div class="shopify-integration__permissions-table-wrap">
-        <table class="shopify-integration__permissions-table">
-          <thead>
-            <tr>
-              <th scope="col">Area</th>
-              <th scope="col">Accesso</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (group of groupedShopifyScopes(); track group.key) {
-              <tr class="shopify-integration__permissions-row">
-                <td data-label="Area">
-                  <span class="shopify-integration__permission-label">{{ group.label }}</span>
-                  <span class="shopify-integration__permission-desc">{{ group.description }}</span>
-                </td>
-                <td data-label="Accesso">
-                  <span class="shopify-integration__permission-badges">
-                    <span class="shopify-integration__permission-badge-slot">
-                      @if (group.access.includes('read')) {
-                        <app-badge tone="neutral">
-                          {{ shopifyScopeAccessLabel('read') }}
-                        </app-badge>
-                      }
-                    </span>
-                    <span class="shopify-integration__permission-badge-slot">
-                      @if (group.access.includes('write')) {
-                        <app-badge tone="success">
-                          {{ shopifyScopeAccessLabel('write') }}
-                        </app-badge>
-                      }
-                    </span>
-                  </span>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </details>
-  }
-
-  @if (catalogReadScopeWarning(); as scopeWarning) {
-    <div class="shopify-integration__shopify-error-block">
-      <p class="shopify-integration__shopify-error" role="alert">
-        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-        {{ scopeWarning }}
-      </p>
-      @if (catalogScopeDiagnosticsDetail(); as scopeDetail) {
-        <p class="shopify-integration__muted">{{ scopeDetail }}</p>
-      }
-    </div>
-  }
+    @if (percorsoInCorso()) {
+      <span class="shopify-integration__secondario">·</span>
+      <app-badge [flat]="true" tone="info">Prima connessione in corso</app-badge>
+      <span class="shopify-integration__secondario">{{ faseEtichetta() }}</span>
+    }
+  </p>
 
   <!--
-    Canali di vendita (Tranche 2A): un negozio collegato prima di questi ambiti
-    non fallisce alla prima pubblicazione — lo dichiara qui, con che cosa fare.
+    ⭐ Le schede stanno a LIVELLO DI PAGINA, fuori dalla card, come nel mock approvato
+       (proprietario, 13/09/2026): sono la struttura della pagina, non una riga dentro
+       un riquadro. La card sotto contiene solo la scheda aperta.
   -->
-  @if (publicationsScopeWarning(); as publicationsWarning) {
-    <div class="shopify-integration__shopify-error-block">
-      <p class="shopify-integration__shopify-error" role="alert">
-        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-        {{ publicationsWarning }}
+  <app-nav-tabs [items]="schede()" ariaLabel="Aree di Shopify" />
+}
+
+<div class="shopify-integration__card">
+  @if (!canManageShopify()) {
+    <p class="shopify-integration__muted">
+      Lo stato della connessione e la configurazione del negozio sono visibili al titolare. Qui
+      trovi le operazioni che il tuo permesso consente e il loro esito.
+    </p>
+  } @else if (connectionLoading()) {
+    <app-table-skeleton [columns]="2" [rows]="3" />
+  } @else if (shopifyConnectable()) {
+    <!-- ── Il negozio non è ancora collegato: si comincia da qui ─────────────────── -->
+    <section class="shopify-integration__section" aria-labelledby="settings-shopify-connect">
+      <h3 id="settings-shopify-connect" class="shopify-integration__section-title">
+        Prima connessione
+      </h3>
+      <p class="shopify-integration__muted">
+        Nessuna connessione Shopify attiva. Inserisci il dominio dello shop e avvia l'autorizzazione
+        OAuth: i token restano solo sul server.
       </p>
-    </div>
-  }
 
-  @if (conn.lastError; as lastError) {
-    <div class="shopify-integration__shopify-error-block">
-      <p class="shopify-integration__shopify-error" role="alert">
-        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-        {{ lastError.message }}
-        <span class="shopify-integration__muted tabular-nums">
-          ({{ formatDateTime(lastError.occurredAt) }})
-        </span>
-      </p>
-    </div>
-  } @else if (conn.status === 'error') {
-    <div class="shopify-integration__shopify-error-block">
-      <p class="shopify-integration__shopify-error" role="alert">
-        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-        La connessione Shopify segnala un errore. Se il negozio funziona, puoi ripristinare la
-        connessione e riprovare la sincronizzazione.
-      </p>
-    </div>
-  }
-
-  @if (connectError(); as message) {
-    <p class="shopify-integration__shopify-error" role="alert">{{ message }}</p>
-  }
-
-  @if (actionFeedback(); as feedback) {
-    <app-inline-banner
-      [tone]="feedback.tone"
-      [message]="feedback.message"
-      dismissLabel="Chiudi"
-      (dismissed)="dismissActionFeedback()"
-    />
-  }
-
-  @if (canManageShopify()) {
-    <div class="shopify-integration__setup-status" aria-label="Stato configurazione Shopify">
-      <div
-        class="shopify-integration__setup-item"
-        [class.shopify-integration__setup-item--active]="locationSetupStatus().active"
+      <form
+        class="shopify-integration__connect-form"
+        [formGroup]="connectForm"
+        (ngSubmit)="connectShopify()"
       >
-        <app-badge [tone]="locationSetupStatus().active ? 'success' : 'neutral'">
-          {{ locationSetupStatus().active ? 'Attivo' : 'Da fare' }}
-        </app-badge>
-        <div class="shopify-integration__setup-copy">
-          <span class="shopify-integration__setup-label">{{ locationSetupStatus().label }}</span>
-          <span class="shopify-integration__setup-detail">{{ locationSetupStatus().detail }}</span>
-        </div>
-      </div>
-      @let webhooks = webhooksSetupStatus();
-      <div
-        class="shopify-integration__setup-item"
-        [class.shopify-integration__setup-item--active]="webhooks.active && !webhooks.problem"
-        [class.shopify-integration__setup-item--partial]="webhooks.partial"
-        [class.shopify-integration__setup-item--problem]="webhooks.problem"
-      >
-        <app-badge
-          [tone]="
-            webhooks.problem
-              ? 'error'
-              : webhooks.partial
-                ? 'warning'
-                : webhooks.active
-                  ? 'success'
-                  : 'neutral'
-          "
+        <label
+          class="shopify-integration__field shopify-integration__field--connect"
+          for="shopify-shop"
         >
-          {{
-            webhooks.problem
-              ? 'Problema'
-              : webhooks.partial
-                ? 'Parziale'
-                : webhooks.active
-                  ? 'Attivo'
-                  : 'Da fare'
-          }}
-        </app-badge>
-        <div class="shopify-integration__setup-copy">
-          <span class="shopify-integration__setup-label">{{ webhooks.label }}</span>
-          @if (webhooks.problems?.length) {
-            <!-- Piu' problemi veri: si elencano tutti, nessuno nasconde gli altri. -->
-            <ul class="shopify-integration__setup-problems">
-              @for (problem of webhooks.problems; track problem) {
-                <li class="shopify-integration__setup-detail">{{ problem }}</li>
-              }
-            </ul>
-          } @else {
-            <span class="shopify-integration__setup-detail">{{ webhooks.detail }}</span>
+          <span class="shopify-integration__field-label">Dominio shop</span>
+          <div class="shopify-integration__connect-row">
+            <input
+              id="shopify-shop"
+              class="shopify-integration__input"
+              type="text"
+              formControlName="shop"
+              placeholder="mio-negozio.myshopify.com"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.aria-invalid]="
+                connectForm.controls.shop.invalid && connectForm.controls.shop.touched
+              "
+            />
+            <app-button type="submit" [loading]="connectLoading()" [disabled]="connectLoading()">
+              Connetti Shopify
+            </app-button>
+          </div>
+          @if (connectForm.controls.shop.invalid && connectForm.controls.shop.touched) {
+            <span class="shopify-integration__field-error">Inserisci il dominio dello shop.</span>
           }
-        </div>
-      </div>
-    </div>
+        </label>
 
-    <!--
-      I fatti, senza verdetto. Nessuna soglia sul tempo: un negozio puo' stare giorni senza
-      un evento in modo perfettamente legittimo, e una spia che grida al lupo e' il difetto
-      da cui siamo partiti. Qui si dichiara cosa risulta e quando e' stato guardato; per la
-      certezza c'e' il pulsante.
-    -->
-    <div class="shopify-integration__webhook-truth">
-      <dl class="shopify-integration__webhook-facts">
-        <div class="shopify-integration__webhook-fact">
-          <dt>Ultimo evento ricevuto</dt>
-          <dd>{{ lastWebhookEventLabel() }}</dd>
-        </div>
-        <div class="shopify-integration__webhook-fact">
-          <dt>Notifiche registrate</dt>
-          <dd>{{ webhookTopicsLabel() }}</dd>
-        </div>
-        <div class="shopify-integration__webhook-fact">
-          <dt>Indirizzo di consegna</dt>
-          <dd class="shopify-integration__webhook-address">{{ webhookAddressLabel() }}</dd>
-        </div>
-        <div class="shopify-integration__webhook-fact">
-          <dt>Ultima verifica</dt>
-          <dd>{{ webhookCheckedAtLabel() }}</dd>
-        </div>
-      </dl>
-      <div class="shopify-integration__webhook-actions">
-        <app-button
-          variant="secondary"
-          [loading]="checkWebhooksLoading()"
-          [disabled]="checkWebhooksLoading() || registerMissingLoading() || disconnectLoading()"
-          (click)="checkWebhooks()"
-        >
-          Verifica ora
-        </app-button>
-        @if (canRegisterMissingWebhooks()) {
-          <!--
-            Compare solo con mancanti nominati e indirizzo consegnabile: prima si verifica,
-            poi si ripara, e mai da un ambiente a cui Shopify non potrebbe consegnare.
-          -->
-          <app-button
-            variant="primary"
-            [loading]="registerMissingLoading()"
-            [disabled]="registerMissingLoading() || checkWebhooksLoading() || disconnectLoading()"
-            (click)="registerMissingWebhooks()"
-          >
-            Registra le notifiche mancanti
-          </app-button>
+        @if (connectError(); as message) {
+          <p class="shopify-integration__shopify-error" role="alert">{{ message }}</p>
         }
-      </div>
-    </div>
+      </form>
+    </section>
+  } @else if (connectionError(); as appError) {
+    <app-error-state
+      [description]="appError.message"
+      retryLabel="Riprova"
+      (retry)="reloadConnection()"
+    />
+  } @else if (connection()) {
+    <!-- L'esito dell'ultimo comando e l'errore: in cima alla card, qualunque sia la scheda aperta. -->
+    @if (connectError(); as message) {
+      <p class="shopify-integration__shopify-error" role="alert">{{ message }}</p>
+    }
+    @if (actionFeedback(); as feedback) {
+      <app-inline-banner
+        [tone]="feedback.tone"
+        [message]="feedback.message"
+        dismissLabel="Chiudi"
+        (dismissed)="dismissActionFeedback()"
+      />
+    }
+  }
 
-    @if (showPostConnectCta()) {
-      <div class="shopify-integration__post-connect" aria-labelledby="settings-shopify-next-steps">
-        <h3 id="settings-shopify-next-steps" class="shopify-integration__post-connect-title">
-          Prossimi passi
+  <!-- ═══ 1 · PRIMA CONNESSIONE ═══ -->
+  @if (canManageShopify() && connection() && schedaAttiva() === 'prima-connessione') {
+    @if (mostraPercorso() && setup(); as percorso) {
+      <section class="shopify-integration__scheda" aria-labelledby="shopify-setup-title">
+        <app-shopify-setup-panel
+          [setup]="percorso"
+          [busy]="setupBusy()"
+          [errore]="setupErrore()"
+          [attesa]="setupAttesa()"
+          (direzioneScelta)="onSetupDirezione($event)"
+          (sedeScelta)="onSetupSede($event)"
+          (anteprimaRichiesta)="onSetupAnteprima()"
+          (confermata)="onSetupConferma()"
+          (indietro)="onSetupIndietro($event)"
+          (attivazioneRichiesta)="onSetupAttiva()"
+          (aggiornamentoRichiesto)="ricaricaSetup()"
+          (problemiRichiesti)="vaiAllaScheda('problemi')"
+        />
+      </section>
+    } @else {
+      <section class="shopify-integration__scheda" aria-labelledby="shopify-setup-title">
+        <h3 id="shopify-setup-title" class="shopify-integration__section-title">
+          Prima connessione
         </h3>
         <p class="shopify-integration__muted">
-          Importa i dati iniziali da Shopify, poi attiva gli aggiornamenti automatici per ordini,
-          clienti e giacenze in tempo reale.
+          Questa connessione è nata prima del percorso guidato: non c'è uno storico delle tre fasi
+          da mostrare. Le sedi si gestiscono in «Connessione e sedi».
         </p>
-        <ol class="shopify-integration__post-connect-list">
-          <li>Sincronizza le location (se non già fatto)</li>
-          <li>Importa catalogo, giacenze, clienti e vendite</li>
-          <li>Attiva gli aggiornamenti automatici</li>
-        </ol>
-      </div>
+      </section>
     }
+  }
 
-    <div class="shopify-integration__bulk-sync" aria-labelledby="settings-shopify-bulk-sync">
-      <h3 id="settings-shopify-bulk-sync" class="shopify-integration__bulk-sync-title">
-        Sync manuale da Shopify
+  <!-- ═══ 2 · SINCRONIZZAZIONE AUTOMATICA ═══ -->
+  @if (canManageShopify() && connection(); as conn) {
+    @if (schedaAttiva() === 'sincronizzazione') {
+      <section class="shopify-integration__scheda" aria-labelledby="settings-shopify-esiti">
+        <!-- Un titolo e una riga: c'erano titolo, sottotitolo e intro che dicevano la stessa
+           cosa tre volte (proprietario, 13/09/2026: «i testi aggiunti, non sostituiti»). -->
+        <h3 id="settings-shopify-esiti" class="shopify-integration__section-title">
+          Aggiornamenti automatici tra Shopify e VestiFlow
+          <span class="shopify-integration__section-meta">
+            ordini, quantità, catalogo e clienti seguono le notifiche del negozio: qui si vede se
+            ogni flusso è attivo, limitato o sospeso, e da che cosa
+          </span>
+        </h3>
+
+        @if (conn.lastError; as lastError) {
+          <div class="shopify-integration__shopify-error-block">
+            <p class="shopify-integration__shopify-error" role="alert">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              {{ lastError.message }}
+              <span class="shopify-integration__muted tabular-nums">
+                ({{ formatDateTime(lastError.occurredAt) }})
+              </span>
+            </p>
+          </div>
+        } @else if (conn.status === 'error') {
+          <div class="shopify-integration__shopify-error-block">
+            <p class="shopify-integration__shopify-error" role="alert">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              La connessione Shopify segnala un errore. Se il negozio funziona, puoi ripristinare la
+              connessione in «Connessione e sedi» e riprovare.
+            </p>
+          </div>
+        }
+
+        @if (percorsoInCorso()) {
+          <p class="shopify-integration__muted">
+            Gli aggiornamenti automatici partono con l'attivazione della prima connessione.
+            <button
+              type="button"
+              class="shopify-integration__rimando"
+              (click)="vaiAllaScheda('prima-connessione')"
+            >
+              Vai alla prima connessione ›
+            </button>
+          </p>
+        } @else {
+          <!--
+          Un flusso per riga, sulla STESSA griglia delle operazioni manuali: funzione ·
+          descrizione · stato · rimando. Lo stato è uno di quattro — attivo (verde), limitato
+          (ambra), sospeso (neutro), da verificare (ambra) — e dice il perché.
+        -->
+          <div class="shopify-integration__righe" role="list">
+            @for (flusso of flussi(); track flusso.id) {
+              <div class="shopify-integration__riga" role="listitem">
+                <div class="shopify-integration__riga-nome">
+                  <span class="shopify-integration__riga-titolo">{{ flusso.nome }}</span>
+                  <span class="shopify-integration__direction">{{ flusso.direzione }}</span>
+                </div>
+                <p class="shopify-integration__riga-testo">{{ flusso.descrizione }}</p>
+                <div class="shopify-integration__riga-stato">
+                  <app-badge [flat]="true" [tone]="flusso.tono">{{ flusso.stato }}</app-badge>
+                  <span class="shopify-integration__riga-dettaglio">{{ flusso.dettaglio }}</span>
+                </div>
+                <div class="shopify-integration__riga-azione">
+                  @if (flusso.rimando; as rimando) {
+                    <button
+                      type="button"
+                      class="shopify-integration__rimando"
+                      (click)="vaiAllaScheda(rimando.scheda, rimando.elemento)"
+                    >
+                      {{ rimando.etichetta }} ›
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <!--
+        Le notifiche dal negozio: i fatti, senza verdetto, in un approfondimento. Nessuna soglia
+        sul tempo: un negozio può stare giorni senza un evento in modo legittimo, e una spia che
+        grida al lupo è il difetto da cui siamo partiti. Sospensione e riattivazione stanno qui.
+      -->
+        @let webhooks = webhooksSetupStatus();
+        <details class="shopify-integration__dettagli" id="settings-shopify-notifiche">
+          <summary class="shopify-integration__dettagli-sommario">
+            <span>Notifiche dal negozio</span>
+            <span class="shopify-integration__dettagli-meta">
+              <app-badge
+                [flat]="true"
+                [tone]="
+                  webhooks.problem
+                    ? 'warning'
+                    : webhooks.partial
+                      ? 'warning'
+                      : webhooks.active
+                        ? 'success'
+                        : 'neutral'
+                "
+              >
+                {{
+                  webhooks.problem
+                    ? 'da verificare'
+                    : webhooks.partial
+                      ? 'parziali'
+                      : webhooks.active
+                        ? 'registrate'
+                        : 'da registrare'
+                }}
+              </app-badge>
+              <span class="shopify-integration__secondario">
+                verificate {{ webhookCheckedAtLabel() }}
+              </span>
+            </span>
+          </summary>
+          <div class="shopify-integration__dettagli-corpo">
+            <div
+              class="shopify-integration__setup-copy"
+              aria-label="Stato aggiornamenti automatici"
+            >
+              <span class="shopify-integration__setup-label">{{ webhooks.label }}</span>
+              @if (webhooks.problems?.length) {
+                <!-- Più problemi veri: si elencano tutti, nessuno nasconde gli altri. -->
+                <ul class="shopify-integration__setup-problems">
+                  @for (problem of webhooks.problems; track problem) {
+                    <li class="shopify-integration__setup-detail">{{ problem }}</li>
+                  }
+                </ul>
+              } @else {
+                <span class="shopify-integration__setup-detail">{{ webhooks.detail }}</span>
+              }
+            </div>
+            <dl class="shopify-integration__facts">
+              <div class="shopify-integration__fact">
+                <dt>Ultimo evento ricevuto</dt>
+                <dd class="tabular-nums">{{ lastWebhookEventLabel() }}</dd>
+              </div>
+              <div class="shopify-integration__fact">
+                <dt>Notifiche registrate</dt>
+                <dd>{{ webhookTopicsLabel() }}</dd>
+              </div>
+              <div class="shopify-integration__fact">
+                <dt>Indirizzo di consegna</dt>
+                <dd class="shopify-integration__webhook-address">{{ webhookAddressLabel() }}</dd>
+              </div>
+              <div class="shopify-integration__fact">
+                <dt>Ultima verifica</dt>
+                <dd class="tabular-nums">{{ webhookCheckedAtLabel() }}</dd>
+              </div>
+            </dl>
+            <div class="shopify-integration__shopify-actions">
+              <app-button
+                variant="secondary"
+                [loading]="checkWebhooksLoading()"
+                [disabled]="
+                  checkWebhooksLoading() || registerMissingLoading() || disconnectLoading()
+                "
+                (click)="checkWebhooks()"
+              >
+                Verifica ora
+              </app-button>
+              @if (canRegisterMissingWebhooks()) {
+                <!--
+                Compare solo con mancanti nominati e indirizzo consegnabile: prima si verifica,
+                poi si ripara, e mai da un ambiente a cui Shopify non potrebbe consegnare.
+              -->
+                <app-button
+                  variant="secondary"
+                  [loading]="registerMissingLoading()"
+                  [disabled]="
+                    registerMissingLoading() || checkWebhooksLoading() || disconnectLoading()
+                  "
+                  (click)="registerMissingWebhooks()"
+                >
+                  Registra le notifiche mancanti
+                </app-button>
+              }
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncWebhooksLoading()"
+                [disabled]="
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading() ||
+                  shopifyBulkSyncBusy()
+                "
+                (click)="toggleAutoSync()"
+              >
+                @if (syncWebhooksLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                {{ autoSyncButtonLabel() }}
+              </app-button>
+            </div>
+          </div>
+        </details>
+      </section>
+    }
+  }
+
+  <!-- ═══ 3 · OPERAZIONI MANUALI ═══ -->
+  <!--
+  Ogni operazione compare col PERMESSO del proprio comando — lo stesso che governava
+  il pulsante nella barra da cui viene — e l'API lo verifica di nuovo. Il catalogo
+  resta bidirezionale campo per campo (`docs/24` §9.2): questo comando è la lettura
+  da Shopify, la scrittura verso Shopify avviene salvando l'articolo.
+-->
+  @if (mostraSincronizzazione() && (schedaAttiva() === 'operazioni' || !canManageShopify())) {
+    <section class="shopify-integration__scheda" aria-labelledby="settings-shopify-bulk-sync">
+      <h3 id="settings-shopify-bulk-sync" class="shopify-integration__section-title">
+        Operazioni avviate manualmente
+        <span class="shopify-integration__section-meta">
+          non sono gli aggiornamenti automatici: le lanci tu, quando servono
+        </span>
       </h3>
-      <p class="shopify-integration__bulk-sync-hint">
-        Operazioni manuali sul negozio collegato: catalogo, clienti, vendite e sedi entrano in
-        VestiFlow.
+
+      @if (!canManageShopify()) {
+        <!-- Chi non legge la connessione vede l'esito qui: le schede non ci sono. -->
+        @if (connectError(); as message) {
+          <p class="shopify-integration__shopify-error" role="alert">{{ message }}</p>
+        }
+        @if (actionFeedback(); as feedback) {
+          <app-inline-banner
+            [tone]="feedback.tone"
+            [message]="feedback.message"
+            dismissLabel="Chiudi"
+            (dismissed)="dismissActionFeedback()"
+          />
+        }
+      }
+
+      <div class="shopify-integration__righe" role="list">
+        @if (puoSincronizzareCatalogo()) {
+          <div
+            class="shopify-integration__riga"
+            role="listitem"
+            aria-labelledby="settings-shopify-sync-catalogo"
+          >
+            <div class="shopify-integration__riga-nome">
+              <span id="settings-shopify-sync-catalogo" class="shopify-integration__riga-titolo">
+                Importa catalogo
+              </span>
+              <span class="shopify-integration__direction">Shopify → VestiFlow</span>
+            </div>
+            <p class="shopify-integration__riga-testo">
+              Legge da Shopify i prodotti nuovi e i campi condivisi.
+              <span class="shopify-integration__riga-perimetro"
+                >Su tutto il catalogo del negozio.</span
+              >
+            </p>
+            <div class="shopify-integration__riga-stato">
+              <span class="shopify-integration__riga-dettaglio">
+                {{ esitoCatalogo() ?? 'Nessun esito disponibile' }}
+              </span>
+            </div>
+            <div class="shopify-integration__riga-azione">
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncProductsLoading()"
+                [disabled]="
+                  shopifyBulkSyncBusy() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="syncShopifyProducts()"
+              >
+                @if (syncProductsLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Importa catalogo
+              </app-button>
+            </div>
+          </div>
+        }
+
+        @if (puoSincronizzareGiacenze()) {
+          <div
+            class="shopify-integration__riga"
+            role="listitem"
+            id="settings-shopify-sync-giacenze"
+            aria-labelledby="settings-shopify-sync-giacenze-titolo"
+          >
+            <div class="shopify-integration__riga-nome">
+              <span
+                id="settings-shopify-sync-giacenze-titolo"
+                class="shopify-integration__riga-titolo"
+              >
+                Allinea giacenze su Shopify
+              </span>
+              <span class="shopify-integration__direction">VestiFlow → Shopify</span>
+            </div>
+            <!--
+            ⭐ UN solo comando manuale sulle quantità (deciso dal proprietario il
+               13/09/2026): «Allinea giacenze». ⛔ Qui c'era anche «Riallinea le
+               giacenze» — il comando precedente, rimasto accanto al nuovo (DA-FARE
+               §27.3). L'endpoint e il servizio restano; il pulsante no. Ed è l'UNICO
+               punto in cui «Allinea» si esegue (`docs/29`): i problemi rimandano qui.
+          -->
+            <p class="shopify-integration__riga-testo">
+              Scrive su Shopify la quantità di VestiFlow dove differisce, con le protezioni.
+              <span class="shopify-integration__riga-perimetro">
+                Su tutti gli articoli in tutte le sedi collegate, mai su uno solo; rifiuta finché ci
+                sono ordini senza sede.
+              </span>
+            </p>
+            <div class="shopify-integration__riga-stato">
+              @if (allineaAvanzamento(); as avanzamento) {
+                <app-badge
+                  [flat]="true"
+                  [tone]="allineaInCorso() ? 'info' : allineaCompleto() ? 'success' : 'warning'"
+                >
+                  {{
+                    allineaInCorso() ? 'in corso' : allineaCompleto() ? 'completata' : 'interrotta'
+                  }}
+                </app-badge>
+                <span class="shopify-integration__riga-dettaglio" role="status">
+                  @if (allineaInCorso()) {
+                    Controllo in corso — {{ avanzamento.esaminate }} di
+                    {{ avanzamento.totale }} articoli × sede esaminati; attendi, non ripetere il
+                    comando
+                  } @else if (allineaCompleto()) {
+                    Controllo completato — {{ avanzamento.esaminate }} esaminati ·
+                    {{ avanzamento.allineate }} allineati · {{ avanzamento.giaAllineate }} già
+                    uguali · {{ avanzamento.nonAllineate.length }} non allineati
+                  } @else {
+                    <strong class="shopify-integration__allinea-incompleto">
+                      Controllo incompleto
+                    </strong>
+                    — fermato dopo {{ avanzamento.esaminate }} su {{ avanzamento.totale }}. L'elenco
+                    qui sotto è parziale.
+                  }
+                </span>
+              } @else if (ultimoEsitoAllinea(); as esito) {
+                <app-badge [flat]="true" [tone]="esito.tono">{{ esito.stato }}</app-badge>
+                <span class="shopify-integration__riga-dettaglio">{{ esito.testo }}</span>
+              } @else {
+                <span class="shopify-integration__riga-dettaglio"> Nessun esito disponibile </span>
+              }
+            </div>
+            <div class="shopify-integration__riga-azione">
+              <app-button
+                variant="primary"
+                loadingIndicator="icon"
+                [loading]="allineaInCorso()"
+                [disabled]="
+                  allineaInCorso() ||
+                  shopifyBulkSyncBusy() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="allineaGiacenze()"
+              >
+                @if (allineaInCorso()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Allinea giacenze su Shopify
+              </app-button>
+            </div>
+          </div>
+        }
+
+        @if (puoImportareClienti()) {
+          <div
+            class="shopify-integration__riga"
+            role="listitem"
+            aria-labelledby="settings-shopify-sync-clienti"
+          >
+            <div class="shopify-integration__riga-nome">
+              <span id="settings-shopify-sync-clienti" class="shopify-integration__riga-titolo">
+                Importa clienti
+              </span>
+              <span class="shopify-integration__direction">Shopify → VestiFlow</span>
+            </div>
+            <p class="shopify-integration__riga-testo">
+              Porta in VestiFlow i clienti del negozio, in sola lettura.
+              <span class="shopify-integration__riga-perimetro"
+                >Su tutti i clienti del negozio.</span
+              >
+            </p>
+            <div class="shopify-integration__riga-stato">
+              <span class="shopify-integration__riga-dettaglio">
+                {{ esitoClienti() ?? 'Nessun esito disponibile' }}
+              </span>
+            </div>
+            <div class="shopify-integration__riga-azione">
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncCustomersLoading()"
+                [disabled]="
+                  shopifyBulkSyncBusy() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="syncShopifyCustomers()"
+              >
+                @if (syncCustomersLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Importa clienti
+              </app-button>
+            </div>
+          </div>
+        }
+
+        @if (puoImportareOrdini()) {
+          <div
+            class="shopify-integration__riga"
+            role="listitem"
+            id="settings-shopify-sync-ordini"
+            aria-labelledby="settings-shopify-sync-ordini-titolo"
+          >
+            <div class="shopify-integration__riga-nome">
+              <span
+                id="settings-shopify-sync-ordini-titolo"
+                class="shopify-integration__riga-titolo"
+              >
+                Importa ordini
+              </span>
+              <span class="shopify-integration__direction">Shopify → VestiFlow</span>
+            </div>
+            <p class="shopify-integration__riga-testo">
+              Rilegge gli ordini aperti: l'impegno nasce nella sede assegnata da Shopify, lo scarico
+              alla spedizione.
+              <span class="shopify-integration__riga-perimetro">
+                Su tutti gli ordini aperti del negozio.
+              </span>
+            </p>
+            <div class="shopify-integration__riga-stato">
+              <span class="shopify-integration__riga-dettaglio">
+                {{ esitoOrdini() ?? 'Nessun esito disponibile' }}
+              </span>
+            </div>
+            <div class="shopify-integration__riga-azione">
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncOrdersLoading()"
+                [disabled]="
+                  shopifyBulkSyncBusy() ||
+                  syncLocationsLoading() ||
+                  syncWebhooksLoading() ||
+                  disconnectLoading()
+                "
+                (click)="syncShopifyOrders()"
+              >
+                @if (syncOrdersLoading()) {
+                  <i class="pi pi-sync" aria-hidden="true"></i>
+                }
+                Importa ordini
+              </app-button>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (allineaAvanzamento(); as avanzamento) {
+        <div class="shopify-integration__allinea">
+          <dl class="shopify-integration__facts">
+            <div class="shopify-integration__fact">
+              <dt>Allineate</dt>
+              <dd>{{ avanzamento.allineate }}</dd>
+            </div>
+            <div class="shopify-integration__fact">
+              <dt>Già corrette</dt>
+              <dd>{{ avanzamento.giaAllineate }}</dd>
+            </div>
+            <div class="shopify-integration__fact">
+              <dt>Non allineate</dt>
+              <dd>{{ avanzamento.nonAllineate.length }}</dd>
+            </div>
+          </dl>
+        </div>
+        @if (avanzamento.nonAllineate.length > 0) {
+          <!--
+          ⭐ **Sul MOTORE comune** (`docs/26` A3): filtro a valori su Sede e Motivo,
+          ordinamento, colonne, card sotto `lg`. Il dettaglio è una colonna.
+        -->
+          <div class="shopify-integration__allinea">
+            <p class="shopify-integration__muted">
+              Articoli × sede non allineati in questo controllo, col motivo:
+            </p>
+            <div class="shopify-integration__allinea-strumenti">
+              <app-table-column-picker [viewId]="vistaAllinea" />
+              <app-table-filters-button [viewId]="vistaAllinea" [(open)]="filtriAllineaAperti" />
+            </div>
+            <app-table-filters-panel [viewId]="vistaAllinea" [(open)]="filtriAllineaAperti" />
+
+            <app-data-table
+              class="shopify-integration__allinea-elenco"
+              caption="Coppie non allineate"
+              [columns]="colonneAllinea()"
+              [viewId]="vistaAllinea"
+              [sections]="sezioniAllinea()"
+              [rowId]="rigaAllineaId"
+              [cellText]="testoAllinea"
+              [sortable]="true"
+              [sort]="ordineAllinea()"
+              (sortChange)="ordineAllinea.set($event)"
+            >
+              <!-- Il motivo si legge dal colore, come prima: è l’anomalia. -->
+              <ng-template appCell="motivo" let-riga>
+                <span class="shopify-integration__allinea-motivo">
+                  {{ testoAllinea(riga, 'motivo') }}
+                </span>
+              </ng-template>
+
+              <ng-template appRowCard let-riga>
+                <div class="list-card__head">
+                  <span class="list-card__ident">
+                    <span class="list-card__what">{{ riga.articolo }}</span>
+                  </span>
+                  <span class="list-card__anchor shopify-integration__allinea-motivo">
+                    {{ testoAllinea(riga, 'motivo') }}
+                  </span>
+                </div>
+                <div class="list-card__words">
+                  <span>{{ testoAllinea(riga, 'variante') }}</span>
+                  <span>{{ riga.sede }}</span>
+                  <span>{{ riga.dettaglio }}</span>
+                </div>
+              </ng-template>
+            </app-data-table>
+          </div>
+        }
+      }
+    </section>
+  }
+
+  @if (canManageShopify() && connection() && percorsoInCorso() && schedaAttiva() === 'operazioni') {
+    <section class="shopify-integration__scheda" aria-labelledby="settings-shopify-bulk-sync">
+      <h3 id="settings-shopify-bulk-sync" class="shopify-integration__section-title">
+        Operazioni avviate manualmente
+      </h3>
+      <p class="shopify-integration__muted">
+        Si sbloccano con l'attivazione della prima connessione: finché il percorso è in corso niente
+        parte da un pulsante che scavalca le tre fasi.
+        <button
+          type="button"
+          class="shopify-integration__rimando"
+          (click)="vaiAllaScheda('prima-connessione')"
+        >
+          Vai alla prima connessione ›
+        </button>
       </p>
-      <p class="shopify-integration__bulk-sync-hint">
-        Le giacenze no: le comanda VestiFlow. «Riallinea le giacenze su Shopify» confronta e riporta
-        il negozio online al valore del gestionale. Con gli aggiornamenti automatici attivi lo
-        stesso avviene da solo, a ogni rettifica fatta nell'admin di Shopify.
+    </section>
+  }
+
+  <!-- ═══ 4 · PROBLEMI ED ESITI ═══ -->
+  @if (mostraSituazione() && schedaAttiva() === 'problemi') {
+    @let situazione = situazioneAttuale();
+    <section
+      id="settings-shopify-problemi"
+      class="shopify-integration__scheda"
+      aria-labelledby="shopify-problemi-titolo"
+    >
+      <h3 id="shopify-problemi-titolo" class="shopify-integration__section-title">
+        Problemi aperti
+        <app-badge [tone]="situazione.problemi.length > 0 ? 'warning' : 'success'">
+          {{ situazione.problemi.length }}
+        </app-badge>
+        @if (situazione.calcolataAt) {
+          <span class="shopify-integration__section-meta">
+            letti alle {{ formatDateTime(situazione.calcolataAt) }}
+          </span>
+        }
+      </h3>
+      <app-shopify-problemi
+        [problemi]="situazione.problemi"
+        [busy]="setupBusy() || shopifyBulkSyncBusy() || allineaInCorso()"
+        (azione)="onProblemaAzione($event)"
+      />
+
+      <!--
+      Gli ESITI: che cosa hanno fatto le operazioni, con la data. Sono fotografie;
+      ciò che resta aperto oggi sta sopra, nei problemi.
+    -->
+      @if (esiti().length > 0) {
+        <h3 class="shopify-integration__section-title">
+          Esiti delle operazioni
+          <span class="shopify-integration__section-meta">l'ultimo di ciascuna, con la data</span>
+        </h3>
+        <div class="shopify-integration__righe" role="list">
+          @for (esito of esiti(); track esito.id) {
+            <div class="shopify-integration__riga" role="listitem">
+              <div class="shopify-integration__riga-nome">
+                <span class="shopify-integration__riga-titolo">{{ esito.nome }}</span>
+                <span class="shopify-integration__secondario tabular-nums">{{ esito.quando }}</span>
+              </div>
+              <p class="shopify-integration__riga-testo">{{ esito.testo }}</p>
+              <div class="shopify-integration__riga-stato">
+                <app-badge [flat]="true" [tone]="esito.tono">{{ esito.stato }}</app-badge>
+              </div>
+              <div class="shopify-integration__riga-azione">
+                @if (esito.rimando; as rimando) {
+                  <button
+                    type="button"
+                    class="shopify-integration__rimando"
+                    (click)="vaiAllaScheda(rimando.scheda, rimando.elemento)"
+                  >
+                    {{ rimando.etichetta }} ›
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ═══ 5 · CONNESSIONE E SEDI ═══ -->
+  @if (canManageShopify() && schedaAttiva() === 'connessione' && connection(); as conn) {
+    <section class="shopify-integration__scheda" aria-labelledby="settings-shopify-config">
+      <h3 id="settings-shopify-config" class="shopify-integration__section-title">Negozio</h3>
+
+      <dl class="shopify-integration__facts">
+        <div class="shopify-integration__fact">
+          <dt>Dominio</dt>
+          <dd class="shopify-integration__dominio">{{ conn.shopDomain ?? '—' }}</dd>
+        </div>
+        <div class="shopify-integration__fact">
+          <dt>Nome shop</dt>
+          <dd>{{ conn.displayName ?? '—' }}</dd>
+        </div>
+        <div class="shopify-integration__fact">
+          <dt>Stato</dt>
+          <dd>
+            <app-badge [flat]="true" [tone]="connectionStatusTone(conn.status)">
+              {{ connectionStatusLabel(conn.status) }}
+            </app-badge>
+          </dd>
+        </div>
+        <div class="shopify-integration__fact">
+          <dt>Ultima connessione</dt>
+          <dd class="tabular-nums">
+            {{ conn.lastConnectedAt ? formatDateTime(conn.lastConnectedAt) : '—' }}
+          </dd>
+        </div>
+        <div class="shopify-integration__fact">
+          <dt>Versione API</dt>
+          <dd class="tabular-nums">{{ conn.apiVersion ?? '—' }}</dd>
+        </div>
+        <div class="shopify-integration__fact">
+          <dt>Ultimo sync</dt>
+          <dd class="tabular-nums">
+            {{ conn.lastSyncAt ? formatDateTime(conn.lastSyncAt) : '—' }}
+          </dd>
+        </div>
+      </dl>
+
+      @if (conn.scopes?.length) {
+        <details class="shopify-integration__dettagli" id="settings-shopify-management">
+          <summary class="shopify-integration__dettagli-sommario">
+            <span>Accesso a Shopify</span>
+            <span class="shopify-integration__dettagli-meta">
+              {{ shopifyScopesSummary() }} · per aggiungerne uno: Disconnetti, poi Connetti
+            </span>
+          </summary>
+          <div class="shopify-integration__dettagli-corpo">
+            <div class="shopify-integration__permissions-table-wrap">
+              <table class="shopify-integration__permissions-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Area</th>
+                    <th scope="col">Accesso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (group of groupedShopifyScopes(); track group.key) {
+                    <tr class="shopify-integration__permissions-row">
+                      <td data-label="Area">
+                        <span class="shopify-integration__permission-label">{{ group.label }}</span>
+                        <span class="shopify-integration__permission-desc">{{
+                          group.description
+                        }}</span>
+                      </td>
+                      <td data-label="Accesso">
+                        <span class="shopify-integration__permission-badges">
+                          <span class="shopify-integration__permission-badge-slot">
+                            @if (group.access.includes('read')) {
+                              <app-badge tone="neutral">
+                                {{ shopifyScopeAccessLabel('read') }}
+                              </app-badge>
+                            }
+                          </span>
+                          <span class="shopify-integration__permission-badge-slot">
+                            @if (group.access.includes('write')) {
+                              <app-badge tone="success">
+                                {{ shopifyScopeAccessLabel('write') }}
+                              </app-badge>
+                            }
+                          </span>
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      }
+
+      @if (catalogReadScopeWarning(); as scopeWarning) {
+        <div class="shopify-integration__shopify-error-block">
+          <p class="shopify-integration__shopify-error" role="alert">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+            {{ scopeWarning }}
+          </p>
+          @if (catalogScopeDiagnosticsDetail(); as scopeDetail) {
+            <p class="shopify-integration__muted">{{ scopeDetail }}</p>
+          }
+        </div>
+      }
+
+      <!--
+      Canali di vendita (Tranche 2A): un negozio collegato prima di questi ambiti
+      non fallisce alla prima pubblicazione — lo dichiara qui, con che cosa fare.
+    -->
+      @if (publicationsScopeWarning(); as publicationsWarning) {
+        <div class="shopify-integration__shopify-error-block">
+          <p class="shopify-integration__shopify-error" role="alert">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+            {{ publicationsWarning }}
+          </p>
+        </div>
+      }
+
+      @if (showClearShopifyErrors()) {
+        <div class="shopify-integration__shopify-actions">
+          <app-button
+            variant="secondary"
+            [loading]="clearErrorsLoading()"
+            [disabled]="
+              clearErrorsLoading() ||
+              syncLocationsLoading() ||
+              syncWebhooksLoading() ||
+              disconnectLoading() ||
+              shopifyBulkSyncBusy()
+            "
+            (click)="clearShopifyErrors()"
+          >
+            Ripristina connessione
+          </app-button>
+        </div>
+      }
+
+      <h3 id="settings-shopify-scelte-sedi" class="shopify-integration__section-title">
+        Sedi
+        <span class="shopify-integration__section-meta">
+          location del negozio e sede VestiFlow: si cambiano qui, senza rifare la prima connessione
+        </span>
+      </h3>
+      <!-- Lo stato del passo e il comando che lo compie. -->
+      <p class="shopify-integration__riga-stato">
+        <app-badge [flat]="true" [tone]="locationSetupStatus().active ? 'success' : 'neutral'">
+          {{ locationSetupStatus().label }}
+        </app-badge>
+        <span class="shopify-integration__riga-dettaglio">{{ locationSetupStatus().detail }}</span>
       </p>
-      <div class="shopify-integration__bulk-sync-actions">
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="syncProductsLoading()"
-          [disabled]="
-            shopifyBulkSyncBusy() ||
-            syncLocationsLoading() ||
-            syncWebhooksLoading() ||
-            disconnectLoading()
-          "
-          (click)="syncShopifyProducts()"
-        >
-          @if (syncProductsLoading()) {
-            <i class="pi pi-sync" aria-hidden="true"></i>
-          }
-          Importa catalogo
-        </app-button>
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="syncInventoryLoading()"
-          [disabled]="
-            shopifyBulkSyncBusy() ||
-            syncLocationsLoading() ||
-            syncWebhooksLoading() ||
-            disconnectLoading()
-          "
-          (click)="syncShopifyInventory()"
-        >
-          @if (syncInventoryLoading()) {
-            <i class="pi pi-sync" aria-hidden="true"></i>
-          }
-          Riallinea le giacenze su Shopify
-        </app-button>
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="syncCustomersLoading()"
-          [disabled]="
-            shopifyBulkSyncBusy() ||
-            syncLocationsLoading() ||
-            syncWebhooksLoading() ||
-            disconnectLoading()
-          "
-          (click)="syncShopifyCustomers()"
-        >
-          @if (syncCustomersLoading()) {
-            <i class="pi pi-sync" aria-hidden="true"></i>
-          }
-          Sync clienti
-        </app-button>
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="syncOrdersLoading()"
-          [disabled]="
-            shopifyBulkSyncBusy() ||
-            syncLocationsLoading() ||
-            syncWebhooksLoading() ||
-            disconnectLoading()
-          "
-          (click)="syncShopifyOrders()"
-        >
-          @if (syncOrdersLoading()) {
-            <i class="pi pi-sync" aria-hidden="true"></i>
-          }
-          Sync vendite
-        </app-button>
+      <div class="shopify-integration__shopify-actions">
         <app-button
           variant="secondary"
           loadingIndicator="icon"
@@ -454,126 +967,74 @@
         </app-button>
       </div>
 
-      <div class="shopify-integration__allinea">
-        <p class="shopify-integration__bulk-sync-hint">
-          Il controllo confronta ogni coppia articolo/sede con Shopify e vi riporta il valore di
-          VestiFlow. Una pressione basta: prosegue da sé a blocchi e, alla fine, elenca le coppie
-          che non è riuscito ad allineare.
+      @if (mostraSceltaSedi() && setup(); as scelte) {
+        <!--
+        ⭐ Le scelte sulle sedi fuori dal percorso (`docs/27` §6): per ogni location
+        del negozio, collega / crea / lascia. Dopo «Disconnetti» e riconnessione
+        una sede mai scollegata per scelta si riconosce da sola; una lasciata
+        fuori resta fuori finché una persona non la ricollega.
+      -->
+        <div class="shopify-integration__scelte-sedi">
+          @if (setupErrore(); as messaggio) {
+            <app-inline-banner tone="error" [message]="messaggio" />
+          }
+          <app-shopify-location-choices
+            [locations]="scelte.locations"
+            [sedi]="scelte.sediVestiFlow"
+            [modificabile]="!setupBusy()"
+            (sedeScelta)="onSetupSede($event)"
+          />
+        </div>
+      } @else if (percorsoInCorso()) {
+        <p class="shopify-integration__muted">
+          Le scelte sulle sedi si fanno nella fase 2 della prima connessione.
+          <button
+            type="button"
+            class="shopify-integration__rimando"
+            (click)="vaiAllaScheda('prima-connessione')"
+          >
+            Vai alla prima connessione ›
+          </button>
         </p>
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="allineaInCorso()"
-          [disabled]="
-            allineaInCorso() ||
-            shopifyBulkSyncBusy() ||
-            syncLocationsLoading() ||
-            syncWebhooksLoading() ||
-            disconnectLoading()
-          "
-          (click)="allineaGiacenze()"
+      }
+
+      @if (showPostConnectCta()) {
+        <div
+          class="shopify-integration__post-connect"
+          aria-labelledby="settings-shopify-next-steps"
         >
-          @if (allineaInCorso()) {
-            <i class="pi pi-sync" aria-hidden="true"></i>
-          }
-          Allinea giacenze su Shopify
-        </app-button>
-
-        @if (allineaAvanzamento(); as avanzamento) {
-          <p class="shopify-integration__allinea-stato" role="status">
-            @if (allineaInCorso()) {
-              Controllo in corso — {{ avanzamento.esaminate }} di {{ avanzamento.totale }}
-              coppie esaminate
-            } @else if (allineaCompleto()) {
-              Controllo completato — {{ avanzamento.esaminate }} coppie esaminate
-            } @else {
-              <strong class="shopify-integration__allinea-incompleto">
-                Controllo incompleto
-              </strong>
-              — si è interrotto dopo {{ avanzamento.esaminate }} coppie su {{ avanzamento.totale }}.
-              L’elenco qui sotto è parziale.
-            }
+          <h4 id="settings-shopify-next-steps" class="shopify-integration__post-connect-title">
+            Prossimi passi
+          </h4>
+          <p class="shopify-integration__muted">
+            Importa i dati iniziali da Shopify, poi attiva gli aggiornamenti automatici per ordini,
+            clienti e giacenze in tempo reale.
           </p>
+          <ol class="shopify-integration__post-connect-list">
+            <li>Sincronizza le location (se non già fatto)</li>
+            <li>Importa catalogo, giacenze, clienti e ordini</li>
+            <li>Attiva gli aggiornamenti automatici</li>
+          </ol>
+        </div>
+      }
 
-          <dl class="shopify-integration__facts">
-            <div class="shopify-integration__fact">
-              <dt>Allineate</dt>
-              <dd>{{ avanzamento.allineate }}</dd>
-            </div>
-            <div class="shopify-integration__fact">
-              <dt>Già corrette</dt>
-              <dd>{{ avanzamento.giaAllineate }}</dd>
-            </div>
-            <div class="shopify-integration__fact">
-              <dt>Non allineate</dt>
-              <dd>{{ avanzamento.nonAllineate.length }}</dd>
-            </div>
-          </dl>
-
-          @if (avanzamento.nonAllineate.length > 0) {
-            <ul class="shopify-integration__allinea-elenco">
-              @for (riga of avanzamento.nonAllineate; track riga.variantId + riga.locationId) {
-                <li class="shopify-integration__allinea-riga">
-                  <span class="shopify-integration__allinea-articolo">{{ riga.articolo }}</span>
-                  <span class="shopify-integration__allinea-variante">
-                    {{ riga.variante || riga.sku || riga.codiceArticolo || '—' }}
-                  </span>
-                  <span class="shopify-integration__allinea-sede">{{ riga.sede }}</span>
-                  <span class="shopify-integration__allinea-motivo" [title]="riga.dettaglio">
-                    {{ etichettaMotivo(riga.motivo) }}
-                  </span>
-                </li>
-              }
-            </ul>
-          }
-        }
-      </div>
-    </div>
-
-    <div
-      class="shopify-integration__shopify-management"
-      aria-labelledby="settings-shopify-management"
-    >
-      <h3 id="settings-shopify-management" class="shopify-integration__shopify-management-title">
-        Connessione e negozio
+      <!--
+      ⭐ Le azioni che non fanno parte del lavoro di ogni giorno stanno in fondo, in un
+         contenitore NEUTRO: il rosso è del solo comando distruttivo e della sua conferma
+         (proprietario, 13/09/2026). ⚠️ Il testo dice ciò che il codice fa DAVVERO:
+         «Disconnetti» non tocca nulla in VestiFlow; la rimozione dei dati importati è
+         SOSPESA sull'API (`ShopifyShopChangeService.purge` rifiuta con 422), in attesa
+         dello scollegamento non distruttivo.
+    -->
+      <h3 id="settings-shopify-disconnessione" class="shopify-integration__section-title">
+        Disconnessione e cambio negozio
       </h3>
-      <p class="shopify-integration__shopify-management-hint">
-        Aggiornamenti automatici, cambio store collegato o disconnessione da Shopify.
+      <p class="shopify-integration__muted">
+        «Disconnetti Shopify» chiude il collegamento e non cancella nulla in VestiFlow: articoli,
+        giacenze, clienti e ordini restano; ricollegando lo stesso negozio le sedi si riconoscono
+        dalla coppia. «Cambia negozio» passa a un altro dominio.
       </p>
       <div class="shopify-integration__shopify-actions">
-        @if (showClearShopifyErrors()) {
-          <app-button
-            variant="ghost"
-            [loading]="clearErrorsLoading()"
-            [disabled]="
-              clearErrorsLoading() ||
-              syncLocationsLoading() ||
-              syncWebhooksLoading() ||
-              disconnectLoading() ||
-              shopifyBulkSyncBusy()
-            "
-            (click)="clearShopifyErrors()"
-          >
-            Ripristina connessione
-          </app-button>
-        }
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="syncWebhooksLoading()"
-          [disabled]="
-            syncLocationsLoading() ||
-            syncWebhooksLoading() ||
-            disconnectLoading() ||
-            shopifyBulkSyncBusy()
-          "
-          (click)="toggleAutoSync()"
-        >
-          @if (syncWebhooksLoading()) {
-            <i class="pi pi-sync" aria-hidden="true"></i>
-          }
-          {{ autoSyncButtonLabel() }}
-        </app-button>
         <app-button
           variant="secondary"
           [disabled]="
@@ -587,6 +1048,7 @@
           Cambia negozio
         </app-button>
         <app-button
+          variant="secondary"
           loadingIndicator="icon"
           [loading]="disconnectLoading()"
           [disabled]="
@@ -602,25 +1064,28 @@
           }
           Disconnetti Shopify
         </app-button>
+        <!-- ⛔ Spento finché l'API rifiuta la purga (422): un comando acceso che poi viene
+           negato è un difetto (proprietario, 13/09/2026). Il motivo sta accanto, non nel
+           paragrafo sopra. La purga non si costruisce qui. -->
         <app-button
           variant="danger"
-          [disabled]="
-            disconnectLoading() ||
-            syncLocationsLoading() ||
-            syncWebhooksLoading() ||
-            shopifyBulkSyncBusy()
-          "
+          [disabled]="true"
+          ariaDescribedBy="settings-shopify-purga-sospesa"
           (click)="openDisconnectPurgeWizard()"
         >
           Disconnetti e rimuovi dati
         </app-button>
+        <span id="settings-shopify-purga-sospesa" class="shopify-integration__muted">
+          Sospeso: l'API rifiuta la rimozione dei dati importati finché non esiste lo scollegamento
+          che li conserva.
+        </span>
       </div>
-    </div>
+    </section>
   }
-}
 
-<app-shopify-shop-change-wizard
-  [(open)]="shopWizardOpen"
-  [mode]="shopWizardMode()"
-  (completed)="onShopWizardCompleted()"
-/>
+  <app-shopify-shop-change-wizard
+    [(open)]="shopWizardOpen"
+    [mode]="shopWizardMode()"
+    (completed)="onShopWizardCompleted()"
+  />
+</div>

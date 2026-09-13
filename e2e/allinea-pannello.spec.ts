@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
 
+import { apriImpostazioni } from './helpers/impostazioni-fixtures';
 import { test } from './helpers/isolated-test';
 
 /**
@@ -18,67 +19,7 @@ import { test } from './helpers/isolated-test';
  *    contratto che non esiste.
  */
 
-const IMPOSTAZIONI = '/app/settings';
 const SCATTI = 'test-results/allinea';
-
-const CONNESSIONE = {
-  id: 'conn-1',
-  tenantId: 'tenant-1',
-  status: 'connected',
-  shopDomain: 'demo.myshopify.com',
-  scopes: ['read_products', 'write_products', 'write_inventory'],
-  autoSyncEnabled: false,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-};
-
-const AZIENDA = {
-  name: 'Negozio di prova',
-  channelProfile: 'shopify',
-  storeName: 'Negozio di prova',
-  licensedLocationCount: 1,
-  licensedLocationActiveCount: 1,
-  locationSelectionLocked: false,
-  locationSelectionChangeGranted: false,
-  canChangeLicensedLocations: true,
-  profile: {
-    legalName: 'Negozio di prova Srl',
-    vatNumber: null,
-    fiscalCode: null,
-    phone: null,
-    pec: null,
-    sdiCode: null,
-    iban: null,
-    addressLine1: null,
-    addressLine2: null,
-    city: null,
-    province: null,
-    postalCode: null,
-    countryCode: 'IT',
-  },
-};
-
-const IMPOSTAZIONI_FUNZIONI = {
-  lotsEnabled: false,
-  serialsEnabled: false,
-  variantsEnabled: true,
-  barcodeScannerEnabled: false,
-  supplierOrdersEnabled: true,
-  goodsReceiptEnabled: true,
-  warehouseValuationEnabled: false,
-  allowNegativeInventory: false,
-  warnNegativeInventory: true,
-  blockNegativeInventory: false,
-  manualUnloadEnabled: false,
-  salesPricesIncludeVat: true,
-  defaultVatCodeId: null,
-  listino1Name: null,
-  listino1Active: false,
-  listino2Name: null,
-  listino2Active: false,
-  listino3Name: null,
-  listino3Active: false,
-};
 
 function nonAllineata(indice: number, motivo: string) {
   return {
@@ -122,24 +63,28 @@ function blocco(sovrascrivi: Record<string, unknown> = {}) {
 }
 
 /** Quello che il browser MANDA a ogni blocco: serve a controllare il cursore. */
+
 interface Richiesta {
   readonly corpo: unknown;
 }
 
+/**
+ * La RIGA di un’anomalia nella tabella del motore (`docs/26` A3).
+ *
+ * ⚠️ Il testo di una cella sta DUE volte nel DOM — nella riga di tabella e
+ *    nella card, che sotto `lg` la sostituisce e porta `aria-hidden` — quindi
+ *    `getByText` in modalità stretta ne trova due. Si guarda la riga, che è
+ *    una sola, e il confine di parola dopo il numero tiene «Maglia cotone 1»
+ *    lontana da «Maglia cotone 10».
+ */
+const riga = (page: Page, articolo: string) =>
+  page.locator('tbody tr.data-table__row').filter({ hasText: new RegExp(`${articolo}\\b`) });
+
 async function apriPannello(page: Page): Promise<void> {
-  for (const [rotta, corpo] of [
-    ['**/api/v1/shopify/connection', CONNESSIONE],
-    ['**/api/v1/tenant/company', AZIENDA],
-    ['**/api/v1/tenant/feature-settings', IMPOSTAZIONI_FUNZIONI],
-    ['**/api/v1/inventory/locations', []],
-    ['**/api/v1/unit-of-measure-options', []],
-    ['**/api/v1/vat-codes', []],
-  ] as const) {
-    await page.route(rotta, (route: Route) =>
-      route.fulfill({ status: 200, json: corpo as object }),
-    );
-  }
-  await page.goto(IMPOSTAZIONI);
+  // ⭐ Il pannello ha una pagina propria dall’11/09/2026: Impostazioni → Shopify — e dal
+  //    13/09 (`docs/29` §5) è a schede: «Allinea giacenze» sta in «Operazioni», che qui
+  //    si apre dalla rotta. Senza scheda, la pagina sceglie quella dello stato.
+  await apriImpostazioni(page, [], '/app/settings/shopify/operazioni');
   await expect(page.getByText('demo.myshopify.com')).toBeVisible({ timeout: 45_000 });
 }
 
@@ -214,15 +159,15 @@ test('⭐ giro completo: avanzamento, cursore, elenco paginato', async ({ page }
   await expect(page.getByText('Non allineate', { exact: true })).toBeVisible();
 
   // ── 5 · l'elenco porta TUTTE le anomalie, in un riquadro che scorre ─────
-  await expect(page.getByText('Maglia cotone 1', { exact: true })).toBeVisible();
-  await expect(page.getByText('Maglia cotone 25', { exact: true })).toBeAttached();
+  await expect(riga(page, 'Maglia cotone 1')).toBeVisible();
+  await expect(riga(page, 'Maglia cotone 25')).toBeAttached();
   // ⛔ Nessun comando di impaginazione: non c'e' niente da sfogliare.
   await expect(page.getByRole('button', { name: /Successiva/i })).toHaveCount(0);
   await page.screenshot({ path: `${SCATTI}/03-elenco-intero.png` });
 
   // ⭐ E l'ultima riga si RAGGIUNGE scorrendo il riquadro.
-  await page.getByText('Maglia cotone 25', { exact: true }).scrollIntoViewIfNeeded();
-  await expect(page.getByText('Maglia cotone 25', { exact: true })).toBeVisible();
+  await riga(page, 'Maglia cotone 25').scrollIntoViewIfNeeded();
+  await expect(riga(page, 'Maglia cotone 25')).toBeVisible();
   await page.screenshot({ path: `${SCATTI}/04-elenco-in-fondo.png` });
 });
 
@@ -252,8 +197,8 @@ test('⛔ interruzione: «Controllo incompleto» e risultati parziali conservati
   await expect(page.getByText(/Controllo completato/)).toBeHidden();
   // ⭐ L'elenco è dichiarato PARZIALE, e ciò che era stato raccolto resta.
   await expect(page.getByText(/parziale/)).toBeVisible();
-  await expect(page.getByText('Maglia cotone 1', { exact: true })).toBeVisible();
-  await expect(page.getByText('Maglia cotone 3', { exact: true })).toBeVisible();
+  await expect(riga(page, 'Maglia cotone 1')).toBeVisible();
+  await expect(riga(page, 'Maglia cotone 3')).toBeVisible();
   // ⭐ E il pulsante torna acceso: si può ripremere.
   await expect(comando).toBeEnabled();
   await page.screenshot({ path: `${SCATTI}/05-interrotto.png`, fullPage: false });
@@ -281,13 +226,13 @@ test('⭐ un clic NUOVO riparte senza cursore, e azzera l elenco di prima', asyn
   const comando = await mostraPulsante(page);
 
   await comando.click();
-  await expect(page.getByText('Maglia cotone 1', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(riga(page, 'Maglia cotone 1')).toBeVisible({ timeout: 20_000 });
 
   await expect(comando).toBeEnabled();
   await comando.click();
 
   // ⭐ **L'elenco di prima NON sopravvive**: è un controllo nuovo.
-  await expect(page.getByText('Maglia cotone 1', { exact: true })).toBeHidden({ timeout: 20_000 });
+  await expect(riga(page, 'Maglia cotone 1')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByText(/Controllo completato/)).toBeVisible();
 
   // ⛔ **E la seconda pressione riparte SENZA cursore.**
@@ -295,4 +240,127 @@ test('⭐ un clic NUOVO riparte senza cursore, e azzera l elenco di prima', asyn
   expect(richieste[0]?.corpo).toEqual({ prossimo: null });
   expect(richieste[1]?.corpo).toEqual({ prossimo: null });
   await page.screenshot({ path: `${SCATTI}/06-nuovo-clic.png` });
+});
+
+/**
+ * ⭐ **L’elenco è sul MOTORE comune** (`docs/26` A3): era un `<ul>` con quattro
+ *    `<span>` per riga, e con trecento righe cercare una sede o un motivo era
+ *    scorrere. Qui si verifica ciò che il `<ul>` non aveva: ordinamento,
+ *    filtro a valori sul Motivo, il dettaglio come colonna, la card sul
+ *    telefono — e le due misure dell’11/09 (`docs/26` §5.1).
+ */
+test('⭐ le non allineate ORDINANO e FILTRANO per motivo, col dettaglio in colonna', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/shopify/sync/inventory/align', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      json: blocco({
+        esaminate: 300,
+        prossimo: null,
+        fine: true,
+        nonAllineate: [
+          nonAllineata(2, 'divergenza_accertata'),
+          nonAllineata(1, 'livello_non_disponibile'),
+          { ...nonAllineata(3, 'errore_di_lettura'), sede: 'Negozio centro' },
+        ],
+      }),
+    }),
+  );
+  await apriPannello(page);
+  const comando = await mostraPulsante(page);
+  await comando.click();
+
+  const tabella = page.getByRole('table', { name: 'Coppie non allineate' });
+  const righe = tabella.locator('tbody tr.data-table__row');
+  await expect(righe).toHaveCount(3, { timeout: 20_000 });
+
+  // ⭐ Il dettaglio, che stava nel `title`, si LEGGE in colonna.
+  await expect(righe.first()).toContainText('Frase estesa che spiega il motivo.');
+
+  // ── Ordinamento testuale sull’Articolo: 1, 2, 3 ─────────────────────────
+  await expect(righe.first()).toContainText('Maglia cotone 2');
+  await tabella.getByRole('button', { name: 'Ordina per Articolo' }).click();
+  await expect(righe.nth(0)).toContainText('Maglia cotone 1');
+  await expect(righe.nth(2)).toContainText('Maglia cotone 3');
+
+  // ── Filtro a VALORI sul Motivo: la domanda che con trecento righe conta ──
+  await page.getByRole('button', { name: /^Filtri/ }).click();
+  await tabella.getByRole('button', { name: 'Filtra per Motivo' }).click();
+
+  // ── Le due misure: pannello del filtro non ritagliato (ora, che è aperto),
+  //    riga ≤ 26px. ⚠️ Si misura PRIMA di scegliere: la scelta accorcia
+  //    l’elenco, la pagina scorre e il pannello fisso si chiude per contratto
+  //    (D1) — misurarlo dopo trovava un pannello che non c’era più.
+  await expect(page.getByRole('listbox')).toBeVisible();
+  const misura = await page.evaluate(() => {
+    const riga = document.querySelector('tbody tr.data-table__row');
+    const pannello = document.querySelector('.select-menu__panel');
+    if (!riga || !pannello) {
+      return null;
+    }
+    const p = pannello.getBoundingClientRect();
+    const sopra = document.elementFromPoint(p.x + p.width / 2, p.y + p.height / 2);
+    return {
+      altezzaRiga: Math.round(riga.getBoundingClientRect().height),
+      pannelloDentro: pannello.contains(sopra),
+    };
+  });
+  expect(misura).not.toBeNull();
+  expect(misura?.altezzaRiga).toBeLessThanOrEqual(26);
+  expect(misura?.pannelloDentro).toBe(true);
+
+  await page.getByRole('option', { name: 'Errore di lettura', exact: true }).click();
+  await expect(righe).toHaveCount(1);
+  await expect(righe.first()).toContainText('Negozio centro');
+  await page.screenshot({ path: `${SCATTI}/07-motore-filtrato.png`, fullPage: true });
+
+  // Spento «Filtri», il filtro si azzera.
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /^Filtri/ }).click();
+  await expect(righe).toHaveCount(3);
+});
+
+test('⭐ e sul telefono ogni anomalia è una card: articolo, motivo, parole', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.route('**/api/v1/shopify/sync/inventory/align', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      json: blocco({
+        esaminate: 300,
+        prossimo: null,
+        fine: true,
+        nonAllineate: [nonAllineata(1, 'scrittura_esito_incerto')],
+      }),
+    }),
+  );
+  await apriPannello(page);
+  const comando = await mostraPulsante(page);
+  await comando.click();
+
+  // Sotto `lg` il testo sta due volte nel DOM (card + cella `.sr-only`): si
+  // guarda la card, che è la veste del telefono.
+  const parole = page.locator('.list-card__words').filter({ hasText: 'Frase estesa' });
+  await expect(parole).toBeVisible({ timeout: 20_000 });
+  await expect(parole).toContainText('M · Rosso');
+  await expect(parole).toContainText('Magazzino Napoli');
+  const ancora = page
+    .locator('.list-card__anchor')
+    .filter({ hasText: 'Scrittura con esito incerto' });
+  await expect(ancora).toBeVisible();
+
+  // ⭐ E i filtri ci sono anche qui (`docs/26` D1): il pannello del telaio,
+  //    riusato in un blocco delle Impostazioni.
+  await page.getByRole('button', { name: 'Filtri', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Filtri' })).toBeVisible();
+  await page.getByRole('button', { name: 'Filtra per Motivo' }).click();
+  await page.getByRole('option', { name: 'Scrittura con esito incerto', exact: true }).click();
+  await page.getByRole('button', { name: 'Vedi risultati', exact: true }).click();
+  await expect(page.locator('tbody tr.data-table__row')).toHaveCount(1);
+
+  const eccesso = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(eccesso).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: `${SCATTI}/08-telefono.png`, fullPage: true });
 });

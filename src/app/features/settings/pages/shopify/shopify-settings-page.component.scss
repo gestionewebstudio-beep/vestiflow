@@ -1,0 +1,27 @@
+@use 'list-page' as lp;
+
+@include lp.list-page('shopify-settings');
+
+/*
+  ⭐ **Indietro e titolo sulla STESSA riga** — la forma delle anagrafiche
+  (`supplier-form`, proprietario 01/09/2026: «il nome va su»); qui erano
+  impilati dal telaio elenco, e il proprietario l'ha visto il 13/09/2026:
+  «il titolo è sotto e non vicino al tasto indietro, incoerente col resto».
+  Il pulsante è quello di barra (28px, 12px): `app-back-button` legge
+  `--back-button-h`, non `--button-h`.
+*/
+.shopify-settings {
+  --back-button-h: var(--control-h-button);
+  --back-button-font-size: var(--text-xs);
+}
+
+.shopify-settings__heading app-back-button {
+  margin-block-end: 0;
+}
+
+// ⛔ Qui c'era la card della pagina: le schede devono stare FUORI dal riquadro
+//    (proprietario, 13/09/2026, sul mock), quindi la card la disegna il pannello
+//    intorno alla sola scheda aperta. La zona resta un blocco senza veste.
+.shopify-settings__panel {
+  display: block;
+}
