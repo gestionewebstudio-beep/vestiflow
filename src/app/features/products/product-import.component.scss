@@ -1,8 +1,24 @@
 @use 'breakpoints' as bp;
-@use 'responsive-table' as rt;
+@use 'list-page' as lp;
+
+/*
+  ⭐ **La pagina si adatta alla finestra: cede solo la TABELLA** (`regole-stile-ui`
+  §6), come Movimenti e Ordini fornitore, che rendono il motore direttamente.
+
+  ⛔ **Senza questa catena il motore non ha altezza**, e non è un dettaglio:
+  misurato in un browser vero l’11/09/2026 — regione di scorrimento alta
+  **60px** (intestazione più una riga), pannello del filtro **ritagliato** dalla
+  regione e riga di dati coperta dall’intestazione appiccicata, perché il
+  fuoco sulla ricerca del filtro faceva scorrere la regione per inseguire il
+  pannello. `elementFromPoint` al centro del pannello rispondeva la barra
+  azioni sotto la tabella. Con la catena, la regione prende il resto della
+  finestra e il pannello ha dove aprirsi.
+
+  ⚠️ Sotto `lg` il mixin smonta tutto: la tabella è a card e scorre con la pagina.
+*/
+@include lp.list-page-fills-viewport('product-import', 'app-data-table');
 
 :host {
-  display: block;
   inline-size: 100%;
 }
 
@@ -101,17 +117,26 @@
   justify-content: space-between;
 }
 
-.product-import__table-scroll {
-  overflow-x: auto;
-}
+// ⛔ Qui c’erano un contenitore di scorrimento, i due mixin della tabella e
+//    due classi per l’allineamento numerico: la veste di una `<table>` a
+//    mano. Le due tabelle sono sul motore comune (`docs/26` A1), e il motore
+//    porta con sé scorrimento, grammatica e allineamento per tipo di colonna.
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('product-import__table');
-@include rt.data-table-mobile-cards('product-import__table');
-
-.product-import__col--numeric,
-.product-import__numeric {
-  text-align: end;
+// Colonne e Filtri sopra ogni tabella: la barra densa di `regole-stile-ui`,
+// configurata dal CONTENITORE — mai dal singolo controllo dentro.
+.product-import__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+  // Gli stessi sei del telaio (`.list-page__tools`): dichiararne meno
+  // lascia una famiglia di controlli alla taglia vecchia (`regole-stile-ui` §5).
+  --btn-min-height: var(--control-h-button);
+  --field-height: var(--control-h-button);
+  --field-h: var(--control-h-button);
+  --field-font-size: var(--text-xs);
+  --field-gap: var(--space-1);
+  --button-font-size: var(--text-xs);
 }
 
 .product-import__issues {

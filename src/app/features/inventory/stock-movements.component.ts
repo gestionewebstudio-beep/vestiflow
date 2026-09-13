@@ -71,7 +71,8 @@ import { formatDate, formatDateTime } from '@core/utils/date.util';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { PeriodFilterComponent } from '@shared/components/period-filter/period-filter.component';
+import type { PeriodFilterOption } from '@shared/components/period-filter/period-filter.model';
 
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -146,7 +147,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 
     ListActionsBarComponent,
     SelectMenuComponent,
-    DateInputComponent,
+    PeriodFilterComponent,
     InventoryTabsComponent,
     BadgeComponent,
     DataTableCellDirective,
@@ -243,14 +244,14 @@ export class StockMovementsComponent {
    * ⭐ «Tutti» è una voce come le altre, non l'assenza di scelta: il registro si
    * apre delimitato, e l'intera storia si chiede **esplicitamente**.
    */
-  protected readonly periodOptions: readonly SelectMenuOption[] = [
+  protected readonly periodOptions: readonly PeriodFilterOption[] = [
     { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
     { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
     { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
     { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
     { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
     { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
-    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+    { value: MovementPeriodPreset.Custom, label: 'Personalizzato', pickers: ['range'] },
     { value: MovementPeriodPreset.All, label: 'Tutti' },
   ];
 
@@ -302,10 +303,6 @@ export class StockMovementsComponent {
   private readonly search = signal('');
   // La location parte dal contesto globale (selettore topbar).
   protected readonly locationFilter = signal(this.locationContext.activeLocationId() ?? '');
-
-  protected readonly isCustomPeriod = computed(
-    () => this.periodFilter() === MovementPeriodPreset.Custom,
-  );
 
   protected readonly canManageInventory = computed(() =>
     canManageInventory(this.authService.currentUser()),

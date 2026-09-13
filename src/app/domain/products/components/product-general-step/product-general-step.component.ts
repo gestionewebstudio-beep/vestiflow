@@ -49,7 +49,7 @@ import {
   InventoryTrackingMode,
 } from '@core/models/product-catalog.model';
 
-import type { ProductGeneralDraft } from '../../models/product-form.model';
+import type { ProductGeneralDraft, ProductPriceField } from '../../models/product-form.model';
 import type { CatalogCategory } from '../../services/catalog-category.service';
 import { CatalogCategoryService } from '../../services/catalog-category.service';
 import { CatalogCategoryManagerComponent } from '../catalog-category-manager/catalog-category-manager.component';
@@ -100,13 +100,7 @@ const CUSTOM_OPTION_VALUE = '__custom__';
  * Il **costo di riferimento** resta fuori di proposito: appartiene al dominio
  * costi, che è sempre netto e ha una convenzione sua.
  */
-type PriceField =
-  | 'sellingPrice'
-  | 'compareAtPrice'
-  | 'shopifyPrice'
-  | 'listino1Price'
-  | 'listino2Price'
-  | 'listino3Price';
+type PriceField = ProductPriceField;
 
 const PRICE_FIELDS: readonly PriceField[] = [
   'sellingPrice',
@@ -119,6 +113,16 @@ const PRICE_FIELDS: readonly PriceField[] = [
 
 /** Prezzi netti dell'articolo: il dato, indipendente da come lo si guarda. */
 type NetPrices = Readonly<Record<PriceField, number | null>>;
+
+/** Importi ivati digitati senza aliquota nota: non ancora un dato. */
+type PendingGross = Readonly<Partial<Record<PriceField, number>>>;
+
+/** Il testo accanto a un prezzo in attesa — le parole sono del proprietario (11/09/2026). */
+export const PREZZO_IN_ATTESA_HINT = 'Scegli il Codice IVA per salvare il prezzo';
+/** Accanto a un prezzo salvato mostrato al netto perché l’aliquota è ignota. */
+export const NETTO_SENZA_ALIQUOTA_HINT = 'Importo netto salvato: senza Codice IVA non si converte';
+export const PREZZO_IN_ATTESA_SENZA_CODICI_HINT =
+  'Codici IVA non caricati: il prezzo ivato resta in attesa';
 
 const PRICE_MODE_OPTIONS: readonly SegmentedOption[] = [
   { value: 'net', label: 'Netti' },
@@ -213,6 +217,13 @@ export class ProductGeneralStepComponent implements OnInit {
    * dichiara una propria. Nessuna delle due = nessuna conversione possibile.
    */
   readonly tenantDefaultVatCodeId = input<string | null>(null);
+  /**
+   * ⛔ I Codici IVA NON sono arrivati (errore di caricamento): è un’altra cosa da
+   *    «nessun codice». L’aliquota è IGNOTA anche se l’articolo ha un codice, e
+   *    il campo Codice IVA non si tocca — con l’elenco vuoto si potrebbe solo
+   *    svuotarlo.
+   */
+  readonly vatCodesUnavailable = input(false);
   /**
    * Modalità della sezione Listini: `true` = i campi mostrano prezzi IVATI.
    * È una preferenza dell'OPERATORE (non dell'articolo): il parent la carica una
@@ -426,6 +437,7 @@ export class ProductGeneralStepComponent implements OnInit {
     // ⚠️ Nessun `required`: vuoto è uno stato legittimo — significa «lo decide
     //    la prima sincronizzazione», non «l'operatore ha dimenticato qualcosa».
     shopifyTitle: this.fb.control(''),
+    shopifyProductType: this.fb.control(''),
     brand: this.fb.control(''),
     category: this.fb.control(''),
     subcategory: this.fb.control(''),
@@ -509,23 +521,59 @@ export class ProductGeneralStepComponent implements OnInit {
   protected readonly priceModeValue = computed(() => (this.pricesIncludeVat() ? 'gross' : 'net'));
 
   /**
-   * Aliquota da usare per la conversione: quella dell'articolo, altrimenti il
-   * predefinito aziendale. Zero quando manca o quando il codice non espone IVA
-   * (esente, reverse charge): in quel caso netto e ivato coincidono e il toggle
-   * non muove niente — comportamento voluto, nessun avviso.
+   * L’aliquota da usare per la conversione: quella dell'articolo, altrimenti il
+   * predefinito aziendale.
+   *
+   * ⭐ **Tre stati, non due** (deciso l’11/09/2026): un numero quando il codice è
+   *    noto — anche ZERO, per esente o reverse charge, dove netto e ivato
+   *    coincidono per definizione — e `null` quando l’aliquota è IGNOTA: nessun
+   *    codice scelto e nessun predefinito, oppure codici non caricati. Con
+   *    `null` un importo digitato come ivato non ha un netto: resta in attesa.
    */
-  private readonly conversionRate = computed(() => {
+  private readonly aliquota = computed((): number | null => {
+    if (this.vatCodesUnavailable()) {
+      return null;
+    }
     const id = this.articleVatCodeId().trim() || (this.tenantDefaultVatCodeId() ?? '').trim();
     const code = id ? this.vatCodes().find((entry) => entry.id === id) : undefined;
     if (!code) {
-      return 0;
+      return null;
     }
     const vat = vatInputFromVatCode(code);
     return entryIncludesVat('vat_included', vat) ? vat.ratePercent : 0;
   });
 
-  /** True quando il toggle "Ivati" cambia davvero i valori mostrati. */
-  protected readonly vatConversionAvailable = computed(() => this.conversionRate() > 0);
+  /** Aliquota per la VISTA: senza aliquota nota i netti si leggono al netto. */
+  private readonly conversionRate = computed(() => this.aliquota() ?? 0);
+
+  /** In modalità ivata senza aliquota nota: lo dice la testata della sezione. */
+  protected readonly aliquotaIgnotaInIvati = computed(
+    () => this.pricesIncludeVat() && this.aliquota() === null,
+  );
+
+  /** Gli importi ivati che aspettano l’aliquota, per campo. */
+  private readonly pendingGross = signal<PendingGross>({});
+
+  protected isPending(field: PriceField): boolean {
+    return this.pendingGross()[field] !== undefined;
+  }
+
+  protected readonly nettoHint = NETTO_SENZA_ALIQUOTA_HINT;
+  protected readonly pendingHint = computed(() =>
+    this.vatCodesUnavailable() ? PREZZO_IN_ATTESA_SENZA_CODICI_HINT : PREZZO_IN_ATTESA_HINT,
+  );
+
+  /**
+   * ⛔ In «Ivati» senza aliquota nota un prezzo GIÀ salvato si mostra al netto,
+   *    perché non c’è nulla con cui convertirlo — e non deve passare per ivato.
+   *    Lo dice accanto al campo, non solo la testata: dove convivono netti
+   *    salvati e importi digitati in attesa, ogni campo dichiara il suo.
+   */
+  protected isNettoSenzaAliquota(field: PriceField): boolean {
+    return (
+      this.aliquotaIgnotaInIvati() && !this.isPending(field) && this.netPrices()[field] != null
+    );
+  }
 
   /** La vista si allinea al dato solo dopo che il form è stato inizializzato. */
   private formReady = false;
@@ -536,15 +584,51 @@ export class ProductGeneralStepComponent implements OnInit {
   constructor() {
     // La vista dei prezzi segue modalità e aliquota. Anche il primo passaggio è
     // qui: preferenza operatore e codici IVA arrivano dal server, quindi dopo
-    // `ngOnInit`. Nessun `emit`: il draft non cambia, cambia solo come lo si legge.
+    // `ngOnInit`. Di norma nessun `emit`: il draft non cambia, cambia solo come
+    // lo si legge. ⭐ L’eccezione è l’aliquota che ARRIVA con importi in attesa:
+    // lì nasce il netto (l’ivato digitato resta fermo), e il draft cambia.
     effect(() => {
       const includeVat = this.pricesIncludeVat();
-      const rate = this.conversionRate();
+      const aliquota = this.aliquota();
       if (!this.formReady) {
         return;
       }
-      this.showNetPrices(includeVat, rate);
+      if (includeVat && aliquota !== null && this.risolviInAttesa(aliquota)) {
+        this.valueChange.emit(this.currentDraft());
+      }
+      this.showNetPrices(includeVat, aliquota ?? 0);
     });
+  }
+
+  /**
+   * Gli importi in attesa diventano netti con l’aliquota appena nota: 100 ivati
+   * al 22% restano 100 a schermo e valgono 81,967213 netti. Torna `true` se
+   * qualcosa è cambiato.
+   */
+  private risolviInAttesa(aliquota: number): boolean {
+    const attesa = this.pendingGross();
+    const campi = Object.keys(attesa) as PriceField[];
+    if (campi.length === 0) {
+      return false;
+    }
+    this.netPrices.update((prices) => {
+      const next = { ...prices };
+      for (const field of campi) {
+        next[field] = this.nettoDaIvato(attesa[field]!, aliquota);
+      }
+      return next;
+    });
+    this.pendingGross.set({});
+    return true;
+  }
+
+  private nettoDaIvato(ivato: number, aliquota: number): number {
+    if (aliquota <= 0) {
+      return ivato;
+    }
+    // Scorporo ESATTO: è il valore che viene memorizzato, e la coda decimale è
+    // ciò che lo fa tornare identico quando il campo torna a mostrare l’ivato.
+    return minorToMajor(netFromGrossExact(majorToMinor(ivato), aliquota));
   }
 
   ngOnInit(): void {
@@ -559,7 +643,10 @@ export class ProductGeneralStepComponent implements OnInit {
     this.seasonValue.set(initial.season);
     this.customCategory.set(this.shouldUseCustomField(initial.category, this.categoryNamePool()));
     this.customSeason.set(initial.season.trim() !== '' && !isStandardProductSeason(initial.season));
-    this.form.setValue(initial, { emitEvent: false });
+    // Gli importi in attesa non sono un controllo del form: stanno accanto ai
+    // prezzi, non dentro (`setValue` rifiuta le chiavi che non conosce).
+    const { pendingGrossPrices: _attesa, ...campi } = initial;
+    this.form.setValue(campi, { emitEvent: false });
 
     // Il draft arriva sempre netto: è il dato di partenza della sezione Listini.
     // La vista viene poi allineata dall'effect (modalità e aliquota arrivano dal
@@ -572,6 +659,9 @@ export class ProductGeneralStepComponent implements OnInit {
       listino2Price: initial.listino2Price,
       listino3Price: initial.listino3Price,
     });
+    // Gli importi in attesa stanno nel draft del parent: il passo viene distrutto
+    // e ricreato a ogni cambio di scheda, e qui non si perderebbero soltanto.
+    this.pendingGross.set({ ...(initial.pendingGrossPrices ?? {}) });
     this.articleVatCodeId.set(initial.defaultVatCodeId);
 
     // Ogni prezzo digitato aggiorna il netto corrispondente: è l'unico momento in
@@ -657,6 +747,7 @@ export class ProductGeneralStepComponent implements OnInit {
    */
   private currentDraft(): ProductGeneralDraft {
     const prices = this.netPrices();
+    const attesa = this.pendingGross();
     return {
       ...this.form.getRawValue(),
       listino1Price: prices.listino1Price,
@@ -670,25 +761,44 @@ export class ProductGeneralStepComponent implements OnInit {
       // Il barrato e' facoltativo: `null` significa «nessun prezzo barrato», e
       // non va confuso con zero — zero direbbe «esiste e vale zero».
       compareAtPrice: prices.compareAtPrice,
+      // Solo se c’è qualcosa in attesa: una chiave vuota sporcherebbe il confronto
+      // «modificato» del parent.
+      ...(Object.keys(attesa).length > 0 ? { pendingGrossPrices: attesa } : {}),
     };
   }
 
-  /** Prezzo digitato -> netto memorizzato (identità in modalità netta). */
+  /**
+   * Prezzo digitato → netto memorizzato (identità in modalità netta).
+   *
+   * ⭐ In modalità ivata SENZA aliquota nota l’importo non diventa un netto: va
+   *    in attesa, il netto precedente resta com’era e il salvataggio è bloccato
+   *    finché non si sceglie un Codice IVA (o si passa ai netti). ⛔ Prima qui
+   *    l’identità trasformava in silenzio «100 ivati» in «100 netti».
+   */
   private storeNet(field: PriceField, displayed: number | null): void {
-    this.netPrices.update((prices) => ({ ...prices, [field]: this.toNet(displayed) }));
+    const aliquota = this.aliquota();
+    if (this.pricesIncludeVat() && aliquota === null && displayed != null) {
+      this.pendingGross.update((attesa) => ({ ...attesa, [field]: displayed }));
+      return;
+    }
+    this.pendingGross.update((attesa) => {
+      if (attesa[field] === undefined) {
+        return attesa;
+      }
+      const { [field]: _tolto, ...resto } = attesa;
+      return resto;
+    });
+    this.netPrices.update((prices) => ({ ...prices, [field]: this.toNet(displayed, aliquota) }));
   }
 
-  private toNet(displayed: number | null): number | null {
+  private toNet(displayed: number | null, aliquota: number | null): number | null {
     if (displayed == null) {
       return null;
     }
-    const rate = this.conversionRate();
-    if (!this.pricesIncludeVat() || rate <= 0) {
+    if (!this.pricesIncludeVat() || aliquota === null) {
       return displayed;
     }
-    // Scorporo ESATTO: è il valore che viene memorizzato, e la coda decimale è
-    // ciò che lo fa tornare identico quando il campo torna a mostrare l'ivato.
-    return minorToMajor(netFromGrossExact(majorToMinor(displayed), rate));
+    return this.nettoDaIvato(displayed, aliquota);
   }
 
   /**
@@ -713,9 +823,10 @@ export class ProductGeneralStepComponent implements OnInit {
    */
   private showNetPrices(includeVat: boolean, rate: number): void {
     const prices = this.netPrices();
+    const attesa = this.pendingGross();
     for (const field of PRICE_FIELDS) {
       const control = this.form.controls[field];
-      const displayed = this.toDisplayed(prices[field], includeVat, rate);
+      const displayed = attesa[field] ?? this.toDisplayed(prices[field], includeVat, rate);
       if (control.value !== displayed) {
         control.setValue(displayed, { emitEvent: false });
       }
@@ -723,9 +834,29 @@ export class ProductGeneralStepComponent implements OnInit {
     this.shopifyPriceValue.set(this.form.controls.shopifyPrice.value);
   }
 
-  /** Toggle netti/ivati: cambia solo la vista (vedi `showNetPrices`). */
+  /**
+   * Toggle netti/ivati: di norma cambia solo la vista (vedi `showNetPrices`).
+   *
+   * ⭐ Passando ai NETTI con importi in attesa, l’importo digitato diventa il
+   *    netto così com’è: è l’operatore a dichiararlo netto, esplicitamente. È
+   *    l’unico modo di uscire dall’attesa senza scegliere un Codice IVA.
+   */
   protected onPriceModeChange(value: string): void {
-    this.pricesIncludeVat.set(value === 'gross');
+    const includeVat = value === 'gross';
+    const attesa = this.pendingGross();
+    const campi = Object.keys(attesa) as PriceField[];
+    if (!includeVat && campi.length > 0) {
+      this.netPrices.update((prices) => {
+        const next = { ...prices };
+        for (const field of campi) {
+          next[field] = attesa[field]!;
+        }
+        return next;
+      });
+      this.pendingGross.set({});
+      this.valueChange.emit(this.currentDraft());
+    }
+    this.pricesIncludeVat.set(includeVat);
   }
 
   protected showError(field: RequiredField): boolean {

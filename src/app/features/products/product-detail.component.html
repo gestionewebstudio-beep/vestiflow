@@ -106,6 +106,12 @@
       (confirmed)="confirmDelete(p.id)"
     />
 
+    <!-- ⛔ Un riferimento non caricato si DICE: «—» sul Codice IVA e nessun listino
+         sembrerebbero altrimenti dati veri (11/09/2026). -->
+    @if (riferimentiErrore(); as errore) {
+      <app-inline-banner tone="error" [message]="errore" />
+    }
+
     <section class="product-detail__panel" aria-labelledby="detail-general">
       <h2 id="detail-general" class="product-detail__panel-title">Dati generali</h2>
       <dl class="product-detail__facts">

@@ -1,4 +1,5 @@
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 /*
   ⏸ catena-altezze: non applicabile — DA DECIDERE, non una scelta chiusa.
@@ -373,43 +374,36 @@
   overflow-x: auto;
 }
 
-.ricerca__griglia {
-  inline-size: 100%;
-  border-collapse: collapse;
+/*
+  ⭐ **La griglia è una MATRICE, non un elenco** (`docs/26` A11): le colonne
+  sono le sedi, le righe le taglie, e sul telefono resta una tabella per
+  scelta (le sedi sono due o tre e stanno in larghezza). Non va sul motore —
+  che sotto `lg` la farebbe a card — ma la GRAMMATICA è quella condivisa:
+  `data-table-desktop` per cornice e intestazione, `summary-grammar` per
+  corpo, taglio a colonna e altezza di riga. ⛔ Qui c’erano le stesse regole
+  ricopiate a mano (uppercase, token, padding).
+*/
+@include rt.data-table-desktop('ricerca__griglia');
+@include rt.summary-grammar('ricerca__griglia');
 
-  th,
-  td {
-    padding: var(--space-2) var(--space-3);
-    border-block-end: var(--border-width) solid var(--color-border-cell);
-  }
-
-  thead th {
-    font-size: var(--text-2xs);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-table-header-fg);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-caps);
-    background-color: var(--color-table-header-bg);
-  }
-}
-
-/* La taglia porta lo SKU sotto: due informazioni, una riga sola. */
+/* La taglia porta lo SKU accanto, in una riga sola come ogni cella. */
 .ricerca__taglia {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-05);
   font-weight: var(--font-weight-semibold);
   text-align: start;
 }
 
 .ricerca__sku {
+  margin-inline-start: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
   font-weight: var(--font-weight-regular);
   color: var(--color-text-muted);
 }
 
-.ricerca__num {
+// ⚠️ Col nome del genitore: la grammatica dichiara `tbody td` (peso 3) e una
+//    classe sola (peso 1) perderebbe — i numeri tornerebbero a sinistra.
+.ricerca__griglia th.ricerca__num,
+.ricerca__griglia tbody td.ricerca__num {
   text-align: end;
 }
 

@@ -50,6 +50,23 @@ export const TABLE_VIEW_IDS = [
   // propria e non quella dell'elenco — chi allarga «Prodotto» mentre conta non
   // deve toccare l'elenco da cui è entrato.
   'inventory_count_lines',
+  // I due rapporti dell’import prodotti da CSV, entrati nel motore l’11/09/2026
+  // (docs/26 A1): anteprima ed esito. Senza queste due righe il frontend
+  // dichiarerebbe viste che l’API rifiuta con 400 — il caso che
+  // `check:table-views` esiste per prendere.
+  'products_import_preview',
+  'products_import_result',
+  // E i due gemelli dell’import giacenze (docs/26 A2).
+  'inventory_import_preview',
+  'inventory_import_result',
+  // Le coppie non allineate del controllo «Allinea giacenze» (docs/26 A3).
+  'shopify_allinea_non_allineate',
+  // I problemi aperti della sincronizzazione Shopify, per causa e con azione (docs/27 §4-bis).
+  'shopify_problemi',
+  // I Codici IVA raggruppati per Natura (docs/26 A6).
+  'vat_codes',
+  // Le aziende registrate, amministrazione piattaforma (docs/26 A14).
+  'admin_tenants',
 ] as const;
 
 export type TableViewId = (typeof TABLE_VIEW_IDS)[number];

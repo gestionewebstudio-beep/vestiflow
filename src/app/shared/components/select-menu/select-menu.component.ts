@@ -33,7 +33,9 @@ import type { SelectMenuOption } from './select-menu.model';
     '[class.select-menu-host--icon]': 'iconOnly()',
     '[class.select-menu-host--open]': 'open()',
     '[class.select-menu-host--ribaltato]': 'ribaltato()',
+    '[class.select-menu-host--fixed]': 'panelFixed()',
     '(document:click)': 'onDocumentClick($event)',
+    '(window:resize)': 'chiudiSeFisso()',
     '(document:keydown.escape)': 'close()',
   },
   templateUrl: './select-menu.component.html',
@@ -147,6 +149,27 @@ export class SelectMenuComponent {
    * il pannello si allarga a contenuto senza creare opzioni a doppia riga.
    */
   readonly inlineDetail = input<boolean>(false);
+  /**
+   * ⭐ **Il pannello ESCE dal contenitore che ritaglia** — 11/09/2026.
+   *
+   * ⛔ Dentro l’intestazione di una tabella il pannello è `absolute` nella
+   * cella, e la regione di scorrimento della tabella (`overflow: auto`) lo
+   * RITAGLIA quando le righe sono poche: misurato sul rapporto dell’import
+   * prodotti (regione alta 60px, pannello coperto dalla barra sotto) e sulle
+   * non allineate del pannello Shopify (tre righe: l’opzione «Errore di
+   * lettura» esisteva e non era cliccabile). Sugli elenchi che riempiono la
+   * finestra non si vedeva: la regione è sempre più alta del pannello.
+   *
+   * Con `panelFixed` il pannello è `position: fixed`, posizionato sul
+   * rettangolo del trigger all’apertura: nessun `overflow` di antenato lo
+   * ritaglia. Uno scorrimento fuori dal pannello lo chiude — la posizione
+   * sarebbe altrimenti quella di un trigger che non è più lì.
+   *
+   * ⚠️ **Nasce spento**: lo accende il motore tabella sui filtri di colonna.
+   * Un antenato con `transform` renderebbe il fisso relativo a lui, e nel
+   * pannello laterale del telaio (un cassetto che si muove) non serve.
+   */
+  readonly panelFixed = input<boolean>(false);
 
   readonly valueChange = output<string | null>();
   readonly valuesChange = output<readonly string[]>();
@@ -176,6 +199,18 @@ export class SelectMenuComponent {
    * pannello sborda comunque, e ribaltarlo lo farebbe uscire dall'altra parte.
    */
   protected readonly ribaltato = signal(false);
+  /** Coordinate del pannello fisso, misurate all’apertura (`panelFixed`). */
+  protected readonly fissoAlto = signal<number | null>(null);
+  protected readonly fissoBasso = signal<number | null>(null);
+  protected readonly fissoSinistra = signal<number | null>(null);
+  protected readonly fissoDestra = signal<number | null>(null);
+  private readonly chiudiSuScorrimento = (evento: Event): void => {
+    // Lo scorrimento DENTRO il pannello (le voci, il calendario) non lo chiude.
+    if (evento.target instanceof Node && this.hostElement.contains(evento.target)) {
+      return;
+    }
+    this.close();
+  };
 
   protected readonly visibleOptions = computed(() => {
     if (!this.searchable()) {
@@ -306,15 +341,29 @@ export class SelectMenuComponent {
         un pannello largo `max-content`.
       */
       afterNextRender(() => this.decidiIlLato(), { injector: this.injector });
+      if (this.panelFixed()) {
+        this.hostElement.ownerDocument.addEventListener('scroll', this.chiudiSuScorrimento, true);
+      }
     } else {
-      this.ribaltato.set(false);
+      this.close();
     }
   }
 
   protected close(): void {
     this.open.set(false);
     this.ribaltato.set(false);
+    this.fissoAlto.set(null);
+    this.fissoBasso.set(null);
+    this.fissoSinistra.set(null);
+    this.fissoDestra.set(null);
+    this.hostElement.ownerDocument.removeEventListener('scroll', this.chiudiSuScorrimento, true);
     this.searchQuery.set(this.searchValue());
+  }
+
+  protected chiudiSeFisso(): void {
+    if (this.panelFixed() && this.open()) {
+      this.close();
+    }
   }
 
   /**
@@ -341,7 +390,27 @@ export class SelectMenuComponent {
 
     const staADestra = trigger.left + largo <= confine.destra;
     const staASinistra = trigger.right - largo >= confine.sinistra;
-    this.ribaltato.set(!staADestra && staASinistra);
+    const ribalta = !staADestra && staASinistra;
+    this.ribaltato.set(ribalta);
+
+    if (this.panelFixed()) {
+      // Le stesse coordinate dell’`absolute`, ma misurate sulla finestra: il
+      // pannello si apre sotto il trigger, ancorato al lato deciso qui sopra.
+      const finestra = this.hostElement.ownerDocument.defaultView;
+      const larghezzaFinestra = finestra?.innerWidth ?? 0;
+      const altezzaFinestra = finestra?.innerHeight ?? 0;
+      // ⭐ E si apre SOPRA quando sotto non ci sta e sopra sì — la stessa
+      //    regola del ribaltamento laterale. Un pannello sotto il bordo della
+      //    finestra non si raggiunge: scorrere la pagina lo chiuderebbe.
+      const alto = pannello.getBoundingClientRect().height;
+      const staSotto = trigger.bottom + alto <= altezzaFinestra;
+      const staSopra = trigger.top - alto >= 0;
+      const sopra = !staSotto && staSopra;
+      this.fissoAlto.set(sopra ? null : trigger.bottom);
+      this.fissoBasso.set(sopra ? altezzaFinestra - trigger.top : null);
+      this.fissoSinistra.set(ribalta ? null : trigger.left);
+      this.fissoDestra.set(ribalta ? larghezzaFinestra - trigger.right : null);
+    }
   }
 
   /**
@@ -357,7 +426,8 @@ export class SelectMenuComponent {
     const finestra = this.hostElement.ownerDocument.defaultView;
     let nodo = this.hostElement.parentElement;
 
-    while (nodo) {
+    // Un pannello fisso non è ritagliato da nessun antenato: il confine è la finestra.
+    while (nodo && !this.panelFixed()) {
       const stile = finestra?.getComputedStyle(nodo);
       const scorre = stile ? /auto|scroll|hidden|clip/.test(stile.overflowX) : false;
       if (scorre) {

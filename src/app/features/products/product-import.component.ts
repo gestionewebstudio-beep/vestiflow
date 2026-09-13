@@ -19,21 +19,55 @@ import {
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableSection,
+  DataTableSort,
+} from '@shared/components/data-table/data-table.model';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableFiltersButtonComponent } from '@shared/components/table-filters/table-filters-button.component';
+import { TableFiltersPanelComponent } from '@shared/components/table-filters/table-filters-panel.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import type {
   ProductImportPreview,
   ProductImportPreviewItem,
   ProductImportResult,
+  ProductImportResultItem,
 } from '@domain/products/models/product-import.model';
 import { ProductService } from '@domain/products/services/product.service';
+
+import {
+  PRODUCT_IMPORT_PREVIEW_COLUMN_DEFS,
+  PRODUCT_IMPORT_PREVIEW_COLUMN_PRESETS,
+  PRODUCT_IMPORT_PREVIEW_VIEW,
+  PRODUCT_IMPORT_RESULT_COLUMN_DEFS,
+  PRODUCT_IMPORT_RESULT_COLUMN_PRESETS,
+  PRODUCT_IMPORT_RESULT_VIEW,
+} from './models/product-import-table-columns.config';
 
 type ImportPhase = 'upload' | 'preview' | 'done';
 
 @Component({
   selector: 'app-product-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackButtonComponent, ButtonComponent, BadgeComponent, InlineBannerComponent],
+  imports: [
+    BackButtonComponent,
+    ButtonComponent,
+    BadgeComponent,
+    InlineBannerComponent,
+    DataTableComponent,
+    DataTableCellDirective,
+    DataTableRowCardDirective,
+    TableColumnPickerComponent,
+    TableFiltersButtonComponent,
+    TableFiltersPanelComponent,
+  ],
   templateUrl: './product-import.component.html',
   styleUrl: './product-import.component.scss',
 })
@@ -42,6 +76,124 @@ export class ProductImportComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly authService = inject(AuthService);
+  private readonly preferenzeColonne = inject(TableColumnPreferenceService);
+
+  // ⚠️ **Colonne e Filtri stanno QUI e non nel telaio**: questa è una tappa
+  //    dell’import, non un elenco, quindi non passa da `app-list-page`. Il
+  //    pulsante e il pannello sono gli stessi pezzi condivisi del telaio
+  //    (`docs/26` D1): sul telefono il pannello laterale, su scrivania le
+  //    intestazioni. Un `open` per tabella: sono due viste.
+  protected readonly filtriAnteprimaAperti = signal(false);
+  protected readonly filtriEsitoAperti = signal(false);
+
+  // ⭐ **Le due tabelle sono sul MOTORE comune** (`docs/26` A1). Erano due
+  //    `<table>` a mano: niente ordinamento, niente filtri di colonna, niente
+  //    maniglie, e sul telefono il ripiego generico che allineava a destra
+  //    un messaggio con un indirizzo dentro. La stessa strada dei registri
+  //    della Cassa: colonne dal catalogo, filtri e ordinamento condivisi,
+  //    card progettata sotto `lg`.
+  protected readonly vistaAnteprima = PRODUCT_IMPORT_PREVIEW_VIEW;
+  protected readonly vistaEsito = PRODUCT_IMPORT_RESULT_VIEW;
+  // ⛔ Si ASSEGNANO nel costruttore, dopo `registerView`: un inizializzatore
+  //    di campo gira prima, e `visibleColumns` su una vista non registrata
+  //    lancia — la pagina restava bianca. Visto a schermo l’11/09/2026.
+  protected readonly colonneAnteprima: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+  protected readonly colonneEsito: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+  protected readonly ordineAnteprima = signal<readonly DataTableSort[]>([]);
+  protected readonly ordineEsito = signal<readonly DataTableSort[]>([]);
+
+  protected readonly rigaAnteprimaId = (item: ProductImportPreviewItem): string => item.handle;
+  protected readonly rigaEsitoId = (row: ProductImportResultItem): string =>
+    `${row.handle}·${row.status}`;
+
+  /** Il testo di ogni cella dell’anteprima: è ciò che filtri, ordinamento e card leggono. */
+  protected readonly testoAnteprima = (item: ProductImportPreviewItem, colonna: string): string => {
+    switch (colonna) {
+      case 'name':
+        return item.name;
+      case 'handle':
+        return item.handle;
+      case 'variantCount':
+        return String(item.variantCount);
+      case 'status':
+        return this.statusLabel(item);
+      case 'issues':
+        return item.issues.map((issue) => issue.message).join(' · ');
+      default:
+        return '';
+    }
+  };
+
+  protected readonly testoEsito = (row: ProductImportResultItem, colonna: string): string => {
+    switch (colonna) {
+      case 'name':
+        return row.name;
+      case 'articleCode':
+        return row.articleCode
+          ? `${row.articleCode}${row.articleCodeGenerated ? ' (generato)' : ''}`
+          : '—';
+      case 'status':
+        return this.resultStatusLabel(row.status);
+      case 'message':
+        return row.message ?? '—';
+      default:
+        return '';
+    }
+  };
+
+  // ⚠️ `numeroDi` non è facoltativo sulla colonna «Varianti»: senza, il filtro
+  //    a intervallo non filtra e l’ordinamento confronta «10» prima di «2».
+  private readonly numeroAnteprima = (item: ProductImportPreviewItem, colonna: string) =>
+    colonna === 'variantCount' ? item.variantCount : null;
+
+  private readonly anteprimaFiltrata = createColumnFilters<ProductImportPreviewItem>({
+    viewId: () => PRODUCT_IMPORT_PREVIEW_VIEW,
+    righe: () => this.preview()?.products ?? [],
+    cellText: this.testoAnteprima,
+    numeroDi: this.numeroAnteprima,
+  });
+  private readonly esitoFiltrato = createColumnFilters<ProductImportResultItem>({
+    viewId: () => PRODUCT_IMPORT_RESULT_VIEW,
+    righe: () => this.result()?.products ?? [],
+    cellText: this.testoEsito,
+  });
+
+  protected readonly sezioniAnteprima = computed(
+    (): readonly DataTableSection<ProductImportPreviewItem>[] => [
+      {
+        id: 'anteprima',
+        rows: ordinaPerColonne(this.anteprimaFiltrata(), this.ordineAnteprima(), {
+          cellText: this.testoAnteprima,
+          numeroDi: this.numeroAnteprima,
+        }),
+      },
+    ],
+  );
+  protected readonly sezioniEsito = computed(
+    (): readonly DataTableSection<ProductImportResultItem>[] => [
+      {
+        id: 'esito',
+        rows: ordinaPerColonne(this.esitoFiltrato(), this.ordineEsito(), {
+          cellText: this.testoEsito,
+        }),
+      },
+    ],
+  );
+
+  constructor() {
+    this.preferenzeColonne.registerView(
+      PRODUCT_IMPORT_PREVIEW_VIEW,
+      PRODUCT_IMPORT_PREVIEW_COLUMN_DEFS,
+      PRODUCT_IMPORT_PREVIEW_COLUMN_PRESETS,
+    );
+    this.preferenzeColonne.registerView(
+      PRODUCT_IMPORT_RESULT_VIEW,
+      PRODUCT_IMPORT_RESULT_COLUMN_DEFS,
+      PRODUCT_IMPORT_RESULT_COLUMN_PRESETS,
+    );
+    this.colonneAnteprima = this.preferenzeColonne.visibleColumns(PRODUCT_IMPORT_PREVIEW_VIEW);
+    this.colonneEsito = this.preferenzeColonne.visibleColumns(PRODUCT_IMPORT_RESULT_VIEW);
+  }
 
   private readonly tenantProfile = computed(
     () => this.authService.currentUser()?.tenantChannelProfile,

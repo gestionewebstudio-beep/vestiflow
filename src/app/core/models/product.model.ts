@@ -68,9 +68,19 @@ export interface Product extends TenantScoped, Timestamped {
   readonly shopifyTitle?: string;
   readonly description?: string;
   readonly brand?: string;
+  /**
+   * Categoria VestiFlow: classificazione ESCLUSIVAMENTE gestionale. Non esce
+   * verso Shopify e Shopify non la sovrascrive (docs/24 §9.5).
+   */
   readonly category?: string;
   /** Sottocategoria VestiFlow collegata alla categoria (vocabolario gestito). */
   readonly subcategory?: string;
+  /**
+   * «Tipo prodotto Shopify» (`product_type`): campo del CANALE, bidirezionale.
+   * Assente = non ancora acquisito — che verso Shopify NON è una richiesta di
+   * cancellare il tipo prodotto remoto.
+   */
+  readonly shopifyProductType?: string;
   /** Note interne gestionale: mai sincronizzate con i canali. */
   readonly internalNotes?: string;
   readonly shopifyTaxonomyCategoryId?: string;

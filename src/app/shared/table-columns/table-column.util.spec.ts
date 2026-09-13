@@ -71,6 +71,25 @@ describe('table-column.util', () => {
     expect(reconciled.hiddenColumnIds).toContain('b');
     expect(resolveVisibleColumns(DEFS, reconciled).map((col) => col.id)).toEqual(['a']);
   });
+
+  // ⭐ Un DEFAULT che cambia non tocca uno stato salvato (proprietario, 13/09/2026, quando
+  //    DDT, Aggiornato e Sync sono state spente di serie sugli Ordini Shopify: «non cancellare
+  //    le preferenze già salvate»). Le colonne che lo stato conosce restano come l'operatore
+  //    le ha lasciate; i default valgono solo per quelle che non conosce.
+  it('reconcileStateWithDefs non applica un default cambiato a una colonna già nota', () => {
+    const state: TableViewState = {
+      presetId: 'custom',
+      columnOrder: ['a', 'b', 'c'],
+      hiddenColumnIds: [],
+      pinnedColumnIds: [],
+      columnWidths: {},
+    };
+    // 'c' era visibile nello stato salvato: oggi nasce spenta (defaultVisible: false),
+    // ma per chi l'aveva accesa resta accesa.
+    const reconciled = reconcileStateWithDefs(state, DEFS);
+    expect(reconciled).toBe(state);
+    expect(resolveVisibleColumns(DEFS, reconciled).map((col) => col.id)).toEqual(['a', 'b', 'c']);
+  });
 });
 
 /**

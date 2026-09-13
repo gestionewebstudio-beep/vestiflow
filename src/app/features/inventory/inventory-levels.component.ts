@@ -29,10 +29,7 @@ import type { PageMeta } from '@core/models/api.model';
 import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
-import {
-  canImportExportInventory,
-  canSyncInventoryFromShopify,
-} from '@core/permissions/tenant-permissions.util';
+import { canImportExportInventory } from '@core/permissions/tenant-permissions.util';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -50,14 +47,9 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { ProductService } from '@domain/products/services/product.service';
-import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
-import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
+
 import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
-import {
-  formatShopifyInventorySyncFeedback,
-  type ShopifySyncFeedback,
-} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -65,10 +57,8 @@ import { TableColumnPreferenceService } from '@shared/table-columns/table-column
 
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
-import {
-  reservationChannelLabel,
-  type StockReservationRow,
-} from '@domain/inventory/models/stock-reservation.model';
+import { StockReservationsTableComponent } from './components/stock-reservations-table/stock-reservations-table.component';
+import type { StockReservationRow } from '@domain/inventory/models/stock-reservation.model';
 import type { InventoryLevelListItem } from '@domain/inventory/models/inventory-list.mapper';
 import type { InventoryLevelRow } from './models/inventory-view.model';
 import {
@@ -90,7 +80,6 @@ type LevelsState =
   | { readonly status: 'success'; readonly data: LevelsData }
   | { readonly status: 'error'; readonly error: AppError };
 
-const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 const SEARCH_DEBOUNCE_MS = 300;
 
 const EMPTY_META: PageMeta = {
@@ -126,8 +115,9 @@ import { createSelectionMode } from '@shared/utils/selection-mode';
     BarcodeScannerComponent,
     SelectMenuComponent,
     InventoryTabsComponent,
+    StockReservationsTableComponent,
     InventoryLevelTableComponent,
-    ShopifySyncFeedbackComponent,
+
     SlidePanelComponent,
   ],
   templateUrl: './inventory-levels.component.html',
@@ -136,7 +126,7 @@ import { createSelectionMode } from '@shared/utils/selection-mode';
 export class InventoryLevelsComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly productService = inject(ProductService);
-  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
@@ -149,8 +139,6 @@ export class InventoryLevelsComponent {
 
   protected readonly tableViewId = TableViewId.InventoryLevels;
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
-
-  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
   // presente, e schermo compatto. Su scrivania resta il lettore HID.
@@ -175,12 +163,10 @@ export class InventoryLevelsComponent {
   protected readonly variantIdFilter = signal('');
   protected readonly searchDraft = signal('');
   private readonly search = signal('');
-  protected readonly shopifyInventoryLoading = signal(false);
+
   protected readonly exporting = computed(() =>
     this.blobExport.isActive(INVENTORY_LEVELS_CSV_EXPORT_ID),
   );
-  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
-  protected readonly shopifySyncError = signal<string | null>(null);
 
   // Drill-down Impegnata (§10 fase 1): ordini che compongono la quantità.
   protected readonly reservationsTarget = signal<InventoryLevelRow | null>(null);
@@ -188,15 +174,6 @@ export class InventoryLevelsComponent {
   protected readonly reservations = signal<readonly StockReservationRow[]>([]);
   protected readonly reservationsLoading = signal(false);
   protected readonly reservationsError = signal<string | null>(null);
-  protected readonly channelLabel = reservationChannelLabel;
-
-  protected readonly showShopifyInventorySync = computed(() => {
-    const user = this.authService.currentUser();
-    if (!canSyncInventoryFromShopify(user)) {
-      return false;
-    }
-    return showShopifyIntegration(user?.tenantChannelProfile);
-  });
 
   protected readonly canImportExportInventory = computed(() =>
     canImportExportInventory(this.authService.currentUser()),
@@ -471,17 +448,8 @@ export class InventoryLevelsComponent {
       );
     }
 
-    if (this.showShopifyInventorySync()) {
-      azioni.push({
-        id: 'shopify-sync',
-        label: 'Riallinea su Shopify',
-        icon: 'pi-sync',
-        requires: 'none',
-        busy: this.shopifyInventoryLoading(),
-        ariaLabel: 'Riallinea le giacenze su Shopify',
-        run: () => this.syncInventoryFromShopify(),
-      });
-    }
+    // ⛔ Qui c’era «Riallinea su Shopify»: sta in Impostazioni → Shopify, con lo
+    //    stesso permesso (11/09/2026).
 
     return azioni;
   });
@@ -550,35 +518,6 @@ export class InventoryLevelsComponent {
     });
   }
 
-  protected syncInventoryFromShopify(): void {
-    if (this.shopifyInventoryLoading()) {
-      return;
-    }
-
-    this.shopifyInventoryLoading.set(true);
-    this.clearShopifyFeedback();
-    this.shopifySyncError.set(null);
-
-    this.shopifyConnectionService
-      .syncInventory()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.shopifyInventoryLoading.set(false);
-          this.showShopifyFeedback(formatShopifyInventorySyncFeedback(result));
-          this.reload();
-        },
-        error: (err: unknown) => {
-          this.shopifyInventoryLoading.set(false);
-          this.shopifySyncError.set(this.extractErrorMessage(err));
-        },
-      });
-  }
-
-  protected dismissShopifyFeedback(): void {
-    this.clearShopifyFeedback();
-  }
-
   private statusOf(level: InventoryLevel): StockStatus {
     return stockStatusOf(level);
   }
@@ -588,23 +527,6 @@ export class InventoryLevelsComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
-  }
-
-  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
-    this.clearShopifyFeedback();
-    this.shopifyFeedback.set(feedback);
-    this.shopifyFeedbackTimer = setTimeout(() => {
-      this.shopifyFeedback.set(null);
-      this.shopifyFeedbackTimer = null;
-    }, SHOPIFY_FEEDBACK_DISMISS_MS);
-  }
-
-  private clearShopifyFeedback(): void {
-    if (this.shopifyFeedbackTimer) {
-      clearTimeout(this.shopifyFeedbackTimer);
-      this.shopifyFeedbackTimer = null;
-    }
-    this.shopifyFeedback.set(null);
   }
 
   private extractErrorMessage(err: unknown): string {

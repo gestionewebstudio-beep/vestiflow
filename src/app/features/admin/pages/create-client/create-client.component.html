@@ -336,51 +336,67 @@
       } @else if (tenants().length === 0) {
         <p class="create-client__muted">Nessun cliente registrato.</p>
       } @else {
-        <div class="create-client__table-wrap">
-          <table class="create-client__table">
-            <thead>
-              <tr>
-                <th scope="col">Azienda</th>
-                <th scope="col">Profilo</th>
-                <th scope="col">P.IVA</th>
-                <th scope="col">Utente</th>
-                <th scope="col">Email</th>
-                <th scope="col">Creato</th>
-                <th scope="col">Assistenza</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (tenant of tenants(); track tenant.id) {
-                <tr
-                  class="create-client__table-row"
-                  tabindex="0"
-                  [attr.aria-label]="'Modifica cliente ' + tenant.name"
-                  (click)="openTenant(tenant)"
-                  (keydown.enter)="openTenant(tenant)"
-                  (keydown.space)="$event.preventDefault(); openTenant(tenant)"
-                >
-                  <td>{{ tenant.name }}</td>
-                  <td>{{ tenantChannelProfileLabel(tenant.channelProfile) }}</td>
-                  <td class="tabular-nums">{{ tenant.vatNumber ?? '—' }}</td>
-                  <td>{{ tenant.ownerDisplayName ?? '—' }}</td>
-                  <td>{{ tenant.ownerEmail ?? '—' }}</td>
-                  <td class="tabular-nums">{{ formatDateTime(tenant.createdAt) }}</td>
-                  <td class="create-client__table-actions">
-                    <app-button
-                      type="button"
-                      variant="secondary"
-                      [loading]="supportSessionLoadingId() === tenant.id"
-                      [disabled]="supportSessionLoadingId() === tenant.id"
-                      (click)="openSupportSession(tenant, $event)"
-                    >
-                      Apri gestionale
-                    </app-button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+        <!--
+          ⭐ **Sul MOTORE comune** (`docs/26` A14): colonne dal catalogo, filtri di
+          colonna, ordinamento, card sotto `lg`. «Apri gestionale» era un pulsante
+          per riga: sta nella barra sulla selezione, come su ogni elenco.
+        -->
+        <div class="create-client__tools">
+          <app-table-selection-toggle
+            [selectionMode]="modoSelezione.acceso()"
+            (selectionModeChange)="modoSelezione.commuta($event)"
+          />
+          <app-table-column-picker [viewId]="vista" />
+          <app-table-filters-button [viewId]="vista" [(open)]="filtriAperti" />
         </div>
+        <app-table-filters-panel [viewId]="vista" [(open)]="filtriAperti" />
+
+        <app-data-table
+          caption="Clienti registrati"
+          [columns]="colonne()"
+          [viewId]="vista"
+          [sections]="sezioni()"
+          [rowId]="rowId"
+          [cellText]="testoCella"
+          [sortable]="true"
+          [sort]="ordine()"
+          (sortChange)="ordine.set($event)"
+          [rowClickable]="true"
+          [rowLabel]="rowLabel"
+          (rowClick)="openTenant($event)"
+          selectionMode="multiple"
+          [rowClickSelects]="modoSelezione.perTocco()"
+          [selectedIds]="selectedIds()"
+          [selectionLabel]="selectionLabel"
+          selectAllLabel="Seleziona tutti i clienti"
+          (selectionChange)="toggleSelection($event.row.id, $event.selected)"
+          (selectAllChange)="toggleSelectAll($event)"
+          [totals]="totali()"
+        >
+          <ng-template appRowCard let-tenant>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__what">{{ tenant.name }}</span>
+              </span>
+              <span class="list-card__anchor">{{ testoCella(tenant, 'profile') }}</span>
+            </div>
+            <div class="list-card__words">
+              <span>{{ testoCella(tenant, 'owner') }}</span>
+              <span>{{ testoCella(tenant, 'email') }}</span>
+              <span class="tabular-nums">{{ testoCella(tenant, 'createdAt') }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
+
+        <app-list-actions-bar
+          [count]="selectedIds().size"
+          [ids]="[...selectedIds()]"
+          [actions]="listActions()"
+          labelSingular="cliente selezionato"
+          labelPlural="clienti selezionati"
+          clearLabel="Deseleziona"
+          (cleared)="clearSelection()"
+        />
       }
     </section>
   }

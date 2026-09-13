@@ -18,19 +18,8 @@
   (searchChange)="searchDraft.set($event)"
   (retry)="reload()"
 >
-  <div warnings>
-    @if (shopifySyncError(); as message) {
-      <p class="customer-list__shopify-error" role="alert">{{ message }}</p>
-    }
-
-    @if (shopifyFeedback(); as feedback) {
-      <app-shopify-sync-feedback
-        [message]="feedback.message"
-        [tone]="feedback.tone"
-        (dismissed)="dismissShopifyFeedback()"
-      />
-    }
-  </div>
+  <!-- ⭐ «Sincronizza da Shopify» e il suo esito stanno in Impostazioni → Shopify
+       (11/09/2026): l’origine Shopify di ogni cliente resta qui. -->
 
   <app-customer-table
     [rowClickSelects]="modoSelezione.perTocco()"

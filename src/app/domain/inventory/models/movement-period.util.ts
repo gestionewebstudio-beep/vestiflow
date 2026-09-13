@@ -1,4 +1,5 @@
 import { giornoDiAttivita, giornoDiAttivitaSpostato } from '@core/utils/business-day.util';
+import type { PeriodFilterOption } from '@shared/components/period-filter/period-filter.model';
 
 /**
  * Preset periodo del registro movimenti ('' = tutti, senza vincolo date).
@@ -52,10 +53,10 @@ export const DEFAULT_MOVEMENT_PERIOD: MovementPeriodPreset = MovementPeriodPrese
  * Il calcolo delle date resta in `resolveMovementPeriodRange`, i valori
  * persistiti restano quelli dell'enum, e nessuno dei due cambia.
  */
-export const MOVEMENT_PERIOD_OPTIONS: readonly {
-  readonly value: string;
-  readonly label: string;
-}[] = [
+// ⭐ Rese dal selettore condiviso `app-period-filter` (11/09/2026): l’unica cosa in
+//    più è QUALE voce fa comparire la coppia Dal/Al. «Tutti» resta: «Anno» non
+//    copre la ricerca attraverso più anni (proprietario, 11/09/2026).
+export const MOVEMENT_PERIOD_OPTIONS: readonly PeriodFilterOption[] = [
   // ⭐ «Tutti» resta scegliibile ma NON è il predefinito (`14` §H14-bis): un
   //    elenco che si apre su tutta la storia del tenant chiede al database di
   //    leggerla prima ancora che l'operatore abbia guardato qualcosa.
@@ -68,7 +69,7 @@ export const MOVEMENT_PERIOD_OPTIONS: readonly {
   { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
   { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
   { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
-  { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+  { value: MovementPeriodPreset.Custom, label: 'Personalizzato', pickers: ['range'] },
 ];
 
 /** Estremi inclusivi YYYY-MM-DD (ora locale); assenti = nessun vincolo. */

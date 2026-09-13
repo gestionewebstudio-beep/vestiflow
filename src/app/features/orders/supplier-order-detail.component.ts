@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import type { Subscription } from 'rxjs';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -71,7 +71,6 @@ type DetailState =
   selector: 'app-supplier-order-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
     BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
@@ -140,10 +139,25 @@ export class SupplierOrderDetailComponent {
     () => this.order()?.linkedDocuments ?? [],
   );
 
+  /**
+   * ⭐ I documenti collegati sono FATTI del dettaglio (`docs/26` A22), resi da
+   * `app-detail-facts` come il DDT collegato nel Dettaglio vendita online —
+   * non un `<ul>` di link vestito qui.
+   */
+  protected readonly fattiCollegati = computed<readonly DetailFact[]>(() =>
+    this.linkedDocuments().map((linked) => ({
+      label: 'Arrivo merce',
+      value: this.linkedDocumentLabel(linked),
+      numeric: true,
+      href: `/app/documents/${linked.id}`,
+      linkLabel: 'Apri documento',
+    })),
+  );
+
   protected linkedDocumentLabel(linked: SupplierOrderLinkedDocument): string {
     const identifier =
       linked.reference ?? (linked.number != null ? `n. ${linked.number}` : linked.id);
-    return `Arrivo merce ${identifier} del ${formatDate(linked.documentDate)}`;
+    return `${identifier} del ${formatDate(linked.documentDate)}`;
   }
 
   protected readonly facts = computed<readonly DetailFact[]>(() => {

@@ -237,6 +237,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       subcategory: '',
       internalNotes: '',
       supplierId: '',
+      shopifyProductType: '',
       shopifyTaxonomyCategoryId: '',
       shopifyTaxonomyCategoryFullName: '',
       shopifyCategoryMetafields: [],
@@ -372,6 +373,9 @@ function generalToDto(
     shopifySyncEnabled: general.shopifySyncEnabled,
     // Svuotato = azzerato apposta: il server lo re-inizializza al push dopo.
     shopifyTitle: general.shopifyTitle.trim() || null,
+    // ⚠️ Svuotato qui significa «non ancora acquisito», e verso Shopify NON
+    //    è una cancellazione: la chiave non entra nel payload (docs/24 §9.5).
+    shopifyProductType: general.shopifyProductType.trim() || null,
     unitOfMeasure: general.unitOfMeasure.trim() || 'pz',
     defaultVatCodeId: general.defaultVatCodeId || null,
     inventoryTracking: general.inventoryTracking,
@@ -518,6 +522,7 @@ export function productToFormDraft(
     status: product.status,
     shopifySyncEnabled: product.shopifySyncEnabled ?? true,
     shopifyTitle: product.shopifyTitle ?? '',
+    shopifyProductType: product.shopifyProductType ?? '',
     unitOfMeasure: product.unitOfMeasure ?? 'pz',
     defaultVatCodeId: product.defaultVatCodeId ?? '',
     inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,

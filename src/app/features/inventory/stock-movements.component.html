@@ -22,6 +22,26 @@
     ⚠️ Il selettore Colonne non è più qui: lo rende il telaio. Restano i filtri
     di dominio, che il telaio non conosce.
   -->
+  <!--
+    ⭐ Il selettore Periodo è quello condiviso, estratto dai Corrispettivi
+    (11/09/2026), con le voci di questo registro («Tutti» in coda, come prima) e
+    i confini di sempre. Sta nella casella `[period]` del telaio come ogni
+    elenco: Periodo resta in barra a ogni larghezza (`14` §0.2) — prima stava
+    fra i filtri, e sul telefono finiva nel pannello.
+  -->
+  <div period>
+    <app-period-filter
+      idPrefix="movements"
+      [options]="periodOptions"
+      [value]="periodFilter()"
+      [dateFrom]="fromFilter()"
+      [dateTo]="toFilter()"
+      (valueChange)="onPeriodFilterChange($event)"
+      (dateFromChange)="onFromFilterChange($event)"
+      (dateToChange)="onToFilterChange($event)"
+    />
+  </div>
+
   <div filters>
     <div class="stock-movements__field stock-movements__field--select">
       <app-select-menu
@@ -64,50 +84,6 @@
         [filterChip]="true"
       />
     </div>
-
-    <div class="stock-movements__field stock-movements__field--select">
-      <app-select-menu
-        chipLabel="Periodo"
-        [options]="periodOptions"
-        [value]="periodFilter()"
-        ariaLabel="Filtra per periodo"
-        placeholder="Periodo"
-        [compact]="true"
-        [fitContent]="true"
-        [includeEmptyOption]="false"
-        (valueChange)="onPeriodFilterChange($event)"
-      />
-    </div>
-
-    @if (isCustomPeriod()) {
-      <div class="stock-movements__field stock-movements__field--date">
-        <label class="stock-movements__label" for="movements-from">Dal</label>
-        <app-date-input
-          inputId="movements-from"
-          [value]="fromFilter()"
-          ariaLabel="Data inizio periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [max]="toFilter() || undefined"
-          (valueChange)="onFromFilterChange($event)"
-        />
-      </div>
-
-      <div class="stock-movements__field stock-movements__field--date">
-        <label class="stock-movements__label" for="movements-to">Al</label>
-        <app-date-input
-          inputId="movements-to"
-          [value]="toFilter()"
-          ariaLabel="Data fine periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [min]="fromFilter() || undefined"
-          (valueChange)="onToFilterChange($event)"
-        />
-      </div>
-    }
 
     <div class="stock-movements__field stock-movements__field--search">
       <label class="stock-movements__label" for="movements-search">Prodotto</label>

@@ -1,0 +1,69 @@
+@use 'breakpoints' as bp;
+@use 'list-page' as lp;
+
+/*
+  ⭐ **L'host si dissolve**: i controlli entrano nella riga della barra come se
+  la schermata li avesse scritti lì, ed è la barra del telaio a decidere come
+  vanno a capo — esattamente come faceva il `<div period>` che questo componente
+  sostituisce (`[period] { display: contents }` nelle pagine).
+
+  ⚠️ Con `display: contents` l'host non ha scatola: qui si vestono solo i figli.
+*/
+:host {
+  display: contents;
+
+  /*
+    ⭐ **Il prefisso «Periodo:» via a OGNI larghezza e in OGNI schermata** —
+    proprietario, 30/08/2026 sui Corrispettivi («anche da desktop togliamo
+    periodo»), esteso a tutti l’11/09/2026: «per rendere il filtro più piccolo,
+    togliere il termine Periodo all’interno, proprio come in Corrispettivi».
+
+    ⛔ Qui c’era una differenza fra le schermate: lo spegneva la PAGINA dei
+    Corrispettivi nel proprio foglio, e le altre otto no. La ragione per cui non
+    lo faceva il telaio resta vera — dentro il pannello filtri il prefisso è
+    l’unica cosa che dice di quale filtro si tratti — ma il Periodo nel pannello
+    non ci sta mai (`[period]` è in barra a ogni larghezza), quindi la decisione
+    appartiene a QUESTO controllo, non a ogni pagina che lo include.
+
+    ⭐ «Ultimi 30 giorni» si spiega da sé, e questo è il criterio: il prefisso
+    serve dove il valore da solo non direbbe di che filtro si tratta
+    («Raggruppa: Nessuno» lo tiene per quella ragione). Vale anche per Mese,
+    Trimestre e Anno a comparsa: «Marzo» e «2025» accanto a «Mese…» si leggono.
+
+    ⚠️ Una custom property su un host `display: contents` si eredita lo stesso:
+    `contents` toglie la scatola, non l’ereditarietà.
+  */
+  --select-menu-chip-label-display: none;
+}
+
+/*
+  ⭐ **Le voci della tendina seguono la densità della barra** — «troppo spazio»,
+  segnalato dal proprietario il 30/08/2026 sulla tendina del Periodo dei
+  Corrispettivi; da lì, con il componente, vale per ogni Periodo (11/09/2026).
+
+  Misurato allora: 34px per voce su scrivania, con font 13px e zero padding —
+  l’altezza la dava tutta `--field-height`, la misura di un campo autonomo. Su
+  dodici voci sono 408px di tendina per 156px di testo.
+
+  ⛔ Fino all’11/09 lo dichiarava la sola pagina dei Corrispettivi: le altre otto
+  tendine del Periodo avevano le voci a 34px. La densità è del controllo, non
+  della pagina che lo ospita.
+
+  ⚠️ **Sotto `md` non si tocca**: là `--field-height` sale a 44px da sé, e un
+  elenco di scelte da toccare col dito è esattamente il caso in cui quel minimo
+  serve. La densità è una scelta da scrivania.
+*/
+@include bp.media-up('md') {
+  :host {
+    --select-menu-option-h: var(--control-h-button);
+  }
+}
+
+/*
+  La coppia di date, in un contenitore loro: era `.ops__dates` / `.sess__dates`
+  della Cassa (06/09/2026), e il mixin è lo stesso — due colonne sotto `md`,
+  calendario largo quanto la coppia e ancorato dal lato del proprio campo.
+*/
+.period-filter__dates {
+  @include lp.list-date-period;
+}

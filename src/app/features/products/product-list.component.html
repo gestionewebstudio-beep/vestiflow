@@ -36,18 +36,9 @@
     />
   </div>
 
+  <!-- ⭐ «Importa catalogo» e il suo esito stanno in Impostazioni → Shopify (11/09/2026):
+       la colonna Shopify e lo stato per articolo restano qui. -->
   <div warnings>
-    @if (shopifySyncError(); as message) {
-      <p class="product-list__shopify-error" role="alert">{{ message }}</p>
-    }
-
-    @if (shopifyFeedback(); as feedback) {
-      <app-shopify-sync-feedback
-        [message]="feedback.message"
-        [tone]="feedback.tone"
-        (dismissed)="dismissShopifyFeedback()"
-      />
-    }
     @if (draftCount() > 0 || draftFilterActive()) {
       <button
         type="button"

@@ -212,19 +212,19 @@ describe('ListPageComponent — le due vesti dei filtri', () => {
     expect(periodo).toBeVisible();
     // ⚠️ Periodo e Ricerca non entrano nel pannello: sono i due esterni alle
     //    colonne (`14` §0.2). Se finisse dentro, sarebbe nascosto di default.
-    expect(periodo.closest('.list-page__filters')).toBeNull();
+    expect(periodo.closest('.table-filters')).toBeNull();
   });
 
   it('⭐ il pannello nasce CHIUSO e «Filtri» lo apre', async () => {
     await montaVesti({ compatta: true });
-    const pannello = document.querySelector('.list-page__filters');
+    const pannello = document.querySelector('.table-filters');
 
     expect(pannello).not.toBeNull();
-    expect(pannello?.classList.contains('list-page__filters--open')).toBe(false);
+    expect(pannello?.classList.contains('table-filters--open')).toBe(false);
 
     await userEvent.click(screen.getByRole('button', { name: /Filtri/ }));
 
-    expect(pannello?.classList.contains('list-page__filters--open')).toBe(true);
+    expect(pannello?.classList.contains('table-filters--open')).toBe(true);
     expect(pannello?.getAttribute('role')).toBe('dialog');
   });
 
@@ -235,7 +235,7 @@ describe('ListPageComponent — le due vesti dei filtri', () => {
     await userEvent.click(screen.getByRole('button', { name: /Filtri/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Vedi risultati' }));
 
-    expect(document.querySelector('.list-page__filters--open')).toBeNull();
+    expect(document.querySelector('.table-filters--open')).toBeNull();
     expect(consumer.onAzzera).not.toHaveBeenCalled();
   });
 
@@ -267,9 +267,9 @@ describe('ListPageComponent — le due vesti dei filtri', () => {
 
   it('⭐ nella veste estesa i filtri NON sono un pannello', async () => {
     await montaVesti();
-    const filtri = document.querySelector('.list-page__filters');
+    const filtri = document.querySelector('.table-filters');
 
-    expect(filtri?.classList.contains('list-page__filters--panel')).toBe(false);
+    expect(filtri?.classList.contains('table-filters--panel')).toBe(false);
     expect(filtri?.getAttribute('role')).toBeNull();
     expect(screen.getByText('un filtro')).toBeVisible();
   });

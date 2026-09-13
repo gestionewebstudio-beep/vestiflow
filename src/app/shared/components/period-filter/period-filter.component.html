@@ -1,0 +1,91 @@
+<!--
+  Il selettore del Registro Corrispettivi, com'era: preset a larghezza stabile,
+  poi — solo quando la voce scelta li chiede — Mese, Trimestre, Anno, la giornata
+  singola, la coppia Dal/Al. L'ordine è quello di lettura: prima il periodo,
+  poi ciò che lo precisa.
+-->
+<app-select-menu
+  [chipLabel]="chipLabel()"
+  [options]="options()"
+  [ariaLabel]="ariaLabel()"
+  [value]="value()"
+  [placeholder]="placeholder()"
+  [compact]="true"
+  [fitContent]="true"
+  [includeEmptyOption]="false"
+  (valueChange)="valueChange.emit($event)"
+/>
+@if (showMonth()) {
+  <app-select-menu
+    chipLabel="Mese"
+    [options]="monthOptions"
+    ariaLabel="Mese"
+    [value]="month()"
+    placeholder="Mese"
+    [compact]="true"
+    [fitContent]="true"
+    [includeEmptyOption]="false"
+    (valueChange)="monthChange.emit($event ?? '')"
+  />
+}
+@if (showQuarter()) {
+  <app-select-menu
+    chipLabel="Trimestre"
+    [options]="quarterOptions"
+    ariaLabel="Trimestre"
+    [value]="quarter()"
+    placeholder="Trimestre"
+    [compact]="true"
+    [fitContent]="true"
+    [includeEmptyOption]="false"
+    (valueChange)="quarterChange.emit($event ?? '')"
+  />
+}
+@if (showYear()) {
+  <app-select-menu
+    chipLabel="Anno"
+    [options]="yearOptions"
+    ariaLabel="Anno"
+    [value]="year()"
+    placeholder="Anno"
+    [compact]="true"
+    [fitContent]="true"
+    [includeEmptyOption]="false"
+    (valueChange)="yearChange.emit($event ?? '')"
+  />
+}
+@if (showDay()) {
+  <!-- La giornata singola ha un campo suo: «quale giorno» e «da che giorno» sono due domande. -->
+  <app-date-input
+    [inputId]="idPrefix() + '-giorno'"
+    ariaLabel="Giorno"
+    [value]="day()"
+    [compact]="true"
+    (valueChange)="dayChange.emit($event)"
+  />
+}
+@if (showRange()) {
+  <!--
+    ⛔ Le due date restano una COPPIA in un contenitore loro: sul telefono si
+    dividono la riga e il calendario si calcola sull'intera coppia
+    (`list-date-period`). Dal ha per massimo Al, Al per minimo Dal.
+  -->
+  <div class="period-filter__dates">
+    <app-date-input
+      [inputId]="idPrefix() + '-da'"
+      ariaLabel="Data inizio"
+      [value]="dateFrom()"
+      [max]="dateTo() || undefined"
+      [compact]="true"
+      (valueChange)="dateFromChange.emit($event)"
+    />
+    <app-date-input
+      [inputId]="idPrefix() + '-a'"
+      ariaLabel="Data fine"
+      [value]="dateTo()"
+      [min]="dateFrom() || undefined"
+      [compact]="true"
+      (valueChange)="dateToChange.emit($event)"
+    />
+  </div>
+}

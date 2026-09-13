@@ -36,44 +36,26 @@
           (input)="onSearchInput($event)"
         />
       </div>
-      <div class="vat-codes__filters">
-        <label class="vat-codes__field">
-          <span class="vat-codes__label">Natura</span>
-          <select aria-label="Filtra per Natura" (change)="onNatureFilterChange($event)">
-            <option value="" [selected]="natureFilter() === ''">Tutte</option>
-            @for (nature of natures(); track nature.id) {
-              <option [value]="nature.id" [selected]="natureFilter() === nature.id">
-                {{ nature.label }}
-              </option>
-            }
-          </select>
-        </label>
-        <label class="vat-codes__field">
-          <span class="vat-codes__label">Ambito</span>
-          <select aria-label="Filtra per ambito" (change)="onScopeFilterChange($event)">
-            <option value="" [selected]="scopeFilter() === ''">Tutti</option>
-            @for (opt of usageScopeOptions; track opt.value) {
-              <option [value]="opt.value" [selected]="scopeFilter() === opt.value">
-                {{ opt.label }}
-              </option>
-            }
-          </select>
-        </label>
-        <label class="vat-codes__field">
-          <span class="vat-codes__label">Stato</span>
-          <select aria-label="Filtra per stato" (change)="onActiveFilterChange($event)">
-            <option value="all" [selected]="activeFilter() === 'all'">Tutte</option>
-            <option value="active" [selected]="activeFilter() === 'active'">Attive</option>
-            <option value="inactive" [selected]="activeFilter() === 'inactive'">Disattivate</option>
-          </select>
-        </label>
-        @if (hasFilters()) {
-          <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
+      <!--
+        ⭐ Natura, Ambito e Stato erano tre `<select>` qui: sono filtri di
+        COLONNA condivisi (`docs/26` A6), con lo stesso significato. La Ricerca
+        resta in barra, come su ogni elenco. Colonne e Filtri stanno qui e non nel
+        telaio: è una pagina delle Impostazioni con una testata propria.
+      -->
+      <div class="vat-codes__tools">
+        @if (puoGestireImpostazioniAzienda()) {
+          <app-table-selection-toggle
+            [selectionMode]="modoSelezione.acceso()"
+            (selectionModeChange)="modoSelezione.commuta($event)"
+          />
         }
+        <app-table-column-picker [viewId]="vista" />
+        <app-table-filters-button [viewId]="vista" [(open)]="filtriAperti" />
       </div>
     </div>
+    <app-table-filters-panel [viewId]="vista" [(open)]="filtriAperti" />
 
-    @if (groups().length === 0) {
+    @if (filteredCodes().length === 0) {
       <app-empty-state
         title="Nessun Codice IVA trovato"
         [description]="emptyStateDescription()"
@@ -82,94 +64,96 @@
         (ctaClick)="hasFilters() ? resetFilters() : openCreate()"
       />
     } @else {
-      @for (group of groups(); track group.nature.id) {
-        <section class="vat-codes__group" [attr.aria-label]="group.nature.label">
-          <button
-            type="button"
-            class="vat-codes__group-toggle"
-            [attr.aria-expanded]="!isCollapsed(group.nature.id)"
-            (click)="toggleGroup(group.nature.id)"
-          >
-            <i
-              class="pi vat-codes__group-icon"
-              [class.pi-chevron-down]="!isCollapsed(group.nature.id)"
-              [class.pi-chevron-right]="isCollapsed(group.nature.id)"
-              aria-hidden="true"
-            ></i>
-            <span class="vat-codes__group-title">{{ group.nature.label }}</span>
-            <span class="vat-codes__group-count tabular-nums">{{ group.codes.length }}</span>
-          </button>
-
-          @if (!isCollapsed(group.nature.id)) {
-            <div class="vat-codes__table-wrap">
-              <table class="vat-codes__table">
-                <thead>
-                  <tr>
-                    <th scope="col">Codice IVA</th>
-                    <th scope="col" class="vat-codes__col-num">Aliquota</th>
-                    <th scope="col" class="vat-codes__col-num">% indetraibile</th>
-                    <th scope="col">Descrizione</th>
-                    <th scope="col" class="vat-codes__col-notes">Note</th>
-                    <th scope="col">Ambito</th>
-                    <th scope="col">Stato</th>
-                    <th scope="col" class="vat-codes__col-actions">
-                      <span class="visually-hidden">Azioni</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (entry of group.codes; track entry.id) {
-                    <tr
-                      class="vat-codes__row"
-                      [class.vat-codes__row--inactive]="!entry.isActive"
-                      tabindex="0"
-                      (click)="openEdit(entry)"
-                      (keydown.enter)="openEdit(entry)"
-                    >
-                      <td data-label="Codice IVA">
-                        <span class="vat-codes__code">{{ entry.code }}</span>
-                        @if (entry.isDefault) {
-                          <app-badge tone="success">Predefinito</app-badge>
-                        }
-                      </td>
-                      <td data-label="Aliquota" class="vat-codes__col-num tabular-nums">
-                        {{ formatRate(entry.ratePercent) }}
-                      </td>
-                      <td data-label="% indetraibile" class="vat-codes__col-num tabular-nums">
-                        @if (entry.nonDeductiblePercent > 0) {
-                          {{ formatRate(entry.nonDeductiblePercent) }}
-                        } @else {
-                          —
-                        }
-                      </td>
-                      <td data-label="Descrizione">{{ entry.description }}</td>
-                      <td data-label="Note" class="vat-codes__col-notes">
-                        {{ entry.notes || '—' }}
-                      </td>
-                      <td data-label="Ambito">{{ scopeLabels[entry.usageScope] }}</td>
-                      <td data-label="Stato">
-                        <app-badge [tone]="entry.isActive ? 'neutral' : 'warning'">
-                          {{ entry.isActive ? 'Attivo' : 'Disattivato' }}
-                        </app-badge>
-                      </td>
-                      <td data-label="Azioni" class="vat-codes__col-actions">
-                        <!-- Duplicare crea una voce: sparisce a chi non scrive. -->
-                        @if (puoGestireImpostazioniAzienda()) {
-                          <app-button
-                            variant="ghost"
-                            (click)="$event.stopPropagation(); openDuplicate(entry)"
-                          >
-                            Duplica
-                          </app-button>
-                        }
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+      <!--
+        ⭐ **Sul MOTORE comune**, con una sezione COMPRIMIBILE per Natura
+        (`docs/26` D3): il titolo del gruppo è il pulsante, com’era. Il clic di
+        riga apre la scheda; «Duplica» resta un comando di riga (transitorio,
+        come sugli altri elenchi che lo hanno ancora) e sparisce a chi non scrive.
+      -->
+      <app-data-table
+        caption="Codici IVA per Natura"
+        [columns]="colonne()"
+        [viewId]="vista"
+        [sections]="sezioni()"
+        [rowId]="rowId"
+        [cellText]="testoCella"
+        [rowTone]="rowTone"
+        [rowClickable]="true"
+        [rowLabel]="rowLabel"
+        [sortable]="true"
+        [sort]="ordine()"
+        (sortChange)="ordine.set($event)"
+        (rowClick)="openEdit($event)"
+        [selectionMode]="puoGestireImpostazioniAzienda() ? 'multiple' : 'none'"
+        [rowClickSelects]="modoSelezione.perTocco()"
+        [selectedIds]="selectedIds()"
+        [selectionLabel]="selectionLabel"
+        selectAllLabel="Seleziona tutti i Codici IVA"
+        (selectionChange)="toggleSelection($event.row.id, $event.selected)"
+        (selectAllChange)="toggleSelectAll($event)"
+        [totals]="totali()"
+      >
+        <ng-template appCell="vatCode" let-entry>
+          <span class="vat-codes__code">{{ entry.code }}</span>
+          @if (entry.isDefault) {
+            <app-badge tone="success">Predefinito</app-badge>
           }
-        </section>
+        </ng-template>
+        <ng-template appCell="status" let-entry>
+          <app-badge [flat]="true" [tone]="entry.isActive ? 'neutral' : 'warning'">
+            {{ testoCella(entry, 'status') }}
+          </app-badge>
+        </ng-template>
+
+        <!-- La card: codice in testa, stato come ancora, descrizione fra le parole, le percentuali coi nomi. -->
+        <ng-template appRowCard let-entry>
+          <div class="list-card__head">
+            <span class="list-card__ident">
+              <span class="list-card__what tabular-nums">{{ entry.code }}</span>
+              @if (entry.isDefault) {
+                <app-badge tone="success">Predefinito</app-badge>
+              }
+            </span>
+            <span class="list-card__anchor">
+              <app-badge [flat]="true" [tone]="entry.isActive ? 'neutral' : 'warning'">
+                {{ testoCella(entry, 'status') }}
+              </app-badge>
+            </span>
+          </div>
+          <div class="list-card__words">
+            <span>{{ entry.description }}</span>
+            <span>{{ testoCella(entry, 'usageScope') }}</span>
+            @if (entry.notes) {
+              <span>{{ entry.notes }}</span>
+            }
+          </div>
+          <div class="list-card__figures">
+            @if (entry.nonDeductiblePercent > 0) {
+              <span class="tabular-nums"
+                >Indetraibile {{ testoCella(entry, 'nonDeductiblePercent') }}</span
+              >
+            }
+            <span class="list-card__total tabular-nums"
+              >Aliquota {{ testoCella(entry, 'ratePercent') }}</span
+            >
+          </div>
+        </ng-template>
+      </app-data-table>
+
+      <!--
+        ⭐ **La barra comandi, sulla selezione**: «Duplica» era un pulsante per
+        riga, e nessun altro elenco ne ha più; sparisce a chi non scrive.
+      -->
+      @if (puoGestireImpostazioniAzienda()) {
+        <app-list-actions-bar
+          [count]="selectedIds().size"
+          [ids]="[...selectedIds()]"
+          [actions]="listActions()"
+          labelSingular="Codice IVA selezionato"
+          labelPlural="Codici IVA selezionati"
+          clearLabel="Deseleziona"
+          (cleared)="clearSelection()"
+        />
       }
     }
   }

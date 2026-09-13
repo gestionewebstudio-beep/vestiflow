@@ -1,6 +1,7 @@
 import type { ParamMap } from '@angular/router';
 
 import { SalesOrderFinancialStatus, SalesOrderSource } from '@core/models/sales-order.model';
+import type { PeriodFilterOption } from '@shared/components/period-filter/period-filter.model';
 
 /**
  * Preset periodo per i report vendite (query param `period`).
@@ -41,6 +42,29 @@ export const ReportPeriodPreset = {
 } as const;
 
 export type ReportPeriodPreset = (typeof ReportPeriodPreset)[keyof typeof ReportPeriodPreset];
+
+/**
+ * Le voci del selettore Periodo dei report, con i selettori che ciascuna fa
+ * comparire (`app-period-filter`). Stavano nel componente del Registro
+ * Corrispettivi; da qui le legge chiunque usi QUESTI preset.
+ *
+ * ⚠️ Qui sta la presentazione — etichette, ordine, selettori — non il
+ * significato: le date le calcola `resolveReportDateRange`, e basta.
+ */
+export const REPORT_PERIOD_OPTIONS: readonly PeriodFilterOption[] = [
+  { value: ReportPeriodPreset.Today, label: 'Oggi' },
+  { value: ReportPeriodPreset.Yesterday, label: 'Ieri' },
+  { value: ReportPeriodPreset.SpecificDay, label: 'Giorno specifico…', pickers: ['day'] },
+  { value: ReportPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+  { value: ReportPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
+  { value: ReportPeriodPreset.ThisMonth, label: 'Mese corrente' },
+  { value: ReportPeriodPreset.LastMonth, label: 'Mese scorso' },
+  { value: ReportPeriodPreset.ThisYear, label: 'Anno corrente' },
+  { value: ReportPeriodPreset.CalendarMonth, label: 'Mese…', pickers: ['month', 'year'] },
+  { value: ReportPeriodPreset.CalendarQuarter, label: 'Trimestre…', pickers: ['quarter', 'year'] },
+  { value: ReportPeriodPreset.CalendarYear, label: 'Anno…', pickers: ['year'] },
+  { value: ReportPeriodPreset.Custom, label: 'Personalizzato', pickers: ['range'] },
+];
 
 export interface ReportListQuery {
   readonly period: ReportPeriodPreset;

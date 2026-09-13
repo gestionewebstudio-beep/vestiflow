@@ -1002,10 +1002,32 @@ export class DataTableComponent<T> {
   });
 
   /**
+   * ⭐ **Le sezioni CHIUSE dal loro titolo** (`docs/26` D3): stato del motore,
+   * per id di sezione. Una sezione che non dichiara `collapsible` non ci finisce
+   * mai — il pulsante che la chiude non esiste.
+   */
+  private readonly sezioniChiuse = signal<ReadonlySet<string>>(new Set());
+
+  protected sezioneChiusa(id: string): boolean {
+    return this.sezioniChiuse().has(id);
+  }
+
+  protected commutaSezione(id: string): void {
+    const prossime = new Set(this.sezioniChiuse());
+    if (!prossime.delete(id)) {
+      prossime.add(id);
+    }
+    this.sezioniChiuse.set(prossime);
+  }
+
+  /**
    * Le righe che il `@for` rende. Fuori dalla finestra e` l'elenco intero,
-   * identico a prima.
+   * identico a prima. Una sezione chiusa non ne rende nessuna.
    */
   protected righeDaRendere(sezione: DataTableSection<T>): readonly T[] {
+    if (sezione.collapsible && this.sezioneChiusa(sezione.id)) {
+      return [];
+    }
     if (!this.finestraAttiva()) {
       return sezione.rows;
     }

@@ -1,22 +1,10 @@
-@use 'responsive-table' as rt;
-
 :host {
   display: block;
 }
 
-.location-table__wrapper {
-  inline-size: 100%;
-}
-
-@include rt.stack-table('location-table');
-
-.location-table__code {
-  color: var(--color-text-muted);
-}
-
-.location-table__group:first-child {
-  margin-block-start: 0;
-}
+// ⛔ Qui c’erano il mixin `stack-table` e la griglia di una `<table>` a mano,
+//    ricopiata quattro volte nel template. Le tabelle sono sul motore comune
+//    (`docs/26` A7): grammatica, ordinamento e card sotto `lg` le porta lui.
 
 .location-table__group + .location-table__group {
   margin-block-start: var(--space-10);

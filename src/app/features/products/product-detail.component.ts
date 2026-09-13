@@ -49,6 +49,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductVariantTableComponent } from './components/product-variant-table/product-variant-table.component';
@@ -64,6 +65,16 @@ import {
 } from '@domain/products/models/catalog-origin.util';
 import { ProductService } from '@domain/products/services/product.service';
 import { activeListinoSlots } from '@domain/products/models/product-listino.model';
+import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
+import { conEsito, datiOppure } from '@core/utils/esito-caricamento.util';
+import type { EsitoCaricamento } from '@core/utils/esito-caricamento.util';
+
+export const RIFERIMENTI_DETTAGLIO_ERRORE = {
+  codiciIva: 'Codici IVA non caricati: il Codice IVA mostrato qui non è attendibile.',
+  impostazioni: 'Impostazioni aziendali non caricate: i listini non sono mostrati.',
+  entrambi:
+    'Codici IVA e impostazioni aziendali non caricati: Codice IVA e listini non sono mostrati.',
+} as const;
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 
 const PRODUCTS_LIST_PATH = '/app/products';
@@ -139,6 +150,7 @@ function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
     DeleteConfirmComponent,
     EmptyStateComponent,
     ErrorStateComponent,
+    InlineBannerComponent,
     TableSkeletonComponent,
     ProductVariantTableComponent,
     ProductSupplierLinksComponent,
@@ -225,9 +237,14 @@ export class ProductDetailComponent {
   protected readonly notFound = computed(() => this.state().status === 'notFound');
 
   // Lookup Codici IVA per mostrare "22 · 22% · Imponibile 22%" nei fatti prodotto.
-  private readonly vatCodes = toSignal(
-    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
-    { initialValue: [] as readonly VatCode[] },
+  // ⛔ Un errore NON è «nessun codice»: l’esito si conserva e la scheda lo dice
+  //    (stessa regola della maschera, 11/09/2026).
+  private readonly vatCodesLoad = toSignal<EsitoCaricamento<readonly VatCode[]> | null>(
+    this.vatCodeService.list().pipe(conEsito()),
+    { initialValue: null },
+  );
+  private readonly vatCodes = computed(() =>
+    datiOppure(this.vatCodesLoad(), [] as readonly VatCode[]),
   );
 
   protected vatCodeLabel(vatCodeId: string | null | undefined): string {
@@ -239,10 +256,26 @@ export class ProductDetailComponent {
   }
 
   // Listini attivi per l'azienda (nomi e attivazione stanno nelle impostazioni).
-  private readonly featureSettings = toSignal(
-    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+  private readonly featureSettingsLoad = toSignal<EsitoCaricamento<TenantFeatureSettings> | null>(
+    this.tenantFeatureSettingsService.getSettings().pipe(conEsito()),
     { initialValue: null },
   );
+  private readonly featureSettings = computed(() =>
+    datiOppure<TenantFeatureSettings | null>(this.featureSettingsLoad(), null),
+  );
+
+  /** Che cosa NON è arrivato, detto per esteso: senza, «—» e nessun listino sembrerebbero dati. */
+  protected readonly riferimentiErrore = computed((): string | null => {
+    const iva = this.vatCodesLoad()?.ok === false;
+    const impostazioni = this.featureSettingsLoad()?.ok === false;
+    if (iva && impostazioni) {
+      return RIFERIMENTI_DETTAGLIO_ERRORE.entrambi;
+    }
+    if (iva) {
+      return RIFERIMENTI_DETTAGLIO_ERRORE.codiciIva;
+    }
+    return impostazioni ? RIFERIMENTI_DETTAGLIO_ERRORE.impostazioni : null;
+  });
 
   protected readonly error = computed(() => {
     const current = this.state();

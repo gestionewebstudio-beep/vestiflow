@@ -32,6 +32,7 @@
   searchPlaceholder="Cerca o scrivi per filtrare…"
   [searchAriaLabel]="'Cerca fra i valori di ' + columnLabel()"
   [searchValue]="testo()"
+  [panelFixed]="panelFixed()"
   (valuesChange)="onValues($event)"
   (searchChange)="onRicerca($event)"
 >

@@ -81,44 +81,72 @@
       </app-button>
     </div>
 
-    <div class="product-import__table-scroll">
-      <table class="product-import__table">
-        <thead>
-          <tr>
-            <th scope="col">Prodotto</th>
-            <th scope="col">Handle</th>
-            <th scope="col" class="product-import__col--numeric">Varianti</th>
-            <th scope="col">Stato</th>
-            <th scope="col">Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (item of data.products; track item.handle) {
-            <tr>
-              <td data-label="Prodotto">{{ item.name }}</td>
-              <td data-label="Handle">{{ item.handle }}</td>
-              <td class="product-import__numeric tabular-nums" data-label="Varianti">
-                {{ item.variantCount }}
-              </td>
-              <td data-label="Stato">
-                <app-badge [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
-              </td>
-              <td data-label="Note">
-                @if (item.issues.length === 0) {
-                  —
-                } @else {
-                  <ul class="product-import__issues">
-                    @for (issue of item.issues; track $index) {
-                      <li>{{ issue.message }}</li>
-                    }
-                  </ul>
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <!--
+      ⭐ **Sul MOTORE comune** (`docs/26` A1): colonne dal catalogo, filtri e
+      ordinamento condivisi, maniglie, card progettata sotto `lg`. Era una
+      `<table>` a mano che non aveva niente di tutto questo.
+
+      ⛔ Niente riga totali e niente azioni: «Varianti» non si somma, e un
+      rapporto non è un elenco su cui si lavora.
+    -->
+    <div class="product-import__tools">
+      <app-table-column-picker [viewId]="vistaAnteprima" />
+      <app-table-filters-button [viewId]="vistaAnteprima" [(open)]="filtriAnteprimaAperti" />
     </div>
+    <app-table-filters-panel [viewId]="vistaAnteprima" [(open)]="filtriAnteprimaAperti" />
+
+    <app-data-table
+      caption="Anteprima dei prodotti nel file"
+      [columns]="colonneAnteprima()"
+      [viewId]="vistaAnteprima"
+      [sections]="sezioniAnteprima()"
+      [rowId]="rigaAnteprimaId"
+      [cellText]="testoAnteprima"
+      [sortable]="true"
+      [sort]="ordineAnteprima()"
+      (sortChange)="ordineAnteprima.set($event)"
+    >
+      <!-- Le sole celle che non sono testo: lo stato è una pastiglia, le note un elenco. -->
+      <ng-template appCell="status" let-item>
+        <app-badge [flat]="true" [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
+      </ng-template>
+      <ng-template appCell="issues" let-item>
+        @if (item.issues.length === 0) {
+          —
+        } @else {
+          <ul class="product-import__issues">
+            @for (issue of item.issues; track $index) {
+              <li>{{ issue.message }}</li>
+            }
+          </ul>
+        }
+      </ng-template>
+
+      <!--
+        ⭐ **La card si progetta, non si impila** (`regole-stile-ui`): identità,
+        parole, numeri. Prima il ripiego generico metteva ogni valore a destra
+        come se fosse un importo, note lunghe comprese.
+      -->
+      <ng-template appRowCard let-item>
+        <div class="list-card__head">
+          <span class="list-card__ident">
+            <span class="list-card__what">{{ item.name }}</span>
+          </span>
+          <span class="list-card__anchor">
+            <app-badge [flat]="true" [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
+          </span>
+        </div>
+        <div class="list-card__words">
+          <span class="tabular-nums">{{ item.handle }}</span>
+          @if (item.issues.length > 0) {
+            <span>{{ testoAnteprima(item, 'issues') }}</span>
+          }
+        </div>
+        <div class="list-card__figures">
+          <span class="list-card__total tabular-nums">Varianti {{ item.variantCount }}</span>
+        </div>
+      </ng-template>
+    </app-data-table>
   }
 
   @if (phase() === 'done' && result(); as importResult) {
@@ -146,41 +174,51 @@
       </p>
     </div>
 
-    <div class="product-import__table-scroll">
-      <table class="product-import__table">
-        <thead>
-          <tr>
-            <th scope="col">Prodotto</th>
-            <th scope="col">Codice articolo</th>
-            <th scope="col">Esito</th>
-            <th scope="col">Dettaglio</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of importResult.products; track row.handle + row.status) {
-            <tr>
-              <td data-label="Prodotto">{{ row.name }}</td>
-              <td data-label="Codice articolo" class="tabular-nums">
-                @if (row.articleCode) {
-                  {{ row.articleCode }}
-                  @if (row.articleCodeGenerated) {
-                    <span class="product-import__code-note">(generato)</span>
-                  }
-                } @else {
-                  —
-                }
-              </td>
-              <td data-label="Esito">
-                <app-badge [tone]="resultStatusTone(row.status)">
-                  {{ resultStatusLabel(row.status) }}
-                </app-badge>
-              </td>
-              <td data-label="Dettaglio">{{ row.message ?? '—' }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <div class="product-import__tools">
+      <app-table-column-picker [viewId]="vistaEsito" />
+      <app-table-filters-button [viewId]="vistaEsito" [(open)]="filtriEsitoAperti" />
     </div>
+    <app-table-filters-panel [viewId]="vistaEsito" [(open)]="filtriEsitoAperti" />
+
+    <app-data-table
+      caption="Esito dell’import, prodotto per prodotto"
+      [columns]="colonneEsito()"
+      [viewId]="vistaEsito"
+      [sections]="sezioniEsito()"
+      [rowId]="rigaEsitoId"
+      [cellText]="testoEsito"
+      [sortable]="true"
+      [sort]="ordineEsito()"
+      (sortChange)="ordineEsito.set($event)"
+    >
+      <ng-template appCell="status" let-row>
+        <app-badge [flat]="true" [tone]="resultStatusTone(row.status)">
+          {{ resultStatusLabel(row.status) }}
+        </app-badge>
+      </ng-template>
+
+      <ng-template appRowCard let-row>
+        <div class="list-card__head">
+          <span class="list-card__ident">
+            <span class="list-card__what">{{ row.name }}</span>
+          </span>
+          <span class="list-card__anchor">
+            <app-badge [flat]="true" [tone]="resultStatusTone(row.status)">
+              {{ resultStatusLabel(row.status) }}
+            </app-badge>
+          </span>
+        </div>
+        <div class="list-card__words">
+          <span class="tabular-nums">{{ testoEsito(row, 'articleCode') }}</span>
+          <!-- ⭐ È qui che «Immagini non scaricate (n su m)» si legge per intero,
+               fra le parole e a sinistra — non più un valore a destra che va
+               a capo dentro un indirizzo. -->
+          @if (row.message) {
+            <span>{{ row.message }}</span>
+          }
+        </div>
+      </ng-template>
+    </app-data-table>
 
     <div class="product-import__actions">
       <app-button type="button" (click)="backToList()">Vai ai prodotti</app-button>

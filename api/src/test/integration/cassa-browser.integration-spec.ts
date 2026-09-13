@@ -428,8 +428,15 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
           await money(page, 'Importo del movimento', amount);
           await page.getByPlaceholder('Perché il denaro entra o esce').fill(reason);
           await page.getByRole('button', { name: 'Registra', exact: true }).click();
+          // ⭐ I movimenti stanno sul motore comune (`docs/26` A19): la causale è
+          //    una cella della tabella «Movimenti del cassetto» (e, sotto `lg`,
+          //    una parola della card). Prima era `.sd__mov-reason`, una classe
+          //    del vecchio elenco scritto a mano.
           await browserExpect(
-            page.locator('.sd__mov-reason').filter({ hasText: reason }),
+            page
+              .locator('table[aria-label="Movimenti del cassetto"]')
+              .getByText(reason, { exact: true })
+              .first(),
           ).toBeVisible();
         }
         await page.goto(`${server.url}/app/cassa/sessioni/${sessionId}/chiusura`);
