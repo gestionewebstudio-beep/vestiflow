@@ -3,7 +3,10 @@ import { DocumentStatus, DocumentType, PrismaClient, UserRole } from '@prisma/cl
 import { ambienteIntegrazione } from './env';
 
 /** Il client dentro una transazione interattiva: non espone $transaction. */
-export type PrismaTransazione = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+export type PrismaTransazione = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
 
 /**
  * Il dataset minimo del Passo 5, creato nel SOLO database di prova.
@@ -48,7 +51,14 @@ export const IDS = {
  *    `…_immutabile` e `…_nasce_agganciata`, che con la pulizia non c'entrano
  *    niente e che resterebbero spenti proprio mentre le fixture scrivono.
  */
-const TRIGGER_ANTICANCELLAZIONE = [
+/**
+ * La migration che CREA lo storico dei collegamenti e i suoi trigger. Prima di lei
+ * (la baseline della prova delle migration, `d0a1d95b`) quelle tabelle non esistono:
+ * lì, e solo lì, la loro assenza è prevista e non c'è niente da spegnere.
+ */
+export const MIGRATION_DELLO_STORICO = '20260907000000_shopify_link_history';
+
+export const TRIGGER_ANTICANCELLAZIONE = [
   ['shopify_product_identities', 'shopify_product_identities_mai_delete'],
   ['shopify_product_identities', 'shopify_product_identities_mai_truncate'],
   ['shopify_variant_identities', 'shopify_variant_identities_mai_delete'],
@@ -229,7 +239,10 @@ async function conTetto<T>(operazione: Promise<T>, tetto: number): Promise<T> {
     return await Promise.race([
       operazione,
       new Promise<never>((_, rifiuta) => {
-        sveglia = setTimeout(() => rifiuta(new Error(`diagnosi non conclusa entro ${tetto}ms`)), tetto);
+        sveglia = setTimeout(
+          () => rifiuta(new Error(`diagnosi non conclusa entro ${tetto}ms`)),
+          tetto,
+        );
         sveglia.unref?.();
       }),
     ]);
@@ -457,8 +470,9 @@ let provaPrecedente = '(nessuna: prima pulizia del file)';
  */
 function nomeProvaCorrente(): string {
   try {
-    const stato = (globalThis as { expect?: { getState?: () => { currentTestName?: string } } })
-      .expect?.getState?.();
+    const stato = (
+      globalThis as { expect?: { getState?: () => { currentTestName?: string } } }
+    ).expect?.getState?.();
     return stato?.currentTestName ?? '(prova non dichiarata dal runner)';
   } catch {
     return '(prova non dichiarata dal runner)';
@@ -585,6 +599,29 @@ export async function conStoricoSbloccato(
  *    dice se a fermarsi sia stato lo spegnimento dei trigger, il TRUNCATE o la
  *    riaccensione — e sono tre contese diverse, con tre colpevoli diversi.
  */
+/**
+ * La migration risulta applicata nel registro di Prisma. Senza il registro (database
+ * appena creato, prima di ogni migration) la risposta è «no».
+ */
+async function migrationApplicata(tx: PrismaTransazione, nome: string): Promise<boolean> {
+  const righe = await tx
+    .$queryRawUnsafe<{ applicata: boolean }[]>(
+      `SELECT EXISTS (
+       SELECT 1 FROM "_prisma_migrations"
+       WHERE migration_name = $1 AND finished_at IS NOT NULL AND rolled_back_at IS NULL
+     ) AS applicata`,
+      nome,
+    )
+    .catch((errore: unknown) => {
+      // 42P01: il registro delle migration non esiste ancora.
+      if (errore instanceof Error && /42P01|_prisma_migrations/.test(errore.message)) {
+        return [{ applicata: false }];
+      }
+      throw errore;
+    });
+  return righe[0]?.applicata === true;
+}
+
 async function inFase(fase: string, passo: () => Promise<void>): Promise<void> {
   try {
     await passo();
@@ -640,17 +677,34 @@ async function conStoricoSbloccatoInterno(
       //    l'ACCESS SHARE di una `SELECT` altrui: passa. A fermarsi e` il
       //    **TRUNCATE**, che l'ACCESS EXCLUSIVE lo chiede davvero. Misurato
       //    riproducendo lo stallo, non dedotto.
-      await inFase('spegnimento delle protezioni', async () => {
-        for (const [tabella, trigger] of TRIGGER_ANTICANCELLAZIONE) {
-          await tx.$executeRawUnsafe(`ALTER TABLE "${tabella}" DISABLE TRIGGER "${trigger}"`);
-        }
-      });
-      await inFase('pulizia (TRUNCATE / DELETE)', () => pulizia(tx));
-      await inFase('riaccensione delle protezioni', async () => {
-        for (const [tabella, trigger] of TRIGGER_ANTICANCELLAZIONE) {
-          await tx.$executeRawUnsafe(`ALTER TABLE "${tabella}" ENABLE TRIGGER "${trigger}"`);
-        }
-      });
+      // ⭐ Le protezioni esistono solo da `MIGRATION_DELLO_STORICO` in poi. La prova
+      //    delle migration (`cassa-migrations`) costruisce il database alla baseline di
+      //    `develop` e ci chiama sopra `creaDataset`: lì le tabelle non ci sono ancora,
+      //    ed è l'UNICO caso in cui l'assenza è ammessa — misurato nella CI della PR #9
+      //    (14/09/2026, `42P01` su `shopify_product_identities`). Con la migration
+      //    applicata, una tabella o un trigger mancante resta un errore: non si salta
+      //    niente in silenzio.
+      const storicoMigrato = await migrationApplicata(tx, MIGRATION_DELLO_STORICO);
+      if (storicoMigrato) {
+        await inFase('spegnimento delle protezioni', async () => {
+          for (const [tabella, trigger] of TRIGGER_ANTICANCELLAZIONE) {
+            await tx.$executeRawUnsafe(`ALTER TABLE "${tabella}" DISABLE TRIGGER "${trigger}"`);
+          }
+        });
+      }
+      await inFase(
+        storicoMigrato
+          ? 'pulizia (TRUNCATE / DELETE)'
+          : `pulizia (TRUNCATE / DELETE) — baseline senza ${MIGRATION_DELLO_STORICO}: nessuna protezione`,
+        () => pulizia(tx),
+      );
+      if (storicoMigrato) {
+        await inFase('riaccensione delle protezioni', async () => {
+          for (const [tabella, trigger] of TRIGGER_ANTICANCELLAZIONE) {
+            await tx.$executeRawUnsafe(`ALTER TABLE "${tabella}" ENABLE TRIGGER "${trigger}"`);
+          }
+        });
+      }
     },
     // ⛔ **Il timeout della transazione sta SOTTO l'hook di vitest**, e questa
     //    e` la meta` che mancava: a 120 s scadeva sempre prima l'hook (60 s), e

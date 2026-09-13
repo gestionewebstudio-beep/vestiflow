@@ -9,7 +9,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { avviaApp, chiama } from './app';
 import { creaDatasetCassa } from './cassa.fixture';
 import { ambienteIntegrazione, ambienteProcessoIntegrazione } from './env';
-import { creaDataset, IDS, svuota } from './fixture';
+import {
+  creaDataset,
+  IDS,
+  MIGRATION_DELLO_STORICO,
+  svuota,
+  TRIGGER_ANTICANCELLAZIONE,
+} from './fixture';
 import { creaClientIntegrazione } from './prisma';
 
 /** Comando esplicito: ricrea SOLO public nel database usa-e-getta verificato. Nessun Prisma reset/dev/db push. */
@@ -147,6 +153,20 @@ describe('Cassa — installazione pulita e aggiornamento da develop', () => {
       { n: bigint }[]
     >`SELECT count(*) AS n FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
     expect(Number(migrations[0]!.n)).toBe(count);
+    // ⭐ Dopo le migration lo storico dei collegamenti c'è con TUTTE le sue protezioni:
+    //    la fixture le salta solo sulla baseline, e qui si verifica che non stia
+    //    saltando altro (tabelle e trigger nominati uno per uno, accesi).
+    const storico = await prisma.$queryRaw<{ applicata: boolean }[]>`
+      SELECT EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name = ${MIGRATION_DELLO_STORICO}
+        AND finished_at IS NOT NULL AND rolled_back_at IS NULL) AS applicata`;
+    expect(storico[0]?.applicata).toBe(true);
+    for (const [tabella, trigger] of TRIGGER_ANTICANCELLAZIONE) {
+      const stato = await prisma.$queryRaw<{ tabella: string | null; abilitato: string | null }[]>`
+        SELECT to_regclass(${'public.' + tabella})::text AS tabella,
+               (SELECT tgenabled::text FROM pg_trigger t
+                 WHERE t.tgrelid = to_regclass(${'public.' + tabella}) AND t.tgname = ${trigger}) AS abilitato`;
+      expect(stato[0], `${tabella}.${trigger}`).toEqual({ tabella, abilitato: 'O' });
+    }
     const columns = await prisma.$queryRaw<{ numeric_precision: number; numeric_scale: number }[]>`
       SELECT numeric_precision, numeric_scale FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'document_lines' AND column_name = 'unit_price_minor'`;
@@ -359,8 +379,18 @@ describe('Cassa — installazione pulita e aggiornamento da develop', () => {
       codice: mp08.id,
     });
     // (c) Due opzioni DELIBERATE dell`utente, stesso codice, nomi diversi.
-    const utenteA = await crea({ nome: 'Carta — banco', sistema: false, attiva: true, codice: mp08.id });
-    const utenteB = await crea({ nome: 'Carta — online', sistema: false, attiva: true, codice: mp08.id });
+    const utenteA = await crea({
+      nome: 'Carta — banco',
+      sistema: false,
+      attiva: true,
+      codice: mp08.id,
+    });
+    const utenteB = await crea({
+      nome: 'Carta — online',
+      sistema: false,
+      attiva: true,
+      codice: mp08.id,
+    });
     /*
       (d) ⛔ **Il caso STRETTO**: una voce che l`utente ha creato col nome
       esatto della sintetica, con il codice GIUSTO, e con la storica di
