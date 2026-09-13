@@ -376,7 +376,84 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 3. Clicca **Connetti Shopify** e accetta i permessi sulla pagina Shopify.
 4. Al ritorno lo stato deve essere **Connesso**.
 
+### La prima connessione si fa insieme: che cosa serve da te
+
+Se il negozio Shopify e VestiFlow non sono mai stati collegati, dopo «Connetti Shopify» compare
+la sezione **Prima connessione**: articoli, sedi e quantità si portano da una parte all'altra
+**una volta sola**, e da quel momento VestiFlow governa le quantità. I passi — direzione di
+partenza, collegamento di ogni sede, anteprima, trasferimento, attivazione — li preparano e li
+eseguono **gli operatori VestiFlow con te**, non da soli.
+
+**La finestra operativa.** La partenza si fa in un momento concordato, e in quel momento **sulle
+sedi coinvolte non devono avvenire**:
+
+| Da non fare, finché l'attivazione non è confermata                                   | Perché                                                |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| vendite al banco o online                                                            | cambierebbero le quantità mentre vengono copiate      |
+| evasioni di ordini Shopify                                                           | idem, e l'ordine risulterebbe contato due volte o mai |
+| resi e reintegri                                                                     | idem                                                  |
+| carichi, scarichi, trasferimenti, rettifiche — in VestiFlow **o nell'admin Shopify** | idem                                                  |
+
+> **VestiFlow non spegne il negozio e non può verificare che tu ti sia fermato.** La finestra è
+> un tuo impegno: se durante la partenza succede un movimento, l'esito lo dice dove può, e per
+> il resto la quantità va **contata** e corretta con «Allinea giacenze» dopo l'attivazione.
+
+**Gli ordini.** Non si importa lo storico. Gli ordini **ancora aperti** su Shopify vengono
+mostrati prima della conferma e, all'attivazione, diventano **impegni** in VestiFlow (la
+giacenza non cambia finché non li evadi). Restano a te da sistemare:
+
+- gli ordini di una **sede non collegata** a VestiFlow: nessun impegno, e li trovi segnalati in
+  **Vendite** («da verificare»);
+- gli ordini **evasi in parte** prima della partenza: nessun impegno, segnalati allo stesso modo.
+
+**Prima di attivare** leggi il riquadro «casi esclusi», se compare: sono gli articoli, le
+quantità e gli ordini che l'attivazione **non** sistema — ognuno con il motivo. Si attiva lo
+stesso, ma quei casi restano tuoi da risolvere (dalla scheda articolo, da «Allinea giacenze»,
+da Vendite). Se il riquadro non c'è, nessun caso è rimasto fuori.
+
+**Dopo l'attivazione** gli ordini nuovi arrivano da soli e, quando li evadi su Shopify, la
+quantità scende in VestiFlow nella sede di spedizione. Il pulsante **Allinea giacenze** serve da
+quel momento in poi: non ripete la prima connessione.
+
+**I resi.** Quando su Shopify fai un reso con reintegro, VestiFlow carica la merce **nella sede
+che Shopify indica per quel reso** (può essere diversa da quella di spedizione), una volta sola. Se
+quella location non è collegata a una sede VestiFlow, **non carica da nessuna parte** — non sceglie
+una sede al posto tuo — e l'ordine compare in Vendite come «Da verificare» con il motivo: collega la
+location in Impostazioni → Shopify e premi «Importa ordini». Un rimborso **senza** reintegro non
+muove le quantità.
+
+**Se togli un pezzo da un ordine non ancora spedito** (su Shopify: rimborso con «annulla», senza
+reintegro), l'impegno di magazzino scende subito di quel pezzo; l'ordine in VestiFlow resta come
+ordinato e il rimborso compare come rettifica. Alla spedizione esce solo quello che è partito davvero.
+Se togli tutti i pezzi, l'impegno si libera del tutto.
+
+**Se spedisci un ordine in più volte o da più sedi**, ogni spedizione scarica subito la sede da
+cui è partita, per la quantità partita — anche se l'ordine non è ancora completo; quello che resta
+da spedire resta impegnato. Una stessa riga può uscire in due tempi o da due sedi: ogni uscita è un
+movimento suo. La Vendita online nasce una sola, quando l'ordine è tutto spedito. Se Shopify
+rimanda lo stesso avviso due volte, non esce niente due volte.
+
+**Se una riga dell'ordine riguarda un articolo il cui collegamento con Shopify è stato chiuso**,
+VestiFlow non lo impegna e non lo scarica per conto suo (nemmeno riconoscendolo dallo SKU): l'ordine
+compare «Da verificare» con il motivo, le altre righe procedono, e se quella riga viene spedita la
+giacenza va sistemata a mano. Ricollegare l'articolo è un'azione esplicita, non un automatismo.
+
+**Cataloghi imperfetti.** Se un articolo Shopify ha un barcode già usato da un'altra variante, entra
+lo stesso ma **senza quel barcode**, e in elenco lo vedi come «Non allineato» con il motivo, che nomina
+chi ha quel barcode: decidi tu a chi spetta. Lo stesso vale per gli SKU doppi o mancanti, che
+entrano con un suffisso e vengono segnalati. Niente viene inventato né scartato in silenzio.
+
+**Se disconnetti e ricolleghi lo stesso negozio**, le sedi che avevi collegato tornano da sole
+(il collegamento non era mai stato chiuso); quelle che avevi **lasciato fuori** restano fuori. Le
+scelte si rivedono in **Impostazioni → Shopify → Location del negozio e sede VestiFlow**, anche
+senza rifare la prima connessione. ⚠️ Scegliere «Lascia fuori» su una sede collegata la
+scollega davvero: gli ordini di quella location non avranno più una sede finché non la ricolleghi.
+
 ### Dopo la connessione — tre passi importanti
+
+> Questa tabella descrive i pulsanti delle connessioni fatte **prima del 12/09/2026** o di un
+> negozio già collegato in passato. Per una connessione nuova, i passi li fa il percorso
+> «Prima connessione» qui sopra.
 
 | Azione                              | Dove         | Perché                                                     |
 | ----------------------------------- | ------------ | ---------------------------------------------------------- |

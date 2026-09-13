@@ -415,14 +415,111 @@ UI: **Impostazioni → Profilo** (tenant) e **Impostazioni** operatore (`/app/ad
 
 ## 9. Integrazione Shopify (tecnica)
 
+### Prima connessione: la procedura — definita dal proprietario il 12/09/2026
+
+> **La fase iniziale la gestiamo noi operatori VestiFlow, con il titolare, in una finestra
+> operativa controllata.** Il programma guida i passi e scrive solo dopo una conferma; non
+> spegne Shopify e non presenta la conferma umana come prova tecnica. Il dettaglio tecnico è in
+> `docs/27-prima-connessione-shopify.md`; le decisioni di contesto in `docs/24` §12.-1.
+
+**Quando si applica.** Solo alle connessioni **nuove**: tenant senza negozio collegato e senza
+articoli collegati a Shopify. Il callback OAuth crea la riga `shopify_setups` nella stessa
+transazione della connessione e torna con `?shopify=setup`; **per quella connessione non
+partono né sedi automatiche né webhook**. Le connessioni nate prima non entrano nel percorso.
+
+**Che cosa prepariamo noi, in Impostazioni → Shopify → «Prima connessione».**
+
+| Passo           | Che cosa facciamo                                                                                                                                                                                                             | Che cosa scrive il programma                                                                                                                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 · finestra    | concordiamo col titolare la finestra e le sedi coinvolte (vedi la guida utente §6)                                                                                                                                            | niente                                                                                                                                                                                                          |
+| 1 · direzione   | scegliamo **Shopify → VestiFlow** (negozio con catalogo e quantità già in uso) o **VestiFlow → Shopify** (gestionale già popolato, negozio vuoto o da allineare)                                                              | solo la scelta                                                                                                                                                                                                  |
+| 2 · sedi        | per **ogni** location Shopify decidiamo: **collega** a una sede VestiFlow, **crea** la sede, **lascia** fuori. Nessuna sede è indovinata per nome                                                                             | la scelta, e per collega/crea la **coppia esplicita** (B7)                                                                                                                                                      |
+| 3 · controllo   | leggiamo l'anteprima: articoli da importare/pubblicare, SKU ambigui esclusi, coppie sede×variante, quantità non determinabili, **ordini Shopify ancora aperti** (con chi resterà fuori: senza sede collegata, evasi in parte) | l'anteprima; **nessun dato di magazzino**                                                                                                                                                                       |
+| 3 · conferma    | «Conferma e avvia il trasferimento»                                                                                                                                                                                           | catalogo (`pullCatalog`/`pushProduct`) e quantità (S→V: base per coppia da `on_hand` con movimento tracciato; V→S: motore di Allinea)                                                                           |
+| 4 · esiti       | leggiamo l'esito: importati/pubblicati, esclusi nominati, coppie scritte/invariate, interruzioni                                                                                                                              | niente                                                                                                                                                                                                          |
+| 4 · attivazione | «Attiva la sincronizzazione» solo se l'esito è accettabile                                                                                                                                                                    | ordini aperti → **impegni** (giacenza invariata); base per coppia col motore di Allinea; esclusione degli articoli non risolti; `orders_since_id` = ultimo id ordine del negozio; **webhook**; stato `attivato` |
+
+**Regole che il programma applica, e che non si aggirano.**
+
+- Prima della conferma del trasferimento sono possibili solo scelte, configurazione e letture.
+  **La sincronizzazione continua parte solo dopo l'attivazione**: la sezione Sincronizzazione
+  resta chiusa finché il percorso non è `attivato`.
+- **Nessuno storico ordini.** Non si lancia `pullOrders` durante la partenza. All'attivazione si
+  acquisiscono solo gli ordini **aperti e non evasi** come impegni; quelli senza sede collegata
+  o evasi in parte restano **senza impegno e segnalati** (`requiresReview`), e vanno risolti a
+  mano dopo (collegare la location in «Sedi» e ripetere; verifica manuale del parziale).
+- **Attivazione parziale**: si attivano le parti preparate; le coppie senza base e gli articoli
+  falliti stanno in `esito.esclusi` con il motivo, e gli articoli esclusi hanno
+  `shopifySyncEnabled = false`. Si recuperano con «Allinea giacenze» o dalla scheda articolo.
+  ⭐ **I casi irrisolti si leggono PRIMA di attivare**, aperti davanti al pulsante (articoli
+  esclusi, coppie senza base, ordini senza sede o evasi in parte) — `irrisolti` nello stato del
+  percorso; dopo l'attivazione il badge dice «Attivata · N casi esclusi». Nessun caso irrisolto
+  viene dichiarato pronto.
+- **Sedi fuori dal percorso**: la scelta collega / crea / lascia sta anche nella sezione Sedi
+  di Configurazione (connessioni nate prima, e dopo ogni **Disconnetti + riconnessione**).
+  Disconnettere azzera la colonna-cache ma non chiude il periodo: alla riconnessione allo stesso
+  negozio la sede si riconosce dalla coppia; **«lascia» chiude il periodo** (`unlinked`/`operator`)
+  e da lì gli ordini di quella location restano senza sede finché qualcuno non la ricollega.
+- **Ripresa dopo interruzione** (`interrotto` → «Riprendi»): il catalogo non si reimporta; **ogni
+  coppia si rilegge** e si scrive solo la differenza — zero se niente è cambiato, un movimento
+  tracciato se il negozio si è mosso. Non si assume mai che la base precedente sia ancora valida.
+- **La direzione iniziale non determina le regole successive**: dopo l'attivazione valgono le
+  regole per campo (`docs/24` §9.2) e per le quantità (§8.11).
+- **Il pulsante «Allinea giacenze» resta separato**: non ripete la prima connessione, anche se
+  l'attivazione ne usa il motore.
+
+**Resi (§30.8-bis, 12/09/2026).** La sede di rientro è `refund_line_items[].location_id` del payload,
+risolta dal collegamento esplicito (`resolveShopifyOrderLocationId`). Senza sede collegata: nessun
+carico, `requiresReview` con motivo, evento canonico `not_applied` **non registrato** (riapplicabile
+dopo il collegamento). ⛔ Nessun ripiego sulla sede di spedizione. `no_restock` non muove niente.
+
+**Annullamento parziale ed evasioni su più sedi (§30.8, 12/09/2026).** L'impegno segue la quantità
+corrente della riga (`current_quantity`, o `quantity` meno i `refund_line_items` con `cancel`); a
+zero si rilascia. Riga d'ordine e Vendita online restano come ordinate (il rimborso è la rettifica).
+Lo scarico è **per spedizione** (`sales_order_shipments`/`_lines`, evento `online_order_shipped`
+per `fulfillment` riuscito): quantità uscita e `location_id` risolti dal collegamento esplicito,
+impegno consumato per la quantità uscita, un movimento per riga di spedizione, idempotente riga per
+riga; `partial` non segnala niente. La Vendita online resta una a completamento e adotta i
+movimenti (riferimento sulla riga se uno, sulla testata se più). Ordine con spedizioni: non eliminabile.
+**Collegamento chiuso su una riga d'ordine**: `resolveVariantId` interroga `collegamentoUsabileVariante`;
+riga senza variante, `requiresReview` col motivo, nessun riaggancio; impegno preesistente conservato
+(`righeDaConservare`), rilasciato alla spedizione senza scarico (`senza_variante`).
+
+**Cataloghi imperfetti (26.1, 12/09/2026).** Barcode già di un'altra variante → la variante entra
+senza barcode, prodotto `out_of_sync` con `shopifyLastError` che nomina il proprietario; SKU doppi o
+vuoti → suffisso e stessa segnalazione (`shopify-import-codici.util`).
+
+**La sincronizzazione continua, dopo.** Gli ordini successivi arrivano dai webhook (origine
+`continua`: un ordine **evaso senza impegno** in VestiFlow si **scarica** alla sede
+dell'evasione, una volta). Il recupero dopo un guasto è dietro «Importa ordini» e, per una
+connessione attivata dal percorso, legge **gli ordini nati dopo `orders_since_id`** — gli id
+Shopify crescono con la creazione: nessun orologio — più la rilettura degli ordini che VestiFlow
+ha in carico come aperti. **L'ordine creato ed evaso a webhook fermi viene scaricato, una volta.**
+Lo storico non si tocca.
+
+⛔ **Niente regole basate sull'uguaglianza dei totali o su orari locali** (confronto
+`on_hand`/`committed` contro giacenza/impegni, confine `baselineReadAt`): sono state provate e
+cadono sui controesempi riprodotti in `prima-connessione-controesempi.integration-spec.ts`
+(`DA-FARE` §31 prova 38). Non si ripropongono con un altro nome.
+
+**Prove sui servizi veri** (PostgreSQL 5433, negozio simulato con ordini e location):
+`prima-connessione-percorso.integration-spec.ts` — S→V senza ordini; V→S; ordine precedente
+aperto → impegno → scarico una volta; interruzione e ripresa senza doppioni, anche dopo un
+movimento; primo ordine dopo l'attivazione e ordine silenzioso recuperato; disconnessione e
+riconnessione con lascia/collega; ordine da location lasciata fuori irrisolto prima e dopo.
+A schermo: `e2e/prima-connessione.spec.ts` (suite isolata). **Collaudo con Shopify vero**: il
+perimetro sta in `docs/28` e si esegue solo dopo l'approvazione del proprietario.
+
 ### Quantità: piano operativo confermato il 10/09/2026
 
 > **Stato: regole approvate da implementare e collaudare, non descrizione di un nuovo comando
 > già disponibile.** Riferimento normativo: `24-specifica-ciclo-vita-catalogo-e-sincronizzazione-shopify-v2.md`
 > §8.11. La presenza dei pulsanti attuali non certifica il comportamento richiesto qui.
 
-- **Partenza:** preparare e allineare i dati in più passaggi se ci sono ordini online pendenti.
-  Gli effetti già compresi nelle quantità iniziali non vanno sottratti di nuovo all'acquisizione.
+- **Partenza:** è il percorso «Prima connessione» qui sopra (12/09/2026): direzione, sedi
+  esplicite, anteprima, trasferimento, attivazione — in una finestra operativa senza movimenti.
+  Gli ordini aperti diventano impegni all'attivazione; gli effetti già compresi nelle quantità
+  iniziali non vanno sottratti di nuovo.
 - **Vendite aperte o ferme:** lo decide l'operatore nel proprio negozio. VestiFlow non ferma
   le vendite, non ne richiede la sospensione e mantiene operativa la sincronizzazione durante
   l'allineamento. Allineare a vendite aperte comporta il rischio di nuovi ordini durante il giro

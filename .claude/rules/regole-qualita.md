@@ -26,13 +26,13 @@ Con le storie divergenti:
 
 Al loro posto, sempre e solo:
 
-| Devi…                             | Comando                      |
-| --------------------------------- | ---------------------------- |
-| provare le migration in locale    | `npm run prisma:deploy:test` |
-| rigenerare il client              | `npm run prisma:generate`    |
-| vedere cosa manca                 | `npx prisma migrate status`  |
-| applicarle al database di Railway | **lo fa il deploy**, da sé   |
-| applicarle a mano al condiviso    | ⛔ **non esiste un comando** |
+| Devi…                                   | Comando                                                                                                                                              |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| provare le migration in locale          | `npm run prisma:deploy:test`                                                                                                                         |
+| rigenerare il client                    | `npm run prisma:generate`                                                                                                                            |
+| vedere cosa manca                       | `npx prisma migrate status`                                                                                                                          |
+| applicarle al database di Railway       | **lo fa il deploy**, da sé                                                                                                                           |
+| applicarle a mano al condiviso di prova | `npm run prisma:deploy:prova-condivisa` — **solo con un via esplicito per quella esecuzione**, backup verificato < 24 h e conferma dell’host (sotto) |
 
 ⛔ **L’ultima riga è una decisione del 07/09/2026, non una lacuna.** Qui c’era
 «applicare le migration mancanti → `npm run prisma:deploy`», e quel comando
@@ -43,6 +43,15 @@ per errore, con un comando che sembrava puntare altrove.
 `DIRECT_URL` non sta più in `api/.env`, quindi `migrate deploy`, `db execute
 --schema` e `migrate resolve` falliscono con **P1012 prima di aprire una
 connessione**. `npm run prisma:deploy` è ora una guardia che spiega.
+
+⭐ **La procedura per quel caso esiste dal 12/09/2026** — `api/scripts/prisma-deploy-prova-condivisa.mjs`:
+il bersaglio viene da un file **indicato** (`--env-file .env.rilascio.local`, ignorato da Git),
+mai da `api/.env`; `--backup` deve indicare un backup con il database fatto da **meno di 24 ore**;
+`--conferma` ripete l’host del bersaglio; prima `migrate status` (sola lettura), poi `deploy`.
+Rifiuta un bersaglio locale. ⚠️ **Il comando non è il via**: lo dà il proprietario per quella
+esecuzione, dopo aver saputo cosa contiene il database e cosa si conserva. Il condiviso è un
+**ambiente di prova senza clienti** (precisazione del 12/09/2026): il vincolo non è «mai», è
+«sapere cosa contiene, conservare ciò che serve, autorizzare l’operazione precisa».
 
 ⚠️ **E non si rimette in circolazione passando le variabili a mano.** Finché non
 esisterà la procedura test → produzione, un intervento manuale eccezionale

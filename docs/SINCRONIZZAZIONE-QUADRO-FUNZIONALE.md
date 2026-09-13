@@ -18,6 +18,8 @@ Le regole richieste sono distinte dalle proposte e dalle scelte aperte. Le decis
 
 VestiFlow deve funzionare integralmente anche senza Shopify. Per un'azienda senza modulo Shopify non devono comparire comandi, campi o errori del canale.
 
+**Deciso l’11/09/2026 sera — PRIMA CONNESSIONE, SINCRONIZZAZIONE CONTINUA e ALLINEA sono tre momenti diversi, e le regole dell’uno non si applicano automaticamente all’altro.** La prima connessione prepara e trasferisce i dati iniziali nella direzione scelta (Shopify può essere la fonte iniziale di catalogo _e quantità_); la sincronizzazione continua parte sulle parti preparate e attivate — catalogo per campo, quantità comandate da VestiFlow —; Allinea è un comando esplicito successivo. La quarta fase, **attivazione parziale** con le parti problematiche escluse e recuperabili, è decisa: `24` §12.-1, e il percorso è in `docs/27`.
+
 **Deciso l’11/09/2026 — la prima connessione ha TRE FASI**, in una sezione delle Impostazioni separata dai comandi della sincronizzazione ordinaria: **1)** scelte iniziali, cioè importare da Shopify o esportare da VestiFlow; **2)** configurazione delle sedi e delle impostazioni; **3)** riepilogo, controlli e conferma finale.
 
 ⛔ **Prima della conferma non si trasferisce catalogo né quantità, e non parte la sincronizzazione continua.** Si possono invece **salvare le scelte e la configurazione** — così si interrompe e si riprende senza rifare tutto — e leggere i dati necessari ai controlli.

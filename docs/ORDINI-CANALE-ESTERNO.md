@@ -104,8 +104,9 @@ che si corregge con un reso o un rimborso in cassa, e che quando quello arriva V
 #### Il dettaglio che è facile sbagliare
 
 La frase sul corrispettivo è agganciata a **`fulfilledAt`**, non a `isSettledOrder()` che la
-maschera usa altrove. L'evasione **parziale** non crea né vendita online né corrispettivo:
-marca solo l'ordine come da verificare. Col segnale sbagliato il banner dichiarerebbe un
+maschera usa altrove. L'evasione **parziale** non crea né vendita online né corrispettivo
+(⭐ dal 12/09/2026 **scarica** la merce uscita, spedizione per spedizione, ma la Vendita online
+resta una a completamento — `DA-FARE` §30.8). Col segnale sbagliato il banner dichiarerebbe un
 corrispettivo che non esiste. C'è un test che lo prova: sostituendo il segnale diventa
 rosso.
 
