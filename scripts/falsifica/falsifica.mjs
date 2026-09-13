@@ -48,17 +48,33 @@ export function proveEseguite(uscita) {
  *          riscritto, o si sta falsificando codice che non esiste),
  *          'BLOCCATO' (l'esecuzione è scaduta).
  */
-export function falsifica({ file, da, a, filtro, prova }) {
+/**
+ * ⚠️ **`config` sceglie la SUITE, e il default resta l’integrazione.** Le prove
+ *    unitarie girano sulla configurazione predefinita di vitest: passare qui
+ *    `null` toglie `--config` dal comando. Senza questa scelta, falsificare
+ *    codice provato da prove UNITARIE dava `NESSUNA PROVA` — lo strumento
+ *    cieco, non il codice sano.
+ */
+export function falsifica({ file, da, a, filtro, prova, config = 'vitest.integration.config.ts' }) {
   const grezzo = fs.readFileSync(file, 'utf8');
-  if (!grezzo.includes(da)) {
+  // ⛔ **Nel repository convivono CRLF e LF.** Un’ancora di PIÙ righe scritta
+  //    con \n non aggancia un file CRLF: la falsificazione rispondeva
+  //    «ANCORA ASSENTE» su codice che c’era eccome, cioè dichiarava NON
+  //    VERIFICATA una prova sana. Misurato l’11/09/2026 sul pull Shopify —
+  //    due guasti su sei, e l’esito non distingue «non c’è più» da «non so
+  //    scriverlo».
+  const aCapo = grezzo.includes('\r\n') ? '\r\n' : '\n';
+  const perIlFile = (t) => t.replace(/\r?\n/g, aCapo);
+  const cerca = perIlFile(da);
+  if (!grezzo.includes(cerca)) {
     return 'ANCORA ASSENTE';
   }
-  fs.writeFileSync(file, grezzo.replace(da, a));
+  fs.writeFileSync(file, grezzo.replace(cerca, perIlFile(a)));
   let uscita = '';
   let sollevato = false;
   try {
     uscita = execSync(
-      `npx vitest run --config vitest.integration.config.ts ${prova} -t "${filtro}"`,
+      `npx vitest run ${config ? `--config ${config} ` : ''}${prova} -t "${filtro}"`,
       { cwd: API, encoding: 'utf8', stdio: 'pipe', timeout: 900000 },
     );
   } catch (e) {
@@ -87,13 +103,14 @@ export function falsifica({ file, da, a, filtro, prova }) {
  *    guardia di cui non si sa niente — ed è proprio il modo in cui questa è
  *    stata cieca due volte.
  */
-export function autoprova({ file, ancora, prova }) {
+export function autoprova({ file, ancora, prova, config = 'vitest.integration.config.ts' }) {
   const esito = falsifica({
     file,
     da: ancora,
     a: ancora, // nessun guasto: si misura solo lo strumento
     filtro: 'un titolo che non esiste da nessuna parte',
     prova,
+    config,
   });
   const ok = esito === 'NESSUNA PROVA';
   console.log(
@@ -105,10 +122,12 @@ export function autoprova({ file, ancora, prova }) {
 }
 
 /** Esegue un elenco di guasti e riassume. Ritorna true se tutti sono visti. */
-export function falsificaTutti(guasti, prova) {
+export function falsificaTutti(guasti, prova, config = 'vitest.integration.config.ts') {
   let tutti = true;
   for (const g of guasti) {
-    const esito = falsifica({ ...g, prova });
+    // ⭐ Il guasto può nominare una prova e una suite SUE: le regole per campo
+    //    si provano in unitarie, la partenza controllata in integrazione.
+    const esito = falsifica({ prova, config, ...g });
     const ok = esito === 'ROSSO';
     if (!ok) tutti = false;
     const segno =

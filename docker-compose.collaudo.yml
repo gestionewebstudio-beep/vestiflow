@@ -1,0 +1,36 @@
+# ⭐ Il database del COLLAUDO REALE Shopify (`docs/28`): un PostgreSQL a parte,
+#    su una porta propria, con un volume proprio.
+#
+# ⛔ NON è il database di prova delle suite (5433, `docker-compose.test.yml`):
+#    quello lo svuota `svuota()` a ogni file di integrazione e lo distrugge
+#    `db:test:reset` (`down -v`). Un collaudo che dura ore non può viverci.
+#    Ed è distinto — per porta, nome e volume — dal condiviso, che qui non
+#    entra mai.
+#
+# Avvio:   npm --prefix api run db:collaudo:up
+# Arresto: npm --prefix api run db:collaudo:down   (i dati restano nel volume)
+services:
+  vestiflow-collaudo-db:
+    image: postgres:17
+    container_name: vestiflow-collaudo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vestiflow
+      POSTGRES_PASSWORD: vestiflow_collaudo_local
+      POSTGRES_DB: vestiflow_collaudo
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8'
+    ports:
+      # 5434: né il 5432 di un eventuale PostgreSQL locale, né il 5433 delle suite.
+      - '5434:5432'
+    volumes:
+      - vestiflow-collaudo-data:/var/lib/postgresql/data
+      # Gli stessi ruoli nudi (`anon`, `authenticated`) che le migration revocano.
+      - ./docker/test-db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vestiflow -d vestiflow_collaudo']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  vestiflow-collaudo-data:

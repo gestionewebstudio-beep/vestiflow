@@ -137,6 +137,17 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "collaudo": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.collaudo.ts"
+                }
+              ],
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
             }
           },
           "defaultConfiguration": "production"
@@ -152,6 +163,9 @@
             },
             "e2e": {
               "buildTarget": "vestiflow:build:e2e"
+            },
+            "collaudo": {
+              "buildTarget": "vestiflow:build:collaudo"
             }
           },
           "defaultConfiguration": "development"
