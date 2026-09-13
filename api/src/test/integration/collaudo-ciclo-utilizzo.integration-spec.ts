@@ -422,13 +422,24 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
 
   /**
    * Confronta lo stato LOCALE di un prodotto importato con quello REMOTO, campo per
-   * campo, secondo la matrice §9.2: titolo Shopify, vendor→brand, product_type→categoria,
-   * tag, e per ogni variante barcode, prezzo Shopify e identificativi.
+   * campo, secondo la matrice §9.2: titolo Shopify, vendor→brand,
+   * product_type→shopifyProductType, tag, e per ogni variante barcode, prezzo
+   * Shopify e identificativi.
+   *
+   * ⛔ **`product_type` NON arriva più in `category`** (§9.5): la categoria
+   *    VestiFlow è una classificazione di magazzino, e il tipo prodotto Shopify
+   *    ha una colonna sua. Qui l’asserzione diceva `locale.category` e citava
+   *    §9.2 — cioè fissava il mescolamento nominando la regola che lo vieta.
    *
    * ⚠️ Lo SKU segue la regola dell'import: uguale se libero, altrimenti con suffisso
    *    `-<id remoto>` o `SHOPIFY-<id remoto>` se assente (`resolveImportSku`).
    */
-  async function confrontaImportato(tenantId: string, negozio: NegozioSimulato, remotoId: number) {
+  async function confrontaImportato(
+    tenantId: string,
+    negozio: NegozioSimulato,
+    remotoId: number,
+    barcodeNonAssegnati: ReadonlySet<number> = new Set(),
+  ) {
     const remoto = negozio.prodotto(remotoId);
     const locale = await prisma.product.findFirstOrThrow({
       where: { tenantId, shopifyProductId: String(remotoId) },
@@ -436,7 +447,10 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
     });
     expect(locale.shopifyTitle).toBe(remoto.title);
     expect(locale.brand).toBe(remoto.vendor);
-    expect(locale.category).toBe(remoto.product_type);
+    expect(locale.shopifyProductType).toBe(remoto.product_type);
+    // ⛔ E la categoria interna resta vuota su un importato: non la decide
+    //    Shopify, la sceglie l'operatore.
+    expect(locale.category).toBeNull();
     expect([...locale.tags].sort()).toEqual(
       remoto.tags
         .split(',')
@@ -448,7 +462,15 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
     for (const varianteRemota of remoto.variants) {
       const variante = locale.variants.find((v) => v.shopifyVariantId === String(varianteRemota.id));
       expect(variante, `variante remota ${varianteRemota.id} assente in locale`).toBeDefined();
-      expect(variante!.barcode).toBe(varianteRemota.barcode);
+      // ⭐ D5 (26.1, chiuso il 12/09/2026): un barcode già di un'altra variante NON si
+      //    assegna — la variante entra senza, e il prodotto lo segnala (`out_of_sync`).
+      if (barcodeNonAssegnati.has(varianteRemota.id)) {
+        expect(variante!.barcode).toBeNull();
+        expect(locale.shopifySyncStatus).toBe('out_of_sync');
+        expect(locale.shopifyLastError).toMatch(/Barcode «\d+» non assegnato/);
+      } else {
+        expect(variante!.barcode).toBe(varianteRemota.barcode);
+      }
       expect(Number(variante!.shopifyPriceMinor)).toBe(shopifyDecimalToMinor(varianteRemota.price));
       expect(variante!.shopifyInventoryItemId).toBe(String(varianteRemota.inventory_item_id));
       if (varianteRemota.sku) {
@@ -477,7 +499,19 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
     const remoto = negozio.prodotto(Number(locale.shopifyProductId));
     expect(remoto.title).toBe(locale.shopifyTitle ?? locale.name);
     expect(remoto.vendor).toBe(locale.brand);
-    expect(remoto.product_type).toBe(locale.category);
+    // ⛔ Il push manda il campo del CANALE, mai la categoria interna (§9.5).
+    //
+    // ⚠️ **Solo quando è ACQUISITO.** Vuoto significa «non ancora acquisito»:
+    //    la chiave non entra nel payload e il remoto conserva il suo valore,
+    //    quindi qui i due lati sarebbero due cose diverse. Quel caso ha una
+    //    prova sua, esplicita, nel passo 4 della pubblicazione.
+    if (locale.shopifyProductType !== null) {
+      expect(remoto.product_type).toBe(locale.shopifyProductType);
+    }
+    // ⛔ E in nessun caso ci finisce dentro la categoria di magazzino.
+    if (locale.category !== null) {
+      expect(remoto.product_type).not.toBe(locale.category);
+    }
     expect(
       remoto.tags
         .split(',')
@@ -556,12 +590,16 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
           expect(primo.remoteProductCount).toBe(dimensione);
           expect(primo.skipped).toBe(0);
           expect(primo.imported + primo.failed.length).toBe(dimensione);
-          // ⚠️ Il solo fallimento AMMESSO qui è il caso D5, che ha la sua prova a sé:
-          //    qualunque altro prodotto fallito è un difetto.
-          expect(primo.failed.map((f) => f.shopifyProductId).filter((id) => id !== String(d5.id))).toEqual([]);
+          // ⭐ Nessun fallimento ammesso: dal 12/09/2026 anche D5 (barcode doppio) entra,
+          //    senza quel barcode e segnalato — cataloghi imperfetti compresi.
+          expect(primo.failed).toEqual([]);
           for (const p of seminati) {
-            if (p.id === d5.id && primo.failed.some((f) => f.shopifyProductId === String(d5.id))) continue;
-            await confrontaImportato(alfa.id, negozio, p.id);
+            await confrontaImportato(
+              alfa.id,
+              negozio,
+              p.id,
+              p.id === d5.id ? new Set([d5.variants[0]!.id]) : new Set<number>(),
+            );
           }
           expect(await doppioniRemoti(alfa.id)).toEqual([]);
           const dopoPrimo = await fotografiaTenant(alfa.id);
@@ -635,13 +673,30 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
     await dueEsecuzioni('D5', async () => {
       const negozio = alfa.negozio!;
       const [quarto, quinto] = catalogoRemoto(5).slice(3, 5);
-      negozio.semina(quarto!);
+      const remotoQuarto = negozio.semina(quarto!);
       const remotoD5 = negozio.semina(quinto!);
       const esito = await alfa.pull!.pullCatalog(alfa.id);
       // ⛔ `regole-gestionale`, clausola di realtà, e piano D5: importato e SEGNALATO,
       //    non rifiutato. Se questa riga è rossa, il risultato è «fallito» — e resta tale.
       expect(esito.failed).toEqual([]);
-      expect(await prisma.product.count({ where: { tenantId: alfa.id, shopifyProductId: String(remotoD5.id) } })).toBe(1);
+      const importato = await prisma.product.findFirstOrThrow({
+        where: { tenantId: alfa.id, shopifyProductId: String(remotoD5.id) },
+        include: { variants: { orderBy: { sku: 'asc' } } },
+      });
+      // ⭐ Chiuso il 12/09/2026: la variante col barcode già preso entra SENZA barcode
+      //    (nessun barcode inventato, nessuna fusione), le sorelle lo tengono, e il
+      //    prodotto lo DICE — stato out_of_sync e il messaggio nomina chi ce l'ha.
+      const primaVariante = importato.variants.find((v) => v.shopifyVariantId === String(remotoD5.variants[0]!.id))!;
+      expect(primaVariante.barcode).toBeNull();
+      expect(importato.variants.filter((v) => v.barcode !== null)).toHaveLength(remotoD5.variants.length - 1);
+      expect(importato.shopifySyncStatus).toBe('out_of_sync');
+      expect(importato.shopifyLastError).toMatch(/Barcode «\d{13}» non assegnato .* già su «.+» di «.+»/);
+      // Chi ha il barcode lo tiene: il prodotto 4 non è stato toccato né fuso.
+      const proprietario = await prisma.productVariant.findFirstOrThrow({
+        where: { tenantId: alfa.id, barcode: remotoD5.variants[0]!.barcode! },
+        select: { product: { select: { shopifyProductId: true } } },
+      });
+      expect(proprietario.product.shopifyProductId).toBe(String(remotoQuarto.id));
       return { esito: { importati: esito.imported, falliti: esito.failed.length }, completate: esito.imported, scartate: 0, fallite: esito.failed.length };
     });
   }, 120_000);
@@ -714,6 +769,26 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
           expect(await doppioniRemoti(alfa.id)).toEqual([]);
 
           expect(await fotografieAltrui()).toEqual(altrui);
+          // 4 · il TIPO PRODOTTO SHOPIFY: si pubblica, e «non ancora acquisito»
+          //     NON cancella quello che sta sul negozio (docs/24 §9.5).
+          await prisma.product.update({
+            where: { id: primoId },
+            data: { shopifyProductType: 'Maglieria' },
+          });
+          expect((await alfa.push!.pushProduct(alfa.id, primoId)).pushed).toBe(true);
+          expect(negozio.prodotto(remoto.id).product_type).toBe('Maglieria');
+
+          // Ora il campo torna «non acquisito», e la categoria interna c’è.
+          await prisma.product.update({
+            where: { id: primoId },
+            data: { shopifyProductType: null, category: 'Abbigliamento donna' },
+          });
+          expect((await alfa.push!.pushProduct(alfa.id, primoId)).pushed).toBe(true);
+          // ⛔ Le due metà della stessa regola: il remoto CONSERVA il suo tipo
+          //    prodotto, e la categoria di magazzino non ci finisce dentro.
+          expect(negozio.prodotto(remoto.id).product_type).toBe('Maglieria');
+          await confrontaPubblicato(alfa.id, negozio, primoId);
+
           expect(beta.negozio!.totaleChiamate()).toBe(0);
 
           return {

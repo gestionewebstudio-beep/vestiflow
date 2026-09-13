@@ -45,7 +45,14 @@ export interface DatiOperazione {
  * ⭐ `ininfluente` non e' un fallimento: e' una richiesta concorrente arrivata
  *    seconda, che ha trovato l'effetto gia' applicato.
  */
-export type EsitoOperazione = 'applicata' | 'ininfluente';
+/**
+ * ⭐ La forma oggetto (12/09/2026) serve a chi conosce il RISULTATO solo dentro
+ *    la transazione — il backfill dello storico: quanti periodi ha scritto — e
+ *    vuole metterlo nella riga di riuscita. `reason` sostituisce quello dei
+ *    dati del tentativo, che per costruzione precede l'operazione.
+ */
+export type EsitoOperazione =
+  'applicata' | 'ininfluente' | { readonly esito: 'applicata'; readonly reason: string };
 
 export function attoreDaProfilo(user: UserProfileDto): AttoreRegistro {
   return {

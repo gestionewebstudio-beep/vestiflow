@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException, Logger } from '@nestjs/common';
 // `Prisma` serve come VALORE, non solo come tipo: compone la clausola del
 // cursore, che c'è solo dai blocchi successivi al primo.
 import { Prisma } from '@prisma/client';
@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { variantLabel } from '../common/variant-label.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
+import { motivoQuantitaFerma, ordiniApertiSenzaSede } from './shopify-ordini-senza-sede.util';
 import type { ShopifyInventoryPushResult } from './shopify-inventory-push.service';
 
 /**
@@ -35,6 +36,7 @@ const ALIGN_SCAN_LIMIT = 200;
 export type MotivoNonAllineata =
   | 'livello_non_disponibile'
   | 'collegamento_escluso'
+  | 'ordine_senza_sede'
   | 'base_non_stabilita'
   | 'richiesta_rifiutata'
   | 'divergenza_accertata'
@@ -72,6 +74,10 @@ const DETTAGLIO: Record<MotivoNonAllineata, string> = {
     'e nessuna è stata dedotta: non è una divergenza delle quantità.',
   collegamento_escluso:
     'Lo storico dei collegamenti vieta di usare questo identificativo Shopify per questa variante.',
+  ordine_senza_sede:
+    'Un ordine di canale aperto senza sede porta questa variante: il Disponibile non tiene conto ' +
+    'di quei pezzi e non parte. L’azione è scritta sull’ordine («Da verificare» in Vendite): ' +
+    'permesso, assegnazione o location da collegare; oppure attendi la spedizione.',
   base_non_stabilita:
     'La partenza controllata non è ancora avvenuta su questa coppia: non c’è un valore confermato da cui partire.',
   richiesta_rifiutata:
@@ -102,6 +108,7 @@ const MOTIVO_PER_ESITO: Record<string, MotivoNonAllineata> = {
   variant_not_linked: 'variante_non_collegata',
   location_not_linked: 'sede_non_collegata',
   collegamento_escluso: 'collegamento_escluso',
+  ordine_senza_sede: 'ordine_senza_sede',
   base_assente: 'base_non_stabilita',
   richiesta_rifiutata: 'richiesta_rifiutata',
   divergenza_accertata: 'divergenza_accertata',
@@ -232,6 +239,16 @@ export class ShopifyInventoryAlignService {
    *    del ritentativo, che non è questo comando e non cambia.
    */
   async allinea(tenantId: string, da?: PosizioneAllineamento): Promise<BloccoAllineamento> {
+    // ⛔ **Fermo se ci sono ordini di canale aperti senza sede**, prima di
+    //    esaminare qualunque coppia: il Disponibile di quelle varianti ignora
+    //    pezzi già promessi e scriverlo alzerebbe l'on_hand Shopify. Il push
+    //    fermerebbe comunque le coppie coinvolte (`ordine_senza_sede`), ma
+    //    «Allinea» è un comando dell'operatore e deve dire PRIMA perché non parte
+    //    e che cosa fare (collaudo del 13/09/2026, decisione del proprietario).
+    const senzaSede = await ordiniApertiSenzaSede(this.prisma, tenantId);
+    if (senzaSede.length > 0) {
+      throw new UnprocessableEntityException(motivoQuantitaFerma(senzaSede));
+    }
     const coppie = await this.coppieDaAllineare(tenantId, da, ALIGN_SCAN_LIMIT);
 
     let scritture = 0;
@@ -263,9 +280,7 @@ export class ShopifyInventoryAlignService {
         // ⛔ **Anche qui la domanda è se una scrittura fosse PRENOTATA**: un
         //    guasto prima della lettura e uno dopo la prenotazione non si
         //    rimediano allo stesso modo.
-        nonAllineate.push(
-          this.voce(coppia, await this.letturaOScritturaIncerta(tenantId, coppia)),
-        );
+        nonAllineate.push(this.voce(coppia, await this.letturaOScritturaIncerta(tenantId, coppia)));
         scritture += 1;
         this.logger.warn(
           `Allineamento non riuscito (${tenantId}) variante ${coppia.variantId} @ ` +
@@ -293,7 +308,7 @@ export class ShopifyInventoryAlignService {
     //    tornerà vuoto. Una richiesta di troppo, mai una coppia di meno.
     const bloccoConsumato = esaminate === coppie.length;
     const perimetroFinito = bloccoConsumato && coppie.length < ALIGN_SCAN_LIMIT;
-    const prossimo = perimetroFinito ? null : (ultima ?? (da ?? null));
+    const prossimo = perimetroFinito ? null : (ultima ?? da ?? null);
 
     const totale = await this.contaPerimetro(tenantId);
     const blocco: BloccoAllineamento = {
@@ -309,7 +324,9 @@ export class ShopifyInventoryAlignService {
     this.logger.log(
       `Allineamento disponibilità (${tenantId}): blocco di ${esaminate} coppie su ${totale} — ` +
         `${allineate} allineate, ${giaAllineate} già allineate, ${nonAllineate.length} non allineate` +
-        (blocco.fine ? ' — perimetro completato' : ' — il controllo prosegue col blocco successivo'),
+        (blocco.fine
+          ? ' — perimetro completato'
+          : ' — il controllo prosegue col blocco successivo'),
     );
     return blocco;
   }

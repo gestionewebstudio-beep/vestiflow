@@ -248,6 +248,8 @@ describe('Coda di ripubblicazione — rotazione su database vero', () => {
       undefined as never,
       undefined as never,
       undefined as never,
+      // ⭐ La prima connessione (`ShopifySetupService`): non serve a questa prova.
+      undefined as never,
     );
 
     const esito = await controller.retryPendingInventory(IDS.tenantA);

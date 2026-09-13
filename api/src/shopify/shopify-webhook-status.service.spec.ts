@@ -20,6 +20,9 @@ const ALL_TOPICS = [
   'customers/update',
   'products/create',
   'products/update',
+  // ⭐ Dal 13/09/2026: la sede degli ordini online dai fulfillment order.
+  'fulfillment_orders/order_routing_complete',
+  'fulfillment_orders/moved',
 ];
 
 describe('ShopifyWebhookStatusService', () => {
@@ -65,13 +68,13 @@ describe('ShopifyWebhookStatusService', () => {
 
     const result = await service.check('tenant-1');
 
-    expect(result.topics).toHaveLength(8);
+    expect(result.topics).toHaveLength(10);
     expect(result.missingTopics).toEqual([]);
     expect(result.addressMatchesConfigured).toBe(true);
     expect(result.otherAddresses).toEqual([]);
   });
 
-  it('il caso reale: sette topic e orders/cancelled nominato fra i mancanti', async () => {
+  it('il caso reale: tutti i topic meno uno, e orders/cancelled nominato fra i mancanti', async () => {
     const { service } = createService(
       ALL_TOPICS.filter((topic) => topic !== 'orders/cancelled').map((topic) => ({
         topic,
@@ -81,7 +84,7 @@ describe('ShopifyWebhookStatusService', () => {
 
     const result = await service.check('tenant-1');
 
-    expect(result.topics).toHaveLength(7);
+    expect(result.topics).toHaveLength(9);
     expect(result.missingTopics).toEqual(['orders/cancelled']);
     expect(result.addressMatchesConfigured).toBe(true);
   });
@@ -110,7 +113,7 @@ describe('ShopifyWebhookStatusService', () => {
     expect(recordWebhooksObserved).toHaveBeenCalledWith('tenant-1', { topics: [], address: null });
     expect(result.observedAddress).toBeNull();
     expect(result.addressMatchesConfigured).toBeNull();
-    expect(result.missingTopics).toHaveLength(8);
+    expect(result.missingTopics).toHaveLength(10);
   });
 
   it('sottoscrizioni verso un altro indirizzo: consegnano altrove, e si vede', async () => {

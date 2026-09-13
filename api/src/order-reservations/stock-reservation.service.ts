@@ -41,15 +41,39 @@ export interface ReservationLineInput {
   readonly sku: string;
   readonly quantity: number;
   readonly externalLineRef?: string | null;
+  /**
+   * ⭐ La sede DI QUESTA RIGA (13/09/2026): Shopify assegna ogni riga a una sede
+   *    nel suo fulfillment order, e due righe dello stesso ordine possono uscire
+   *    da due sedi. Assente → vale la sede dell'ordine (`params.locationId`);
+   *    se manca anche quella, la riga NON si impegna e l'impegno che avesse si
+   *    conserva — mai una sede indovinata.
+   */
+  readonly locationId?: string | null;
 }
 
 export interface SyncOrderReservationsParams {
   readonly tenantId: string;
   readonly salesOrderId: string;
   readonly channel: SalesOrderSource;
-  readonly locationId: string;
+  /** La sede dell'ORDINE: ripiego per le righe che non ne dichiarano una. */
+  readonly locationId: string | null;
   readonly externalOrderRef?: string | null;
   readonly lines: readonly ReservationLineInput[];
+  /**
+   * ⭐ Righe che oggi NON si risolvono a una variante (collegamento chiuso,
+   *    12/09/2026) ma il cui impegno PREESISTENTE si conserva: seguono il ciclo
+   *    dell'ordine (`docs/24` §1.14.3), non quello del collegamento. Non sono
+   *    in `lines` — non si crea né si aggiorna niente — e non si rilasciano.
+   */
+  readonly righeDaConservare?: readonly string[];
+  /**
+   * ⭐ Righe il cui impegno attivo si RILASCIA (13/09/2026): Shopify le ha
+   *    assegnate per intero a una location non collegata, e il pezzo non
+   *    partirà da dove era impegnato. Stesso rilascio delle righe rimosse —
+   *    `committed` −residuo, evento, nessun movimento — con il suo motivo.
+   *    Le altre righe non si toccano.
+   */
+  readonly righeDaRilasciare?: readonly string[];
 }
 
 export interface ReleaseOrderReservationsParams {
@@ -100,7 +124,7 @@ export class StockReservationService {
         .map((reservation) => [reservation.salesOrderLineId as string, reservation]),
     );
 
-    const seenLineIds = new Set<string>();
+    const seenLineIds = new Set<string>(params.righeDaConservare ?? []);
 
     for (const line of params.lines) {
       if (line.quantity <= 0) {
@@ -108,9 +132,15 @@ export class StockReservationService {
       }
       seenLineIds.add(line.salesOrderLineId);
       const current = existingByLineId.get(line.salesOrderLineId);
+      const sedeRiga = line.locationId ?? params.locationId;
+      if (!sedeRiga) {
+        // ⛔ Senza sede la riga non si impegna e non si rilascia: è vista (non
+        //    «rimossa dal canale») e ciò che ha resta com'è.
+        continue;
+      }
 
       if (!current) {
-        await this.createReservationTx(tx, params, line);
+        await this.createReservationTx(tx, params, line, sedeRiga);
         continue;
       }
 
@@ -126,21 +156,31 @@ export class StockReservationService {
       const unchanged =
         current.status === ReservationStatus.active &&
         current.variantId === line.variantId &&
-        current.locationId === params.locationId &&
+        current.locationId === sedeRiga &&
         current.remainingQuantity === line.quantity;
       if (unchanged) {
         continue;
       }
 
-      await this.updateReservationTx(tx, params.tenantId, current, line, params.locationId);
+      await this.updateReservationTx(tx, params.tenantId, current, line, sedeRiga);
     }
 
-    // Righe rimosse dal canale (o impegni orfani): rilascio, mai cancellazione.
+    // Righe rimosse dal canale (o impegni orfani) e righe assegnate per intero
+    // a una location non collegata: rilascio, mai cancellazione.
+    const daRilasciare = new Set<string>(params.righeDaRilasciare ?? []);
     for (const reservation of existing) {
       const stillPresent =
         reservation.salesOrderLineId !== null && seenLineIds.has(reservation.salesOrderLineId);
       if (!stillPresent && reservation.status === ReservationStatus.active) {
-        await this.releaseReservationTx(tx, reservation, 'Riga ordine rimossa dal canale');
+        const confermataAltrove =
+          reservation.salesOrderLineId !== null && daRilasciare.has(reservation.salesOrderLineId);
+        await this.releaseReservationTx(
+          tx,
+          reservation,
+          confermataAltrove
+            ? 'Riga assegnata da Shopify a una location non collegata'
+            : 'Riga ordine rimossa dal canale',
+        );
       }
     }
   }
@@ -211,6 +251,60 @@ export class StockReservationService {
     );
 
     return reservation.remainingQuantity;
+  }
+
+  /**
+   * ⭐ Consuma UNA PARTE di un impegno attivo (spedizione parziale, 12/09/2026):
+   *    Impegnata − q, Disponibile + q, residuo − q; l'impegno resta attivo
+   *    finché resta qualcosa da spedire, e si chiude quando la quantità
+   *    consumata raggiunge il residuo. Lo scarico fisico è del movimento creato
+   *    dal chiamante nella stessa transazione. Idempotente: un impegno non
+   *    attivo è no-op.
+   *
+   * @returns quantità consumata davvero (0 se non attivo).
+   */
+  async consumeReservationQuantityTx(
+    tx: Prisma.TransactionClient,
+    reservation: StockReservation,
+    quantita: number,
+    note: string,
+  ): Promise<number> {
+    if (quantita <= 0 || reservation.status !== ReservationStatus.active) {
+      return 0;
+    }
+    if (quantita >= reservation.remainingQuantity) {
+      return this.consumeReservationTx(tx, reservation, note);
+    }
+    const residuo = reservation.remainingQuantity - quantita;
+    const result = await tx.stockReservation.updateMany({
+      where: { id: reservation.id, status: ReservationStatus.active },
+      data: { remainingQuantity: residuo },
+    });
+    if (result.count === 0) {
+      return 0;
+    }
+    await tx.stockReservationEvent.create({
+      data: {
+        tenantId: reservation.tenantId,
+        reservationId: reservation.id,
+        type: ReservationEventType.consumed,
+        quantityDelta: -quantita,
+        remainingAfter: residuo,
+        note,
+      },
+    });
+    await applyCommittedDelta(
+      tx,
+      reservation.tenantId,
+      reservation.variantId,
+      reservation.locationId,
+      -quantita,
+      origineDaCanaleOrdine(reservation.channel),
+    );
+    this.logger.debug(
+      `Impegno consumato in parte: ordine ${reservation.salesOrderId}, sku ${reservation.sku}, qta ${quantita}, residuo ${residuo}`,
+    );
+    return quantita;
   }
 
   /**
@@ -309,11 +403,12 @@ export class StockReservationService {
     tx: Prisma.TransactionClient,
     params: SyncOrderReservationsParams,
     line: ReservationLineInput,
+    locationId: string,
   ): Promise<void> {
     const reservation = await tx.stockReservation.create({
       data: {
         tenantId: params.tenantId,
-        locationId: params.locationId,
+        locationId,
         variantId: line.variantId,
         channel: params.channel,
         salesOrderId: params.salesOrderId,
@@ -341,7 +436,7 @@ export class StockReservationService {
       tx,
       params.tenantId,
       line.variantId,
-      params.locationId,
+      locationId,
       line.quantity,
       origineDaCanaleOrdine(params.channel),
     );
@@ -443,7 +538,7 @@ export class StockReservationService {
     );
   }
 
-  private async releaseReservationTx(
+  async releaseReservationTx(
     tx: Prisma.TransactionClient,
     reservation: StockReservation,
     note: string,

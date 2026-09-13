@@ -49,6 +49,14 @@ describe('OAuth Shopify — identita del negozio (B1)', () => {
       },
       shopifyConnection: { upsert: connessioneUpsert },
       shopifyOAuthState: { delete: statoDelete },
+      // ⭐ La prima connessione (`docs/27` §2): «nuova» = nessun negozio prima,
+      //    nessun articolo collegato, nessuna identità. Qui c’è già un negozio
+      //    (`negozioPrima`): la connessione NON entra nel percorso e il callback
+      //    prosegue com’era — queste prove misurano l’identità, non il percorso.
+      shopifyShop: { findFirst: vi.fn().mockResolvedValue({ id: 'shop-prima' }) },
+      product: { count: vi.fn().mockResolvedValue(0) },
+      shopifyProductIdentity: { count: vi.fn().mockResolvedValue(0) },
+      shopifySetup: { upsert: vi.fn().mockResolvedValue({}) },
       // ⭐ Il profilo si rilegge DENTRO la transazione, dopo il lock di riga:
       //    e` il punto in cui un cambio avvenuto durante le chiamate remote
       //    viene intercettato.

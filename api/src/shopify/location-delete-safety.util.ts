@@ -62,7 +62,7 @@ export interface RiferimentoSede {
 }
 
 /**
- * Ogni relazione verso `Location` dichiarata nello schema. Sono ventidue: la ventiduesima e` lo storico dei collegamenti Shopify (07/09/2026).
+ * Ogni relazione verso `Location` dichiarata nello schema. Sono ventitre: la ventiduesima e` lo storico dei collegamenti Shopify (07/09/2026), la ventitreesima la scelta della prima connessione (11/09/2026).
  *
  * ⛔ Non si tolgono voci da qui per far passare un `DELETE`: se una sede non si
  *    cancella, e' perche' porta con se' qualcosa che non deve sparire.
@@ -232,6 +232,16 @@ export const RIFERIMENTI_SEDE: readonly RiferimentoSede[] = [
     campo: 'locationId',
     effetto: 'bloccata',
     etichetta: 'coppia con una location Shopify',
+  },
+  // ⭐ La SCELTA della prima connessione («collega a questa sede», docs/27 §2):
+  //    va via con la sede, ed e' giusto — e' una decisione sulla sede, non un
+  //    dato che la sede porta; il collegamento vero sta nella coppia qui sopra,
+  //    che invece blocca. Ventitreesima relazione (11/09/2026).
+  {
+    modello: 'shopifyLocationChoice',
+    campo: 'locationId',
+    effetto: 'cancellata',
+    etichetta: 'scelte della prima connessione Shopify su questa sede',
   },
 ];
 

@@ -89,6 +89,9 @@ export const TENANT_BACKUP_MODELS = {
   inventoryLots: 'InventoryLot',
   inventorySerials: 'InventorySerial',
   stockMovements: 'StockMovement',
+  // ⚠️ Dopo i movimenti: una riga di spedizione punta al SUO movimento (12/09/2026).
+  salesOrderShipments: 'SalesOrderShipment',
+  salesOrderShipmentLines: 'SalesOrderShipmentLine',
   inventoryCountSessions: 'InventoryCountSession',
   inventoryCountLines: 'InventoryCountLine',
   manualReceipts: 'ManualReceipt',

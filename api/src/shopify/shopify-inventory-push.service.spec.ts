@@ -67,6 +67,11 @@ describe('ShopifyInventoryPushService', () => {
       shopifyConnection: {
         findUnique: vi.fn().mockResolvedValue(connection),
       },
+      // Nessun ordine di canale aperto senza sede: la quantità non è ferma
+      // (`shopify-ordini-senza-sede.util`, 13/09/2026).
+      salesOrder: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       productVariant: {
         findFirst: vi.fn().mockResolvedValue(variant),
         update: vi.fn(),
@@ -271,8 +276,10 @@ describe('ShopifyInventoryPushService', () => {
     //    tentativo e SCARICA i contatori. ⛔ In due scritture ci sarebbe una
     //    finestra in cui i contatori sono già scaricati e il tentativo aperto:
     //    alla ripresa verrebbe ripetuto, scaricando due volte.
-    const sqlConferma = (prisma.$executeRaw as unknown as { mock: { calls: unknown[][] } }).mock
-      .calls.map((c) => (Array.isArray(c[0]) ? (c[0] as string[]).join('?') : String(c[0])))
+    const sqlConferma = (
+      prisma.$executeRaw as unknown as { mock: { calls: unknown[][] } }
+    ).mock.calls
+      .map((c) => (Array.isArray(c[0]) ? (c[0] as string[]).join('?') : String(c[0])))
       .join(' | ');
     expect(sqlConferma).toContain('UPDATE shopify_inventory_sync_states');
     expect(sqlConferma).toContain('pending_key');

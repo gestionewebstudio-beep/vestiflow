@@ -523,7 +523,11 @@ describe('Identita del negozio Shopify — acquisizione e registrazione', () => 
 
     // ── Riuscita e rifiuto sono cose diverse, e si distinguono ──────────────
     const url = esiti.map((e) => (e.status === 'fulfilled' ? e.value : null));
-    const completati = url.filter((u) => u?.includes('shopify=connected'));
+    // ⭐ Per una connessione NUOVA (nessun negozio prima, nessun articolo
+    //    collegato) il callback torna `?shopify=setup`: parte il percorso della
+    //    prima connessione (`docs/27` §2), non la sincronizzazione. È il
+    //    completamento, con un altro nome.
+    const completati = url.filter((u) => u?.includes('shopify=setup'));
     // ⚠️ **`connection_conflict` e` un rifiuto RESTITUITO, non un errore
     //    lanciato**, ed e` la forma che l'incrocio produce davvero: la
     //    transazione rotola indietro e il callback risponde «riprova». Fuori da
@@ -617,7 +621,11 @@ describe('Identita del negozio Shopify — acquisizione e registrazione', () => 
       shop: 'prova.myshopify.com',
     });
 
-    expect(esito).toContain('shopify=connected');
+    // ⭐ Per una connessione NUOVA (nessun negozio prima, nessun articolo
+    //    collegato) il callback torna `?shopify=setup`: parte il percorso della
+    //    prima connessione (`docs/27` §2), non la sincronizzazione. È il
+    //    completamento, con un altro nome.
+    expect(esito).toContain('shopify=setup');
     const stato = await coerenza(IDS.tenantB);
     expect(stato.gidNegozio).toBe(GID);
     expect(stato.dominioCredenziale).toBe('prova.myshopify.com');

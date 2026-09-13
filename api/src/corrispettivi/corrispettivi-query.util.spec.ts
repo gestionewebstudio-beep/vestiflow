@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCorrispettiviManualWhere,
+  buildCorrispettiviAnnullamentiDichiaratiWhere,
   buildCorrispettiviRefundWhere,
   buildCorrispettiviStoreSaleWhere,
   buildCorrispettiviWhere,
@@ -128,10 +129,46 @@ describe('buildCorrispettiviRefundWhere', () => {
     });
   });
 
-  it('lascia fuori gli annullamenti', () => {
+  /**
+   * ⭐ Un annullamento (`cancel`) rettifica SE E SOLO SE il suo ordine è entrato nel
+   *    Registro — evaso, a qualunque data (proprietario, 13/09/2026, #1014 del
+   *    collaudo reale: 1 pezzo su 3 annullato prima della spedizione, ordine poi
+   *    evaso al valore originario, rettifica di 749,95 € che mancava).
+   * ⛔ Qui c'era «lascia fuori gli annullamenti» in ogni caso: vale per il
+   *    TOTALE (l'ordine non viene evaso, non entra), non per il parziale seguito
+   *    dall'evasione.
+   */
+  it('ammette un annullamento SOLO se il suo ordine è stato evaso; gli altri restano fuori', () => {
     const where = buildCorrispettiviRefundWhere(tenantId, {});
 
-    expect(where.kind).toEqual({ not: PrismaRefundKind.cancellation });
+    expect(where.kind).toBeUndefined();
+    expect(where.OR).toEqual([
+      { kind: { not: PrismaRefundKind.cancellation } },
+      { kind: PrismaRefundKind.cancellation, order: { fulfilledAt: { not: null } } },
+    ]);
+  });
+
+  it("col filtro Tipo «rimborsi» entra anche l'annullamento rettificante: è solo denaro", () => {
+    const where = buildCorrispettiviRefundWhere(tenantId, { tipi: ['refunds'] });
+
+    expect(where.OR).toEqual([
+      { kind: { in: [PrismaRefundKind.refund_only] } },
+      { kind: PrismaRefundKind.cancellation, order: { fulfilledAt: { not: null } } },
+    ]);
+    // Coi soli resi no: la merce annullata non è mai rientrata.
+    expect(buildCorrispettiviRefundWhere(tenantId, { tipi: ['returns'] }).OR).toEqual([
+      { kind: { in: [PrismaRefundKind.return_with_restock] } },
+    ]);
+  });
+
+  it('gli annullamenti DICHIARATI sono i cancel di ordini mai evasi, con lo stesso perimetro', () => {
+    const where = buildCorrispettiviAnnullamentiDichiaratiWhere(tenantId, { ambito: 'online' });
+
+    expect(where).toEqual({
+      tenantId,
+      kind: PrismaRefundKind.cancellation,
+      order: { source: { in: [PrismaSource.shopify_online] }, fulfilledAt: null },
+    });
   });
 
   it('segue ambito e canale dell ordine collegato', () => {
@@ -156,10 +193,11 @@ describe('buildCorrispettiviRefundWhere', () => {
     });
 
     expect(where.tenantId).toBe(tenantId);
-    expect(where.kind).toEqual({ not: PrismaRefundKind.cancellation });
     // Lo stato di pagamento e la ricerca descrivono un ORDINE: qui non entrano.
     expect(where).not.toHaveProperty('financialStatus');
-    expect(where).not.toHaveProperty('OR');
+    expect(where).not.toHaveProperty('search');
+    // L'`OR` è quello dei generi (annullamento rettificante compreso), non un filtro d'ordine.
+    expect(where.OR).toHaveLength(2);
   });
 });
 

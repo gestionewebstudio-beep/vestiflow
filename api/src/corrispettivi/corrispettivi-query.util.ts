@@ -118,9 +118,7 @@ function sediFilter(query: CorrispettiviListFilters): {
     database.
   */
   if (query.sediEffettive !== undefined) {
-    return query.sediEffettive === null
-      ? {}
-      : { locationId: { in: [...query.sediEffettive] } };
+    return query.sediEffettive === null ? {} : { locationId: { in: [...query.sediEffettive] } };
   }
   // ⚠️ Insieme vuoto = nessuna restrizione: il filtro si OMETTE, non si passa
   // vuoto. `{ in: [] }` in Prisma non è «tutte le sedi», è nessuna riga.
@@ -286,6 +284,47 @@ export function buildCorrispettiviWhere(
  * registro, perché non ha data di evasione. Sottrarla porterebbe il totale
  * sotto zero — misurato: 110,00 € su agosto 2026.
  */
+/**
+ * Gli annullamenti DICHIARATI dal riepilogo: i `cancel` di ordini MAI EVASI. Non
+ * rettificano niente (la vendita non è entrata nel Registro) e si contano soltanto.
+ * Il `cancel` di un ordine evaso è una rettifica (`buildCorrispettiviRefundWhere`)
+ * e NON sta qui: contarlo due volte lo direbbe «escluso» mentre è sottratto.
+ * Stesso periodo, stessa origine, stessa sede del resto del riepilogo; nessun
+ * filtro Tipo, per scelta (vedi il servizio).
+ */
+export function buildCorrispettiviAnnullamentiDichiaratiWhere(
+  tenantId: string,
+  query: CorrispettiviListFilters,
+): Prisma.SalesOrderRefundWhereInput {
+  const occurredAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
+  return {
+    tenantId,
+    kind: PrismaRefundKind.cancellation,
+    ...(occurredAt ? { occurredAt } : {}),
+    order: {
+      source: { in: salesOrderSourcesOf(effectiveOrigins(query)) },
+      ...locationFilter(query),
+      fulfilledAt: null,
+    },
+  };
+}
+
+/**
+ * ⭐ Quando una rettifica del canale CONTA — la regola in un posto solo, letta dal
+ *    Registro e dal Cruscotto: ogni reso o rimborso; un annullamento (`cancel`) solo
+ *    se il suo ordine è stato evaso (`fulfilledAt` non nullo: è entrato nel Registro
+ *    al valore originario, e la rettifica lo corregge). L'annullamento di un ordine
+ *    mai evaso non rettifica niente: resta un «annullamento dichiarato».
+ */
+export function rettificaAmmessaWhere(): Prisma.SalesOrderRefundWhereInput {
+  return {
+    OR: [
+      { kind: { not: PrismaRefundKind.cancellation } },
+      { kind: PrismaRefundKind.cancellation, order: { fulfilledAt: { not: null } } },
+    ],
+  };
+}
+
 export function buildCorrispettiviRefundWhere(
   tenantId: string,
   query: CorrispettiviListFilters,
@@ -299,8 +338,7 @@ export function buildCorrispettiviRefundWhere(
   };
 
   // «Resi» e «Rimborsi» sono due voci diverse perché sono due gesti diversi:
-  // nel primo la merce è tornata, nel secondo solo il denaro. Gli annullamenti
-  // restano fuori in ogni caso — non rettificano niente.
+  // nel primo la merce è tornata, nel secondo solo il denaro.
   /*
     ⚠️ **Un INSIEME di generi, non una catena di ternari.**
 
@@ -308,9 +346,6 @@ export function buildCorrispettiviRefundWhere(
     servizio aveva dovuto inventare la stringa `refunds_and_returns` (`docs/10`
     §16): un enum che contiene una congiunzione sta chiedendo di essere un
     insieme.
-
-    Insieme vuoto = nessuna restrizione, e quindi `not: cancellation`: gli
-    annullamenti restano fuori in ogni caso, perché non rettificano niente.
   */
   const generi: PrismaRefundKind[] = [];
   for (const tipo of tipiRichiesti(query)) {
@@ -318,12 +353,43 @@ export function buildCorrispettiviRefundWhere(
     if (tipo === 'refunds') generi.push(PrismaRefundKind.refund_only);
   }
 
-  const kind =
-    generi.length > 0 ? { in: generi } : { not: PrismaRefundKind.cancellation };
+  /*
+    ⭐ **Un annullamento (`cancel`) rettifica SE E SOLO SE il suo ordine è entrato
+       nel Registro** — cioè è stato evaso, a qualunque data (`fulfilledAt` non
+       nullo: è l'ammissibilità della vendita, non la sua presenza nel periodo
+       scelto). Deciso dal proprietario il 13/09/2026 sull'ordine #1014 del
+       collaudo reale: 1 pezzo su 3 annullato prima della spedizione, poi l'ordine
+       evaso ed entrato nel Registro al valore originario (2.249,85 €) — la
+       rettifica (749,95 €) mancava, e il totale mentiva.
+
+    ⛔ Qui c'era `not: cancellation` secco: «gli annullamenti restano fuori in
+       ogni caso — non rettificano niente» (`08` §4). La premessa vale per
+       l'annullamento TOTALE — l'ordine non viene evaso, non entra nel Registro,
+       il suo rimborso non rettifica niente e resta un annullamento dichiarato —
+       e resta vera; non vale per il parziale seguito dall'evasione. Il denaro
+       era dichiarato nel riepilogo come «annullamento», mai sottratto.
+
+    Un `cancel` rettificante è, per il filtro Tipo, un RIMBORSO: solo denaro, la
+    merce non era mai partita. Vendita e rettifica conservano ciascuna la propria
+    data: la vendita entra alla sua evasione, la rettifica alla sua.
+  */
+  const cancellazioneRettificante: Prisma.SalesOrderRefundWhereInput = {
+    kind: PrismaRefundKind.cancellation,
+    order: { fulfilledAt: { not: null } },
+  };
+  const perGenere: Prisma.SalesOrderRefundWhereInput =
+    generi.length > 0
+      ? {
+          OR: [
+            { kind: { in: generi } },
+            ...(generi.includes(PrismaRefundKind.refund_only) ? [cancellazioneRettificante] : []),
+          ],
+        }
+      : rettificaAmmessaWhere();
 
   return {
     tenantId,
-    kind,
+    ...perGenere,
     ...(occurredAt ? { occurredAt } : {}),
     // La sede di una rettifica è quella dell'ordine che rettifica: non ne ha una
     // propria, e inventargliela sarebbe dire che la merce è tornata altrove.

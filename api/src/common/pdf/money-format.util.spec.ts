@@ -10,6 +10,8 @@ describe('formatMinorAmount', () => {
   it('stampa due decimali con i separatori italiani', () => {
     expect(formatMinorAmount(2990)).toBe('€ 29,90');
     expect(formatMinorAmount(123456789)).toBe('€ 1.234.567,89');
+    // ⭐ Anche a quattro cifre: it-IT da solo scriveva «€ 2249,85» (13/09/2026).
+    expect(formatMinorAmount(224985)).toBe('€ 2.249,85');
     expect(formatMinorAmount(0)).toBe('€ 0,00');
     expect(formatMinorAmount(-1050)).toBe('€ -10,50');
   });

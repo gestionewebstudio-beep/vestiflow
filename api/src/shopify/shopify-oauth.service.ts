@@ -10,6 +10,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import {
   ShopifyConnectionStatus,
+  ShopifySetupStatus,
   ShopifySyncStatus,
   TenantChannelProfile,
 } from '@prisma/client';
@@ -27,6 +28,7 @@ import {
 } from './shopify-shop-identity.service';
 import { ShopifyCryptoService } from './shopify-crypto.service';
 import { isShopifyDeliverableAddress } from './shopify-webhook-address.util';
+import { indirizzoRitornoShopify } from './shopify-oauth-ritorno.util';
 import {
   ShopifyLocationSyncService,
   type ShopifyLocationSyncResult,
@@ -67,17 +69,19 @@ export class ShopifyOAuthService {
    *    non sia rimasto niente scritto.
    */
   private rifiutoDaEsito(esito: EsitoIdentitaNegozio | null, shopDomain: string): string | null {
-    const base = `${this.shopifyConfig.frontendUrl}/app/settings?shopify=`;
-    const negozio = encodeURIComponent(shopDomain);
+    const frontend = this.shopifyConfig.frontendUrl;
     switch (esito?.tipo) {
       case 'rivendicato_altrove':
         // ⛔ §8.5.1: lo stesso negozio non puo' appartenere a due aziende.
-        return `${base}shop_owned_elsewhere&shop=${negozio}`;
+        return indirizzoRitornoShopify(frontend, 'shop_owned_elsewhere', { shop: shopDomain });
       case 'negozio_diverso':
         // ⛔ Il cambio negozio ha una transazione sua (§8.5.1): non e' qui.
-        return `${base}shop_change_blocked&from=${negozio}&to=${negozio}`;
+        return indirizzoRitornoShopify(frontend, 'shop_change_blocked', {
+          from: shopDomain,
+          to: shopDomain,
+        });
       case 'non_acquisita':
-        return `${base}shop_identity_unavailable&shop=${negozio}`;
+        return indirizzoRitornoShopify(frontend, 'shop_identity_unavailable', { shop: shopDomain });
       default:
         return null;
     }
@@ -179,7 +183,9 @@ export class ShopifyOAuthService {
         `OAuth Shopify (${oauthState.tenantId}): profilo canale non abilitato a Shopify. ` +
           'Collegamento rifiutato prima di qualunque chiamata al canale.',
       );
-      return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=channel_not_enabled&shop=${encodeURIComponent(shopDomain)}`;
+      return indirizzoRitornoShopify(this.shopifyConfig.frontendUrl, 'channel_not_enabled', {
+        shop: shopDomain,
+      });
     }
 
     const tokenResponse = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
@@ -223,7 +229,10 @@ export class ShopifyOAuthService {
       select: { shopDomain: true },
     });
     if (existingCredential && existingCredential.shopDomain !== shopDomain) {
-      return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=shop_change_blocked&from=${encodeURIComponent(existingCredential.shopDomain)}&to=${encodeURIComponent(shopDomain)}`;
+      return indirizzoRitornoShopify(this.shopifyConfig.frontendUrl, 'shop_change_blocked', {
+        from: existingCredential.shopDomain,
+        to: shopDomain,
+      });
     }
 
     // ── L'IDENTITA' del negozio, PRIMA di scrivere qualunque cosa ────────────
@@ -258,7 +267,9 @@ export class ShopifyOAuthService {
       this.logger.warn(
         `OAuth Shopify (${tenantId}): identita negozio non leggibile — ${motivo}. Connessione rifiutata.`,
       );
-      return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=shop_identity_unavailable&shop=${encodeURIComponent(shopDomain)}`;
+      return indirizzoRitornoShopify(this.shopifyConfig.frontendUrl, 'shop_identity_unavailable', {
+        shop: shopDomain,
+      });
     }
 
     // ⚠️ **Le chiamate remote sono FINITE**: da qui in poi si scrive soltanto.
@@ -283,6 +294,7 @@ export class ShopifyOAuthService {
     //    `ConflictException` nostra, e va distinta dalle altre — riconoscerla
     //    dalla classe le comprenderebbe tutte, comprese quelle future.
     let conflittoDominio = false;
+    let connessioneNuova = false;
     /** Il profilo canale e' cambiato mentre il collegamento era in corso. */
     let profiloNonAbilitato = false;
     try {
@@ -322,6 +334,21 @@ export class ShopifyOAuthService {
             profiloNonAbilitato = errore instanceof BadRequestException;
             throw errore;
           }
+
+          // ⭐ PRIMA CONNESSIONE (`docs/27` §0): «nuova» e` un fatto, non
+          //    l'assenza di uno stato. Nuova = il tenant non ha mai avuto un
+          //    negozio (`shopify_shops`) ne` un articolo collegato. Una
+          //    connessione nata prima dello storico, o una riconnessione,
+          //    NON entra nel percorso: conserva collegamenti e sospensioni.
+          const negozioPrima = await tx.shopifyShop.findFirst({
+            where: { tenantId },
+            select: { id: true },
+          });
+          const articoliCollegati = await tx.product.count({
+            where: { tenantId, shopifyProductId: { not: null } },
+          });
+          const identitaArticoli = await tx.shopifyProductIdentity.count({ where: { tenantId } });
+          connessioneNuova = !negozioPrima && articoliCollegati === 0 && identitaArticoli === 0;
 
           esito = await this.shopIdentity.registra(tx, tenantId, identita);
           if (esito.tipo !== 'registrata') {
@@ -375,6 +402,17 @@ export class ShopifyOAuthService {
             },
           });
           await tx.shopifyOAuthState.delete({ where: { id: oauthState.id } });
+          if (connessioneNuova) {
+            // La riga del percorso nasce QUI, nella stessa transazione della
+            // connessione: o entrambe, o nessuna. Le fasi le governa
+            // `ShopifySetupService` (che dipende da questo servizio: per questo
+            // la scrittura sta qui e non la`).
+            await tx.shopifySetup.upsert({
+              where: { tenantId },
+              update: {},
+              create: { tenantId, status: ShopifySetupStatus.scelte },
+            });
+          }
         },
         { isolationLevel: 'Serializable' },
       );
@@ -388,7 +426,9 @@ export class ShopifyOAuthService {
           `OAuth Shopify (${tenantId}): profilo canale non abilitato a Shopify al momento ` +
             'del salvataggio. Collegamento annullato per intero.',
         );
-        return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=channel_not_enabled&shop=${encodeURIComponent(shopDomain)}`;
+        return indirizzoRitornoShopify(this.shopifyConfig.frontendUrl, 'channel_not_enabled', {
+          shop: shopDomain,
+        });
       }
       const rifiuto = this.rifiutoDaEsito(esito, shopDomain);
       if (rifiuto) {
@@ -401,7 +441,9 @@ export class ShopifyOAuthService {
         this.logger.warn(
           `OAuth Shopify (${tenantId}): collegamento in conflitto con un altro tentativo simultaneo. Nulla e' stato scritto.`,
         );
-        return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=connection_conflict&shop=${encodeURIComponent(shopDomain)}`;
+        return indirizzoRitornoShopify(this.shopifyConfig.frontendUrl, 'connection_conflict', {
+          shop: shopDomain,
+        });
       }
       throw errore;
     }
@@ -422,6 +464,14 @@ export class ShopifyOAuthService {
           ? 'oauth_scope_not_requested'
           : 'oauth_scope_not_granted',
       );
+    }
+
+    if (connessioneNuova) {
+      // ⛔ Nessuna sincronizzazione parte da sola su una connessione nuova
+      //    (`docs/27` §0): le sedi le decide il titolare nella fase 2, i
+      //    webhook si registrano all'attivazione (fase 4). Le location si
+      //    leggono dal vivo in `GET shopify/setup`.
+      return indirizzoRitornoShopify(this.shopifyConfig.frontendUrl, 'setup');
     }
 
     try {
@@ -462,7 +512,7 @@ export class ShopifyOAuthService {
       }
     }
 
-    return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=connected`;
+    return indirizzoRitornoShopify(this.shopifyConfig.frontendUrl, 'connected');
   }
 
   /**

@@ -461,6 +461,7 @@ describe('ManualSalesOrdersService.delete', () => {
       orderNumber: '#1001',
       channelMissingSince: null,
       onlineSale: null,
+      shipments: [],
     });
     const { service } = createService(prisma);
 
@@ -480,6 +481,7 @@ describe('ManualSalesOrdersService.delete', () => {
       orderNumber: '#1001',
       channelMissingSince: new Date('2026-08-08T12:00:00.000Z'),
       onlineSale: null,
+      shipments: [],
     });
     const { service } = createService(prisma);
 
@@ -498,6 +500,7 @@ describe('ManualSalesOrdersService.delete', () => {
       orderNumber: '#1001',
       channelMissingSince: new Date('2026-08-08T12:00:00.000Z'),
       onlineSale: { id: 'vo-1' },
+      shipments: [],
     });
     const { service } = createService(prisma);
 

@@ -5,9 +5,15 @@ import { DocumentType, StockMovementType } from '@prisma/client';
  *
  * Il costo è congelato SUL movimento (`totalCostMinor`), il ricavo NO: si legge
  * dalla RIGA di vendita collegata (il documento del gestionale, non l'ordine di
- * canale). Il reso online (restock) non ha una riga propria: si inverte al
- * prezzo della riga di vendita ORIGINALE per quella variante, coerente col
- * costo che pure viene da lì.
+ * canale).
+ *
+ * ⛔ Qui il reso online (restock) «si invertiva al prezzo della riga di vendita
+ *    ORIGINALE per quella variante»: una STIMA, e un secondo sistema. Dal
+ *    13/09/2026 il lato economico di ogni rettifica del canale — reso, rimborso,
+ *    annullamento parziale — viene dal RIMBORSO persistito (`sales_order_refunds`,
+ *    `addOnlineRefundsToAggregate`), alla sua data e per l'importo vero; il
+ *    movimento di rientro porta SOLO il costo. Contarli entrambi sottrarrebbe due
+ *    volte il rientro (proprietario, 13/09/2026).
  */
 
 /** Movimento di vendita/reso nella forma minima che serve al calcolo del ricavo. */
@@ -26,13 +32,6 @@ export interface RevenueLineMaps {
   readonly documentLineTotal: ReadonlyMap<string, number>;
   /** `sourceLineId` (OnlineSaleLine) → totale lordo di riga: online_sale. */
   readonly onlineSaleLineTotal: ReadonlyMap<string, number>;
-  /** `${onlineSaleId}|${variantId}` → prezzo unitario di vendita: per i resi online. */
-  readonly onlineOriginalUnitPrice: ReadonlyMap<string, number>;
-}
-
-/** Chiave della riga di vendita online originale, per invertire un reso online. */
-export function onlineOriginalKey(onlineSaleId: string, variantId: string): string {
-  return `${onlineSaleId}|${variantId}`;
 }
 
 /**
@@ -40,10 +39,7 @@ export function onlineOriginalKey(onlineSaleId: string, variantId: string): stri
  * (reso in negativo) lo applica il chiamante in base al tipo. 0 quando la riga
  * collegata non è risolvibile (es. movimento storico senza documento).
  */
-export function movementRevenueMinor(
-  movement: SaleMovementLike,
-  maps: RevenueLineMaps,
-): number {
+export function movementRevenueMinor(movement: SaleMovementLike, maps: RevenueLineMaps): number {
   if (movement.sourceLineId) {
     if (movement.sourceDocumentType === DocumentType.online_sale) {
       return maps.onlineSaleLineTotal.get(movement.sourceLineId) ?? 0;
@@ -51,17 +47,7 @@ export function movementRevenueMinor(
     return maps.documentLineTotal.get(movement.sourceLineId) ?? 0;
   }
 
-  // Reso online (restock): nessuna riga propria → prezzo della vendita originale.
-  if (
-    movement.type === StockMovementType.return &&
-    movement.sourceDocumentId &&
-    movement.variantId
-  ) {
-    const unit = maps.onlineOriginalUnitPrice.get(
-      onlineOriginalKey(movement.sourceDocumentId, movement.variantId),
-    );
-    return unit != null ? unit * movement.quantity : 0;
-  }
-
+  // Reso online (restock): nessuna riga propria, e nessun ricavo da qui — il
+  // suo valore è il rimborso persistito (vedi in testa).
   return 0;
 }

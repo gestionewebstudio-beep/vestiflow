@@ -315,6 +315,8 @@ describe('ShopifyConnectionService', () => {
           'customers/update',
           'products/create',
           'products/update',
+          'fulfillment_orders/order_routing_complete',
+          'fulfillment_orders/moved',
         ],
       });
 

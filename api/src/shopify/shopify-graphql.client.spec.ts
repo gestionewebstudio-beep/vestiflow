@@ -418,6 +418,27 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
         expect(variables['id']).toBe(ITEM);
       });
 
+      /**
+       * ⛔ Misurato sul negozio vero il 13/09/2026: il push passava gli id
+       *    NUMERICI di articolo e location, e Shopify rispondeva «Variable $id
+       *    of type ID! was provided invalid value» — 75 coppie su 75 non
+       *    allineate, nessuna scrittura. Il simulatore non tipizza le variabili.
+       *    Il GID si forma al confine: un id numerico e un GID già formato
+       *    devono uscire uguali.
+       */
+      it('forma i GID al confine: id numerici e GID già formati mandano le stesse variabili', async () => {
+        const fetchMock = mockFetch(
+          livello([{ name: 'available', quantity: 7 }]),
+          livello([{ name: 'available', quantity: 7 }]),
+        );
+
+        await client.getRemoteLevelAtLocation(SHOP, TOKEN, '5', '77');
+        await client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE);
+
+        expect(corpo(fetchMock, 0).variables).toEqual({ id: ITEM, locationId: SEDE });
+        expect(corpo(fetchMock, 1).variables).toEqual({ id: ITEM, locationId: SEDE });
+      });
+
       it('la sede FUORI dalla prima pagina si legge lo stesso — quella a pagine la perde', async () => {
         // Il canale ha tre sedi e la nostra è la terza. Una pagina troncata ne
         // riporta due: è esattamente ciò che `first: N` produce, e l'assenza di
@@ -792,6 +813,163 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       // qui si cerca la chiamata, cioè il nome seguito da una parentesi.
       expect(sorgente).not.toMatch(/\bproductDelete\s*\(/);
       expect(sorgente).not.toMatch(/\bproductVariantsBulkDelete\s*\(/);
+    });
+  });
+
+  // ── I fulfillment order: la sede degli ordini online (13/09/2026) ───────────
+
+  describe("fulfillment order — sola lettura, e l'ambito mancante è un ESITO", () => {
+    it("legge i fulfillment order dell'ordine col GID formato al confine, e li traduce", async () => {
+      const fetchMock = mockFetch(
+        rispondi({
+          order: {
+            id: 'gid://shopify/Order/10',
+            fulfillmentOrders: {
+              nodes: [
+                {
+                  id: 'gid://shopify/FulfillmentOrder/1',
+                  status: 'OPEN',
+                  assignedLocation: { location: { id: 'gid://shopify/Location/5' } },
+                  lineItems: {
+                    nodes: [
+                      {
+                        id: 'gid://shopify/FulfillmentOrderLineItem/1',
+                        remainingQuantity: 2,
+                        totalQuantity: 3,
+                        lineItem: { id: 'gid://shopify/LineItem/11' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  id: 'gid://shopify/FulfillmentOrder/2',
+                  status: 'CLOSED',
+                  assignedLocation: { location: null },
+                  lineItems: { nodes: [] },
+                },
+              ],
+            },
+          },
+        }),
+      );
+
+      const esito = await client.getFulfillmentOrders(SHOP, TOKEN, '10');
+
+      expect(corpo(fetchMock).variables).toEqual({ id: 'gid://shopify/Order/10' });
+      expect(corpo(fetchMock).query).toContain('fulfillmentOrders(first: 50)');
+      expect(corpo(fetchMock).query).toContain('assignedLocation { location { id } }');
+      expect(corpo(fetchMock).query).toContain('pageInfo { hasNextPage }');
+      expect(esito).toEqual({
+        ok: true,
+        completa: true,
+        fulfillmentOrders: [
+          {
+            id: 'gid://shopify/FulfillmentOrder/1',
+            status: 'OPEN',
+            assignedLocationGid: 'gid://shopify/Location/5',
+            righe: [
+              { lineItemGid: 'gid://shopify/LineItem/11', remainingQuantity: 2, totalQuantity: 3 },
+            ],
+          },
+          {
+            id: 'gid://shopify/FulfillmentOrder/2',
+            status: 'CLOSED',
+            assignedLocationGid: null,
+            righe: [],
+          },
+        ],
+      });
+    });
+
+    it('una pagina oltre la prima (fulfillment order o righe): letta, ma NON completa', async () => {
+      // ⛔ Una lettura troncata classifica le righe viste ma non autorizza a
+      //    RILASCIARE un impegno (13/09/2026): la completezza viaggia con l'esito.
+      const conAltraPagina = (dove: 'fulfillmentOrders' | 'lineItems') =>
+        rispondi({
+          order: {
+            id: 'gid://shopify/Order/10',
+            fulfillmentOrders: {
+              pageInfo: { hasNextPage: dove === 'fulfillmentOrders' },
+              nodes: [
+                {
+                  id: 'gid://shopify/FulfillmentOrder/1',
+                  status: 'OPEN',
+                  assignedLocation: { location: { id: 'gid://shopify/Location/5' } },
+                  lineItems: {
+                    pageInfo: { hasNextPage: dove === 'lineItems' },
+                    nodes: [],
+                  },
+                },
+              ],
+            },
+          },
+        });
+      mockFetch(conAltraPagina('fulfillmentOrders'));
+      expect(await client.getFulfillmentOrders(SHOP, TOKEN, '10')).toMatchObject({
+        ok: true,
+        completa: false,
+      });
+      mockFetch(conAltraPagina('lineItems'));
+      expect(await client.getFulfillmentOrders(SHOP, TOKEN, '10')).toMatchObject({
+        ok: true,
+        completa: false,
+      });
+    });
+
+    it("ACCESS_DENIED → permesso_mancante, senza lanciare: l'import deve proseguire", async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          errors: [
+            {
+              message:
+                'Access denied for fulfillmentOrders field. Required access: `read_merchant_managed_fulfillment_orders` access scope.',
+              extensions: { code: 'ACCESS_DENIED' },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+      const esito = await client.getFulfillmentOrders(SHOP, TOKEN, 'gid://shopify/Order/10');
+
+      expect(esito).toMatchObject({ ok: false, motivo: 'permesso_mancante' });
+      expect((esito as { dettaglio: string }).dettaglio).toContain(
+        'read_merchant_managed_fulfillment_orders',
+      );
+    });
+
+    it('un altro errore → lettura_fallita col testo, non permesso_mancante', async () => {
+      mockFetch({
+        ok: false,
+        status: 500,
+        headers: new Headers(),
+        text: async () => 'guasto',
+      } as unknown as Response);
+
+      const esito = await client.getFulfillmentOrders(SHOP, TOKEN, '10');
+
+      expect(esito).toMatchObject({ ok: false, motivo: 'lettura_fallita' });
+      expect((esito as { dettaglio: string }).dettaglio).toContain('500');
+    });
+
+    it("dal fulfillment order all'ordine: l'id REST (legacyResourceId), o null", async () => {
+      const fetchMock = mockFetch(
+        rispondi({
+          fulfillmentOrder: {
+            id: 'gid://shopify/FulfillmentOrder/7',
+            order: { id: 'gid://shopify/Order/10', legacyResourceId: '10' },
+          },
+        }),
+        rispondi({ fulfillmentOrder: null }),
+      );
+
+      expect(await client.getOrderIdOfFulfillmentOrder(SHOP, TOKEN, '7')).toBe('10');
+      expect(corpo(fetchMock).variables).toEqual({ id: 'gid://shopify/FulfillmentOrder/7' });
+      expect(
+        await client.getOrderIdOfFulfillmentOrder(SHOP, TOKEN, 'gid://shopify/FulfillmentOrder/8'),
+      ).toBeNull();
     });
   });
 });

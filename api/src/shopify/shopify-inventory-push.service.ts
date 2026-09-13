@@ -11,6 +11,11 @@ import { PlatformAuditService } from '../common/audit/platform-audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConnectionService } from './shopify-connection.service';
+import {
+  CODICE_QUANTITA_FERMA,
+  motivoQuantitaFerma,
+  ordiniApertiSenzaSede,
+} from './shopify-ordini-senza-sede.util';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import {
@@ -195,6 +200,14 @@ export type ShopifyInventoryPushSkipReason =
    * tre modi diversi di decidere al posto del proprietario.
    */
   | 'base_assente'
+  /**
+   * ⛔ Un ordine di canale APERTO senza sede determinabile — quindi senza
+   * impegno — porta questa variante: il Disponibile VestiFlow ignora pezzi che
+   * Shopify ha già promesso, e scriverlo là **alzerebbe** l'on_hand remoto.
+   * Nessuna quantità parte, da nessun percorso, finché l'ordine non ha una
+   * sede (`shopify-ordini-senza-sede.util`; collaudo del 13/09/2026).
+   */
+  | 'ordine_senza_sede'
   /**
    * ⛔ Il canale ha **rifiutato** la scrittura: la quantità là non è quella che
    * VestiFlow credeva. È una **divergenza accertata**, non un guasto — la
@@ -428,6 +441,26 @@ export class ShopifyInventoryPushService {
       //    per giunta toglierebbe dalla vendita un prodotto che nessuno ha
       //    chiesto di ritirare.
       return { pushed: false, reason: 'collegamento_escluso', publishableAvailable: publishable };
+    }
+
+    // ── l'ORDINE APERTO SENZA SEDE ferma la quantità, prima di ogni lettura ──
+    //
+    // ⛔ Sta qui, nel punto da cui passa OGNI pubblicazione (post-commit,
+    //    recupero, «Allinea», attivazione), e prima del confronto «invariata»:
+    //    la risposta non deve dipendere dal fatto che il numero sia per caso
+    //    uguale all'ultimo inviato. Misurato sul negozio vero il 13/09/2026:
+    //    #1010 e #1011 senza sede, Shopify `committed` 6, VestiFlow 0 — il
+    //    Disponibile sarebbe partito più alto di 6 e Shopify avrebbe alzato
+    //    l'on_hand di pezzi già promessi. Nessuna compensazione: il motivo e
+    //    l'azione vanno sulla connessione, dove l'operatore li legge.
+    const senzaSede = await ordiniApertiSenzaSede(this.prisma, tenantId, variantId);
+    if (senzaSede.length > 0) {
+      const motivo = motivoQuantitaFerma(senzaSede);
+      this.logger.warn(
+        `Push inventario fermo (${tenantId}): ${variant.sku ?? variantId} @ ${location.name} — ${motivo}`,
+      );
+      await this.shopifyConnection.recordError(tenantId, motivo, CODICE_QUANTITA_FERMA);
+      return { pushed: false, reason: 'ordine_senza_sede', publishableAvailable: publishable };
     }
 
     const syncState = coppia.stato;
@@ -1843,9 +1876,9 @@ export class ShopifyInventoryPushService {
       classe === 'confronto'
         ? `Divergenza accertata su Shopify: il canale ha rifiutato la scrittura di ${valore} ` +
           `con base confermata ${base ?? 'assente'}. Motivo: ${motivi.join('; ')}. ` +
-          'Il valore confermato non avanza al valore rifiutato; serve riconciliazione. '
-          + 'Se è stata questa presa a stabilire la base ed è rimasto del lavoro, '
-          + "l'ultimo confermato è stato AZZERATO: la coppia attende un allineamento riuscito."
+          'Il valore confermato non avanza al valore rifiutato; serve riconciliazione. ' +
+          'Se è stata questa presa a stabilire la base ed è rimasto del lavoro, ' +
+          "l'ultimo confermato è stato AZZERATO: la coppia attende un allineamento riuscito."
         : `Richiesta rifiutata da Shopify: la scrittura di ${valore} non è stata accettata ` +
           `(base confermata ${base ?? 'assente'}). Motivo: ${motivi.join('; ')}. ` +
           'Non è una divergenza delle quantità: va verificata la richiesta o il collegamento. ' +

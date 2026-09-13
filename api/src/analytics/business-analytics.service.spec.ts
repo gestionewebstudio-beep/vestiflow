@@ -83,6 +83,8 @@ describe('BusinessAnalyticsService — il permesso sui costi decide cosa esce da
     };
     documentLine: { findMany: ReturnType<typeof vi.fn> };
     onlineSaleLine: { findMany: ReturnType<typeof vi.fn> };
+    onlineSale: { findMany: ReturnType<typeof vi.fn> };
+    salesOrderRefund: { findMany: ReturnType<typeof vi.fn> };
   };
   let service: BusinessAnalyticsService;
 
@@ -145,6 +147,10 @@ describe('BusinessAnalyticsService — il permesso sui costi decide cosa esce da
           .mockResolvedValue([{ id: 'line-1', lineGrossTotalMinor: RICAVO_RIGA_MINOR }]),
       },
       onlineSaleLine: { findMany: vi.fn().mockResolvedValue([]) },
+      // Nessuna Vendita online nel periodo: il report di questa prova è del banco.
+      onlineSale: { findMany: vi.fn().mockResolvedValue([]) },
+      // E nessuna rettifica del canale (13/09/2026).
+      salesOrderRefund: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
     service = new BusinessAnalyticsService(prisma as unknown as PrismaService);

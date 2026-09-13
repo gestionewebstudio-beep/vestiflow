@@ -203,6 +203,11 @@ enum OnlineOrderEventType {
   online_order_partially_fulfilled
   online_order_refunded
   online_order_restocked
+  /// ⭐ Una SPEDIZIONE acquisita (12/09/2026): un `fulfillment` del canale, con
+  /// le sue righe e la sua sede. Ripetibile per ordine (suffisso = id evasione
+  /// + versione del payload): gli effetti sono idempotenti riga per riga, in
+  /// `sales_order_shipment_lines`.
+  online_order_shipped
 }
 
 enum SalesOrderFinancialStatus {
@@ -417,6 +422,8 @@ model Tenant {
   onlineOrderEvents                        OnlineOrderEvent[]
   onlineSales                              OnlineSale[]
   onlineSaleLines                          OnlineSaleLine[]
+  salesOrderShipments                      SalesOrderShipment[]
+  salesOrderShipmentLines                  SalesOrderShipmentLine[]
   documents                                Document[]
   documentRevisions                        DocumentRevision[]
   documentAttachments                      DocumentAttachment[]
@@ -446,6 +453,8 @@ model Tenant {
   shopifyVariantLinks                      ShopifyVariantLink[]
   shopifyLocationPairs                     ShopifyLocationPair[]
   shopifyLocationLinks                     ShopifyLocationLink[]
+  shopifySetup                             ShopifySetup?
+  shopifyLocationChoices                   ShopifyLocationChoice[]
   tiktokConnection                         TikTokConnection?
   tiktokCredential                         TikTokCredential?
   tiktokOAuthStates                        TikTokOAuthState[]
@@ -658,6 +667,13 @@ enum PlatformAuditOperation {
   /// e' un altro comando ancora (§8.5.2): «Sincronizza» non e' ne' l'uno ne'
   /// l'altro. ⚠️ Non e' `riaggancio_rifiutato`: li' un GID c'era, qui no.
   ripubblicazione_rifiutata
+  /// ⭐ La conversione delle colonne-cache in storico (`docs/24` §8.5.8, fasi
+  /// 3-4; `docs/DA-FARE` §14 punto 5): una riga per tenant e per esecuzione
+  /// che SCRIVE — tentativo prima, riuscita dentro la transazione con i
+  /// conteggi in `reason`. Attore `backfill`. Un'esecuzione senza niente da
+  /// convertire non lascia traccia, per progetto (idempotenza prima del
+  /// tentativo); un tenant bloccato dai controlli non arriva qui.
+  backfill_storico
 }
 
 /// COM'E' andata.
@@ -868,7 +884,8 @@ model Location {
   /// sull'altra tabella.
   /// ⚠️ NON sostituisce `shopifyLocationId` qui sopra, che resta la cache di
   /// compatibilita' finche' i lettori non sono migrati (§8.5.5).
-  shopifyLocationPairs ShopifyLocationPair[]
+  shopifyLocationPairs   ShopifyLocationPair[]
+  shopifyLocationChoices ShopifyLocationChoice[]
 
   /// Ausiliaria per la FK composita del collegamento di sede: garantisce che
   /// sede e collegamento appartengano allo stesso tenant. Ridondante rispetto
@@ -913,6 +930,14 @@ model Product {
   /// Sottocategoria VestiFlow collegata alla categoria (vocabolario gestito
   /// in catalog_categories; salvata come testo, come la categoria).
   subcategory                     String?
+  /// Tipo prodotto Shopify (REST `product_type`): campo del CANALE, in una
+  /// colonna sua e bidirezionale (docs/24 §9.5).
+  ///
+  /// ⚠️ `null` significa «non ancora acquisito», MAI «cancellalo su Shopify»:
+  ///    il payload in uscita omette la chiave, e Shopify lascia il valore che
+  ///    ha. La colonna nasce vuota per tutti — nessuna copia dalla categoria
+  ///    interna, che è un dato diverso (decisione del proprietario, 11/09/2026).
+  shopifyProductType              String?                 @map("shopify_product_type")
   /// Categoria Standard Product Taxonomy (GraphQL), es. gid://shopify/TaxonomyCategory/...
   shopifyTaxonomyCategoryId       String?                 @map("shopify_taxonomy_category_id")
   shopifyTaxonomyCategoryFullName String?                 @map("shopify_taxonomy_category_full_name")
@@ -930,14 +955,6 @@ model Product {
   shopifyCategoryMetafields       Json                    @default("[]") @map("shopify_category_metafields")
   status                          ProductStatus           @default(draft)
   // ── Cestino (docs/24 §4.1): cancellazione LOGICA, reversibile ──────────────
-  /// Tipo prodotto Shopify (REST `product_type`): campo del CANALE, in una
-  /// colonna sua e bidirezionale (docs/24 §9.5).
-  ///
-  /// ⚠️ `null` significa «non ancora acquisito», MAI «cancellalo su Shopify»:
-  ///    il payload in uscita omette la chiave, e Shopify lascia il valore che
-  ///    ha. La colonna nasce vuota per tutti — nessuna copia dalla categoria
-  ///    interna, che è un dato diverso (decisione del proprietario, 11/09/2026).
-  shopifyProductType              String?                 @map("shopify_product_type")
   /// `deletedAt != null` = NEL CESTINO. Non significa «eliminato definitivamente»:
   /// quella è la rimozione FISICA del record (§4.2) e non ha una colonna. Per la
   /// stessa ragione l'enum `status` NON ha un valore `deleted`: sarebbero due
@@ -1277,10 +1294,12 @@ model StockMovement {
   /// Snapshot del nome operatore (audit stabile anche se l'utente cambia nome).
   createdByName      String               @map("created_by_name")
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  variant        ProductVariant @relation(fields: [variantId], references: [id])
-  location       Location       @relation("MovementLocation", fields: [locationId], references: [id])
-  targetLocation Location?      @relation("MovementTargetLocation", fields: [targetLocationId], references: [id])
+  tenant         Tenant                  @relation(fields: [tenantId], references: [id])
+  variant        ProductVariant          @relation(fields: [variantId], references: [id])
+  location       Location                @relation("MovementLocation", fields: [locationId], references: [id])
+  targetLocation Location?               @relation("MovementTargetLocation", fields: [targetLocationId], references: [id])
+  /// La riga di spedizione che ha prodotto questo scarico (ordini online, 12/09/2026).
+  shipmentLine   SalesOrderShipmentLine?
 
   @@unique([sourceDocumentType, sourceLineId])
   @@index([tenantId, createdAt(sort: Desc)])
@@ -1736,8 +1755,23 @@ model SalesOrder {
   taxMinor                     Int                         @default(0) @map("tax_minor")
   shippingMinor                Int                         @default(0) @map("shipping_minor")
   discountMinor                Int                         @default(0) @map("discount_minor")
+  /// ⭐ La SOMMA delle rettifiche del canale (`sales_order_refunds.total_minor`), scritta
+  /// dove si scrivono i rimborsi: la testata somma le proprie righe, come `totalMinor`.
+  /// Serve a ordinare l'elenco (paginato sul server) per «Rettifiche» (13/09/2026).
+  refundTotalMinor             Int                         @default(0) @map("refund_total_minor")
+  /// Il TOTALE AGGIORNATO (`total_minor − refund_total_minor`), colonna GENERATA dal
+  /// database: una fonte sola, mai scritta dal client. Il valore originario resta
+  /// `totalMinor`. Serve a ordinare per «Tot. aggiornato».
+  currentTotalMinor            Int                         @default(dbgenerated()) @map("current_total_minor")
   placedAt                     DateTime                    @map("placed_at")
   shopifyOrderId               String?                     @map("shopify_order_id")
+  /// L'ultimo `updated_at` Shopify APPLICATO all'ordine (13/09/2026, percorso 20):
+  /// le notifiche arrivano anche fuori ordine e ritentate, e un payload più
+  /// vecchio di questo non sovrascrive stati, righe, totali e rimborsi già
+  /// applicati (uguale → si applica: le riletture dopo `fulfillment_orders/moved`
+  /// hanno lo stesso `updated_at`). NULL per gli ordini manuali e per quelli
+  /// acquisiti prima della colonna: il primo aggiornamento la valorizza.
+  shopifyUpdatedAt             DateTime?                   @map("shopify_updated_at")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
   /// per gli ordini manuali: documento di scarico generato da "Concludi
   /// ordine" o DDT vendita che ha incluso l'ordine (aggancio 1:N: un DDT
@@ -1804,6 +1838,7 @@ model SalesOrder {
   orderEvents          OnlineOrderEvent[]
   onlineSale           OnlineSale?
   refunds              SalesOrderRefund[]
+  shipments            SalesOrderShipment[]
 
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
@@ -1865,9 +1900,12 @@ model SalesOrderLine {
   /// dai totali. Le righe salvate prima di questo campo restano righe normali.
   isReference       Boolean @default(false) @map("is_reference")
 
-  order       SalesOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       SalesOrder               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   reservation StockReservation?
-  vatCode     VatCode?          @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
+  spedizioni  SalesOrderShipmentLine[]
+  /// Le righe RIMBORSATE dal canale (annullate, rese, solo denaro), per quantità.
+  rimborsi    SalesOrderRefundLine[]
+  vatCode     VatCode?                 @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
 
   @@unique([orderId, externalLineId])
   @@index([orderId])
@@ -1931,6 +1969,7 @@ model SalesOrderRefund {
   tenant   Tenant                    @relation(fields: [tenantId], references: [id])
   order    SalesOrder                @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   taxLines SalesOrderRefundTaxLine[]
+  lines    SalesOrderRefundLine[]
 
   @@unique([tenantId, externalRefundId])
   @@index([tenantId, occurredAt(sort: Desc)])
@@ -1958,6 +1997,34 @@ model SalesOrderRefundTaxLine {
 
   @@index([refundId])
   @@map("sales_order_refund_tax_lines")
+}
+
+/// Una RIGA rimborsata dal canale (`refund_line_items[]`): quale riga d'ordine,
+/// quanti pezzi e con quale gesto (`restock_type`: `cancel` = annullata prima
+/// della spedizione, `return` = rientrata, `no_restock` = solo denaro). È la
+/// FONTE delle quantità ANNULLATE: si leggono da qui, non da «ordinate − spedite»
+/// (il residuo può essere ancora da spedire) — proprietario, 13/09/2026, #1014.
+/// Gli importi sono quelli dichiarati dal canale per la riga rimborsata.
+model SalesOrderRefundLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  refundId         String  @map("refund_id") @db.Uuid
+  /// La riga d'ordine, risolta dall'id riga del canale; nulla se la riga non c'è più.
+  salesOrderLineId String? @map("sales_order_line_id") @db.Uuid
+  /// `line_item_id` del canale, stabile fra webhook.
+  externalLineId   String  @map("external_line_id")
+  quantity         Int
+  /// `restock_type` del canale, com'è: `cancel` · `return` · `no_restock` · `legacy_restock`.
+  restockType      String  @map("restock_type")
+  subtotalMinor    Int     @default(0) @map("subtotal_minor")
+  taxMinor         Int     @default(0) @map("tax_minor")
+
+  refund SalesOrderRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  line   SalesOrderLine?  @relation(fields: [salesOrderLineId], references: [id], onDelete: SetNull)
+
+  @@unique([refundId, externalLineId])
+  @@index([salesOrderLineId])
+  @@map("sales_order_refund_lines")
 }
 
 // ── Impegni merce (Impegnata) e eventi canonici ordini online ────────────────
@@ -2155,6 +2222,81 @@ model OnlineSaleLine {
   @@index([onlineSaleId])
   @@index([tenantId])
   @@map("online_sale_lines")
+}
+
+/// L'esito di UNA riga di spedizione: lo scarico è avvenuto, oppure no e perché.
+enum ShipmentLineOutcome {
+  /// Movimento creato, impegno consumato per la quantità spedita.
+  scaricata
+  /// La location remota non è collegata a una sede: nessuna sede indovinata (B7).
+  senza_sede
+  /// Ordine storico (`massiva`/`pendenti`) senza impegno: nessuno scarico silenzioso.
+  senza_impegno
+  /// La riga non ha una variante risolta — collegamento chiuso o articolo
+  /// sconosciuto: niente scarico, l'impegno preesistente si chiude senza uscita.
+  senza_variante
+}
+
+/// ⭐ Una SPEDIZIONE di un ordine online — un `fulfillment` del canale, acquisito
+/// come effetto di magazzino identificabile e applicato UNA volta (deciso dal
+/// proprietario il 12/09/2026): magazzino e rappresentazione commerciale sono due
+/// cose. Ogni quantità uscita scarica la SUA sede quando la si acquisisce, anche a
+/// ordine incompleto; la parte ancora da spedire conserva l'impegno; una riga
+/// d'ordine può avere più uscite — spedizioni successive, sedi diverse — e ognuna
+/// è una riga qui, col suo movimento.
+///
+/// ⛔ NON è un documento: la Vendita online resta UNA per ordine, a completamento,
+///    e ADOTTA i movimenti delle spedizioni invece di crearne altri.
+model SalesOrderShipment {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  salesOrderId          String   @map("sales_order_id") @db.Uuid
+  /// L'id dell'evasione sul canale: l'identità dell'effetto.
+  externalFulfillmentId String   @map("external_fulfillment_id")
+  /// La location remota da cui è uscita la merce, com'è nel payload.
+  shopifyLocationId     String?  @map("shopify_location_id")
+  /// La sede VestiFlow risolta dal collegamento esplicito; null = non collegata.
+  /// ⚠️ Nessuna FK: come `OnlineSaleLine.locationId`, è la fotografia della sede
+  ///    dello scarico — il vincolo sulla sede lo porta il movimento.
+  locationId            String?  @map("location_id") @db.Uuid
+  shippedAt             DateTime @map("shipped_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant                   @relation(fields: [tenantId], references: [id])
+  order  SalesOrder               @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  lines  SalesOrderShipmentLine[]
+
+  @@unique([tenantId, salesOrderId, externalFulfillmentId])
+  @@index([salesOrderId])
+  @@map("sales_order_shipments")
+}
+
+/// Una riga di spedizione: quanto di QUELLA riga d'ordine è uscito con QUELLA
+/// spedizione, e con quale esito. È l'unità idempotente: applicata una volta.
+model SalesOrderShipmentLine {
+  id               String              @id @default(uuid()) @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  shipmentId       String              @map("shipment_id") @db.Uuid
+  salesOrderLineId String              @map("sales_order_line_id") @db.Uuid
+  variantId        String?             @map("variant_id") @db.Uuid
+  sku              String
+  quantity         Int
+  esito            ShipmentLineOutcome
+  /// Il movimento di scarico, quando applicato: UNO per riga di spedizione.
+  stockMovementId  String?             @unique @map("stock_movement_id") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id])
+  shipment SalesOrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  line     SalesOrderLine     @relation(fields: [salesOrderLineId], references: [id], onDelete: Restrict)
+  movement StockMovement?     @relation(fields: [stockMovementId], references: [id], onDelete: Restrict)
+
+  @@unique([shipmentId, salesOrderLineId])
+  @@index([salesOrderLineId])
+  @@index([tenantId])
+  @@map("sales_order_shipment_lines")
 }
 
 // ── Integrazione Shopify (stato connessione, MAI token nel modello API) ─────
@@ -4377,4 +4519,100 @@ model ShopifyLocationLink {
   @@index([pairId, linkedAt])
   @@index([tenantId, status])
   @@map("shopify_location_links")
+}
+
+// ── La PRIMA CONNESSIONE — il percorso, persistito (docs/27, docs/24 §12.-1) ──
+
+/// La direzione del trasferimento INIZIALE. ⛔ Non diventa la direzione della
+/// sincronizzazione continua (docs/24 §12.-1, «tre momenti»).
+enum ShopifySetupDirection {
+  shopify_to_vestiflow
+  vestiflow_to_shopify
+}
+
+/// Le fasi visibili (scelte, sedi, controllo) e ciò che segue la conferma.
+/// `interrotto` non è mai «completato»: è un trasferimento da riprendere.
+enum ShopifySetupStatus {
+  scelte
+  sedi
+  controllo
+  trasferimento
+  interrotto
+  trasferito
+  attivato
+}
+
+/// Che cosa l’operatore ha deciso per UNA location Shopify (docs/24 §1.13.1).
+enum ShopifyLocationChoiceKind {
+  collega
+  crea
+  lascia
+}
+
+/// UNA riga per tenant: lo stato del percorso della prima connessione.
+///
+/// ⚠️ **Nessuna riga = percorso mai iniziato**, e NON «già attivo»: le connessioni
+///    nate prima del percorso non hanno la riga e non vengono spinte dentro
+///    (risposta 4 del proprietario, 11/09/2026). La riga la crea il callback
+///    OAuth di una connessione nuova.
+model ShopifySetup {
+  id        String                 @id @default(uuid()) @db.Uuid
+  tenantId  String                 @unique @map("tenant_id") @db.Uuid
+  status    ShopifySetupStatus     @default(scelte)
+  direction ShopifySetupDirection?
+
+  /// L’anteprima della fase 3, letta da Shopify e SALVATA: chi conferma vede
+  /// esattamente ciò che è stato mostrato, non una rilettura successiva.
+  anteprima   Json?
+  anteprimaAt DateTime? @map("anteprima_at")
+
+  /// L’avanzamento e l’esito del trasferimento: fase corrente, contatori,
+  /// esclusi con motivo, anomalie. Si aggiorna a ogni passo, così una
+  /// interruzione lascia un esito parziale leggibile — mai un «completato».
+  esito Json?
+
+  /// Correlazione del lotto in corso (una per trasferimento), per il registro.
+  correlationId String? @map("correlation_id") @db.Uuid
+
+  confirmedAt        DateTime? @map("confirmed_at")
+  transferStartedAt  DateTime? @map("transfer_started_at")
+  transferFinishedAt DateTime? @map("transfer_finished_at")
+  activatedAt        DateTime? @map("activated_at")
+  /// L'ultimo id ordine del negozio all'attivazione: il recupero legge «da qui in poi».
+  ordersSinceId      String?   @map("orders_since_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("shopify_setups")
+}
+
+/// UNA riga per (tenant, location Shopify): la scelta dell’operatore.
+///
+/// ⭐ «collega» e «crea» scrivono ANCHE coppia e periodo nello storico delle
+///    sedi: la scelta È il collegamento esplicito. «lascia» non tocca le sedi:
+///    resta qui, così la location non viene riproposta come «da decidere».
+///
+/// ⚠️ Sopravvive al percorso: una location comparsa dopo si decide con lo
+///    stesso meccanismo, dalla sezione Sedi.
+model ShopifyLocationChoice {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  tenantId            String                    @map("tenant_id") @db.Uuid
+  /// Id numerico della location Shopify, normalizzato (senza prefisso GID).
+  shopifyLocationId   String                    @map("shopify_location_id")
+  shopifyLocationName String                    @map("shopify_location_name")
+  choice              ShopifyLocationChoiceKind
+  /// La sede VestiFlow, per «collega» e «crea»; NULL per «lascia».
+  locationId          String?                   @map("location_id") @db.Uuid
+  decidedAt           DateTime                  @default(now()) @map("decided_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  location Location? @relation(fields: [locationId, tenantId], references: [id, tenantId])
+
+  @@unique([tenantId, shopifyLocationId])
+  @@index([tenantId, locationId])
+  @@map("shopify_location_choices")
 }

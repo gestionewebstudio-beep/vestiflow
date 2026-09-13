@@ -7,6 +7,23 @@ import {
 } from '../../shopify/shopify-inventory-user-error.util';
 import { GID_COLLAUDO_A, GID_COLLAUDO_DA } from '../fixtures/collaudo-shopify.dataset';
 
+/** Un fulfillment order del negozio simulato. */
+export interface FulfillmentOrderSimulato {
+  readonly id: number;
+  status: 'OPEN' | 'IN_PROGRESS' | 'CLOSED' | 'CANCELLED';
+  readonly locationId: string | null;
+  readonly righe: {
+    readonly lineItemId: number;
+    readonly inventoryItemId: string;
+    remaining: number;
+    total: number;
+  }[];
+}
+
+function gidFulfillmentOrder(id: number): string {
+  return `gid://shopify/FulfillmentOrder/${id}`;
+}
+
 /**
  * Un negozio Shopify SIMULATO, con stato.
  *
@@ -107,6 +124,31 @@ export class NegozioSimulato {
    * ⚠️ Una chiamata **caduta** non lo muove, perché il guasto scatta prima.
    */
   private readonly quantitaRemote = new Map<string, number>();
+  /**
+   * ⭐ La PRIMA CONNESSIONE (`docs/27`): il negozio ha anche IMPEGNI per coppia
+   *    (`committed`), LOCATION e ORDINI. `quantitaRemote` resta il DISPONIBILE:
+   *    `on_hand = available + committed`, come su Shopify.
+   */
+  private readonly impegniRemoti = new Map<string, number>();
+  private location: readonly {
+    readonly id: number;
+    readonly name: string;
+    readonly active: boolean;
+  }[] = [];
+  readonly ordiniRemoti = new Map<number, Record<string, unknown>>();
+  /**
+   * ⭐ I FULFILLMENT ORDER (13/09/2026): dove Shopify ha assegnato ogni riga
+   *    prima della spedizione. Nascono con l'ordine se ha una sede, si possono
+   *    assegnare dopo (`assegnaFulfillmentOrder`), spostare
+   *    (`spostaFulfillmentOrder`), dividere (`dividiRigaFraSedi`); l'evasione
+   *    scala il residuo e chiude. Gli IMPEGNI remoti seguono i fulfillment
+   *    order, non `location_id` dell'ordine — come su Shopify.
+   */
+  private readonly fulfillmentOrdersRemoti = new Map<number, FulfillmentOrderSimulato[]>();
+  /** Con `false`, la lettura risponde ACCESS_DENIED: l'app non ha l'ambito. */
+  permessoFulfillmentOrders = true;
+  /** `false` simula una lettura troncata (altre pagine): classifica, ma non rilascia. */
+  letturaFulfillmentOrdersCompleta = true;
   private prossimoId: number;
   private readonly guasti = new Map<string, number>();
   /**
@@ -226,6 +268,435 @@ export class NegozioSimulato {
    * cose diverse, e confonderle nasconderebbe proprio il difetto che 26.8 vieta
    * — mandare zero al posto di un rifiuto.
    */
+  impostaLocation(
+    location: readonly { readonly id: number; readonly name: string; readonly active: boolean }[],
+  ): void {
+    this.location = location;
+  }
+
+  impegnoRemoto(inventoryItemId: string, locationId: string): number {
+    return this.impegniRemoti.get(`${inventoryItemId}@${locationId}`) ?? 0;
+  }
+
+  /**
+   * Un ORDINE che nasce sul negozio: impegna (`committed` +q, `available` −q,
+   * `on_hand` invariato) e resta aperto finché non lo si evade. Nessun evento
+   * verso VestiFlow: è il canale che sa una cosa che VestiFlow non sa ancora.
+   */
+  creaOrdineRemoto(spec: {
+    readonly righe: readonly {
+      readonly sku: string;
+      readonly inventoryItemId: string;
+      readonly variantId?: number;
+      readonly quantity: number;
+      /** Prezzo unitario come lo scrive Shopify (`"25.00"`); `10.00` se assente. */
+      readonly price?: string;
+    }[];
+    /**
+     * La sede in cui Shopify ASSEGNA l'ordine: nasce un fulfillment order aperto
+     * con tutte le righe (e `location_id` sull'ordine, come un ordine POS).
+     * `null`: nessun fulfillment order — l'assegnazione arriverà dopo.
+     */
+    readonly locationId?: string | null;
+    /**
+     * Solo il fulfillment order, SENZA `location_id` sull'ordine: è la forma
+     * di un ordine online o da bozza, dove l'ordine non porta una sede e
+     * quella vera sta nel fulfillment order.
+     */
+    readonly assegnataA?: string | null;
+  }): Record<string, unknown> {
+    const id = this.nuovoId();
+    const totale = spec.righe
+      .reduce((somma, riga) => somma + Number(riga.price ?? '10.00') * riga.quantity, 0)
+      .toFixed(2);
+    const ordine: Record<string, unknown> = {
+      id,
+      name: `#${id}`,
+      order_number: id,
+      email: `cliente-${id}@prova.it`,
+      customer: { first_name: 'Cliente', last_name: String(id) },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      currency: 'EUR',
+      financial_status: 'paid',
+      fulfillment_status: null,
+      cancelled_at: null,
+      location_id: spec.locationId ?? null,
+      subtotal_price: totale,
+      total_price: totale,
+      total_tax: '0.00',
+      total_discounts: '0.00',
+      fulfillments: [],
+      refunds: [],
+      line_items: spec.righe.map((riga, i) => ({
+        id: id * 10 + i,
+        variant_id: riga.variantId ?? null,
+        sku: riga.sku,
+        title: `Riga ${riga.sku}`,
+        name: `Riga ${riga.sku}`,
+        variant_title: null,
+        quantity: riga.quantity,
+        price: riga.price ?? '10.00',
+        inventory_item_id: riga.inventoryItemId,
+      })),
+    };
+    this.ordiniRemoti.set(id, ordine);
+    const sedeAssegnata = spec.locationId ?? spec.assegnataA ?? null;
+    if (sedeAssegnata) {
+      this.assegnaFulfillmentOrder(id, sedeAssegnata);
+    }
+    return ordine;
+  }
+
+  // ── i fulfillment order ──────────────────────────────────────────────────
+
+  private righeOrdine(id: number): {
+    id: number;
+    inventory_item_id: string;
+    quantity: number;
+    current_quantity?: number;
+  }[] {
+    const ordine = this.ordiniRemoti.get(id);
+    if (!ordine) {
+      throw new Error(`ordine remoto ${id} inesistente`);
+    }
+    return ordine.line_items as {
+      id: number;
+      inventory_item_id: string;
+      quantity: number;
+      current_quantity?: number;
+    }[];
+  }
+
+  private impegna(inventoryItemId: string, locationId: string, quantita: number): void {
+    const chiave = `${inventoryItemId}@${locationId}`;
+    this.impegniRemoti.set(chiave, (this.impegniRemoti.get(chiave) ?? 0) + quantita);
+    this.quantitaRemote.set(chiave, (this.quantitaRemote.get(chiave) ?? 0) - quantita);
+  }
+
+  fulfillmentOrdersDi(id: number): readonly FulfillmentOrderSimulato[] {
+    return this.fulfillmentOrdersRemoti.get(id) ?? [];
+  }
+
+  /**
+   * L'ASSEGNAZIONE (tardiva, se l'ordine è nato senza): un fulfillment order
+   * aperto nella sede, con le righe che nessun altro fulfillment order porta.
+   * Impegna lì. Restituisce il payload del webhook `order_routing_complete`.
+   */
+  assegnaFulfillmentOrder(id: number, locationId: string): Record<string, unknown> {
+    const esistenti = this.fulfillmentOrdersRemoti.get(id) ?? [];
+    const giaPortate = new Set(esistenti.flatMap((fo) => fo.righe.map((r) => r.lineItemId)));
+    const righe = this.righeOrdine(id)
+      .filter((riga) => !giaPortate.has(riga.id))
+      .map((riga) => ({
+        lineItemId: riga.id,
+        inventoryItemId: riga.inventory_item_id,
+        remaining: riga.current_quantity ?? riga.quantity,
+        total: riga.current_quantity ?? riga.quantity,
+      }));
+    const fo: FulfillmentOrderSimulato = {
+      id: this.nuovoId(),
+      status: 'OPEN',
+      locationId,
+      righe,
+    };
+    for (const riga of righe) {
+      this.impegna(riga.inventoryItemId, locationId, riga.remaining);
+    }
+    this.fulfillmentOrdersRemoti.set(id, [...esistenti, fo]);
+    return { fulfillment_order: { id: gidFulfillmentOrder(fo.id), status: 'open' } };
+  }
+
+  /**
+   * Lo SPOSTAMENTO: il fulfillment order attivo si chiude e ne nasce uno nella
+   * sede nuova col residuo; l'impegno remoto si libera là e si prende qui.
+   * Restituisce il payload del webhook `fulfillment_orders/moved`.
+   */
+  spostaFulfillmentOrder(id: number, nuovaLocationId: string): Record<string, unknown> {
+    const esistenti = this.fulfillmentOrdersRemoti.get(id) ?? [];
+    const originale = esistenti.find((fo) => fo.status === 'OPEN' || fo.status === 'IN_PROGRESS');
+    if (!originale) {
+      throw new Error(`ordine remoto ${id}: nessun fulfillment order attivo da spostare`);
+    }
+    originale.status = 'CLOSED';
+    const nuovo: FulfillmentOrderSimulato = {
+      id: this.nuovoId(),
+      status: 'OPEN',
+      locationId: nuovaLocationId,
+      righe: originale.righe
+        .filter((r) => r.remaining > 0)
+        .map((r) => ({ ...r, total: r.remaining })),
+    };
+    for (const riga of nuovo.righe) {
+      if (originale.locationId) {
+        this.impegna(riga.inventoryItemId, originale.locationId, -riga.remaining);
+      }
+      this.impegna(riga.inventoryItemId, nuovaLocationId, riga.remaining);
+    }
+    this.fulfillmentOrdersRemoti.set(id, [...esistenti, nuovo]);
+    return {
+      original_fulfillment_order: { id: gidFulfillmentOrder(originale.id), status: 'closed' },
+      moved_fulfillment_order: { id: gidFulfillmentOrder(nuovo.id), status: 'open' },
+      destination_location_id: `gid://shopify/Location/${nuovaLocationId}`,
+    };
+  }
+
+  /**
+   * La STESSA riga divisa fra due sedi: dal fulfillment order attivo che la
+   * porta se ne stacca una parte in un secondo fulfillment order. È il caso che
+   * VestiFlow dichiara come limite (un impegno per riga).
+   */
+  dividiRigaFraSedi(id: number, lineItemId: number, quantita: number, locationId: string): void {
+    const esistenti = this.fulfillmentOrdersRemoti.get(id) ?? [];
+    const origine = esistenti.find(
+      (fo) =>
+        (fo.status === 'OPEN' || fo.status === 'IN_PROGRESS') &&
+        fo.righe.some((r) => r.lineItemId === lineItemId && r.remaining >= quantita),
+    );
+    const riga = origine?.righe.find((r) => r.lineItemId === lineItemId);
+    if (!origine || !riga) {
+      throw new Error(`ordine remoto ${id}: riga ${lineItemId} non divisibile per ${quantita}`);
+    }
+    riga.remaining -= quantita;
+    riga.total -= quantita;
+    if (origine.locationId) {
+      this.impegna(riga.inventoryItemId, origine.locationId, -quantita);
+    }
+    this.impegna(riga.inventoryItemId, locationId, quantita);
+    this.fulfillmentOrdersRemoti.set(id, [
+      ...esistenti,
+      {
+        id: this.nuovoId(),
+        status: 'OPEN',
+        locationId,
+        righe: [{ ...riga, remaining: quantita, total: quantita }],
+      },
+    ]);
+  }
+
+  /** L'evasione scala il residuo del fulfillment order che porta la riga in quella sede. */
+  private scalaFulfillmentOrder(
+    id: number,
+    lineItemId: number,
+    quantita: number,
+    sedeEvasione: string | null,
+  ): string | null {
+    const attivi = (this.fulfillmentOrdersRemoti.get(id) ?? []).filter(
+      (fo) => fo.status === 'OPEN' || fo.status === 'IN_PROGRESS',
+    );
+    const fo =
+      attivi.find(
+        (candidato) =>
+          candidato.locationId === sedeEvasione &&
+          candidato.righe.some((r) => r.lineItemId === lineItemId && r.remaining > 0),
+      ) ??
+      attivi.find((candidato) =>
+        candidato.righe.some((r) => r.lineItemId === lineItemId && r.remaining > 0),
+      );
+    const riga = fo?.righe.find((r) => r.lineItemId === lineItemId);
+    if (!fo || !riga) {
+      return null;
+    }
+    riga.remaining = Math.max(0, riga.remaining - quantita);
+    if (fo.righe.every((r) => r.remaining === 0)) {
+      fo.status = 'CLOSED';
+    } else {
+      fo.status = 'IN_PROGRESS';
+    }
+    return fo.locationId;
+  }
+
+  /**
+   * L’EVASIONE sul negozio: `committed` −q, `on_hand` −q, `available` invariato.
+   * Con una sede diversa da quella dell’ordine, l’impegno si libera dove era e
+   * la merce esce da dove si spedisce — come su Shopify.
+   *
+   * ⭐ Dal 12/09/2026 spedisce la quantità CORRENTE (dopo gli annullamenti
+   *    parziali) e può spedire un SOTTOINSIEME di righe (`righe`, con una
+   *    quantità parziale se indicata): ogni
+   *    chiamata aggiunge un `fulfillment` con la sua `location_id` e le sue
+   *    `line_items[]`, e `fulfillment_status` resta `partial` finché resta
+   *    qualcosa da spedire — come su Shopify.
+   */
+  evadiOrdineRemoto(
+    id: number,
+    locationId?: string,
+    righeScelte?: readonly { readonly id: number; readonly quantity?: number }[],
+  ): Record<string, unknown> {
+    const ordine = this.ordiniRemoti.get(id);
+    if (!ordine) {
+      throw new Error(`ordine remoto ${id} inesistente`);
+    }
+    const sedeOrdine = (ordine.location_id as string | null) ?? null;
+    // Senza una sede indicata si spedisce da dove sta il fulfillment order
+    // attivo — come fa Shopify — e solo in mancanza dalla sede dell'ordine.
+    const sedeEvasione =
+      locationId ??
+      this.fulfillmentOrdersDi(id).find((fo) => fo.status === 'OPEN' || fo.status === 'IN_PROGRESS')
+        ?.locationId ??
+      sedeOrdine;
+    const righe = ordine.line_items as {
+      id: number;
+      inventory_item_id: string;
+      quantity: number;
+      current_quantity?: number;
+    }[];
+    const evasioni = [...((ordine.fulfillments as Record<string, unknown>[] | undefined) ?? [])];
+    const giaSpedite = new Map<number, number>();
+    for (const evasione of evasioni) {
+      for (const riga of (evasione.line_items as { id: number; quantity: number }[]) ?? []) {
+        giaSpedite.set(riga.id, (giaSpedite.get(riga.id) ?? 0) + riga.quantity);
+      }
+    }
+    const daSpedire = righe
+      .filter((riga) => !righeScelte || righeScelte.some((scelta) => scelta.id === riga.id))
+      .map((riga) => {
+        const residuo = (riga.current_quantity ?? riga.quantity) - (giaSpedite.get(riga.id) ?? 0);
+        const chiesta = righeScelte?.find((scelta) => scelta.id === riga.id)?.quantity;
+        return { riga, quantita: Math.min(residuo, chiesta ?? residuo) };
+      })
+      .filter(({ quantita }) => quantita > 0);
+    if (daSpedire.length === 0) {
+      throw new Error(`ordine remoto ${id}: niente da spedire`);
+    }
+    for (const { riga, quantita } of daSpedire) {
+      // ⭐ L'impegno si libera dove sta il FULFILLMENT ORDER della riga (13/09/2026),
+      //    che è la sede dell'ordine solo quando coincidono.
+      const sedeImpegno = this.scalaFulfillmentOrder(id, riga.id, quantita, sedeEvasione);
+      if (sedeImpegno) {
+        // L’impegno liberato rialza il disponibile della sede che lo portava…
+        this.impegna(riga.inventory_item_id, sedeImpegno, -quantita);
+      }
+      if (sedeEvasione) {
+        // …e la merce spedita abbassa on_hand (= available, a impegno liberato) dove esce.
+        const uscita = `${riga.inventory_item_id}@${sedeEvasione}`;
+        this.quantitaRemote.set(uscita, (this.quantitaRemote.get(uscita) ?? 0) - quantita);
+      }
+      giaSpedite.set(riga.id, (giaSpedite.get(riga.id) ?? 0) + quantita);
+    }
+    evasioni.push({
+      id: id * 100 + evasioni.length,
+      status: 'success',
+      created_at: new Date().toISOString(),
+      location_id: sedeEvasione ? Number(sedeEvasione) : null,
+      line_items: daSpedire.map(({ riga, quantita }) => ({ ...riga, quantity: quantita })),
+    });
+    const tuttoSpedito = righe.every(
+      (riga) => (giaSpedite.get(riga.id) ?? 0) >= (riga.current_quantity ?? riga.quantity),
+    );
+    const evaso = {
+      ...ordine,
+      fulfillment_status: tuttoSpedito ? 'fulfilled' : 'partial',
+      updated_at: new Date().toISOString(),
+      fulfillments: evasioni,
+    };
+    this.ordiniRemoti.set(id, evaso);
+    return evaso;
+  }
+
+  /**
+   * Il RESO sul negozio, incartato in un rimborso — come lo fa Shopify: un
+   * `refunds[]` con `refund_line_items[]`, ognuno col proprio `restock_type` e
+   * la propria `location_id` di rientro (che può NON essere quella di spedizione).
+   * Con `return` la merce rientra: `on_hand` +q (= available) in QUELLA sede.
+   * Con `no_restock` è solo denaro: nessuna quantità si muove.
+   * Misurato il 14/08/2026 su un negozio vero (`shopify-sync.service.ts`,
+   * `emitRestockEvents`): anche un reso da zero euro arriva così.
+   */
+  rimborsaOrdineRemoto(
+    id: number,
+    spec: {
+      readonly righe: readonly {
+        readonly lineItemId: number;
+        readonly quantity: number;
+        readonly restockType: 'return' | 'no_restock' | 'cancel' | 'legacy_restock';
+        readonly locationId?: string | null;
+      }[];
+      /**
+       * Rettifiche fuori riga (`order_adjustments`), come le scrive Shopify: importo
+       * NEGATIVO, imposta a parte. Un rimborso con sole rettifiche e nessuna riga è
+       * un rimborso di solo importo (spedizione, differenza).
+       */
+      readonly rettifiche?: readonly {
+        readonly kind: 'shipping_refund' | 'refund_discrepancy';
+        readonly amount: string;
+        readonly taxAmount?: string;
+      }[];
+    },
+  ): Record<string, unknown> {
+    const ordine = this.ordiniRemoti.get(id);
+    if (!ordine) {
+      throw new Error(`ordine remoto ${id} inesistente`);
+    }
+    const righeOrdine = ordine.line_items as {
+      id: number;
+      inventory_item_id: string;
+      quantity: number;
+      current_quantity?: number;
+    }[];
+    const sedeOrdine = (ordine.location_id as string | null) ?? null;
+    const rimborsi = [...((ordine.refunds as Record<string, unknown>[] | undefined) ?? [])];
+    const refundId = id * 1000 + rimborsi.length + 1;
+    const adesso = new Date().toISOString();
+    const refundLineItems = spec.righe.map((riga, i) => {
+      const rigaOrdine = righeOrdine.find((r) => r.id === riga.lineItemId);
+      if (!rigaOrdine) {
+        throw new Error(`riga ${riga.lineItemId} non appartiene all'ordine ${id}`);
+      }
+      if (
+        (riga.restockType === 'return' || riga.restockType === 'legacy_restock') &&
+        riga.locationId
+      ) {
+        const chiave = `${rigaOrdine.inventory_item_id}@${riga.locationId}`;
+        this.quantitaRemote.set(chiave, (this.quantitaRemote.get(chiave) ?? 0) + riga.quantity);
+      }
+      if (riga.restockType === 'cancel') {
+        // ⭐ Annullamento PARZIALE prima della spedizione, come su Shopify: la
+        //    riga resta con la quantità ordinata, `current_quantity` scende, e
+        //    l'impegno remoto si libera (available torna su) nella sede dell'ordine.
+        rigaOrdine.current_quantity =
+          (rigaOrdine.current_quantity ?? rigaOrdine.quantity) - riga.quantity;
+        const sedeImpegno =
+          this.scalaFulfillmentOrder(id, riga.lineItemId, riga.quantity, sedeOrdine) ?? sedeOrdine;
+        if (sedeImpegno) {
+          this.impegna(rigaOrdine.inventory_item_id, sedeImpegno, -riga.quantity);
+        }
+      }
+      // Il valore della riga rimborsata è prezzo × quantità, come su Shopify.
+      const prezzo = Number(
+        (rigaOrdine as { price?: string }).price ?? '10.00',
+      );
+      return {
+        id: refundId * 10 + i,
+        line_item_id: riga.lineItemId,
+        quantity: riga.quantity,
+        restock_type: riga.restockType,
+        location_id: riga.locationId ? Number(riga.locationId) : null,
+        subtotal: (prezzo * riga.quantity).toFixed(2),
+        total_tax: '0.00',
+        line_item: { id: riga.lineItemId, quantity: riga.quantity, price: prezzo.toFixed(2) },
+      };
+    });
+    rimborsi.push({
+      id: refundId,
+      order_id: id,
+      created_at: adesso,
+      processed_at: adesso,
+      note: null,
+      refund_line_items: refundLineItems,
+      order_adjustments: (spec.rettifiche ?? []).map((rettifica, i) => ({
+        id: refundId * 100 + i,
+        kind: rettifica.kind,
+        amount: rettifica.amount,
+        tax_amount: rettifica.taxAmount ?? '0.00',
+      })),
+      transactions: [],
+    });
+    const rimborsato = { ...ordine, updated_at: adesso, refunds: rimborsi };
+    this.ordiniRemoti.set(id, rimborsato);
+    return rimborsato;
+  }
+
   quantitaRemota(inventoryItemId: string | null, locationId: string): number | null {
     if (!inventoryItemId) {
       return null;
@@ -381,9 +852,34 @@ export class NegozioSimulato {
 
   // ── i client finti che i servizi ricevono ────────────────────────────────
 
-  /** Il client REST Admin: creazione e lettura del catalogo. */
+  /** Il client REST Admin: creazione e lettura del catalogo, location e ordini. */
   admin() {
+    const ordiniOrdinati = () =>
+      [...this.ordiniRemoti.entries()].sort((a, b) => a[0] - b[0]).map(([, o]) => o);
     return {
+      listLocations: vi.fn(async () => {
+        this.conta('listLocations');
+        return this.location.map((l) => ({ ...l }));
+      }),
+      listOpenUnfulfilledOrders: vi.fn(async () => {
+        this.conta('listOpenUnfulfilledOrders');
+        return ordiniOrdinati().filter(
+          (o) => o.cancelled_at == null && o.fulfillment_status !== 'fulfilled',
+        );
+      }),
+      listOrdersSinceId: vi.fn(async (_d: string, _t: string, sinceId: string) => {
+        this.conta('listOrdersSinceId');
+        return ordiniOrdinati().filter((o) => Number(o.id) > Number(sinceId));
+      }),
+      getLatestOrderId: vi.fn(async () => {
+        this.conta('getLatestOrderId');
+        const ultimo = ordiniOrdinati().at(-1);
+        return ultimo ? String(ultimo.id) : null;
+      }),
+      getOrder: vi.fn(async (_d: string, _t: string, id: string) => {
+        this.conta('getOrder');
+        return this.ordiniRemoti.get(Number(id)) ?? null;
+      }),
       createProduct: vi.fn(
         async (_dominio: string, _token: string, payload: Record<string, unknown>) => {
           this.conta('createProduct');
@@ -417,6 +913,17 @@ export class NegozioSimulato {
             images: [],
           };
           this.prodotti.set(id, prodotto);
+          // Un articolo nuovo è STOCCATO a zero in ogni location attiva del
+          // negozio (dove il negozio ne ha): così Allinea trova un livello da
+          // scrivere, come dopo una creazione via REST con inventario tracciato.
+          for (const sede of this.location.filter((l) => l.active)) {
+            for (const v of prodotto.variants) {
+              const chiave = `${v.inventory_item_id}@${sede.id}`;
+              if (!this.quantitaRemote.has(chiave)) {
+                this.quantitaRemote.set(chiave, 0);
+              }
+            }
+          }
           return {
             id,
             variants: prodotto.variants.map((v) => ({
@@ -521,13 +1028,71 @@ export class NegozioSimulato {
        *    uno zero. E la quantità NON si clampa: un canale in oversell si
        *    legge negativo.
        */
+      getRemoteStockAtLocation: vi.fn(
+        async (_dominio: string, _token: string, inventoryItemGid: string, locationGid: string) => {
+          this.conta('getRemoteStockAtLocation');
+          const item = this.numeroDi(inventoryItemGid);
+          const sede = this.numeroDi(locationGid);
+          const available = this.quantitaRemote.get(`${item}@${sede}`);
+          if (available === undefined) {
+            return { found: false as const, reason: 'sede_non_stoccata' as const };
+          }
+          const committed = this.impegniRemoti.get(`${item}@${sede}`) ?? 0;
+          return { found: true as const, onHand: available + committed, available, committed };
+        },
+      ),
+      /**
+       * I fulfillment order dell'ordine, nella forma del client vero: con
+       * `permessoFulfillmentOrders = false` risponde `permesso_mancante` (come
+       * ACCESS_DENIED), con un guasto iniettato `lettura_fallita`.
+       */
+      getFulfillmentOrders: vi.fn(async (_dominio: string, _token: string, orderGid: string) => {
+        try {
+          this.conta('getFulfillmentOrders');
+        } catch (errore) {
+          return {
+            ok: false as const,
+            motivo: 'lettura_fallita' as const,
+            dettaglio: String(errore),
+          };
+        }
+        if (!this.permessoFulfillmentOrders) {
+          return {
+            ok: false as const,
+            motivo: 'permesso_mancante' as const,
+            dettaglio: 'Shopify GraphQL: Access denied for fulfillmentOrders field.',
+          };
+        }
+        const id = this.numeroDi(orderGid);
+        return {
+          ok: true as const,
+          completa: this.letturaFulfillmentOrdersCompleta,
+          fulfillmentOrders: (this.fulfillmentOrdersRemoti.get(Number(id)) ?? []).map((fo) => ({
+            id: gidFulfillmentOrder(fo.id),
+            status: fo.status,
+            assignedLocationGid: fo.locationId ? `gid://shopify/Location/${fo.locationId}` : null,
+            righe: fo.righe.map((r) => ({
+              lineItemGid: `gid://shopify/LineItem/${r.lineItemId}`,
+              remainingQuantity: r.remaining,
+              totalQuantity: r.total,
+            })),
+          })),
+        };
+      }),
+      getOrderIdOfFulfillmentOrder: vi.fn(
+        async (_dominio: string, _token: string, fulfillmentOrderGid: string) => {
+          this.conta('getOrderIdOfFulfillmentOrder');
+          const foId = Number(this.numeroDi(fulfillmentOrderGid));
+          for (const [orderId, fos] of this.fulfillmentOrdersRemoti) {
+            if (fos.some((fo) => fo.id === foId)) {
+              return String(orderId);
+            }
+          }
+          return null;
+        },
+      ),
       getRemoteLevelAtLocation: vi.fn(
-        async (
-          _dominio: string,
-          _token: string,
-          inventoryItemId: string,
-          locationId: string,
-        ) => {
+        async (_dominio: string, _token: string, inventoryItemId: string, locationId: string) => {
           this.conta('getRemoteLevelAtLocation');
           const q = this.quantitaRemote.get(`${inventoryItemId}@${locationId}`);
           if (q === undefined) {
@@ -665,7 +1230,19 @@ export class NegozioSimulato {
           prodotto.title = input.title;
           prodotto.body_html = input.descriptionHtml;
           prodotto.vendor = input.vendor ?? null;
-          prodotto.product_type = input.productType ?? null;
+          // ⛔ **Una chiave ASSENTE non è «azzera»**: su Shopify un campo omesso
+          //    da `productUpdate` resta com’è. Qui c’era `?? null`, che lo
+          //    cancellava — e con quel comportamento nessuna prova poteva
+          //    dimostrare che un tipo prodotto «non ancora acquisito» lascia
+          //    stare il remoto (docs/24 §9.5): il simulato lo cancellava da sé,
+          //    e l’asserzione passava per la ragione sbagliata.
+          if (input.productType !== undefined) {
+            prodotto.product_type = input.productType;
+          }
+          // ⚠️ `vendor` e `tags` qui sopra e qui sotto hanno la STESSA divergenza
+          //    dal comportamento vero, e restano come sono: sono fuori dal
+          //    perimetro concordato, e cambiarli sposterebbe le aspettative di
+          //    prove che non ho scritto io. Segnalato in `DA-FARE` §31.26.
           prodotto.tags = input.tags ? input.tags.join(', ') : '';
           prodotto.status = input.status.toLowerCase();
           return { id: input.id, status: input.status };

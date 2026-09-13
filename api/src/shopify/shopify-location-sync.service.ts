@@ -5,12 +5,29 @@ import { ShopifySyncStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient, type ShopifyAdminLocation } from './shopify-admin.client';
 import { isSameShopifyLocationId, normalizeShopifyLocationId } from './shopify-location-id.util';
-import { isShopifyManagedImportLocation } from './shopify-location-import.util';
+import {
+  indirizzoDaShopify,
+  isShopifyManagedImportLocation,
+} from './shopify-location-import.util';
+import { ShopifyLocationLinkService } from './shopify-location-link.service';
+
+/** Una location Shopify che NESSUNA sede VestiFlow riconosce per id. */
+export interface ShopifyUnlinkedLocation {
+  readonly shopifyLocationId: string;
+  readonly name: string;
+  readonly active: boolean;
+}
 
 export interface ShopifyLocationSyncResult {
   readonly matchedCount: number;
+  /**
+   * ⛔ Sempre 0 dall’11/09/2026 (B7): il sync non crea più sedi. Il campo resta
+   *    per il contratto dei chiamanti, con il suo significato di sempre.
+   */
   readonly importedCount: number;
   readonly totalCount: number;
+  /** Le location che aspettano una scelta: collega, crea o lascia (`docs/24` §1.13.1). */
+  readonly unlinked: readonly ShopifyUnlinkedLocation[];
 }
 
 @Injectable()
@@ -20,6 +37,7 @@ export class ShopifyLocationSyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyAdmin: ShopifyAdminClient,
+    private readonly locationLink: ShopifyLocationLinkService,
   ) {}
 
   async syncFromShopify(
@@ -32,15 +50,20 @@ export class ShopifyLocationSyncService {
       where: { tenantId },
       orderBy: { createdAt: 'asc' },
     });
-    const defaultStore = await this.prisma.store.findFirst({
-      where: { tenantId },
-      orderBy: { createdAt: 'asc' },
-    });
-
+    // ⭐ La coppia con periodo ATTIVO è la fonte (B7); la colonna-cache la
+    //    segue. Dopo «Disconnetti» la cache è azzerata ma il periodo — mai
+    //    chiuso: disconnettere sospende — resta: alla riconnessione allo
+    //    stesso negozio la sede si riconosce dalla coppia, e `collega` rimette
+    //    la cache. Un periodo CHIUSO (lascia, negozio cambiato) non conta.
+    const perCoppia = new Map(
+      (await this.locationLink.sediCollegate(tenantId)).map((c) => [
+        c.shopifyLocationId,
+        c.locationId,
+      ]),
+    );
     const usedVfIds = new Set<string>();
     let matchedCount = 0;
-    let importedCount = 0;
-    let nextCodeIndex = this.resolveNextLocationCodeIndex(tenantLocations);
+    const unlinked: ShopifyUnlinkedLocation[] = [];
 
     /** Id presenti nel catalogo Shopify (attive e disattivate). */
     const shopifyCatalogIds = new Set<string>();
@@ -52,13 +75,29 @@ export class ShopifyLocationSyncService {
         shopifyCatalogIds.add(normalizedId);
       }
 
-      const match = this.findMatch(tenantLocations, shopifyLocation, shopifyId, usedVfIds);
+      const match = this.findMatch(
+        tenantLocations,
+        shopifyId,
+        usedVfIds,
+        normalizedId ? perCoppia.get(normalizedId) : undefined,
+      );
 
       if (match) {
         usedVfIds.add(match.id);
-        await this.prisma.location.update({
-          where: { id: match.id },
-          data: this.buildLinkedLocationData(shopifyLocation, shopifyId),
+        await this.prisma.$transaction(async (tx) => {
+          await tx.location.update({
+            where: { id: match.id },
+            data: this.buildLinkedLocationData(shopifyLocation, shopifyId),
+          });
+          // ⭐ B7: la sede riconosciuta per id ha coppia e periodo nello storico
+          //    (`docs/DA-FARE` §13). Idempotente: al secondo sync non apre niente.
+          //    Con la connessione senza negozio (`shopId` assente) non scrive, e
+          //    il sync prosegue com’era: non si anticipa il backfill.
+          await this.locationLink.collega(tx, {
+            tenantId,
+            locationId: match.id,
+            shopifyLocationId: shopifyId,
+          });
         });
         if (shopifyLocation.active) {
           matchedCount += 1;
@@ -70,32 +109,20 @@ export class ShopifyLocationSyncService {
         continue;
       }
 
-      if (!shopifyLocation.active) {
-        continue;
-      }
-
-      const code = `LOC-${String(nextCodeIndex).padStart(2, '0')}`;
-      nextCodeIndex += 1;
-
-      await this.prisma.location.create({
-        data: {
-          tenantId,
-          storeId: defaultStore?.id ?? null,
-          name: shopifyLocation.name.trim(),
-          code,
-          isActive: shopifyLocation.active,
-          licensedInVf: false,
-          ...this.mapShopifyAddress(shopifyLocation),
-          shopifyLocationId: shopifyId,
-          shopifySyncStatus: ShopifySyncStatus.synced,
-          shopifyLastSyncAt: new Date(),
-          shopifyLastError: null,
-        },
+      /*
+        ⛔ **QUI C’ERA `location.create`**: una location Shopify senza sede
+           diventava una sede VestiFlow nuova, già collegata, e il collegamento
+           per NOME lo faceva `findMatch`. Tolti entrambi l’11/09/2026 (B7,
+           `docs/24` §1.13.1, §8.11.1; `DA-FARE` §12, §15.3): «una sede nuova
+           nasce da quella scelta, non dalla sincronizzazione». La location si
+           RIPORTA, e la scelta — collega, crea, lascia — la fa l’operatore in
+           Impostazioni → Shopify (`ShopifySetupService`).
+      */
+      unlinked.push({
+        shopifyLocationId: normalizedId ?? shopifyId,
+        name: shopifyLocation.name.trim(),
+        active: shopifyLocation.active,
       });
-      importedCount += 1;
-      this.logger.log(
-        `Location importata da Shopify (${tenantId}): ${shopifyLocation.name} → ${code}`,
-      );
     }
 
     await this.cleanupStaleShopifyLocations(tenantId, shopifyCatalogIds);
@@ -103,8 +130,9 @@ export class ShopifyLocationSyncService {
 
     return {
       matchedCount,
-      importedCount,
+      importedCount: 0,
       totalCount: shopifyLocations.length,
+      unlinked,
     };
   }
 
@@ -277,38 +305,29 @@ export class ShopifyLocationSyncService {
     }
   }
 
+  /**
+   * ⛔ **Solo per ID.** Qui c’era il ramo `byName` — una sede senza id con lo
+   *    stesso nome veniva agganciata — ed è esattamente ciò che `docs/24`
+   *    §8.11.1 vieta: «il nome serve alla lettura, mai all’abbinamento
+   *    automatico». Scenario N1 del piano di collaudo.
+   */
   private findMatch(
     tenantLocations: readonly Location[],
-    shopifyLocation: ShopifyAdminLocation,
     shopifyId: string,
     usedVfIds: ReadonlySet<string>,
+    sedeDellaCoppia: string | undefined,
   ): Location | undefined {
-    const byId = tenantLocations.find(
-      (loc) =>
-        !usedVfIds.has(loc.id) && isSameShopifyLocationId(loc.shopifyLocationId, shopifyId),
-    );
-    if (byId) {
-      return byId;
-    }
-
-    const normalizedShopifyName = this.normalizeName(shopifyLocation.name);
-    const byName = tenantLocations.find(
+    return tenantLocations.find(
       (loc) =>
         !usedVfIds.has(loc.id) &&
-        !loc.shopifyLocationId &&
-        this.normalizeName(loc.name) === normalizedShopifyName,
+        (loc.id === sedeDellaCoppia || isSameShopifyLocationId(loc.shopifyLocationId, shopifyId)),
     );
-    if (byName) {
-      return byName;
-    }
-
-    return undefined;
   }
 
   private buildLinkedLocationData(shopifyLocation: ShopifyAdminLocation, shopifyId: string) {
     return {
       name: shopifyLocation.name.trim(),
-      ...this.mapShopifyAddress(shopifyLocation),
+      ...indirizzoDaShopify(shopifyLocation),
       isActive: shopifyLocation.active,
       shopifyLocationId: shopifyId,
       shopifySyncStatus: ShopifySyncStatus.synced,
@@ -317,32 +336,4 @@ export class ShopifyLocationSyncService {
     };
   }
 
-  private mapShopifyAddress(shopifyLocation: ShopifyAdminLocation) {
-    return {
-      addressLine1: shopifyLocation.address1?.trim() || null,
-      addressLine2: shopifyLocation.address2?.trim() || null,
-      city: shopifyLocation.city?.trim() || null,
-      province: shopifyLocation.province?.trim() || null,
-      postalCode: shopifyLocation.zip?.trim() || null,
-      countryCode: shopifyLocation.country_code?.trim().toUpperCase() || 'IT',
-    };
-  }
-
-  private normalizeName(name: string): string {
-    return name.trim().toLocaleLowerCase('it-IT');
-  }
-
-  private resolveNextLocationCodeIndex(locations: readonly Location[]): number {
-    const numericCodes = locations
-      .map((location) => location.code?.match(/^LOC-(\d+)$/i)?.[1])
-      .filter((value): value is string => Boolean(value))
-      .map((value) => Number.parseInt(value, 10))
-      .filter((value) => Number.isFinite(value));
-
-    if (numericCodes.length === 0) {
-      return locations.length + 1;
-    }
-
-    return Math.max(...numericCodes) + 1;
-  }
 }

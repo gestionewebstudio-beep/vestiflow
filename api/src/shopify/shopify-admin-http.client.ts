@@ -1,5 +1,12 @@
-import { HttpException, HttpStatus, Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 
+import { registraChiamataRest } from './shopify-chiamata-uscente.util';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
 import { parseShopifyRetryAfterHeader } from './shopify-rate-limiter.util';
@@ -21,6 +28,8 @@ interface ShopifyAdminResponse<T> {
  */
 @Injectable()
 export class ShopifyAdminHttpClient {
+  private readonly logger = new Logger(ShopifyAdminHttpClient.name);
+
   constructor(
     private readonly shopifyConfig: ShopifyConfigService,
     private readonly rateLimiter: ShopifyRateLimiterService,
@@ -35,6 +44,10 @@ export class ShopifyAdminHttpClient {
     const apiVersion = this.shopifyConfig.apiVersion;
     const url = `https://${shopDomain}/admin/api/${apiVersion}${path}`;
     const maxRetries = this.shopifyConfig.apiMaxRetries;
+
+    // ⭐ Ogni chiamata lascia traccia di ciò che fa — lettura o SCRITTURA — prima di
+    //    partire: è la misura con cui si dice «verso Shopify non è partito niente».
+    registraChiamataRest(this.logger, init.method, path);
 
     for (let attempt = 0; ; attempt += 1) {
       await this.rateLimiter.beforeRestRequest(shopDomain);

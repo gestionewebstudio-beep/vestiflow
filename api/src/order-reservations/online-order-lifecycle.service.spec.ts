@@ -7,6 +7,7 @@ import {
   SalesOrderFinancialStatus,
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
+  ShipmentLineOutcome,
   StockMovementType,
 } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
@@ -113,6 +114,7 @@ interface FakeOnlineSale {
 }
 
 interface FakeMovement {
+  id?: string;
   tenantId: string;
   type: StockMovementType;
   variantId: string;
@@ -152,6 +154,10 @@ function createFakeDb() {
   const onlineSaleLines: Array<Record<string, unknown> & { id: string }> = [];
   const movements: FakeMovement[] = [];
   const sequences = new Map<string, number>();
+  const shipments: Array<Record<string, unknown> & { id: string; salesOrderId: string }> = [];
+  const shipmentLines: Array<
+    Record<string, unknown> & { id: string; shipmentId: string; salesOrderLineId: string }
+  > = [];
 
   let seq = 0;
   const nextId = (prefix: string): string => `${prefix}-${(seq += 1)}`;
@@ -184,6 +190,19 @@ function createFakeDb() {
           }
           orderEvents.push(row);
           count += 1;
+        }
+        return Promise.resolve({ count });
+      },
+      // La registrazione si toglie quando l'evento resta ripetibile (reso non
+      // applicato, spedizione con una riga senza sede).
+      deleteMany: ({ where }: { where: { tenantId: string; dedupeKey: string } }) => {
+        let count = 0;
+        for (let i = orderEvents.length - 1; i >= 0; i -= 1) {
+          const event = orderEvents[i]!;
+          if (event.tenantId === where.tenantId && event.dedupeKey === where.dedupeKey) {
+            orderEvents.splice(i, 1);
+            count += 1;
+          }
         }
         return Promise.resolve({ count });
       },
@@ -357,8 +376,18 @@ function createFakeDb() {
     shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     stockMovement: {
       create: ({ data }: { data: FakeMovement }) => {
-        movements.push({ ...data });
-        return Promise.resolve({ ...data, id: nextId('mov') });
+        const movement = { ...data, id: nextId('mov') };
+        movements.push(movement);
+        return Promise.resolve({ ...movement });
+      },
+      // La Vendita online ADOTTA i movimenti delle spedizioni: ne aggiorna i riferimenti.
+      update: ({ where, data }: { where: { id: string }; data: Partial<FakeMovement> }) => {
+        const movement = movements.find((row) => row.id === where.id);
+        if (!movement) {
+          return Promise.reject(new Error(`Movimento ${where.id} non trovato`));
+        }
+        Object.assign(movement, data);
+        return Promise.resolve({ ...movement });
       },
       // Usato dal reso per leggere il costo congelato sulla vendita originale.
       findFirst: ({ where }: { where: Record<string, unknown> }) => {
@@ -432,6 +461,108 @@ function createFakeDb() {
         onlineSaleLines.push(line);
         return Promise.resolve({ ...line });
       },
+      findMany: ({ where }: { where: { tenantId: string; onlineSaleId: string } }) =>
+        Promise.resolve(
+          onlineSaleLines
+            .filter(
+              (line) =>
+                line['tenantId'] === where.tenantId && line['onlineSaleId'] === where.onlineSaleId,
+            )
+            .map((line) => ({ ...line })),
+        ),
+    },
+    salesOrderShipment: {
+      findUnique: ({
+        where,
+      }: {
+        where: {
+          tenantId_salesOrderId_externalFulfillmentId: {
+            tenantId: string;
+            salesOrderId: string;
+            externalFulfillmentId: string;
+          };
+        };
+      }) => {
+        const chiave = where.tenantId_salesOrderId_externalFulfillmentId;
+        const trovata = shipments.find(
+          (row) =>
+            row['tenantId'] === chiave.tenantId &&
+            row.salesOrderId === chiave.salesOrderId &&
+            row['externalFulfillmentId'] === chiave.externalFulfillmentId,
+        );
+        return Promise.resolve(trovata ? { ...trovata } : null);
+      },
+      create: ({ data }: { data: Record<string, unknown> & { salesOrderId: string } }) => {
+        const row = { ...data, id: nextId('ship') };
+        shipments.push(row);
+        return Promise.resolve({ ...row });
+      },
+      update: ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = shipments.find((r) => r.id === where.id);
+        if (!row) {
+          return Promise.reject(new Error('Spedizione non trovata'));
+        }
+        Object.assign(row, data);
+        return Promise.resolve({ ...row });
+      },
+    },
+    salesOrderShipmentLine: {
+      findMany: ({
+        where,
+      }: {
+        where: {
+          tenantId?: string;
+          shipmentId?: string;
+          esito?: ShipmentLineOutcome;
+          shipment?: { salesOrderId: string };
+          salesOrderLineId?: { in: string[] };
+        };
+      }) =>
+        Promise.resolve(
+          shipmentLines
+            .filter((row) => {
+              const testata = shipments.find((t) => t.id === row.shipmentId);
+              return (
+                (where.tenantId === undefined || row['tenantId'] === where.tenantId) &&
+                (where.shipmentId === undefined || row.shipmentId === where.shipmentId) &&
+                (where.esito === undefined || row['esito'] === where.esito) &&
+                (where.salesOrderLineId === undefined ||
+                  where.salesOrderLineId.in.includes(row.salesOrderLineId)) &&
+                (where.shipment === undefined ||
+                  testata?.salesOrderId === where.shipment.salesOrderId)
+              );
+            })
+            .map((row) => ({
+              ...row,
+              movement: row['stockMovementId']
+                ? { locationId: movements.find((m) => m.id === row['stockMovementId'])?.locationId }
+                : null,
+            })),
+        ),
+      create: ({
+        data,
+      }: {
+        data: Record<string, unknown> & { shipmentId: string; salesOrderLineId: string };
+      }) => {
+        if (
+          shipmentLines.some(
+            (r) => r.shipmentId === data.shipmentId && r.salesOrderLineId === data.salesOrderLineId,
+          )
+        ) {
+          return Promise.reject(new Error('UNIQUE violato: spedizione+riga'));
+        }
+        const row = { ...data, id: nextId('shipline') };
+        shipmentLines.push(row);
+        return Promise.resolve({ ...row });
+      },
+      update: ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = shipmentLines.find((r) => r.id === where.id);
+        if (!row) {
+          return Promise.reject(new Error('Riga di spedizione non trovata'));
+        }
+        Object.assign(row, data);
+        return Promise.resolve({ ...row });
+      },
     },
     // Il finto Prisma NON espone `corrispettivoEntry`: le tabelle sono state
     // ritirate il 17/08/2026 (migration `ritira_corrispettivo_legacy`). Un
@@ -454,6 +585,8 @@ function createFakeDb() {
     onlineSaleLines: structuredClone(onlineSaleLines),
     movements: structuredClone(movements),
     sequences: structuredClone([...sequences.entries()]),
+    shipments: structuredClone(shipments),
+    shipmentLines: structuredClone(shipmentLines),
   });
 
   const restore = (snap: ReturnType<typeof takeSnapshot>): void => {
@@ -471,6 +604,8 @@ function createFakeDb() {
     onlineSales.splice(0, onlineSales.length, ...snap.onlineSales);
     onlineSaleLines.splice(0, onlineSaleLines.length, ...snap.onlineSaleLines);
     movements.splice(0, movements.length, ...snap.movements);
+    shipments.splice(0, shipments.length, ...snap.shipments);
+    shipmentLines.splice(0, shipmentLines.length, ...snap.shipmentLines);
     sequences.clear();
     for (const [key, value] of snap.sequences) {
       sequences.set(key, value);
@@ -504,6 +639,8 @@ function createFakeDb() {
     onlineSales,
     onlineSaleLines,
     movements,
+    shipments,
+    shipmentLines,
   };
 }
 
@@ -723,6 +860,88 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 1 §11)', () => {
     expect(db.reservations).toHaveLength(1);
   });
 
+  it('riga confermata per intero in una location NON collegata: l’impegno si rilascia — Impegnata −, Giacenza invariata, nessun movimento; ripetuto, niente', async () => {
+    // Deciso dal proprietario il 13/09/2026, misurato su #1010: il pezzo non
+    // partirà da dove era impegnato. Ordine, riga, quantità e assegnazione —
+    // mai i totali committed.
+    const db = createFakeDb();
+    seedOrder(db);
+    seedLevel(db, 10);
+    const service = createService(db);
+    await service.handle(createdEvent());
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
+
+    const spostata = createdEvent({
+      type: OnlineOrderEventType.online_order_updated,
+      dedupeSuffix: 'spostata|sedi:',
+      locationId: null,
+      lines: [],
+      righeDaRilasciare: [{ salesOrderLineId: 'line-1', quantity: 2, residuoAssegnatoAltrove: 2 }],
+    });
+    expect(await service.handle(spostata)).toBe('applied');
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
+    expect(db.movements).toHaveLength(0);
+    expect(db.reservations).toHaveLength(1);
+    expect(db.reservations[0]).toMatchObject({
+      status: ReservationStatus.released,
+      remainingQuantity: 0,
+    });
+    expect(db.reservationEvents.at(-1)).toMatchObject({
+      type: ReservationEventType.released,
+      quantityDelta: -2,
+      note: 'Riga assegnata da Shopify a una location non collegata',
+    });
+
+    // Lo stesso evento ripetuto: doppione, nessun effetto.
+    expect(await service.handle(spostata)).toBe('duplicate');
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
+    expect(
+      db.reservationEvents.filter((e) => e.type === ReservationEventType.released),
+    ).toHaveLength(1);
+
+    // Riportata su una sede collegata: UN solo impegno, riattivato — non un secondo.
+    const tornata = createdEvent({
+      type: OnlineOrderEventType.online_order_updated,
+      dedupeSuffix: 'tornata|sedi:line-1=location-1',
+    });
+    expect(await service.handle(tornata)).toBe('applied');
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
+    expect(db.reservations).toHaveLength(1);
+    expect(db.reservations[0]).toMatchObject({
+      status: ReservationStatus.active,
+      remainingQuantity: 2,
+      locationId: 'location-1',
+    });
+    expect(db.movements).toHaveLength(0);
+  });
+
+  it('riga assegnata altrove solo IN PARTE (residuo diverso dalla quantità residua): l’impegno si conserva', async () => {
+    // ⛔ «Tutta la quantità residua», non una parte: a quantità diversa vale il
+    //    comportamento conservativo già deciso.
+    const db = createFakeDb();
+    seedOrder(db);
+    seedLevel(db, 10);
+    const service = createService(db);
+    await service.handle(createdEvent());
+
+    const parziale = createdEvent({
+      type: OnlineOrderEventType.online_order_updated,
+      dedupeSuffix: 'parziale|sedi:',
+      locationId: null,
+      lines: [],
+      righeDaRilasciare: [{ salesOrderLineId: 'line-1', quantity: 2, residuoAssegnatoAltrove: 1 }],
+    });
+    expect(await service.handle(parziale)).toBe('applied');
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
+    expect(db.reservations[0]).toMatchObject({
+      status: ReservationStatus.active,
+      remainingQuantity: 2,
+    });
+    expect(
+      db.reservationEvents.filter((e) => e.type === ReservationEventType.released),
+    ).toHaveLength(0);
+  });
+
   it('ordine annullato: Impegnata -, Disponibile +, Giacenza invariata, nessun falso carico', async () => {
     const db = createFakeDb();
     seedOrder(db);
@@ -769,7 +988,7 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 1 §11)', () => {
     expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
   });
 
-  it('evasione parziale: stato Richiede verifica, nessuna Vendita online né scarico', async () => {
+  it('evasione parziale senza spedizioni nel payload: nessuna Vendita online né scarico, e nessun segnale — lo stato è sull’ordine', async () => {
     const db = createFakeDb();
     seedOrder(db);
     seedLevel(db, 10);
@@ -785,13 +1004,286 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 1 §11)', () => {
     );
 
     expect(outcome).toBe('applied');
-    expect(db.orders.get('order-1')).toMatchObject({ requiresReview: true });
-    expect(db.orders.get('order-1')?.reviewReason).toContain('Evasione parziale');
-    // Nessun rilascio né scarico: saldi invariati, nessuna vendita definitiva (§10).
+    // ⛔ Qui c'era «requiresReview: Evasione parziale non supportata»: dal
+    //    12/09/2026 gli effetti fisici sono delle SPEDIZIONI (prova sotto), e
+    //    lo stato parziale è quello dell'ordine, non un'anomalia.
+    expect(db.orders.get('order-1')).toMatchObject({ requiresReview: false });
+    // Nessun rilascio né scarico: saldi invariati, nessuna vendita definitiva.
     expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
     expect(db.reservations[0]?.status).toBe(ReservationStatus.active);
     expect(db.movements).toHaveLength(0);
     expect(db.onlineSales).toHaveLength(0);
+  });
+
+  /**
+   * ⭐ La prova chiesta dal proprietario (12/09/2026): riga da 3 pezzi, 1 spedito
+   *    da A e poi 2 da B. Scarichi corretti per sede, impegno residuo corretto
+   *    dopo ogni passaggio, ripetizione degli eventi senza duplicazioni; a
+   *    completamento UNA Vendita online che adotta i due movimenti.
+   */
+  it('spedizioni: riga da 3, 1 da A poi 2 da B → scarichi per sede, impegno residuo, nessun doppione, una sola Vendita', async () => {
+    const db = createFakeDb();
+    seedOrder(db);
+    seedLevel(db, 10);
+    db.levels.set('variant-1:location-B', {
+      tenantId: 'tenant-1',
+      variantId: 'variant-1',
+      locationId: 'location-B',
+      onHand: 5,
+      committed: 0,
+      available: 5,
+    });
+    const service = createService(db);
+    const livelloB = () => db.levels.get('variant-1:location-B');
+
+    await service.handle(
+      createdEvent({
+        lines: [{ salesOrderLineId: 'line-1', variantId: 'variant-1', sku: 'SKU-1', quantity: 3 }],
+      }),
+    );
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 3, available: 7 });
+
+    // Prima spedizione: 1 da A. Ordine ancora parziale.
+    const primaSpedizione = createdEvent({
+      type: OnlineOrderEventType.online_order_shipped,
+      lines: undefined,
+      dedupeSuffix: 'ful-1:v1',
+      spedizione: {
+        externalFulfillmentId: 'ful-1',
+        shopifyLocationId: '11',
+        locationId: 'location-1',
+        shippedAt: new Date('2026-09-12T10:00:00Z'),
+        righe: [{ salesOrderLineId: 'line-1', variantId: 'variant-1', sku: 'SKU-1', quantity: 1 }],
+      },
+    });
+    expect(await service.handle(primaSpedizione)).toBe('applied');
+    expect(level(db)).toMatchObject({ onHand: 9, committed: 2, available: 7 });
+    expect(db.reservations[0]).toMatchObject({
+      status: ReservationStatus.active,
+      remainingQuantity: 2,
+    });
+    expect(db.movements).toHaveLength(1);
+    expect(db.movements[0]).toMatchObject({
+      locationId: 'location-1',
+      quantity: 1,
+      sourceDocumentId: null,
+    });
+    expect(db.shipmentLines).toHaveLength(1);
+    expect(db.shipmentLines[0]).toMatchObject({ esito: ShipmentLineOutcome.scaricata });
+
+    // Lo stesso webhook una seconda volta (stessa versione): niente due volte.
+    expect(await service.handle(primaSpedizione)).toBe('duplicate');
+    // E una NUOVA versione del payload con la stessa spedizione: la riga è già
+    // scaricata, quindi nessun secondo movimento.
+    expect(await service.handle({ ...primaSpedizione, dedupeSuffix: 'ful-1:v2' })).toBe('applied');
+    expect(level(db)).toMatchObject({ onHand: 9, committed: 2, available: 7 });
+    expect(db.movements).toHaveLength(1);
+
+    // Un aggiornamento dell'ordine nel frattempo NON rimette l'impegno consumato.
+    db.orders.get('order-1')!.fulfillmentStatus = SalesOrderFulfillmentStatus.partially_fulfilled;
+    await service.handle(
+      createdEvent({
+        type: OnlineOrderEventType.online_order_updated,
+        dedupeSuffix: 'v2',
+        lines: [{ salesOrderLineId: 'line-1', variantId: 'variant-1', sku: 'SKU-1', quantity: 3 }],
+      }),
+    );
+    expect(level(db)).toMatchObject({ onHand: 9, committed: 2, available: 7 });
+    expect(db.reservations[0]).toMatchObject({ remainingQuantity: 2 });
+
+    // Seconda spedizione: 2 da B. L'impegno (preso su A) si chiude, la merce esce da B.
+    const secondaSpedizione = createdEvent({
+      type: OnlineOrderEventType.online_order_shipped,
+      lines: undefined,
+      dedupeSuffix: 'ful-2:v3',
+      spedizione: {
+        externalFulfillmentId: 'ful-2',
+        shopifyLocationId: '22',
+        locationId: 'location-B',
+        shippedAt: new Date('2026-09-12T11:00:00Z'),
+        righe: [{ salesOrderLineId: 'line-1', variantId: 'variant-1', sku: 'SKU-1', quantity: 2 }],
+      },
+    });
+    expect(await service.handle(secondaSpedizione)).toBe('applied');
+    expect(level(db)).toMatchObject({ onHand: 9, committed: 0, available: 9 });
+    expect(livelloB()).toMatchObject({ onHand: 3, committed: 0, available: 3 });
+    expect(db.reservations[0]).toMatchObject({
+      status: ReservationStatus.consumed,
+      remainingQuantity: 0,
+    });
+    expect(db.movements).toHaveLength(2);
+
+    // Completamento: UNA Vendita online, NESSUN movimento nuovo, i due adottati sulla testata.
+    db.orders.get('order-1')!.fulfillmentStatus = SalesOrderFulfillmentStatus.fulfilled;
+    await service.handle(
+      createdEvent({
+        type: OnlineOrderEventType.online_order_fulfilled,
+        lines: undefined,
+        externalFulfillmentId: 'ful-2',
+        locationId: 'location-1',
+      }),
+    );
+    expect(db.onlineSales).toHaveLength(1);
+    expect(db.onlineSales[0]).toMatchObject({
+      inventoryStatus: OnlineSaleInventoryStatus.unloaded,
+    });
+    expect(db.movements).toHaveLength(2);
+    expect(
+      db.movements.every(
+        (m) =>
+          m.sourceDocumentType === DocumentType.online_sale &&
+          m.sourceDocumentId === db.onlineSales[0]!.id,
+      ),
+    ).toBe(true);
+    // Due movimenti per la stessa riga di vendita: nessuno dei due può prenderla come riga sorgente.
+    expect(db.movements.map((m) => m.sourceLineId)).toEqual([null, null]);
+    expect(level(db)).toMatchObject({ onHand: 9, committed: 0, available: 9 });
+    expect(livelloB()).toMatchObject({ onHand: 3, committed: 0, available: 3 });
+  });
+
+  it('spedizione con riga NON risolta (collegamento chiuso): niente scarico, impegno preesistente chiuso senza uscita, ordine segnalato', async () => {
+    const db = createFakeDb();
+    seedOrder(db);
+    seedLevel(db, 10);
+    const service = createService(db);
+    await service.handle(createdEvent());
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
+
+    await service.handle(
+      createdEvent({
+        type: OnlineOrderEventType.online_order_shipped,
+        lines: undefined,
+        dedupeSuffix: 'ful-9:v1',
+        spedizione: {
+          externalFulfillmentId: 'ful-9',
+          shopifyLocationId: '11',
+          locationId: 'location-1',
+          shippedAt: new Date('2026-09-12T10:00:00Z'),
+          righe: [{ salesOrderLineId: 'line-1', variantId: null, sku: 'SKU-1', quantity: 2 }],
+        },
+      }),
+    );
+    // ⛔ Nessuno scarico attraverso la chiusura; l'impegno si chiude (Impegnata −, Disponibile +), la Giacenza no.
+    expect(db.movements).toHaveLength(0);
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
+    expect(db.reservations[0]).toMatchObject({ status: ReservationStatus.released });
+    expect(db.shipmentLines[0]).toMatchObject({
+      esito: ShipmentLineOutcome.senza_variante,
+      stockMovementId: null,
+    });
+    expect(db.orders.get('order-1')).toMatchObject({ requiresReview: true });
+    expect(db.orders.get('order-1')?.reviewReason).toContain('variante non risolta');
+  });
+
+  it('spedizione con sede COMUNICATA ma non collegata: nessun ripiego sull’impegno, riga senza sede; senza sede comunicata il ripiego vale', async () => {
+    const db = createFakeDb();
+    seedOrder(db);
+    seedLevel(db, 10);
+    const service = createService(db);
+    await service.handle(createdEvent());
+
+    // Il canale dice «location 99», che non è collegata: locationId nullo. ⛔ Non
+    // si scarica sulla sede dell'impegno: sarebbe attribuire l'uscita altrove.
+    await service.handle(
+      createdEvent({
+        type: OnlineOrderEventType.online_order_shipped,
+        lines: undefined,
+        dedupeSuffix: 'ful-5:v1',
+        spedizione: {
+          externalFulfillmentId: 'ful-5',
+          shopifyLocationId: '99',
+          locationId: null,
+          shippedAt: new Date('2026-09-12T10:00:00Z'),
+          righe: [
+            { salesOrderLineId: 'line-1', variantId: 'variant-1', sku: 'SKU-1', quantity: 2 },
+          ],
+        },
+      }),
+    );
+    expect(db.movements).toHaveLength(0);
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
+    expect(db.shipmentLines[0]).toMatchObject({ esito: ShipmentLineOutcome.senza_sede });
+    expect(db.orders.get('order-1')?.reviewReason).toContain('senza sede determinabile');
+    // ⭐ L'evento resta RIPETIBILE (13/09/2026, percorso 23): non è registrato come
+    //    applicato, così lo stesso webhook — stessa chiave — la applica quando la
+    //    location viene collegata. Con la registrazione, la riga restava senza sede
+    //    per sempre.
+    expect(db.orderEvents.some((event) => event.dedupeKey.endsWith(':ful-5:v1'))).toBe(false);
+
+    // Il canale non dice NESSUNA sede: l'impegno sta sulla sede dell'ordine, che
+    // è del canale — il ripiego non inventa niente.
+    await service.handle(
+      createdEvent({
+        type: OnlineOrderEventType.online_order_shipped,
+        lines: undefined,
+        dedupeSuffix: 'ful-6:v1',
+        spedizione: {
+          externalFulfillmentId: 'ful-6',
+          shopifyLocationId: null,
+          locationId: null,
+          shippedAt: new Date('2026-09-12T10:00:00Z'),
+          righe: [
+            { salesOrderLineId: 'line-1', variantId: 'variant-1', sku: 'SKU-1', quantity: 2 },
+          ],
+        },
+      }),
+    );
+    expect(db.movements).toHaveLength(1);
+    expect(db.movements[0]).toMatchObject({ locationId: 'location-1', quantity: 2 });
+    expect(level(db)).toMatchObject({ onHand: 8, committed: 0, available: 8 });
+  });
+
+  it('percorso ordinario con UNA spedizione completa: la forma finale è quella di prima', async () => {
+    const db = createFakeDb();
+    seedOrder(db);
+    seedLevel(db, 10);
+    const service = createService(db);
+    await service.handle(createdEvent());
+    await service.handle(
+      createdEvent({
+        type: OnlineOrderEventType.online_order_shipped,
+        lines: undefined,
+        dedupeSuffix: 'ful-7:v1',
+        spedizione: {
+          externalFulfillmentId: 'ful-7',
+          shopifyLocationId: '11',
+          locationId: 'location-1',
+          shippedAt: new Date('2026-09-12T10:00:00Z'),
+          righe: [
+            { salesOrderLineId: 'line-1', variantId: 'variant-1', sku: 'SKU-1', quantity: 2 },
+          ],
+        },
+      }),
+    );
+    db.orders.get('order-1')!.fulfillmentStatus = SalesOrderFulfillmentStatus.fulfilled;
+    await service.handle(fulfilledEvent({ externalFulfillmentId: 'ful-7' }));
+
+    const sale = db.onlineSales[0]!;
+    const saleLine = db.onlineSaleLines[0]!;
+    expect(sale).toMatchObject({ inventoryStatus: OnlineSaleInventoryStatus.unloaded });
+    // UN movimento per riga, agganciato alla SUA riga di Vendita, dalla sede
+    // dell'evasione, con la causale della Vendita: com'era.
+    expect(db.movements).toHaveLength(1);
+    expect(db.movements[0]).toMatchObject({
+      type: StockMovementType.online_sale,
+      locationId: 'location-1',
+      quantity: 2,
+      sourceDocumentType: DocumentType.online_sale,
+      sourceDocumentId: sale.id,
+      sourceLineId: saleLine.id,
+    });
+    expect(String(db.movements[0]!.reason)).toMatch(/^Vendita online /);
+    // Riga di Vendita con la sede dello scarico e il riferimento all'impegno, consumato.
+    expect(saleLine).toMatchObject({
+      locationId: 'location-1',
+      reservationId: db.reservations[0]!.id,
+    });
+    expect(db.reservations[0]).toMatchObject({
+      status: ReservationStatus.consumed,
+      remainingQuantity: 0,
+    });
+    expect(level(db)).toMatchObject({ onHand: 8, committed: 0, available: 8 });
+    expect(db.orders.get('order-1')).toMatchObject({ requiresReview: false });
   });
 
   it('concorrenza: eventi identici ravvicinati non producono saldi incoerenti', async () => {

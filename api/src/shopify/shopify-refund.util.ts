@@ -30,9 +30,27 @@ export interface ShopifyRefundTaxLine {
  * Importi in unità minori con la convenzione di `sales_orders`, così il
  * registro corrispettivi sottrae come somma senza conversioni.
  */
+/**
+ * Una RIGA rimborsata (`refund_line_items[]`): quanti pezzi di quale riga d'ordine,
+ * e con quale gesto. È la fonte delle quantità ANNULLATE (`restock_type = 'cancel'`):
+ * non si ricavano da «ordinate − spedite», perché il residuo può essere ancora da
+ * spedire (proprietario, 13/09/2026, #1014).
+ */
+export interface ShopifyRefundLineRow {
+  /** `line_item_id` del canale. */
+  readonly externalLineId: string;
+  readonly quantity: number;
+  /** `restock_type` com'è: `cancel` · `return` · `no_restock` · `legacy_restock`. */
+  readonly restockType: string;
+  readonly subtotalMinor: number;
+  readonly taxMinor: number;
+}
+
 export interface ShopifyRefundRow {
   /** Id opaco del rimborso sul canale: chiave di idempotenza dei webhook. */
   readonly externalRefundId: string;
+  /** Le righe rimborsate, per quantità: da qui le annullate, le rese, le solo-denaro. */
+  readonly lines: readonly ShopifyRefundLineRow[];
   /** Data della rettifica, non dell'ordine: è quella che entra nel registro. */
   readonly occurredAt: Date;
   readonly kind: ShopifyRefundKind;
@@ -211,8 +229,25 @@ export function mapShopifyRefunds(
       ? subtotalMinor
       : subtotalMinor + (taxMinor - adjustments.taxMinor);
 
+    const lines: ShopifyRefundLineRow[] = lineItems.flatMap((item) => {
+      if (item.line_item_id == null) {
+        return [];
+      }
+      const quantity = Number(item.quantity ?? 0);
+      return [
+        {
+          externalLineId: String(item.line_item_id),
+          quantity: Number.isFinite(quantity) && quantity > 0 ? Math.trunc(quantity) : 0,
+          restockType: typeof item.restock_type === 'string' ? item.restock_type : '',
+          subtotalMinor: shopifyDecimalToMinor(String(item.subtotal ?? '0')),
+          taxMinor: shopifyDecimalToMinor(String(item.total_tax ?? '0')),
+        },
+      ];
+    });
+
     rows.push({
       externalRefundId,
+      lines,
       occurredAt,
       kind: classifyRefund(refund),
       subtotalMinor,

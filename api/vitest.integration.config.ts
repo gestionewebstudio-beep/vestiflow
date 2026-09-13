@@ -31,7 +31,10 @@ export default defineConfig({
      */
     exclude: [
       '**/node_modules/**',
-      'src/**/*-backfill.integration-spec.ts',
+      // ⛔ Il file per NOME, non `*-backfill`: il glob escludeva in silenzio
+      //    qualunque prova nuova così chiamata (misurato il 12/09/2026 sulla
+      //    conversione cache → storico, verde senza essere mai eseguita).
+      'src/**/stati-ordini-backfill.integration-spec.ts',
       'src/**/cassa-migrations.integration-spec.ts',
       'src/**/cassa-browser.integration-spec.ts',
     ],

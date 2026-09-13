@@ -380,7 +380,9 @@ describe('VestiFlow senza Shopify (scenario K)', () => {
       //    rifiutato — e per la ragione giusta.** Senza questa verifica il
       //    ramo sarebbe verde anche se il cambio fallisse per un motivo
       //    qualunque, e la corsa non sarebbe stata provata affatto.
-      expect(url).toContain('shopify=connected');
+      // ⭐ Tenant B non aveva un negozio: il callback torna `?shopify=setup`
+      //    (parte il percorso della prima connessione, `docs/27` §2).
+      expect(url).toContain('shopify=setup');
       expect(righe.connessioni).toBe(1);
       expect(String(erroreCambio)).toMatch(/Disconnetti Shopify/i);
     }
@@ -495,7 +497,9 @@ describe('VestiFlow senza Shopify (scenario K)', () => {
       }
 
       const url = esiti[0].status === 'fulfilled' ? (esiti[0].value as string) : null;
-      expect(url).toContain('shopify=connected');
+      // ⭐ Tenant B non aveva un negozio: il callback torna `?shopify=setup`
+      //    (parte il percorso della prima connessione, `docs/27` §2).
+      expect(url).toContain('shopify=setup');
 
       // ⛔ **Il cambio e` rifiutato, e per la ragione giusta.**
       expect(esiti[1].status).toBe('rejected');

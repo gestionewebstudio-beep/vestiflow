@@ -175,6 +175,8 @@ describe('ShopifyController — il permesso segue ciò che la sync tocca, non l�
         undefined as never,
         undefined as never,
         undefined as never,
+        // ⭐ La prima connessione (`ShopifySetupService`): non serve a queste prove.
+        undefined as never,
       );
 
       const esito = await controller.retryPendingInventory('tenant-1');

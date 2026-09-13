@@ -10,6 +10,7 @@ const EVENT_KEY_SUFFIX: Record<OnlineOrderEventType, string> = {
   [OnlineOrderEventType.online_order_partially_fulfilled]: 'partially_fulfilled',
   [OnlineOrderEventType.online_order_refunded]: 'refunded',
   [OnlineOrderEventType.online_order_restocked]: 'restocked',
+  [OnlineOrderEventType.online_order_shipped]: 'shipped',
 };
 
 /**

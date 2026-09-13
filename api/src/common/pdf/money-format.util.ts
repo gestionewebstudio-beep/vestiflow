@@ -1,6 +1,10 @@
+// ⭐ Il punto delle migliaia SEMPRE, anche a quattro cifre (proprietario, 13/09/2026):
+//    it-IT da solo scrive «2249,85» e raggruppa solo da cinque cifre in su. Stessa
+//    regola di `formatMoney` nel frontend: una stampa si legge come una schermata.
 const EUR_AMOUNT_FORMAT = new Intl.NumberFormat('it-IT', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
+  useGrouping: 'always',
 });
 
 /** Importi in unità minori → stringa EUR per PDF/export. */

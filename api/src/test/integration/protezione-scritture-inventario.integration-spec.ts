@@ -194,6 +194,8 @@ describe('Protezione delle scritture di inventario', () => {
       null as never,
       riconciliazione,
       push,
+      storico,
+      null as never,
     );
   }
 

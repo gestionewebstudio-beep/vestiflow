@@ -244,6 +244,12 @@ export class PlatformAuditService {
           await this.registraRiuscita(tx, correlazione, dati);
           return;
         }
+        if (typeof esito === 'object') {
+          // ⭐ La riuscita dice che cosa e' stato fatto, se chi opera lo sa
+          //    solo alla fine: la riga del tentativo conserva il piano.
+          await this.registraRiuscita(tx, correlazione, { ...dati, reason: esito.reason });
+          return;
+        }
         await this.registraIninfluente(
           tx,
           correlazione,
