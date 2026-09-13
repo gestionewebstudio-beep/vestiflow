@@ -46,6 +46,8 @@ export interface BusinessAnalyticsChannelRow {
 }
 
 export interface BusinessAnalyticsTopProduct {
+  /** L'identità della riga (la variante): SKU e titolo non la garantiscono, anche vuoti. */
+  readonly variantId: string;
   readonly sku: string;
   readonly title: string;
   readonly revenueMinor: number;

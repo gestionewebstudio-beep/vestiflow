@@ -28,6 +28,9 @@ export interface SalesOrderLineApiRow {
    */
   readonly unitPriceMinor?: number;
   readonly totalMinor?: number;
+  /** Quantità annullate (righe `cancel` del canale) e spedite (spedizioni): solo nel dettaglio. */
+  readonly cancelledQuantity?: number;
+  readonly shippedQuantity?: number;
   // Righe Ordine cliente manuale.
   readonly barcode?: string | null;
   readonly unitOfMeasure?: string | null;
@@ -105,6 +108,18 @@ export interface SalesOrderApiRow {
     readonly inventoryStatus: string;
     readonly refundedAt?: IsoDateString | null;
   } | null;
+  /** Le rettifiche del canale: somma e totale aggiornato di testata, l'elenco nel dettaglio. */
+  readonly refundTotalMinor?: number;
+  readonly currentTotalMinor?: number;
+  readonly refundCount?: number;
+  readonly refunds?: readonly {
+    readonly id: EntityId;
+    readonly kind: string;
+    readonly occurredAt: IsoDateString;
+    readonly totalMinor: number;
+    readonly taxMinor: number;
+    readonly note?: string | null;
+  }[];
 }
 
 function mapFinancialStatus(status: string): SalesOrderFinancialStatus {
@@ -171,6 +186,8 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
     sku: row.sku ?? '',
     title: row.title,
     quantity: row.quantity,
+    cancelledQuantity: row.cancelledQuantity ?? undefined,
+    shippedQuantity: row.shippedQuantity ?? undefined,
     unitPrice: { amountMinor: Number(row.unitPriceMinor ?? 0), currencyCode: currency },
     lineTotal: { amountMinor: row.totalMinor ?? 0, currencyCode: currency },
     barcode: row.barcode ?? undefined,
@@ -248,6 +265,23 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
         }
       : undefined,
     onlineSale: row.onlineSale ? mapOnlineSale(row.onlineSale) : undefined,
+    refundTotal:
+      row.refundTotalMinor !== undefined
+        ? { amountMinor: row.refundTotalMinor, currencyCode: currency }
+        : undefined,
+    updatedTotal:
+      row.currentTotalMinor !== undefined
+        ? { amountMinor: row.currentTotalMinor, currencyCode: currency }
+        : undefined,
+    refundCount: row.refundCount ?? undefined,
+    refunds: row.refunds?.map((refund) => ({
+      id: refund.id,
+      kind: refund.kind,
+      occurredAt: refund.occurredAt,
+      total: { amountMinor: refund.totalMinor, currencyCode: currency },
+      tax: { amountMinor: refund.taxMinor, currencyCode: currency },
+      note: refund.note ?? undefined,
+    })),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

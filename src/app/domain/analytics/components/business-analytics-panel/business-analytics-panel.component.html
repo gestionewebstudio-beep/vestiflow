@@ -122,26 +122,30 @@
     @if (layout() === 'reports' && channelRows().length > 0) {
       <section class="analytics-panel__section" aria-labelledby="analytics-channels">
         <h3 id="analytics-channels" class="analytics-panel__section-title">Fatturato per canale</h3>
-        <div class="analytics-panel__table-scroll">
-          <table class="analytics-panel__table">
-            <thead>
-              <tr>
-                <th scope="col">Canale</th>
-                <th scope="col" class="analytics-panel__cell--num">Pezzi</th>
-                <th scope="col" class="analytics-panel__cell--num">Fatturato</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of channelRows(); track row.channel) {
-                <tr>
-                  <td>{{ row.label }}</td>
-                  <td class="analytics-panel__cell--num tabular-nums">{{ row.unitsSold }}</td>
-                  <td class="analytics-panel__cell--num tabular-nums">{{ row.revenueLabel }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <!-- ⭐ Sul motore comune (`docs/26` A12), con la riga totali: la somma dei canali è il fatturato del periodo. -->
+        <app-data-table
+          caption="Fatturato per canale"
+          [columns]="colonneCanali"
+          [sections]="sezioniCanali()"
+          [rowId]="rigaCanaleId"
+          [cellText]="testoCanale"
+          [sortable]="true"
+          [sort]="ordineCanali()"
+          (sortChange)="ordineCanali.set($event)"
+          [totals]="totaliCanali()"
+        >
+          <ng-template appRowCard let-row>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__what">{{ row.label }}</span>
+              </span>
+            </div>
+            <div class="list-card__figures">
+              <span class="tabular-nums">Pezzi {{ row.unitsSold }}</span>
+              <span class="list-card__total tabular-nums">{{ row.revenueLabel }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
       </section>
     }
 
@@ -154,28 +158,32 @@
             Top prodotti per fatturato
           }
         </h3>
-        <div class="analytics-panel__table-scroll">
-          <table class="analytics-panel__table">
-            <thead>
-              <tr>
-                <th scope="col">SKU</th>
-                <th scope="col">Prodotto</th>
-                <th scope="col" class="analytics-panel__cell--num">Pezzi</th>
-                <th scope="col" class="analytics-panel__cell--num">Fatturato</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of topProductRows(); track row.sku) {
-                <tr>
-                  <td class="analytics-panel__cell--sku tabular-nums">{{ row.sku }}</td>
-                  <td>{{ row.title }}</td>
-                  <td class="analytics-panel__cell--num tabular-nums">{{ row.unitsSold }}</td>
-                  <td class="analytics-panel__cell--num tabular-nums">{{ row.revenueLabel }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <!-- Senza riga totali: la somma dei primi dieci non è un numero che dica qualcosa. -->
+        <app-data-table
+          caption="Top prodotti per fatturato"
+          [columns]="colonneTop"
+          [sections]="sezioniTop()"
+          [rowId]="rigaTopId"
+          [cellText]="testoTop"
+          [sortable]="true"
+          [sort]="ordineTop()"
+          (sortChange)="ordineTop.set($event)"
+        >
+          <ng-template appRowCard let-row>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__what">{{ row.title }}</span>
+              </span>
+            </div>
+            <div class="list-card__words">
+              <span class="tabular-nums">{{ row.sku }}</span>
+            </div>
+            <div class="list-card__figures">
+              <span class="tabular-nums">Pezzi {{ row.unitsSold }}</span>
+              <span class="list-card__total tabular-nums">{{ row.revenueLabel }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
       </section>
     }
   }

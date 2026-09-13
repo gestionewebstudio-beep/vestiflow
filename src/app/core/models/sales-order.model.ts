@@ -49,6 +49,20 @@ export type SalesOrderSource = (typeof SalesOrderSource)[keyof typeof SalesOrder
  * anche se il catalogo cambia; `variantId` è opzionale (ordini storici o
  * varianti rimosse).
  */
+/**
+ * ⭐ Una RETTIFICA del canale (rimborso), alla sua data: il valore originario
+ *    dell'ordine resta, il totale aggiornato è la differenza (13/09/2026, #1014).
+ */
+export interface SalesOrderRettifica {
+  readonly id: EntityId;
+  /** `return_with_restock` · `refund_only` · `cancellation`. */
+  readonly kind: string;
+  readonly occurredAt: IsoDateString;
+  readonly total: Money;
+  readonly tax: Money;
+  readonly note?: string;
+}
+
 export interface SalesOrderLine {
   readonly id: EntityId;
   /** Variante collegata, se ancora identificabile. */
@@ -57,7 +71,12 @@ export interface SalesOrderLine {
   readonly sku: string;
   /** Nome prodotto/variante congelato (display). */
   readonly title: string;
+  /** Quantità ORDINATA: la riga com'è, mai riscritta. */
   readonly quantity: number;
+  /** Pezzi ANNULLATI dal canale prima della spedizione (righe rimborsate `cancel`), non «ordinati − spediti». */
+  readonly cancelledQuantity?: number;
+  /** Pezzi SPEDITI: le spedizioni acquisite. */
+  readonly shippedQuantity?: number;
   readonly unitPrice: Money;
   readonly lineTotal: Money;
   // ── Righe Ordine cliente manuale ──
@@ -163,6 +182,15 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   };
   /** Vendita online generata dall'evasione (fase 2): lo scarico di magazzino. */
   readonly onlineSale?: SalesOrderOnlineSaleLink;
+  /**
+   * Le rettifiche del canale: la SOMMA e il TOTALE AGGIORNATO sono di testata
+   * (la somma scritta coi rimborsi, la differenza generata dal database): qui si
+   * leggono, non si ricalcolano. L'elenco per esteso solo nel dettaglio.
+   */
+  readonly refundTotal?: Money;
+  readonly updatedTotal?: Money;
+  readonly refundCount?: number;
+  readonly refunds?: readonly SalesOrderRettifica[];
   // ── Testata Ordine cliente manuale (source = manual) ──
   /** Location/magazzino di origine degli impegni. */
   readonly locationId?: EntityId;

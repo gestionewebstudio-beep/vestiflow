@@ -52,11 +52,30 @@ export function financialStatusTone(status: SalesOrderFinancialStatus): BadgeTon
   return FINANCIAL_TONES[status];
 }
 
-export function fulfillmentStatusLabel(status: SalesOrderFulfillmentStatus): string {
+/**
+ * ⭐ Un ordine ANNULLATO non è «da evadere»: Shopify lascia lo stato di evasione a
+ *    «non evaso», e tradotto alla lettera diceva che c'era ancora qualcosa da fare
+ *    (proprietario, 13/09/2026, sull'ordine #1013 del collaudo: «potrebbe far
+ *    fraintendere»). Per un annullato non evaso si dice «Non evaso», in neutro.
+ *    Un annullato evaso in parte resta «Evasione parziale»: la merce è uscita.
+ */
+export function fulfillmentStatusLabel(
+  status: SalesOrderFulfillmentStatus,
+  annullato = false,
+): string {
+  if (annullato && status === SalesOrderFulfillmentStatus.Unfulfilled) {
+    return 'Non evaso';
+  }
   return FULFILLMENT_LABELS[status];
 }
 
-export function fulfillmentStatusTone(status: SalesOrderFulfillmentStatus): BadgeTone {
+export function fulfillmentStatusTone(
+  status: SalesOrderFulfillmentStatus,
+  annullato = false,
+): BadgeTone {
+  if (annullato && status === SalesOrderFulfillmentStatus.Unfulfilled) {
+    return 'neutral';
+  }
   return FULFILLMENT_TONES[status];
 }
 

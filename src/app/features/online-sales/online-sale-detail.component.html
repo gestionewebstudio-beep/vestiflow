@@ -120,6 +120,23 @@
       </dl>
     </section>
 
+    <!-- ⭐ Il raccordo economico: valore originario, rettifiche del canale, totale
+         aggiornato; per riga ordinati · annullati · spediti. Lo stesso blocco
+         dell'Ordine di canale (13/09/2026, #1014). Il totale sopra non si riscrive. -->
+    @if (
+      s.refunds.length > 0 || quantita().some((r) => r.cancelled > 0 || r.shipped !== r.ordered)
+    ) {
+      <section class="os-detail__panel" aria-label="Rettifiche del canale">
+        <app-channel-order-rettifiche
+          [originalTotal]="valoreOriginario()"
+          [refundTotal]="sommaRettifiche()"
+          [updatedTotal]="totaleAggiornato()"
+          [refunds]="rettifiche()"
+          [lines]="quantita()"
+        />
+      </section>
+    }
+
     <section class="os-detail__panel" aria-labelledby="os-detail-movements">
       <div class="os-detail__panel-head">
         <h2 id="os-detail-movements" class="os-detail__panel-title">
@@ -134,32 +151,32 @@
           importato senza impegni attivi).
         </p>
       } @else {
-        <div class="os-detail__table-scroll">
-          <table class="os-lines">
-            <thead>
-              <tr>
-                <th scope="col">Tipo</th>
-                <th scope="col" class="os-lines__cell--num">Quantità</th>
-                <th scope="col">Location</th>
-                <th scope="col">Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (movement of s.movements; track movement.id) {
-                <tr>
-                  <td data-label="Tipo">{{ movementTypeLabel(movement.type) }}</td>
-                  <td class="os-lines__cell--num tabular-nums" data-label="Quantità">
-                    {{ movement.quantity }}
-                  </td>
-                  <td data-label="Location">{{ movement.locationName }}</td>
-                  <td class="tabular-nums" data-label="Data">
-                    {{ formatDate(movement.createdAt) }}
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <!-- ⭐ Sul motore comune (`docs/26` A16): un piccolo elenco di registrazioni. -->
+        <app-data-table
+          caption="Movimenti collegati"
+          [columns]="colonneMovimenti"
+          [sections]="sezioniMovimenti()"
+          [rowId]="rigaMovimentoId"
+          [cellText]="testoMovimento"
+          [sortable]="true"
+          [sort]="ordineMovimenti()"
+          (sortChange)="ordineMovimenti.set($event)"
+        >
+          <ng-template appRowCard let-movement>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__when">{{ formatDate(movement.createdAt) }}</span>
+                <span class="list-card__what">{{ movementTypeLabel(movement.type) }}</span>
+              </span>
+            </div>
+            <div class="list-card__words">
+              <span>{{ movement.locationName }}</span>
+            </div>
+            <div class="list-card__figures">
+              <span class="list-card__total tabular-nums">Qtà {{ movement.quantity }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
         <p class="os-detail__hint">
           Lo scarico consuma gli impegni dell'ordine: Giacenza e Impegnata diminuiscono, la
           Disponibile resta invariata.

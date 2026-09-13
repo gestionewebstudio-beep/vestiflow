@@ -9,6 +9,7 @@ import type {
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { totaleAggiornato } from '@domain/sales-orders/models/sales-order-rettifiche.util';
 
 import { SALES_ORDER_LIST_SORTABLE_COLUMNS } from '../../models/sales-order-list-columns.config';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
@@ -130,6 +131,7 @@ export class SalesOrderTableComponent {
   protected readonly sourceLabel = sourceLabel;
   protected readonly formatDate = formatDate;
   protected readonly formatMoney = formatMoney;
+  protected readonly totaleAggiornato = totaleAggiornato;
 
   /** Data compatta gg/mm/aa (mockup restyling): scansione veloce in colonna. */
   protected compactDate(iso: string): string {
@@ -293,6 +295,8 @@ export class SalesOrderTableComponent {
       emphasis: 'total',
       campi: {
         total: { valore: (o) => o.total.amountMinor, formato: soldi },
+        refundTotal: { valore: (o) => -(o.refundTotal?.amountMinor ?? 0), formato: soldi },
+        updatedTotal: { valore: (o) => totaleAggiornato(o).amountMinor, formato: soldi },
         netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
       },
     });
@@ -318,6 +322,10 @@ export class SalesOrderTableComponent {
       switch (columnId) {
         case 'total':
           return order.total.amountMinor;
+        case 'refundTotal':
+          return -(order.refundTotal?.amountMinor ?? 0);
+        case 'updatedTotal':
+          return totaleAggiornato(order).amountMinor;
         case 'netTotal':
           return order.subtotal.amountMinor;
         default:
@@ -341,6 +349,8 @@ export class SalesOrderTableComponent {
       columns: this.columns(),
       campi: {
         total: { valore: (o) => o.total.amountMinor, formato: soldi },
+        refundTotal: { valore: (o) => -(o.refundTotal?.amountMinor ?? 0), formato: soldi },
+        updatedTotal: { valore: (o) => totaleAggiornato(o).amountMinor, formato: soldi },
         netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
       },
     });
@@ -373,6 +383,13 @@ export class SalesOrderTableComponent {
         return order.customerName;
       case 'total':
         return formatMoney(order.total);
+      case 'refundTotal':
+        // Le rettifiche col segno, come nel Registro: la colonna si somma a occhio.
+        return order.refundTotal && order.refundTotal.amountMinor !== 0
+          ? `− ${formatMoney(order.refundTotal)}`
+          : '—';
+      case 'updatedTotal':
+        return formatMoney(totaleAggiornato(order));
       case 'netTotal':
         // ⚠️ La colonna «Tot. netto» mostra il SUBTOTALE: era così anche prima.
         return formatMoney(order.subtotal);

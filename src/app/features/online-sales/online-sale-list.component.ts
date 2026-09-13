@@ -47,6 +47,7 @@ import {
   onlineSaleInventoryStatusTone,
 } from '@domain/sales-orders/models/sales-order-labels.util';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
+import { PeriodFilterComponent } from '@shared/components/period-filter/period-filter.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -89,6 +90,7 @@ type ListState =
     DataTableCellDirective,
     DataTableRowCardDirective,
     DataTableComponent,
+    PeriodFilterComponent,
     SelectMenuComponent,
   ],
   templateUrl: './online-sale-list.component.html',
