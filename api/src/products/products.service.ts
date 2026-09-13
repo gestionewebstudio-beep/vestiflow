@@ -108,6 +108,7 @@ const PRODUCT_LIST_SELECT = {
   brand: true,
   category: true,
   subcategory: true,
+  shopifyProductType: true,
   sellingPriceMinor: true,
   compareAtPriceMinor: true,
   purchasePriceMinor: true,
@@ -597,6 +598,9 @@ export class ProductsService {
             brand: dto.brand,
             category: dto.category,
             subcategory: dto.subcategory,
+            // ⛔ Campo del canale, in una colonna SUA: non si deriva dalla
+            //    categoria interna qui sopra (docs/24 §9.5).
+            shopifyProductType: dto.shopifyProductType?.trim() || null,
             internalNotes: dto.internalNotes,
             shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
             shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
@@ -705,6 +709,19 @@ export class ProductsService {
           brand: original.brand,
           category: original.category,
           subcategory: original.subcategory,
+          // ⏸ **PROPOSTA, non una decisione acquisita** (11/09/2026).
+          //
+          //    Si duplica come brand e tassonomia, al contrario del «Nome
+          //    Shopify» che resta vuoto: quella è l’identità di una vetrina,
+          //    che due prodotti non possono condividere, mentre questa è una
+          //    classificazione dell’articolo.
+          //
+          // ⚠️ Il comportamento PRECEDENTE era lo stesso di fatto — il tipo
+          //    prodotto viaggiava dentro `category`, che si duplica — quindi
+          //    questa riga conserva ciò che accadeva, non introduce una
+          //    regola nuova. Resta comunque da confermare: se la risposta è
+          //    «il duplicato parte senza tipo prodotto», qui va `null`.
+          shopifyProductType: original.shopifyProductType,
           internalNotes: original.internalNotes,
           shopifyTaxonomyCategoryId: original.shopifyTaxonomyCategoryId,
           shopifyTaxonomyCategoryFullName: original.shopifyTaxonomyCategoryFullName,
@@ -833,6 +850,13 @@ export class ProductsService {
           //    dal payload, invece, non si tocca.
           ...(dto.shopifyTitle !== undefined
             ? { shopifyTitle: dto.shopifyTitle?.trim() || null }
+            : {}),
+          // ⚠️ Stessa forma, e per la stessa ragione: assente dal payload
+          //    significa «non toccare», svuotato significa «torna a non
+          //    acquisito» — che verso Shopify NON è una cancellazione, la
+          //    chiave semplicemente non parte (docs/24 §9.5).
+          ...(dto.shopifyProductType !== undefined
+            ? { shopifyProductType: dto.shopifyProductType?.trim() || null }
             : {}),
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,

@@ -33,6 +33,7 @@ import { ambienteIntegrazione } from './env';
 import { creaDataset, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
 import { NegozioSimulato, type SpecProdottoRemoto } from './shopify-simulato.util';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * Campagna del CICLO DI UTILIZZO — scenario M del piano di collaudo.
@@ -163,6 +164,7 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
       conStorico as never,
       // §10.3 · il registro vero: S6 ne legge le righe di rifiuto.
       audit,
+      archivioImmaginiFinto() as never,
     );
   }
 

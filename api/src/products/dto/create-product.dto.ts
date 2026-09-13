@@ -113,6 +113,20 @@ export class CreateProductDto {
   @MaxLength(255)
   shopifyTitle?: string;
 
+  /**
+   * «Tipo prodotto Shopify» (`product_type`): campo del CANALE, bidirezionale
+   * (docs/24 §9.5).
+   *
+   * ⛔ Non è la categoria interna, e non si deriva da lei: sono due dati
+   *    diversi, e su un articolo non ancora collegato questo si compila a
+   *    parte. Vuoto significa «non ancora acquisito», non «cancellalo su
+   *    Shopify»: il payload in uscita omette la chiave.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  shopifyProductType?: string;
+
   // ── Prezzi/costo a livello articolo ──
   /** Prezzo di vendita dell'articolo (dato vero, seed delle nuove varianti). */
   @ValidateNested()

@@ -902,7 +902,13 @@ model Product {
   shopifyTitle                    String?                 @map("shopify_title")
   description                     String?
   brand                           String?
-  /// Tipo prodotto Shopify (REST product_type) — organizzazione interna negozio.
+  /// Categoria VestiFlow: classificazione ESCLUSIVAMENTE gestionale, dal
+  /// vocabolario di catalog_categories. Non viene inviata a Shopify e Shopify
+  /// non la sovrascrive (docs/24 §9.5).
+  ///
+  /// ⛔ Qui c’era «Tipo prodotto Shopify (REST product_type)»: erano DUE campi
+  ///    in una colonna sola, e il commento lo dichiarava senza che nessuno se
+  ///    ne accorgesse. Il tipo prodotto Shopify vive ora in shopifyProductType.
   category                        String?
   /// Sottocategoria VestiFlow collegata alla categoria (vocabolario gestito
   /// in catalog_categories; salvata come testo, come la categoria).
@@ -924,6 +930,14 @@ model Product {
   shopifyCategoryMetafields       Json                    @default("[]") @map("shopify_category_metafields")
   status                          ProductStatus           @default(draft)
   // ── Cestino (docs/24 §4.1): cancellazione LOGICA, reversibile ──────────────
+  /// Tipo prodotto Shopify (REST `product_type`): campo del CANALE, in una
+  /// colonna sua e bidirezionale (docs/24 §9.5).
+  ///
+  /// ⚠️ `null` significa «non ancora acquisito», MAI «cancellalo su Shopify»:
+  ///    il payload in uscita omette la chiave, e Shopify lascia il valore che
+  ///    ha. La colonna nasce vuota per tutti — nessuna copia dalla categoria
+  ///    interna, che è un dato diverso (decisione del proprietario, 11/09/2026).
+  shopifyProductType              String?                 @map("shopify_product_type")
   /// `deletedAt != null` = NEL CESTINO. Non significa «eliminato definitivamente»:
   /// quella è la rimozione FISICA del record (§4.2) e non ha una colonna. Per la
   /// stessa ragione l'enum `status` NON ha un valore `deleted`: sarebbero due
@@ -2263,7 +2277,7 @@ model ShopifyInventorySyncState {
   //
   // ⭐ **Lo spegne la conferma di un invio, o il constatare che non c'e' piu'
   //    niente da mandare** (`unchanged`). Mai altro.
-  localPushPending             Boolean   @default(false) @map("local_push_pending")
+  localPushPending Boolean @default(false) @map("local_push_pending")
 
   // ── Il TENTATIVO di invio in corso, per poterlo ripetere dopo un riavvio ──
   //
@@ -2278,17 +2292,17 @@ model ShopifyInventorySyncState {
   //    "esattamente la stessa operazione" significa lo stesso negozio, lo stesso
   //    articolo di inventario, la stessa sede remota e lo stesso confronto.
   /// Chiave di idempotenza dell'operazione in corso. NULL = nessun tentativo aperto.
-  pendingKey                   String?   @unique @map("pending_key")
+  pendingKey         String?   @unique @map("pending_key")
   /// Quantita' pubblicabile che il tentativo sta scrivendo.
-  pendingAvailable             Int?      @map("pending_available")
+  pendingAvailable   Int?      @map("pending_available")
   /// Valore atteso usato nel confronto. NULL = inviato SENZA confronto.
-  pendingBase                  Int?      @map("pending_base")
+  pendingBase        Int?      @map("pending_base")
   /// Destinazione originale: negozio, articolo di inventario e sede remota.
-  pendingShopDomain            String?   @map("pending_shop_domain")
-  pendingItemId                String?   @map("pending_item_id")
-  pendingLocationRef           String?   @map("pending_location_ref")
+  pendingShopDomain  String?   @map("pending_shop_domain")
+  pendingItemId      String?   @map("pending_item_id")
+  pendingLocationRef String?   @map("pending_location_ref")
   /// Istante della prenotazione: decide se la finestra di idempotenza e' scaduta.
-  pendingAt                    DateTime? @map("pending_at")
+  pendingAt          DateTime? @map("pending_at")
 
   // ── Lo SCARICO dei contatori, fotografato alla PRESA ──────────────────────
   //
@@ -2310,8 +2324,8 @@ model ShopifyInventorySyncState {
   //
   // ⚠️ NULL = tentativo aperto PRIMA di questa colonna: la conferma ripiega
   //    sulla formula dell'invio ordinario.
-  pendingDischargeLocal        Int?      @map("pending_discharge_local")
-  pendingDischargeChannel      Int?      @map("pending_discharge_channel")
+  pendingDischargeLocal   Int? @map("pending_discharge_local")
+  pendingDischargeChannel Int? @map("pending_discharge_channel")
 
   /// Questa presa ha fatto NASCERE i contatori.
   ///
@@ -2324,7 +2338,7 @@ model ShopifyInventorySyncState {
   ///
   /// ⚠️ La chiusura riporta i contatori a NULL **solo se sono ancora a zero**:
   ///    se nel frattempo e' arrivato un movimento, quel lavoro esiste e resta.
-  pendingHaInizializzato       Boolean?  @map("pending_ha_inizializzato")
+  pendingHaInizializzato Boolean? @map("pending_ha_inizializzato")
 
   /// `L` — lo scostamento LOCALE non ancora trasmesso al canale.
   ///
@@ -2338,7 +2352,7 @@ model ShopifyInventorySyncState {
   /// ⚠️ **NULL = base non stabilita**, ed e' lo stato di partenza di ogni riga
   ///    esistente: la base la crea la PARTENZA CONTROLLATA (`docs/DA-FARE` §31.-1),
   ///    non il primo invio ordinario. Un NULL non si somma mai come zero.
-  localPendingDelta            Int?      @map("local_pending_delta")
+  localPendingDelta Int? @map("local_pending_delta")
 
   /// `C` — gli effetti di CANALE acquisiti dopo l'ultima conferma.
   ///
@@ -2347,7 +2361,7 @@ model ShopifyInventorySyncState {
   ///    rimandarglielo indietro.
   ///
   /// ⚠️ Stessa regola del NULL.
-  channelAcquiredDelta         Int?      @map("channel_acquired_delta")
+  channelAcquiredDelta Int? @map("channel_acquired_delta")
 
   /// Quando la coda del ritentativo ha ESAMINATO questa riga l'ultima volta.
   ///
@@ -2363,10 +2377,10 @@ model ShopifyInventorySyncState {
   ///    la passata dopo prosegue da quelle dietro.
   ///
   /// ⚠️ `null` = mai esaminata: sono le prime, e l'ordinamento le mette in testa.
-  lastAttemptAt                DateTime? @map("last_attempt_at")
+  lastAttemptAt DateTime? @map("last_attempt_at")
 
-  createdAt                    DateTime  @default(now()) @map("created_at")
-  updatedAt                    DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id])
   variant  ProductVariant @relation(fields: [variantId], references: [id])

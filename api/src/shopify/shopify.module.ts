@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { LocationLicensingModule } from '../inventory/location-licensing.module';
+import { MediaModule } from '../media/media.module';
 import { OrderReservationsModule } from '../order-reservations/order-reservations.module';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyAdminHttpClient } from './shopify-admin-http.client';
@@ -37,7 +38,7 @@ import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 import { ShopifyShopChangeService } from './shopify-shop-change.service';
 
 @Module({
-  imports: [LocationLicensingModule, OrderReservationsModule],
+  imports: [LocationLicensingModule, MediaModule, OrderReservationsModule],
   controllers: [ShopifyController, ShopifyWebhooksController],
   providers: [
     ShopifyConfigService,

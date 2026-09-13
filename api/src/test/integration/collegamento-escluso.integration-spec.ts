@@ -12,6 +12,7 @@ import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
 import { NegozioSimulato } from './shopify-simulato.util';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * 26.7 · **lo storico va rispettato dai percorsi operativi**, non solo scritto.
@@ -115,6 +116,7 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       negozio.enrichment() as never,
       storico,
       registro,
+      archivioImmaginiFinto() as never,
     );
   }
 

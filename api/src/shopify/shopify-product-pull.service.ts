@@ -17,9 +17,9 @@ import { nextArticleCodeInTx } from '../products/article-code.util';
 import {
   resolveCatalogOriginForShopifyImport,
   resolveShopifyCatalogLinkKindForImport,
-  shouldSkipShopifyCatalogImport,
 } from '../products/catalog-origin.util';
-import { syncProductImagesFromShopify } from '../products/product-images.sync';
+import { ImageArchiveService } from '../media/image-archive.service';
+import { sincronizzaImmaginiDaShopify } from '../products/product-images.sync';
 import type { ShopifyAdminProduct } from './shopify-admin.client';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConnectionService } from './shopify-connection.service';
@@ -42,6 +42,7 @@ import {
   resolveImportedShopifyCategoryMetafields,
   resolveImportedShopifyMetafields,
 } from './shopify-category-metafields.util';
+import { decidiCodiciImport, testoAnomalieImport } from './shopify-import-codici.util';
 import { parseShopifyTags } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
 import { shopifyBodyHtmlToPlainText } from './shopify-html.util';
@@ -60,6 +61,18 @@ export interface ShopifyCatalogSyncResult {
   readonly skipped: number;
   readonly remoteProductCount: number;
   readonly failed: readonly { shopifyProductId: string; message: string }[];
+  /**
+   * ⭐ Quanti prodotti remoti il CHIAMANTE ha chiesto di lasciare fuori
+   *    (`opzioni.escludi`): la prima connessione ci mette gli ambigui (`docs/27`
+   *    §4). Contati a parte da `skipped`, che è una decisione dell’import.
+   */
+  readonly esclusiDalChiamante: number;
+}
+
+/** Le opzioni di un lotto di import: oggi solo chi resta fuori. */
+export interface OpzioniPullCatalogo {
+  /** Id numerici Shopify dei prodotti da NON importare, decisi dal chiamante. */
+  readonly escludi?: ReadonlySet<string>;
 }
 
 type VariantOptionRow = { readonly name: string; readonly value: string };
@@ -98,6 +111,83 @@ const MOTIVO_RIAGGANCIO: Record<RiagganciRifiutati | RiagganciVarianteRifiutati,
   gid_di_un_altra: "il GID appartiene già a un'altra variante locale",
 };
 
+/**
+ * Serializzazione con le chiavi ORDINATE, per confrontare due JSON.
+ *
+ * ⚠️ Le colonne `Json` di Prisma sono `jsonb`, e Postgres **riordina le
+ *    chiavi**: confrontare `JSON.stringify` così com’è direbbe «diverso» a
+ *    ogni giro solo per l’ordine, e il confronto non servirebbe a niente.
+ */
+function canonico(valore: unknown): string {
+  return JSON.stringify(valore, (_chiave, v: unknown) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)),
+        )
+      : v,
+  );
+}
+
+/**
+ * La colonna contiene GIÀ questo valore?
+ *
+ * ⛔ **Non è un arbitraggio dei conflitti.** Non confronta istanti, non
+ *    stabilisce chi ha scritto per ultimo e non fa vincere nessuno: risponde
+ *    solo alla domanda «c’è qualcosa da scrivere?».
+ *
+ * ⚠️ **È CONSERVATIVO: nel dubbio risponde «diverso»**, e si scrive come
+ *    prima. Un falso «uguale» perderebbe una modifica in silenzio — molto
+ *    peggio di una scrittura di troppo.
+ */
+/** Un Decimal di Prisma si riconosce dal suo `toNumber()` (decimal.js). */
+function haToNumber(valore: unknown): boolean {
+  return typeof (valore as { toNumber?: unknown }).toNumber === 'function';
+}
+
+function valoreIdentico(nuovo: unknown, vecchio: unknown): boolean {
+  if (nuovo === vecchio) {
+    return true;
+  }
+  if (nuovo == null || vecchio == null) {
+    return false;
+  }
+  // I prezzi arrivano come numero e tornano come Decimal: senza questo ramo
+  // nessun articolo con un prezzo risulterebbe mai identico a se stesso.
+  if (haToNumber(nuovo) || haToNumber(vecchio)) {
+    return Number(nuovo) === Number(vecchio);
+  }
+  if (nuovo instanceof Date || vecchio instanceof Date) {
+    return false;
+  }
+  if (typeof nuovo === 'object' || typeof vecchio === 'object') {
+    return canonico(nuovo) === canonico(vecchio);
+  }
+  return false;
+}
+
+/**
+ * ⛔ **Un webhook che non cambia niente non deve scrivere niente.**
+ *
+ * L’effetto non era innocuo, ed è misurato: `@updatedAt` si sposta in avanti a
+ * ogni scrittura, e l’elenco catalogo è ordinato `updatedAt: desc`
+ * (`products.service.ts`). Un articolo che nessuno ha toccato saltava quindi in
+ * cima, spingendo giù quelli modificati davvero.
+ *
+ * ⚠️ `shopifyLastSyncAt` è ESCLUSO dal confronto perché è sempre diverso — è
+ *    `new Date()`. Ne discende che quando non cambia niente non si sposta: da
+ *    oggi segna **l’ultima sincronizzazione che ha cambiato qualcosa**, non
+ *    l’ultimo webhook ricevuto. È dichiarato, non un effetto collaterale.
+ */
+function nullaDaScrivere(
+  dati: Record<string, unknown>,
+  esistente: Record<string, unknown>,
+  escluse: readonly string[],
+): boolean {
+  return Object.entries(dati).every(
+    ([campo, valore]) => escluse.includes(campo) || valoreIdentico(valore, esistente[campo]),
+  );
+}
+
 @Injectable()
 export class ShopifyProductPullService {
   private readonly logger = new Logger(ShopifyProductPullService.name);
@@ -115,23 +205,31 @@ export class ShopifyProductPullService {
     private readonly storico: ShopifyLinkHistoryService,
     /** §10.3 · il registro UNICO: un import rifiutato vi lascia una riga, non solo un log. */
     private readonly registro: PlatformAuditService,
+    /** L'archivio immagini: la copia locale, cosi' l'articolo non dipende dal CDN. */
+    private readonly archivioImmagini: ImageArchiveService,
   ) {}
 
-  async pullCatalog(tenantId: string): Promise<ShopifyCatalogSyncResult> {
+  async pullCatalog(
+    tenantId: string,
+    opzioni: OpzioniPullCatalogo = {},
+  ): Promise<ShopifyCatalogSyncResult> {
     const inflight = this.catalogPullInFlight.get(tenantId);
     if (inflight) {
       this.logger.log(`Import catalogo già in corso (${tenantId}): join richiesta parallela`);
       return inflight;
     }
 
-    const job = this.executePullCatalog(tenantId).finally(() => {
+    const job = this.executePullCatalog(tenantId, opzioni).finally(() => {
       this.catalogPullInFlight.delete(tenantId);
     });
     this.catalogPullInFlight.set(tenantId, job);
     return job;
   }
 
-  private async executePullCatalog(tenantId: string): Promise<ShopifyCatalogSyncResult> {
+  private async executePullCatalog(
+    tenantId: string,
+    opzioni: OpzioniPullCatalogo,
+  ): Promise<ShopifyCatalogSyncResult> {
     await this.shopifyConnection.healStaleErrorStatus(tenantId);
 
     const connection = await this.prisma.shopifyConnection.findUnique({
@@ -177,11 +275,18 @@ export class ShopifyProductPullService {
     let imported = 0;
     let updated = 0;
     let skipped = 0;
+    let esclusiDalChiamante = 0;
     const failed: { shopifyProductId: string; message: string }[] = [];
     // ⭐ UNA correlazione per il LOTTO: ogni rifiuto di questo giro la porta.
     const ingresso: Ingresso = { attore: PlatformAuditActor.pull, correlationId: randomUUID() };
 
     for (const remote of remoteProducts) {
+      // ⛔ Deciso dal chiamante, PRIMA di ogni lettura: un ambiguo della prima
+      //    connessione non si importa e non si arricchisce (`docs/27` §4).
+      if (opzioni.escludi?.has(String(remote.id))) {
+        esclusiDalChiamante += 1;
+        continue;
+      }
       try {
         // ⛔ PRIMA dell'arricchimento: `enrichProduct` interroga Shopify, e un suo
         //    fallimento finisce nel catch qui sotto, che scrive sul prodotto. La
@@ -247,6 +352,7 @@ export class ShopifyProductPullService {
       updated,
       skipped,
       remoteProductCount: remoteProducts.length,
+      esclusiDalChiamante,
       failed,
     };
   }
@@ -335,7 +441,7 @@ export class ShopifyProductPullService {
     ingresso: Ingresso,
   ): Promise<'imported' | 'updated' | 'skipped'> {
     const shopifyProductId = String(remote.id);
-    return this.prisma.$transaction(async (tx) => {
+    const esito = await this.prisma.$transaction(async (tx) => {
       await this.serializzaImport(tx, tenantId, shopifyProductId);
       return this.importProductSerializzato(
         tx,
@@ -346,6 +452,53 @@ export class ShopifyProductPullService {
         ingresso,
       );
     }, PRODUCT_IMPORT_TX);
+
+    if (esito !== 'skipped') {
+      await this.sincronizzaImmagine(tenantId, shopifyProductId, remote);
+    }
+    return esito;
+  }
+
+  /**
+   * Le IMMAGINI, fuori dalla transazione.
+   *
+   * ⛔ **Archiviare vuol dire scaricare**, e questa classe tiene la rete fuori
+   *    dalla transazione di import: dentro ci sono il lock e le scritture, e
+   *    un download da venti secondi le terrebbe aperte per tutto quel tempo.
+   *
+   * ⚠️ **Un’anomalia qui non fa fallire l’import.** L’articolo è già entrato,
+   *    e un link caduto non è una rimozione: si registra e si prosegue.
+   *
+   * ⛔ **E qui non si cancella niente**: cancellare su Shopify non cancella in
+   *    VestiFlow (regola cambiata l’11/09/2026, sostituisce la precedente).
+   */
+  private async sincronizzaImmagine(
+    tenantId: string,
+    shopifyProductId: string,
+    remote: ShopifyAdminProduct,
+  ): Promise<void> {
+    const prodotto = await this.prisma.product.findFirst({
+      where: { tenantId, shopifyProductId },
+      select: { id: true },
+    });
+    if (!prodotto) {
+      return;
+    }
+
+    const esito = await sincronizzaImmaginiDaShopify(
+      this.prisma,
+      this.archivioImmagini,
+      tenantId,
+      prodotto.id,
+      remote.images,
+    );
+
+    if (esito.anomalie.length > 0) {
+      this.logger.warn(
+        `Immagini non archiviate (${tenantId}/${prodotto.id}): ` +
+          esito.anomalie.join(' · '),
+      );
+    }
   }
 
   /** Il lock transazionale su `(tenant, prodotto remoto)`: chi arriva secondo aspetta. */
@@ -421,27 +574,47 @@ export class ShopifyProductPullService {
     //    guardia esiste per impedire.
     const titoloShopify = remote.title.trim() || 'Prodotto Shopify';
 
-    if (existing && shouldSkipShopifyCatalogImport(existing)) {
-      // ⭐ Il catalogo resta di VestiFlow, ma il **Nome Shopify** no: è il titolo
-      //    della vetrina, ed è bidirezionale per contratto (docs/24 §1.9). Passa
-      //    solo lui: `Product.name` e il resto del catalogo restano fermi.
-      if (existing.shopifyTitle !== titoloShopify) {
-        await tx.product.updateMany({
-          where: { id: existing.id, tenantId },
-          data: { shopifyTitle: titoloShopify },
-        });
-      }
-      this.logger.debug(
-        `Import Shopify saltato: catalogo di origine VestiFlow (${shopifyProductId})`,
-      );
-      return 'skipped';
-    }
-
+    // ⛔ **Qui c’era la guardia d’ORIGINE**, e per un prodotto nato in
+    //    VestiFlow aggiornava il solo `shopifyTitle` prima di uscire: nessun
+    //    campo bidirezionale tornava indietro. Le regole per campo di
+    //    `docs/24` §9 **non guardano dove è nato l’articolo** (§9.12): decide
+    //    il campo, non la provenienza — e la guardia è stata SOSTITUITA, non
+    //    tolta. Ciò che resta di VestiFlow resta tale per tutti:
+    //
+    //      Product.name          fuori da `productData`, come sempre
+    //      articleCode           fuori, scritto solo alla creazione
+    //      category              fuori: categoria INTERNA (§9.5)
+    //      purchasePriceMinor    fuori dall’UPDATE: comanda VestiFlow (§9.11)
+    //      sellingPriceMinor     fuori: il prezzo articolo è dell’operatore
+    //
+    // ⚠️ `isVestiflowCatalogOwner` resta, e serve ancora: decide `catalogOrigin`
+    //    e `shopifyCatalogLinkKind`, cioè la PROVENIENZA. Quella è un’altra
+    //    domanda, e non autorizza più nessuna scrittura.
     const categorySyncError = categoryMetafieldsSyncErrorMessage(
       countCategoryMetafieldsWithValues(localCategoryMetafields),
       countCategoryMetafieldsWithValues(importedCategoryMetafields),
       existing?.shopifyLastError,
     );
+
+    // ── SKU e barcode: decisi UNA volta, prima del prodotto ──────────────────
+    //
+    // ⭐ D5 / difetto 26.1: un barcode già presente altrove faceva cadere
+    //    l'INSERT e l'intero prodotto finiva fra i `failed`. Ora la variante entra
+    //    senza quel barcode e il prodotto lo DICE (`shopifyLastError`, stato
+    //    `out_of_sync`), come già per la categoria: importato e segnalato.
+    //    Gli SKU presi ricevono il suffisso di sempre, e da oggi anche loro si
+    //    segnalano. Letto a lock preso, escluse le varianti di questo prodotto.
+    const [skuPresi, barcodePresi] = await Promise.all([
+      this.loadTenantSkus(tx, tenantId, existing?.id),
+      this.loadTenantBarcodes(tx, tenantId, existing?.id),
+    ]);
+    const codici = decidiCodiciImport(remote.variants, skuPresi, barcodePresi);
+    const erroreImport = testoAnomalieImport(categorySyncError, codici.anomalie);
+    if (codici.anomalie.length > 0) {
+      this.logger.warn(
+        `Import Shopify con anomalie di codici (${tenantId}/${shopifyProductId}): ${codici.anomalie.join(' · ')}`,
+      );
+    }
     // ⭐ Il titolo remoto è il NOME SHOPIFY, e da qui in poi solo quello: il nome
     //    interno appartiene a chi lavora in magazzino, e un ri-sync non glielo
     //    riscrive più (docs/24 §1.9). `name` sta fuori dall'allowlist apposta —
@@ -450,7 +623,12 @@ export class ShopifyProductPullService {
       shopifyTitle: titoloShopify,
       description: shopifyBodyHtmlToPlainText(remote.body_html),
       brand: remote.vendor?.trim() || null,
-      category: remote.product_type?.trim() || null,
+      // ⛔ **`category` NON è più qui**, ed è il cuore della separazione: la
+      //    categoria VestiFlow è una classificazione di magazzino, presa dal
+      //    vocabolario di `catalog_categories`, e Shopify non la sovrascrive
+      //    in nessun percorso (docs/24 §9.5). Fino all’11/09/2026 ci finiva
+      //    dentro `product_type`, e i due valori non si distinguevano più.
+      shopifyProductType: remote.product_type?.trim() || null,
       shopifyTaxonomyCategoryId:
         enrichment?.taxonomyCategoryId ?? existing?.shopifyTaxonomyCategoryId ?? null,
       shopifyTaxonomyCategoryFullName:
@@ -484,11 +662,9 @@ export class ShopifyProductPullService {
       status,
       options: options as unknown as Prisma.InputJsonValue,
       shopifyProductId,
-      shopifySyncStatus: categorySyncError
-        ? ShopifySyncStatus.out_of_sync
-        : ShopifySyncStatus.synced,
+      shopifySyncStatus: erroreImport ? ShopifySyncStatus.out_of_sync : ShopifySyncStatus.synced,
       shopifyLastSyncAt: new Date(),
-      shopifyLastError: categorySyncError,
+      shopifyLastError: erroreImport,
       catalogOrigin: existing
         ? resolveCatalogOriginForShopifyImport(existing)
         : CatalogOrigin.shopify,
@@ -517,7 +693,6 @@ export class ShopifyProductPullService {
       //    e non passa di qui. Dimostrato con due richieste davvero sovrapposte
       //    (`C1`, `C2`) e falsificato togliendo il lock — non dedotto dal
       //    contenitore in cui stanno le istruzioni.
-      const reservedSkus = await this.loadTenantSkus(tx, tenantId);
       const rifiuto = await this.verificaCreazioneAmmessa(tx, tenantId, shopifyProductId);
       if (rifiuto) {
         // ⛔ **Il rifiuto NON ferma il lotto** (`DA-FARE`, fase B): si registra
@@ -579,8 +754,7 @@ export class ShopifyProductPullService {
       //    la cache verrebbe scritta e `registraStorico` rifiuterebbe il
       //    riaggancio, registrandolo — non passerebbe in silenzio.
       for (const variant of remote.variants) {
-        const sku = this.resolveImportSku(reservedSkus, variant.sku, variant.id);
-        reservedSkus.add(sku.toLowerCase());
+        const { sku, barcode } = codici.perVariante.get(variant.id)!;
         const variantPriceMinor = shopifyDecimalToMinor(variant.price ?? '0');
         await tx.productVariant.create({
           data: {
@@ -588,7 +762,7 @@ export class ShopifyProductPullService {
             productId: product.id,
             sku,
             optionValues: this.mapVariantOptions(remote, variant),
-            barcode: variant.barcode ?? null,
+            barcode,
             currency: 'EUR',
             sellingPriceMinor: variantPriceMinor,
             shopifyPriceMinor: variantPriceMinor,
@@ -599,7 +773,9 @@ export class ShopifyProductPullService {
         });
       }
 
-      await syncProductImagesFromShopify(tx, tenantId, product.id, remote.images);
+      // ⛔ Le immagini NON si sincronizzano qui: questa transazione dichiara
+      //    di non fare rete, e archiviare una copia significa scaricarla. Ci
+      //    pensa `importProduct` a giro chiuso.
 
       // ── B2 · lo STORICO, nella stessa transazione delle colonne-cache ──
       //
@@ -611,7 +787,6 @@ export class ShopifyProductPullService {
       return 'imported';
     }
 
-    const reservedSkus = await this.loadTenantSkus(tx, tenantId, existing.id);
     // ⭐ La mappa nasce dalla lettura fatta DOPO il lock: una variante che
     //    l'altro import ha appena creato è già qui, e si AGGIORNA col payload
     //    più recente invece di finire nella guardia e venire saltata (`C5`).
@@ -654,44 +829,55 @@ export class ShopifyProductPullService {
       }
     }
 
-    await tx.product.update({
-      where: { id: existing.id },
-      data: {
-        ...productData,
-        // Ri-sync: si aggiorna SOLO il prezzo Shopify (dalla prima variante).
-        // Il prezzo articolo (gestionale) è dell'operatore, non si tocca più.
-        // Il barrato è dell'articolo ma resta sincronizzato (una sola versione).
-        shopifyPriceMinor: firstRemote ? shopifyDecimalToMinor(firstRemote.price ?? '0') : 0,
-        compareAtPriceMinor: firstRemote?.compare_at_price
-          ? shopifyDecimalToMinor(firstRemote.compare_at_price)
-          : null,
-        // ⛔ **Il costo non si azzera.** Un articolo comprato a 12,00 che
-        //    risulta a costo zero falsa il margine di ogni report, e nessuno
-        //    se ne accorge guardando la scheda.
-        //
-        // ⭐ Stesso ripiego che il ramo delle VARIANTI aveva gia'
-        //    (`?? matched?.purchasePriceMinor ?? 0`): qui mancava, e basta un
-        //    arricchimento caduto per perdere il costo di tutto il catalogo.
-        purchasePriceMinor: firstRemote
-          ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ??
-            existing.purchasePriceMinor ??
-            0)
-          : (existing.purchasePriceMinor ?? 0),
-      },
-    });
+    const datiProdotto = {
+      ...productData,
+      // Ri-sync: si aggiorna SOLO il prezzo Shopify (dalla prima variante).
+      // Il prezzo articolo (gestionale) è dell'operatore, non si tocca più.
+      // Il barrato è dell'articolo ma resta sincronizzato (una sola versione).
+      shopifyPriceMinor: firstRemote ? shopifyDecimalToMinor(firstRemote.price ?? '0') : 0,
+      compareAtPriceMinor: firstRemote?.compare_at_price
+        ? shopifyDecimalToMinor(firstRemote.compare_at_price)
+        : null,
+      // ⛔ **Il costo NON si scrive negli aggiornamenti: lo comanda
+      //    VestiFlow** (docs/24 §9.11). Lo determina l’arrivo merce, e da lui
+      //    dipende il margine di ogni report.
+      //
+      // ⚠️ Qui il costo Shopify VINCEVA su quello locale quando
+      //    l’arricchimento c’era; il ripiego su `existing` aggiunto il 10/09
+      //    chiudeva l’azzeramento, non la direzione. Ora il campo esce
+      //    proprio dall’allowlist: non passa nemmeno il valore identico.
+      //
+      // ⭐ La PRIMA importazione è un’altra cosa e resta dov’era, nel ramo di
+      //    creazione: è «da definire nel percorso iniziale» (§9.12), non
+      //    vietata, e le due non si prestano gli argomenti.
+    };
+
+    // ⛔ **Niente da scrivere = nessuna scrittura**, e non è un’ottimizzazione:
+    //    `updatedAt` ordina l’elenco catalogo, quindi un webhook a vuoto faceva
+    //    saltare in cima un articolo che nessuno aveva toccato.
+    //
+    // ⚠️ Non è un arbitraggio: non si confrontano istanti e non vince nessuno.
+    //    Si guarda solo se la colonna contiene già quel valore (§9.1, «la
+    //    sincronizzazione di ritorno non crea cicli»).
+    const prodottoFermo = nullaDaScrivere(datiProdotto, existing, ['shopifyLastSyncAt']);
+    if (!prodottoFermo) {
+      await tx.product.update({ where: { id: existing.id }, data: datiProdotto });
+    }
 
     for (const variant of remote.variants) {
       const shopifyVariantId = String(variant.id);
       const matched = byShopifyVariantId.get(shopifyVariantId);
-      const purchasePriceMinor =
-        enrichment?.variantPurchasePriceMinor.get(variant.id) ?? matched?.purchasePriceMinor ?? 0;
       const variantPriceMinor = shopifyDecimalToMinor(variant.price ?? '0');
       // Comune a match/nuova: il prezzo Shopify e i collegamenti si allineano.
+      //
+      // ⛔ **Il costo non sta qui**, e non è un dettaglio di forma: questo
+      //    oggetto lo usano sia l’aggiornamento sia la creazione, e su una
+      //    variante GIÀ ESISTENTE il costo lo comanda VestiFlow (§9.11).
+      //    Lo aggiunge la sola `create`, qui sotto.
       const variantSyncData = {
         optionValues: this.mapVariantOptions(remote, variant) as unknown as Prisma.InputJsonValue,
-        barcode: variant.barcode ?? null,
+        barcode: codici.perVariante.get(variant.id)!.barcode,
         shopifyPriceMinor: variantPriceMinor,
-        purchasePriceMinor,
         shopifyVariantId,
         shopifyInventoryItemId: String(variant.inventory_item_id),
       };
@@ -723,10 +909,15 @@ export class ShopifyProductPullService {
           }
         }
         // Variante esistente: NON si tocca il prezzo articolo (gestionale).
-        await tx.productVariant.update({
-          where: { id: matched.id },
-          data: variantSyncData,
-        });
+        //
+        // ⛔ E nemmeno si riscrive uguale: stessa regola del prodotto, stesso
+        //    effetto misurato sull’`updatedAt`.
+        if (!nullaDaScrivere(variantSyncData, matched, [])) {
+          await tx.productVariant.update({
+            where: { id: matched.id },
+            data: variantSyncData,
+          });
+        }
       } else {
         // ── B5-B6 · si può creare QUESTA variante? ───────────────────────
         //
@@ -756,22 +947,24 @@ export class ShopifyProductPullService {
 
         // Variante nuova comparsa su Shopify: prezzo articolo seminato dal
         // prezzo Shopify (nessun'altra fonte), poi indipendente.
-        const sku = this.resolveImportSku(reservedSkus, variant.sku, variant.id);
-        reservedSkus.add(sku.toLowerCase());
         await tx.productVariant.create({
           data: {
             tenantId,
             productId: existing.id,
-            sku,
+            sku: codici.perVariante.get(variant.id)!.sku,
             currency: 'EUR',
             sellingPriceMinor: variantPriceMinor,
+            // ⭐ Qui il costo SI acquisisce, e non contraddice §9.11: non c’è
+            //    nessun valore VestiFlow da proteggere — la variante nasce ora.
+            //    È la stessa acquisizione della prima importazione.
+            purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? 0,
             ...variantSyncData,
           },
         });
       }
     }
 
-    await syncProductImagesFromShopify(tx, tenantId, existing.id, remote.images);
+    // ⛔ Come sopra: l’immagine principale si archivia fuori dalla transazione.
 
     // ── B2 · lo storico anche sul RI-SYNC ────────────────────────────────
     //
@@ -1027,20 +1220,28 @@ export class ShopifyProductPullService {
     );
   }
 
-  private resolveImportSku(
-    reserved: Set<string>,
-    rawSku: string | null,
-    shopifyVariantId: number,
-  ): string {
-    const trimmed = rawSku?.trim();
-    if (trimmed && !reserved.has(trimmed.toLowerCase())) {
-      return trimmed;
-    }
-    const fallback = trimmed ? `${trimmed}-${shopifyVariantId}` : `SHOPIFY-${shopifyVariantId}`;
-    if (!reserved.has(fallback.toLowerCase())) {
-      return fallback;
-    }
-    return `SHOPIFY-${shopifyVariantId}-${Date.now()}`;
+  /**
+   * I barcode già presi nel tenant, con CHI li ha (per la segnalazione) — letti
+   * su `tx`, a lock preso, escluse le varianti di questo stesso prodotto.
+   */
+  private async loadTenantBarcodes(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    excludeProductId?: string,
+  ): Promise<Map<string, string>> {
+    const rows = await tx.productVariant.findMany({
+      where: {
+        tenantId,
+        barcode: { not: null },
+        ...(excludeProductId ? { productId: { not: excludeProductId } } : {}),
+      },
+      select: { barcode: true, sku: true, product: { select: { name: true } } },
+    });
+    return new Map(
+      rows
+        .filter((r): r is typeof r & { barcode: string } => Boolean(r.barcode))
+        .map((r) => [r.barcode, `«${r.sku ?? 'senza SKU'}» di «${r.product.name}»`]),
+    );
   }
 
   private mapOptions(remote: ShopifyAdminProduct): { name: string; values: string[] }[] {

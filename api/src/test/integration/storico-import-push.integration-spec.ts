@@ -7,6 +7,7 @@ import { ShopifyProductPullService } from '../../shopify/shopify-product-pull.se
 import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * B2 · l'IMPORT scrive lo storico — dal percorso applicativo vero.
@@ -128,6 +129,7 @@ describe('Import Shopify e storico dei collegamenti (B2)', () => {
         : new ShopifyLinkHistoryService(),
       // §10.3 · il registro vero: qui non si rifiuta niente, ma il servizio lo riceve.
       new PlatformAuditService(prisma as never, prisma as never),
+      archivioImmaginiFinto() as never,
     );
   }
 

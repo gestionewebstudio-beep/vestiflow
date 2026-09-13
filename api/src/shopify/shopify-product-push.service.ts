@@ -1417,7 +1417,12 @@ export class ShopifyProductPushService {
         );
         await this.prisma.productImage.update({
           where: { id: image.id },
-          data: { shopifyImageId: String(created.id), url: created.src },
+          // ⛔ **L’indirizzo della COPIA non si sovrascrive col CDN.** Qui
+          //    c’era `url: created.src`, e dopo un push l’articolo tornava a
+          //    puntare al file di Shopify — cioè disfaceva l’archiviazione,
+          //    e con lei la presenza dell’immagine nel backup, che copia il
+          //    bucket e non i link. Il legame lo tiene l’id, non l’URL.
+          data: { shopifyImageId: String(created.id) },
         });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Push immagine fallito';

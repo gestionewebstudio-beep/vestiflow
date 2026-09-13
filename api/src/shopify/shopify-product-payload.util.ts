@@ -21,7 +21,16 @@ export interface ProductForChannel {
   readonly shopifyTitle: string | null;
   readonly description: string | null;
   readonly brand: string | null;
-  readonly category: string | null;
+  /**
+   * Il «Tipo prodotto Shopify» (`product_type`), campo del CANALE.
+   *
+   * ⛔ NON è la categoria interna: quella non esce di qui in nessun
+   *    percorso (docs/24 §9.5). Erano lo stesso campo fino all’11/09/2026,
+   *    e questa riga mandava a Shopify la classificazione di magazzino.
+   *
+   * ⚠️ `null` significa «non ancora acquisito», MAI «cancellalo».
+   */
+  readonly shopifyProductType: string | null;
   readonly tags: readonly string[];
   readonly status: ProductStatus;
 }
@@ -55,7 +64,12 @@ export function productChannelFields(product: ProductForChannel): ProductChannel
     title: product.shopifyTitle ?? product.name,
     descriptionHtml: plainTextToShopifyBodyHtml(normalizeProductDescription(product.description)),
     vendor: product.brand ?? undefined,
-    productType: product.category ?? undefined,
+    // ⭐ Campo vuoto = chiave ASSENTE dal payload, non stringa vuota: Shopify
+    //    lascia allora il `product_type` che ha. È la differenza fra «non
+    //    l’ho ancora acquisito» e «cancellalo», e la colonna nasce vuota per
+    //    tutti (decisione del proprietario, 11/09/2026) — quindi il primo
+    //    invio dopo la separazione NON deve svuotare il tipo prodotto remoto.
+    productType: product.shopifyProductType ?? undefined,
     tags: product.tags.length > 0 ? [...product.tags] : undefined,
     status: shopifyProductStatus(product.status),
   };

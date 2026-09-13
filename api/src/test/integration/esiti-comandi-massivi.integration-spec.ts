@@ -13,6 +13,7 @@ import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
 import { NegozioSimulato } from './shopify-simulato.util';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * **Gli esiti dei comandi MASSIVI dicono la verità.**
@@ -158,6 +159,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
       negozio.enrichment() as never,
       storico,
       registro,
+      archivioImmaginiFinto() as never,
     );
   }
 
@@ -928,6 +930,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
       { enrichProduct: vi.fn().mockRejectedValue(new Error('canale non raggiungibile')) } as never,
       storico,
       registro,
+      archivioImmaginiFinto() as never,
     );
 
     const esito = await importFallato.pullCatalog(IDS.tenantA);
@@ -966,6 +969,7 @@ describe('Esiti veritieri dei comandi massivi', () => {
       } as never,
       storico,
       registro,
+      archivioImmaginiFinto() as never,
     );
 
     const esito = await importParziale.pullCatalog(IDS.tenantA);

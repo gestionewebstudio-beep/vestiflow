@@ -5,6 +5,7 @@ import { SupplierOrdersModule } from '../supplier-orders/supplier-orders.module'
 import { ShopifyModule } from '../shopify/shopify.module';
 import { CatalogCategoriesController } from './catalog-categories.controller';
 import { CatalogCategoriesService } from './catalog-categories.service';
+import { MediaModule } from '../media/media.module';
 import { ProductMediaService } from './product-media.service';
 import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { ProductsController } from './products.controller';
@@ -14,7 +15,7 @@ import { ProductsService } from './products.service';
 import { SkuGeneratorService } from './sku-generator.service';
 
 @Module({
-  imports: [ChannelsModule, ShopifyModule, SupplierOrdersModule],
+  imports: [ChannelsModule, MediaModule, ShopifyModule, SupplierOrdersModule],
   controllers: [ProductsController, CatalogCategoriesController],
   providers: [
     ProductsService,

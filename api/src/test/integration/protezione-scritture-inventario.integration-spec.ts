@@ -17,6 +17,7 @@ import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
 import { NegozioSimulato } from './shopify-simulato.util';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * **La protezione delle scritture di inventario verso Shopify.**
@@ -152,6 +153,7 @@ describe('Protezione delle scritture di inventario', () => {
       negozio.enrichment() as never,
       storico,
       registro,
+      archivioImmaginiFinto() as never,
     );
   }
 

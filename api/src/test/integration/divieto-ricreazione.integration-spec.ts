@@ -7,6 +7,7 @@ import { ShopifyProductPullService } from '../../shopify/shopify-product-pull.se
 import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * B5-B6 · **il divieto di ricreazione**, dal servizio di import reale.
@@ -131,6 +132,7 @@ describe('Divieto di ricreazione all import (B5-B6)', () => {
       (opzioni.storico ?? storico) as never,
       // §10.3 · il registro VERO: ogni rifiuto qui sotto deve lasciarvi una riga.
       (opzioni.registro ?? new PlatformAuditService(prisma as never, prisma as never)) as never,
+      archivioImmaginiFinto() as never,
     );
     return service;
   }

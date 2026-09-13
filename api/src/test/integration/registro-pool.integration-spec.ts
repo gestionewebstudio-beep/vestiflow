@@ -7,6 +7,7 @@ import { ShopifyProductPullService } from '../../shopify/shopify-product-pull.se
 import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * §10.3 · il COSTO del registro sul pool di connessioni — difetto misurato e
@@ -200,6 +201,7 @@ describe('Registro dei rifiuti e pool di connessioni (§10.3, limite del condivi
       } as never,
       storico,
       registro as never,
+      archivioImmaginiFinto() as never,
     );
   }
 

@@ -8,6 +8,10 @@ import type { PrismaService } from '../prisma/prisma.service';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { ProductsImportService } from './products-import.service';
 
+import { ImmagineNonScaricata } from '../media/image-archive.service';
+
+import type { ImageArchiveService } from '../media/image-archive.service';
+
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 
 const CSV_HEADER = `Handle,Title,Body (HTML),Vendor,Type,Tags,Published,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare-at Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / AdWords Grouping,Google Shopping / AdWords Labels,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Status`;
@@ -55,11 +59,16 @@ describe('ProductsImportService', () => {
         $queryRaw: vi.fn().mockResolvedValue([]),
       }),
     );
+    // ⭐ Le immagini si ARCHIVIANO, non si scrivono come link: il servizio
+    //    media è quindi una dipendenza dell’import. Qui è finto e conta le
+    //    chiamate — le prove del download vero stanno nella sua spec.
+    const media = { importaImmagineDaUrl: vi.fn().mockResolvedValue({ id: 'img-1' }) };
     const service = new ProductsImportService(
       prisma as unknown as PrismaService,
       channelSync as unknown as ChannelSyncFacade,
+      media as unknown as ImageArchiveService,
     );
-    return { service, prisma, channelSync };
+    return { service, prisma, channelSync, media };
   }
 
   it('previewCsv restituisce anteprima prodotti pronti', async () => {
@@ -426,6 +435,130 @@ dup-b,Prodotto Doppio,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-DUP-B,
       for (const variant of data.variants.create) {
         expect(variant.purchasePriceMinor).toBe(0);
       }
+    });
+  });
+
+  /**
+   * ⛔ **UN LINK CADUTO NON È UN'IMMAGINE CANCELLATA.**
+   *
+   * L'import porta ora le immagini nell'archivio VestiFlow invece di scriverne il
+   * link: l'articolo usa la copia, e non dipende più dal fatto che quel file resti
+   * sul CDN — dove non finiva nemmeno nel backup.
+   *
+   * ⚠️ Il caso che conta è quello PARZIALE: su tre immagini una non arriva. Le
+   *    altre due devono restare, l'articolo deve entrare, e l'anomalia deve essere
+   *    scritta nel rapporto — non nascosta e non trasformata in un fallimento.
+   */
+  describe('⛔ import: le immagini si ARCHIVIANO, e un fallimento non cancella', () => {
+    const CSV_TRE_IMMAGINI = `${CSV_HEADER}
+  maglietta-test,Maglietta Test,<p>Cotone</p>,Brand,Abbigliamento,,TRUE,Taglia,S,,,,,SKU-IMG-1,,,1,deny,manual,29.90,,TRUE,TRUE,,https://cdn.esempio.test/1.png,Prima,,,,,,,,,,,,,,,,,,,active
+  maglietta-test,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.esempio.test/2.png,Seconda,,,,,,,,,,,,,,,,,,,
+  maglietta-test,,,,,,,,,,,,,,,,,,,,,,,,https://cdn.esempio.test/3.png,Terza,,,,,,,,,,,,,,,,,,,
+  `;
+
+    it('⭐ ogni link del file diventa una copia in archivio', async () => {
+      const { service, media, prisma } = createService();
+      prisma.product.create.mockResolvedValue({
+        id: 'prod-1',
+        name: 'Maglietta Test',
+        articleCode: '00001',
+        variants: [{ sku: 'SKU-IMG-1' }],
+      });
+      const esito = await service.importCsv('tenant-1', CSV_TRE_IMMAGINI);
+
+      expect(esito.imported).toBe(1);
+      expect(media.importaImmagineDaUrl).toHaveBeenCalledTimes(3);
+      // ⭐ Il link arriva al servizio media per essere SCARICATO, e non viene
+      //    scritto come indirizzo dell'immagine: quello lo decide l'archivio.
+      const indirizzi = media.importaImmagineDaUrl.mock.calls.map(
+        (chiamata: unknown[]) => (chiamata[2] as { url: string }).url,
+      );
+      expect(indirizzi).toEqual([
+        'https://cdn.esempio.test/1.png',
+        'https://cdn.esempio.test/2.png',
+        'https://cdn.esempio.test/3.png',
+      ]);
+    });
+
+    it('⛔ nessuna immagine viene più scritta come LINK dentro la create del prodotto', async () => {
+      // ⚠️ È il difetto che il blocco chiude: la `create` annidata scriveva
+      //    `url: <link remoto>` con `storagePath` vuoto.
+      const { service, prisma } = createService();
+      prisma.product.create.mockResolvedValue({
+        id: 'prod-1',
+        name: 'Maglietta Test',
+        articleCode: '00001',
+        variants: [{ sku: 'SKU-IMG-1' }],
+      });
+      await service.importCsv('tenant-1', CSV_TRE_IMMAGINI);
+
+      const [[chiamata]] = prisma.product.create.mock.calls as [[{ data: Record<string, unknown> }]];
+      expect(chiamata.data).not.toHaveProperty('images');
+      expect(JSON.stringify(chiamata.data)).not.toContain('cdn.esempio.test');
+    });
+
+    it('⭐ un download fallito: le altre restano, l’articolo entra, l’anomalia si vede', async () => {
+      const { service, media, prisma } = createService();
+      prisma.product.create.mockResolvedValue({
+        id: 'prod-1',
+        name: 'Maglietta Test',
+        articleCode: '00001',
+        variants: [{ sku: 'SKU-IMG-1' }],
+      });
+      media.importaImmagineDaUrl.mockImplementation(
+        async (_t: string, _p: string, origine: { url: string }) => {
+          if (origine.url.endsWith('2.png')) {
+            throw new ImmagineNonScaricata(origine.url, 'risposta 404');
+          }
+          return { id: 'img' };
+        },
+      );
+
+      const esito = await service.importCsv('tenant-1', CSV_TRE_IMMAGINI);
+
+      // ⭐ L'articolo NON fallisce per un'immagine: è importato.
+      expect(esito.imported).toBe(1);
+      expect(esito.failed).toBe(0);
+      // ⭐ E le altre due sono state archiviate lo stesso: un fallimento non
+      //    interrompe il giro e non torna indietro su quelle riuscite.
+      expect(media.importaImmagineDaUrl).toHaveBeenCalledTimes(3);
+      // ⭐ L'anomalia è scritta, col link e col motivo: non si perde nel log.
+      const riga = esito.products[0]!;
+      expect(riga.status).toBe('imported');
+      expect(riga.message).toContain('1 su 3');
+      expect(riga.message).toContain('2.png');
+      expect(riga.message).toContain('404');
+    });
+
+    it('⛔ e se cadono TUTTE, l’articolo entra comunque senza immagini', async () => {
+      // ⚠️ Un catalogo che non si importa perché il CDN è irraggiungibile sarebbe
+      //    peggio del difetto: il dato commerciale non dipende dalle foto.
+      const { service, media, prisma } = createService();
+      prisma.product.create.mockResolvedValue({
+        id: 'prod-1',
+        name: 'Maglietta Test',
+        articleCode: '00001',
+        variants: [{ sku: 'SKU-IMG-1' }],
+      });
+      media.importaImmagineDaUrl.mockRejectedValue(
+        new ImmagineNonScaricata('https://cdn.esempio.test/1.png', 'rete assente'),
+      );
+
+      const esito = await service.importCsv('tenant-1', CSV_TRE_IMMAGINI);
+
+      expect(esito.imported).toBe(1);
+      expect(esito.products[0]?.message).toContain('3 su 3');
+    });
+
+    it('⛔ ripetere l’import non duplica: l’articolo c’è già e si salta prima delle immagini', async () => {
+      const { service, media } = createService([], [{ name: 'Maglietta Test' }]);
+
+      const esito = await service.importCsv('tenant-1', CSV_TRE_IMMAGINI);
+
+      expect(esito.imported).toBe(0);
+      expect(esito.skipped).toBe(1);
+      // ⭐ E non si scarica niente: nessuna copia in più in archivio.
+      expect(media.importaImmagineDaUrl).not.toHaveBeenCalled();
     });
   });
 });

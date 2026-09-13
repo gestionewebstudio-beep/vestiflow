@@ -8,6 +8,7 @@ import { attendiBloccoCausatoDa } from './concorrenza.util';
 import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * Due import DAVVERO sovrapposti, sul percorso applicativo reale.
@@ -257,6 +258,7 @@ describe('Import Shopify — due richieste sovrapposte (§25 corretto, verifica 
       // §10.3 · il registro VERO: qui nessun import viene rifiutato, ma il
       //    servizio lo riceve come in produzione.
       new PlatformAuditService(prisma as never, prisma as never),
+      archivioImmaginiFinto() as never,
     );
   }
 

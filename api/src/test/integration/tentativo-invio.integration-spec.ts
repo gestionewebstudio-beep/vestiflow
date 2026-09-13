@@ -16,6 +16,7 @@ import { ambienteIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
 import { NegozioSimulato } from './shopify-simulato.util';
+import { archivioImmaginiFinto } from './archivio-immagini-finto';
 
 /**
  * **Il TENTATIVO di invio: persistente, ripetibile, e distinto dalla conferma.**
@@ -122,6 +123,7 @@ describe('Tentativo di invio inventario — conservazione e recupero', () => {
       negozio.enrichment() as never,
       storico,
       registro,
+      archivioImmaginiFinto() as never,
     );
   }
 

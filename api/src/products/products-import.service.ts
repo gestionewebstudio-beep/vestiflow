@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { resolveArticleCodeForCreateInTx } from './article-code.util';
+import { ImageArchiveService, ImmagineNonScaricata } from '../media/image-archive.service';
 import type { CreateVariantDto } from './dto/create-product.dto';
 import {
   buildImportPreview,
@@ -52,6 +53,7 @@ export class ProductsImportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly media: ImageArchiveService,
   ) {}
 
   async previewCsv(tenantId: string, csvText: string): Promise<ImportPreviewResult> {
@@ -141,6 +143,14 @@ export class ProductsImportService {
         if (articleCodeGenerated) {
           articleCodesGenerated += 1;
         }
+        // ⭐ Le immagini si archiviano ORA, a prodotto creato e transazione
+        //    chiusa. Un link caduto diventa un’anomalia scritta nel rapporto,
+        //    non un articolo perduto e non un’immagine cancellata.
+        const anomalieImmagini = await this.archiviaImmagini(
+          tenantId,
+          created.id,
+          product.images,
+        );
         results.push({
           handle: product.handle,
           productId: created.id,
@@ -148,6 +158,11 @@ export class ProductsImportService {
           status: 'imported',
           articleCode: created.articleCode,
           articleCodeGenerated,
+          ...(anomalieImmagini.length > 0
+            ? {
+                message: `Immagini non scaricate (${anomalieImmagini.length} su ${product.images.length}): ${anomalieImmagini.join(' · ')}`,
+              }
+            : {}),
         });
       } catch (error: unknown) {
         failed += 1;
@@ -231,6 +246,47 @@ export class ProductsImportService {
     return { handles, names };
   }
 
+  /**
+   * Scarica e archivia le immagini di un articolo appena importato.
+   *
+   * ⛔ **Un download caduto NON cancella e NON ferma.** Le immagini riuscite
+   *    restano dove sono, le altre diventano una riga di anomalia nel
+   *    rapporto: un link irraggiungibile non è una rimozione, ed è la
+   *    differenza fra «non è arrivata» e «non c’è più».
+   *
+   * ⚠️ **Una per volta, non in parallelo.** Un file di catalogo può portare
+   *    centinaia di link: lanciarli tutti insieme sarebbe una raffica verso un
+   *    dominio solo, e la prima cosa che succede è che risponde 429.
+   */
+  private async archiviaImmagini(
+    tenantId: string,
+    productId: string,
+    immagini: readonly { readonly url: string; readonly altText: string | null; readonly sortOrder: number }[],
+  ): Promise<readonly string[]> {
+    const anomalie: string[] = [];
+    for (const immagine of immagini) {
+      try {
+        await this.media.importaImmagineDaUrl(tenantId, productId, {
+          url: immagine.url,
+          altText: immagine.altText,
+          sortOrder: immagine.sortOrder,
+        });
+      } catch (errore: unknown) {
+        const motivo =
+          errore instanceof ImmagineNonScaricata
+            ? errore.motivo
+            : errore instanceof Error
+              ? errore.message
+              : 'errore sconosciuto';
+        this.logger.warn(
+          `Immagine non archiviata (${productId}): ${immagine.url} — ${motivo}`,
+        );
+        anomalie.push(`${immagine.url.slice(0, 120)} (${motivo.slice(0, 120)})`);
+      }
+    }
+    return anomalie;
+  }
+
   private async createFromParsedProduct(
     tenantId: string,
     parsed: ParsedImportProduct,
@@ -280,18 +336,14 @@ export class ProductsImportService {
           variants: {
             create: variantInputs,
           },
-          ...(parsed.images.length > 0
-            ? {
-                images: {
-                  create: parsed.images.map((image) => ({
-                    tenantId,
-                    url: image.url,
-                    altText: image.altText,
-                    sortOrder: image.sortOrder,
-                  })),
-                },
-              }
-            : {}),
+          // ⛔ **Le immagini NON si creano più qui**, e non è un riordino: qui
+          //    si scriveva il LINK remoto come indirizzo dell’immagine, quindi
+          //    l’articolo dipendeva dal fatto che quel file restasse sul CDN —
+          //    e non finiva nemmeno nel backup, che copia il bucket, non i
+          //    link. Ora si scaricano e si archiviano, FUORI da questa
+          //    transazione: una rete lenta non deve tenere aperta una
+          //    transazione di database, e un download caduto non deve far
+          //    rotolare indietro il prodotto.
         },
         include: { variants: true, images: { orderBy: { sortOrder: 'asc' } } },
       });
