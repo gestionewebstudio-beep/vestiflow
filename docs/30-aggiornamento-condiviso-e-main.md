@@ -362,3 +362,18 @@ e `conteggi-origine-copia.json` restano sul PC.
 | Impostazioni → Shopify: grafica e disposizione                                                                                                                                                                         | `DA-FARE` §10g (visto dal proprietario durante la fase 2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | il tenant del collega                                                                                                                                                                                                  | fasi 5-6 quando decide lui; nessun intervento                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | accessi CLI Railway e Firebase                                                                                                                                                                                         | ancora attivi; conservarli o toglierli si decide con il proprietario                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+### 9.2 Decisione del proprietario a chiusura del blocco — 14/09/2026
+
+> **I dati attuali sono soltanto di prova e non si sistemano oltre.** Dopo le prossime
+> implementazioni si preparerà una **nuova azienda/tenant di prova pulita**.
+
+| Vale da oggi                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------- |
+| ⛔ nessuna rilettura degli 11 ordini storici («Importa ordini»), nessun «Allinea giacenze» per ripulire, **nessuna cancellazione** |
+| ⏸ il limite sulle quantità (338 combinazioni variante/sede senza stato di invio) **resta dichiarato**, non risolto                 |
+| ⏸ la **prova 7** (partenza VestiFlow → Shopify sul negozio vero) **resta non eseguita**: si affronta nel collaudo pulito           |
+| i documenti del blocco entrano in `develop` con la PR #12 (solo `docs/`); **nessun passaggio a `main` per i soli documenti**       |
+
+Con questo il blocco «rilascio e documentazione» del 14/09 è **chiuso**, con i residui espliciti in
+`DA-FARE` §10g; si torna alle implementazioni da decidere.
