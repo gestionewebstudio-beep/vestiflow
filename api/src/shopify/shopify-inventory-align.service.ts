@@ -1,12 +1,24 @@
 import { Injectable, UnprocessableEntityException, Logger } from '@nestjs/common';
 // `Prisma` serve come VALORE, non solo come tipo: compone la clausola del
 // cursore, che c'è solo dai blocchi successivi al primo.
-import { Prisma } from '@prisma/client';
+import { Prisma, ShopifyConnectionStatus } from '@prisma/client';
 
 import { variantLabel } from '../common/variant-label.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { motivoQuantitaFerma, ordiniApertiSenzaSede } from './shopify-ordini-senza-sede.util';
+
+/**
+ * ⛔ Senza un negozio collegato «Allinea giacenze» NON è eseguibile (proprietario,
+ *    14/09/2026): il comando si ferma PRIMA con questo motivo — come per gli ordini senza
+ *    sede — invece di concludere a vuoto («0 esaminati»), che a chi non vede lo stato
+ *    della connessione non direbbe perché. Nessuna chiamata al canale, nessuna scrittura.
+ *    ⚠️ È un caso diverso dal negozio COLLEGATO con zero coppie nel perimetro, che
+ *    conclude regolarmente a zero.
+ */
+export const MOTIVO_NEGOZIO_NON_COLLEGATO =
+  'Nessun negozio Shopify collegato: «Allinea giacenze su Shopify» non è eseguibile. ' +
+  'Il titolare collega il negozio da Impostazioni → Shopify → Connessione e sedi.';
 import type { ShopifyInventoryPushResult } from './shopify-inventory-push.service';
 
 /**
@@ -245,6 +257,13 @@ export class ShopifyInventoryAlignService {
     //    fermerebbe comunque le coppie coinvolte (`ordine_senza_sede`), ma
     //    «Allinea» è un comando dell'operatore e deve dire PRIMA perché non parte
     //    e che cosa fare (collaudo del 13/09/2026, decisione del proprietario).
+    const connessione = await this.prisma.shopifyConnection.findUnique({
+      where: { tenantId },
+      select: { status: true },
+    });
+    if (!connessione || connessione.status !== ShopifyConnectionStatus.connected) {
+      throw new UnprocessableEntityException(MOTIVO_NEGOZIO_NON_COLLEGATO);
+    }
     const senzaSede = await ordiniApertiSenzaSede(this.prisma, tenantId);
     if (senzaSede.length > 0) {
       throw new UnprocessableEntityException(motivoQuantitaFerma(senzaSede));

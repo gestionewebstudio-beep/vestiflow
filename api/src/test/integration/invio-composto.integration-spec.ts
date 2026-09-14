@@ -14,7 +14,10 @@ import { StockReservationService } from '../../order-reservations/stock-reservat
 import { StoreSalesService } from '../../store-sales/store-sales.service';
 import { applyCommittedDelta } from '../../order-reservations/committed-delta.util';
 import { applyInventoryDelta } from '../../inventory/inventory-level-delta.util';
-import { ShopifyInventoryAlignService } from '../../shopify/shopify-inventory-align.service';
+import {
+  MOTIVO_NEGOZIO_NON_COLLEGATO,
+  ShopifyInventoryAlignService,
+} from '../../shopify/shopify-inventory-align.service';
 import type {
   BloccoAllineamento,
   CoppiaNonAllineata,
@@ -1411,9 +1414,7 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
             lastPushedAvailable: 5,
             localPendingDelta: 0,
             channelAcquiredDelta: 0,
-            lastAttemptAt: esaminateDa
-              ? new Date(esaminateDa.getTime() + i * 1000)
-              : null,
+            lastAttemptAt: esaminateDa ? new Date(esaminateDa.getTime() + i * 1000) : null,
           },
         });
         // Le prime portano già il valore; dall'indice in poi differiscono.
@@ -1617,6 +1618,50 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
       expect((await stato()).localPendingDelta).toBe(0);
       expect((await stato()).lastPushedAvailable).toBe(10);
       expect(esito.nonAllineate).toEqual([]);
+    });
+
+    it('⛔ senza un negozio collegato il comando NON è eseguibile: motivo, nessuna chiamata, nessuna scrittura', async () => {
+      await senzaBase();
+      negozio.impostaQuantitaRemota(inventoryItemId, SEDE_REMOTA, 3);
+      // Il negozio non è (più) collegato: come dopo «Disconnetti».
+      await prisma.shopifyConnection.update({
+        where: { tenantId: IDS.tenantA },
+        data: { status: 'not_connected' },
+      });
+      const prima = await stato();
+      negozio.azzeraChiamate();
+
+      await expect(allineatore().allinea(IDS.tenantA)).rejects.toMatchObject({
+        status: 422,
+        message: MOTIVO_NEGOZIO_NON_COLLEGATO,
+      });
+
+      // ⛔ Niente è partito e niente è stato toccato: nessuna lettura né scrittura sul
+      //    canale, la riga di stato com'era (nemmeno «esaminata»).
+      expect(negozio.totaleChiamate()).toBe(0);
+      expect(negozio.quantitaMandate).toEqual([]);
+      expect(await stato()).toEqual(prima);
+    });
+
+    it('⭐ negozio COLLEGATO con zero coppie nel perimetro: conclude regolarmente a zero', async () => {
+      // Il perimetro sono le coppie (sede collegata × variante collegata × articolo
+      // sincronizzato): con la variante scollegata è vuoto, e il comando lo dice.
+      await prisma.productVariant.update({
+        where: { id: variantId },
+        data: { shopifyVariantId: null },
+      });
+      negozio.azzeraChiamate();
+
+      const esito = await allineatore().allinea(IDS.tenantA);
+
+      expect(esito).toMatchObject({
+        esaminate: 0,
+        allineate: 0,
+        giaAllineate: 0,
+        nonAllineate: [],
+        fine: true,
+      });
+      expect(negozio.totaleChiamate()).toBe(0);
     });
 
     it('⭐ RIPRENDERE non duplica: la seconda passata non riscrive', async () => {
@@ -2437,9 +2482,7 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
         expect(conMotivo(giro as never, 'errore_di_lettura')).toBe(205);
         // ⭐ **E il conto torna**: ogni coppia esaminata e' finita in uno dei tre
         //    esiti, nessuna e' sparita e nessuna e' stata contata due volte.
-        expect(giro.allineate + giro.giaAllineate + giro.nonAllineate.length).toBe(
-          giro.esaminate,
-        );
+        expect(giro.allineate + giro.giaAllineate + giro.nonAllineate.length).toBe(giro.esaminate);
         expect(giro.esaminate).toBe(giro.totale);
       });
 
@@ -2741,9 +2784,9 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
             prismaCheSiArresta(() => (restanti -= 1) === 0) as never,
             nuovoEsecutore() as never,
           );
-          await expect(
-            arrestato.allinea(IDS.tenantA, primo.prossimo ?? undefined),
-          ).rejects.toThrow('arresto simulato');
+          await expect(arrestato.allinea(IDS.tenantA, primo.prossimo ?? undefined)).rejects.toThrow(
+            'arresto simulato',
+          );
 
           // ⭐ **Niente si dichiara concluso**: chi ha premuto non ha mai visto
           //    `fine`, e l'unica cosa vera è che il controllo è incompleto.
@@ -2817,8 +2860,9 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
             return letto;
           }) as typeof letturaVera;
 
-          const giro = await giroCompleto(() =>
-            new ShopifyInventoryAlignService(prisma as never, nuovoEsecutore(graphql) as never),
+          const giro = await giroCompleto(
+            () =>
+              new ShopifyInventoryAlignService(prisma as never, nuovoEsecutore(graphql) as never),
           );
 
           // ⭐ **Il confronto ha respinto quella scrittura**, e le altre due sono
@@ -2865,7 +2909,6 @@ describe('Invio composto — il percorso completo su servizi reali', () => {
           });
         }
       });
-
     });
   });
 });

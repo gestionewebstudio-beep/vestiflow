@@ -117,23 +117,22 @@ describe('Impostazioni → Shopify: browser → API → PostgreSQL isolato', () 
       await browserExpect(page.getByRole('button', { name: 'Importa catalogo' })).toHaveCount(0);
       await browserExpect(page.getByRole('heading', { name: 'Configurazione' })).toHaveCount(0);
 
-      // Il comando parte davvero e l'esito compare nella sezione delle operazioni, non
-      // un 500. ⚠️ Senza un negozio collegato «Allinea» oggi CONCLUDE il controllo con
-      // zero coppie esaminate (201, «Controllo completato — 0 esaminati»), non rifiuta con
-      // «nessun negozio collegato» come faceva il comando precedente (4xx): misurato il
-      // 14/09/2026 in questa prova; se debba invece fermarsi con un motivo è una decisione
-      // registrata in `DA-FARE` §10g, non un'attesa da forzare qui.
+      // Il comando parte davvero: senza un negozio collegato l'API lo dichiara NON
+      // eseguibile con un motivo (422, `MOTIVO_NEGOZIO_NON_COLLEGATO`), non con un 500 e
+      // non con un «Controllo completato — 0 esaminati» (misurato il 14/09/2026 e
+      // corretto: proprietario, «nessun completamento fittizio a zero»). Il motivo
+      // compare nella sezione delle operazioni, dove chi non gestisce Shopify legge gli
+      // esiti. Diverso dal negozio collegato con zero articoli, che conclude a zero.
       await page.getByRole('button', { name: 'Allinea giacenze su Shopify' }).click();
       const esiti = page.getByRole('region', { name: /Operazioni avviate manualmente/ });
-      await browserExpect(
-        esiti.getByRole('alert').or(esiti.getByRole('status')).first(),
-      ).toBeVisible();
-      await browserExpect(esiti.getByText(/Controllo completato/)).toBeVisible();
+      await browserExpect(esiti.getByRole('alert').first()).toBeVisible();
+      await browserExpect(esiti.getByText(/Nessun negozio Shopify collegato/)).toBeVisible();
+      await browserExpect(esiti.getByText(/Controllo completato/)).toHaveCount(0);
       await page.screenshot({ path: resolve(artifacts, 'commesso-giacenze.png'), fullPage: true });
 
       const sync = server.requests.filter((r) => r.path === '/api/v1/shopify/sync/inventory/align');
       expect(sync.length, JSON.stringify(server.requests)).toBeGreaterThanOrEqual(1);
-      expect(sync[0]!.status).toBeLessThan(500);
+      expect(sync[0]!.status).toBe(422);
       // La connessione — che a un commesso l'API negherebbe — non viene chiesta.
       expect(server.requests.some((r) => r.path === '/api/v1/shopify/connection')).toBe(false);
 
