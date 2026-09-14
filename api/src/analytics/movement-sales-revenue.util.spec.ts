@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   movementRevenueMinor,
-  onlineOriginalKey,
   type RevenueLineMaps,
   type SaleMovementLike,
 } from './movement-sales-revenue.util';
@@ -11,7 +10,6 @@ import {
 const maps: RevenueLineMaps = {
   documentLineTotal: new Map([['doc-line-1', 2990]]),
   onlineSaleLineTotal: new Map([['online-line-1', 4500]]),
-  onlineOriginalUnitPrice: new Map([[onlineOriginalKey('sale-9', 'var-1'), 1500]]),
 };
 
 function movement(overrides: Partial<SaleMovementLike>): SaleMovementLike {
@@ -43,7 +41,10 @@ describe('movementRevenueMinor', () => {
     expect(revenue).toBe(4500);
   });
 
-  it('reso online (nessuna riga): prezzo vendita originale × quantità', () => {
+  // ⛔ Qui il reso online valeva «prezzo della vendita originale × quantità»: una
+  //    stima, e un secondo sistema. Il suo valore è il rimborso persistito, che
+  //    entra dall'aggregatore delle rettifiche; il movimento porta solo il costo.
+  it('reso online (nessuna riga): nessun ricavo da qui — lo dice il rimborso persistito', () => {
     const revenue = movementRevenueMinor(
       movement({
         type: StockMovementType.return,
@@ -54,7 +55,7 @@ describe('movementRevenueMinor', () => {
       }),
       maps,
     );
-    expect(revenue).toBe(3000);
+    expect(revenue).toBe(0);
   });
 
   it('reso POS: dalla riga del documento di reso', () => {
@@ -70,9 +71,7 @@ describe('movementRevenueMinor', () => {
   });
 
   it('riga non risolvibile → 0 (movimento storico senza documento)', () => {
-    expect(
-      movementRevenueMinor(movement({ sourceLineId: 'sconosciuta' }), maps),
-    ).toBe(0);
+    expect(movementRevenueMinor(movement({ sourceLineId: 'sconosciuta' }), maps)).toBe(0);
     expect(
       movementRevenueMinor(
         movement({

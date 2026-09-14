@@ -101,11 +101,22 @@ export function moneyToMajor(money: Money): number {
   return money.amountMinor / 10 ** currencyDecimals(money.currencyCode);
 }
 
-/** Formattazione localizzata currency-aware (display). */
+/**
+ * Formattazione localizzata currency-aware (display).
+ *
+ * ⭐ **Il punto delle migliaia c'è SEMPRE** — proprietario, 13/09/2026, davanti a
+ *    «2249,85 €» nell'elenco Ordini Shopify: «mettere punto alle migliaia per una
+ *    lettura migliore degli importi». I dati CLDR di `it-IT` raggruppano solo da
+ *    cinque cifre in su (`minimumGroupingDigits: 2`): 22.499,85 sì, 2249,85 no.
+ *    `useGrouping: 'always'` toglie l'eccezione. Vale per ciò che si LEGGE: il
+ *    campo di digitazione (`money-input`) resta senza punti, il CSV per Excel resta
+ *    un numero decimale.
+ */
 export function formatMoney(money: Money, locale = 'it-IT'): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: money.currencyCode,
+    useGrouping: 'always',
     // Punto di uscita: due decimali, sempre. L'arrotondamento è esplicito e non
     // delegato a Intl, così questo formato e `moneyToDecimalString` non possono
     // divergere di un centesimo sullo stesso importo.

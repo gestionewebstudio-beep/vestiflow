@@ -32,6 +32,7 @@ import {
 } from './corrispettivi-location-filter.util';
 import { compareCorrispettiviRowsDesc } from './corrispettivi-sort.util';
 import {
+  buildCorrispettiviAnnullamentiDichiaratiWhere,
   buildCorrispettiviManualWhere,
   buildCorrispettiviRefundWhere,
   buildCorrispettiviStoreReturnWhere,
@@ -367,6 +368,11 @@ export class CorrispettiviService {
               // La sede va LETTA, non dedotta: il Registro non la conosceva
               // affatto, e senza il nome la colonna mostrerebbe un uuid.
               location: { select: { id: true, name: true } },
+              // ⭐ Per un ordine di canale la sede dell'ordine è nulla: il raccordo
+              //    è la Vendita online, la cui sede di testata è quella di USCITA —
+              //    una sola; con spedizioni da sedi diverse resta vuota, per scelta
+              //    (proprietario, 13/09/2026: mai «la prima sede»).
+              onlineSale: { select: { location: { select: { id: true, name: true } } } },
             },
           })
         : Promise.resolve([]),
@@ -382,6 +388,7 @@ export class CorrispettiviService {
                   customerName: true,
                   customer: { select: { party: { select: { email: true } } } },
                   location: { select: { id: true, name: true } },
+                  onlineSale: { select: { location: { select: { id: true, name: true } } } },
                 },
               },
             },
@@ -483,8 +490,8 @@ export class CorrispettiviService {
         source: order.source,
         customerName: order.customerName,
         customerEmail: order.customer?.party.email ?? null,
-        locationId: order.location?.id ?? null,
-        locationName: order.location?.name ?? null,
+        locationId: (order.onlineSale?.location ?? order.location)?.id ?? null,
+        locationName: (order.onlineSale?.location ?? order.location)?.name ?? null,
         currency: order.currency,
         taxableMinor: Math.max(0, order.totalMinor - order.taxMinor),
         taxMinor: order.taxMinor,
@@ -506,8 +513,8 @@ export class CorrispettiviService {
         source: refund.order.source,
         customerName: refund.order.customerName,
         customerEmail: refund.order.customer?.party.email ?? null,
-        locationId: refund.order.location?.id ?? null,
-        locationName: refund.order.location?.name ?? null,
+        locationId: (refund.order.onlineSale?.location ?? refund.order.location)?.id ?? null,
+        locationName: (refund.order.onlineSale?.location ?? refund.order.location)?.name ?? null,
         currency: refund.currency,
         // Negativi: è ciò che rende sommabile la colonna.
         taxableMinor: -Math.max(0, refund.totalMinor - refund.taxMinor),
@@ -731,8 +738,11 @@ export class CorrispettiviService {
           })
         : [],
       /*
-          Gli annullamenti si contano e non si sottraggono: la vendita che annullano
-          non è mai entrata nel registro (specifica `08` §4).
+          Gli annullamenti DICHIARATI si contano e non si sottraggono: la vendita che
+          annullano non è mai entrata nel registro (specifica `08` §4) — quindi sono
+          i `cancel` di ordini MAI EVASI. Quello di un ordine evaso rettifica ed è
+          già fra le rettifiche qui sopra: contarlo anche qui lo classificherebbe
+          come «escluso» mentre è sottratto (proprietario, 13/09/2026, #1014).
 
           ⚠️ **Restano fuori dal filtro Tipo, e non è una svista.** Non sono un tipo
           selezionabile e non entrano in nessun totale: sono una **dichiarazione** di
@@ -740,14 +750,11 @@ export class CorrispettiviService {
           filtra dice meno del vero.
         */
       this.prisma.salesOrderRefund.findMany({
-        where: {
-          ...buildCorrispettiviRefundWhere(tenantId, {
-            ...query,
-            rowType: undefined,
-            tipi: undefined,
-          }),
-          kind: PrismaRefundKind.cancellation,
-        },
+        where: buildCorrispettiviAnnullamentiDichiaratiWhere(tenantId, {
+          ...query,
+          rowType: undefined,
+          tipi: undefined,
+        }),
         select: { totalMinor: true, occurredAt: true },
       }),
       // Evasi senza data: fuori dal conteggio perché non databili, ma dichiarati.

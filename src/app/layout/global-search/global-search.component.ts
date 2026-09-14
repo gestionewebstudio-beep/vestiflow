@@ -341,8 +341,12 @@ export class GlobalSearchComponent {
       }
     }
 
+    const utente = this.authService.currentUser();
     for (const page of SECONDARY_PAGES) {
-      if (this.isAllowed(page.parent)) {
+      // ⚠️ Solo pagine ACCESSIBILI: dove il padre non basta decide il predicato
+      //    della guardia di rotta (11/09/2026).
+      const accessibile = page.consentita ? page.consentita(utente) : this.isAllowed(page.parent);
+      if (accessibile) {
         push({
           group: 'Pagine',
           label: page.label,

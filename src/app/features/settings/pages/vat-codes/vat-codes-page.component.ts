@@ -17,11 +17,34 @@ import { VatCodeService, type UpsertVatCodeBody } from '@core/services/vat-code.
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableRowTone,
+  DataTableSection,
+  DataTableSort,
+  DataTableTotals,
+} from '@shared/components/data-table/data-table.model';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableFiltersButtonComponent } from '@shared/components/table-filters/table-filters-button.component';
+import { TableFiltersPanelComponent } from '@shared/components/table-filters/table-filters-panel.component';
+import { TableSelectionToggleComponent } from '@shared/components/table-selection-toggle/table-selection-toggle.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { comando } from '@shared/models/list-action-catalog';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import type { ListAction } from '@shared/models/list-selection.model';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 
 import type { EntityId } from '@core/models/common.model';
 import {
@@ -34,13 +57,13 @@ import {
   type VatUsageScope,
 } from '@core/models/vat-code.model';
 
-type ActiveFilter = 'all' | 'active' | 'inactive';
-type PanelMode = 'create' | 'edit' | 'duplicate';
+import {
+  VAT_CODES_COLUMN_DEFS,
+  VAT_CODES_COLUMN_PRESETS,
+  VAT_CODES_VIEW,
+} from '../../models/vat-codes-table-columns.config';
 
-interface VatCodeGroup {
-  readonly nature: VatNature;
-  readonly codes: readonly VatCode[];
-}
+type PanelMode = 'create' | 'edit' | 'duplicate';
 
 const CODE_PATTERN = /^[A-Za-z0-9._-]{1,16}$/;
 
@@ -65,6 +88,12 @@ const CALCULATION_MODE_OPTIONS: readonly {
 /**
  * Pagina Impostazioni > Codici IVA: elenco raggruppato per Natura,
  * ricerca, filtri e CRUD con pannello laterale (§5).
+ *
+ * ⭐ **L’elenco è sul motore comune** (`docs/26` A6 · D3, 11/09/2026): una
+ * sezione COMPRIMIBILE per Natura — la capacità aggiunta al motore apposta —
+ * i tre `<select>` locali sostituiti dai filtri di colonna con lo stesso
+ * significato (Natura, Ambito, Stato), la Ricerca in barra, «Duplica» come
+ * comando di riga, il clic di riga che apre la scheda come prima.
  */
 @Component({
   selector: 'app-vat-codes-page',
@@ -79,6 +108,14 @@ const CALCULATION_MODE_OPTIONS: readonly {
     ErrorStateComponent,
     SlidePanelComponent,
     TableSkeletonComponent,
+    DataTableComponent,
+    DataTableCellDirective,
+    DataTableRowCardDirective,
+    ListActionsBarComponent,
+    TableColumnPickerComponent,
+    TableFiltersButtonComponent,
+    TableFiltersPanelComponent,
+    TableSelectionToggleComponent,
   ],
   templateUrl: './vat-codes-page.component.html',
   styleUrl: './vat-codes-page.component.scss',
@@ -89,6 +126,8 @@ export class VatCodesPageComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly auth = inject(AuthService);
+  private readonly preferenzeColonne = inject(TableColumnPreferenceService);
+  private readonly filterStore = inject(ColumnFilterStore);
 
   /**
    * Chi non lo ha vede l'elenco e la scheda di un Codice IVA, ma non i comandi
@@ -111,10 +150,114 @@ export class VatCodesPageComponent {
 
   // ── Filtri ────────────────────────────────────────────────────────
   protected readonly searchQuery = signal('');
-  protected readonly natureFilter = signal<string>('');
-  protected readonly scopeFilter = signal<string>('');
-  protected readonly activeFilter = signal<ActiveFilter>('all');
-  private readonly collapsedNatureIds = signal<ReadonlySet<string>>(new Set());
+
+  // ── Motore tabella ────────────────────────────────────────────────
+  protected readonly vista = VAT_CODES_VIEW;
+  // ⛔ Assegnate nel costruttore, dopo `registerView`.
+  protected readonly colonne: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+  protected readonly ordine = signal<readonly DataTableSort[]>([]);
+  protected readonly filtriAperti = signal(false);
+
+  protected readonly rowId = (entry: VatCode): string => entry.id;
+  protected readonly rowLabel = (entry: VatCode): string => `Apri ${entry.code}`;
+  protected readonly selectionLabel = (entry: VatCode): string => `Seleziona ${entry.code}`;
+
+  /**
+   * ⭐ **«Duplica» sta nella barra comandi, sulla selezione** — la stessa forma
+   * di Clienti e Fornitori (`regole-stile-ui`, «La barra comandi di un elenco»).
+   * Era un pulsante per riga: il motore tiene quel comando di riga come
+   * transitorio e nessun altro elenco lo usa più.
+   */
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedIds = this.selection.ids;
+  /** La modalità «Seleziona» della vista a card: spegnerla azzera (`createSelectionMode`). */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
+  protected readonly listActions = computed<readonly ListAction[]>(() => {
+    if (!this.puoGestireImpostazioniAzienda()) {
+      return [];
+    }
+    return [
+      comando('duplicate', {
+        ariaLabel: 'Duplica il Codice IVA selezionato',
+        run: (target) => {
+          if (target.scope === 'selection' && target.ids[0]) {
+            const entry = this.vatCodes().find((codice) => codice.id === target.ids[0]);
+            if (entry) {
+              this.openDuplicate(entry);
+            }
+          }
+        },
+      }),
+    ];
+  });
+
+  /**
+   * ⭐ **La riga totali non sparisce mai** (`regole-stile-ui`): qui non c’è
+   * niente da sommare — aliquote di codici diversi non fanno un numero — ma il
+   * conteggio «N voci» c’è, e segue il filtro e la selezione come ovunque.
+   */
+  protected readonly totali = computed<DataTableTotals>(() =>
+    totaliDiElenco(this.righeFiltrate(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.colonne(),
+      campi: {},
+    }),
+  );
+
+  protected toggleSelection(id: string, selected: boolean): void {
+    this.selection.toggle(id, selected);
+  }
+
+  protected toggleSelectAll(selected: boolean): void {
+    this.selection.setAll(
+      this.righeFiltrate().map((entry) => entry.id),
+      selected,
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+  protected readonly rowTone = (entry: VatCode): DataTableRowTone | null =>
+    entry.isActive ? null : 'muted';
+
+  /** Il testo di ogni cella: è ciò che filtri, ordinamento e card leggono. */
+  protected readonly testoCella = (entry: VatCode, colonna: string): string => {
+    switch (colonna) {
+      case 'vatCode':
+        return entry.code;
+      case 'ratePercent':
+        return formatVatRate(entry.ratePercent);
+      case 'nonDeductiblePercent':
+        return entry.nonDeductiblePercent > 0 ? formatVatRate(entry.nonDeductiblePercent) : '—';
+      case 'description':
+        return entry.description;
+      case 'vatNotes':
+        return entry.notes || '—';
+      case 'natura':
+        return entry.nature.label;
+      case 'usageScope':
+        return VAT_USAGE_SCOPE_LABELS[entry.usageScope];
+      case 'status':
+        return entry.isActive ? 'Attivo' : 'Disattivato';
+      default:
+        return '';
+    }
+  };
+
+  // ⚠️ `numeroDi` sulle due percentuali: senza, il filtro a intervallo non
+  //    filtra e l’ordinamento confronta «10 %» prima di «4 %».
+  private readonly numeroDi = (entry: VatCode, colonna: string): number | null => {
+    if (colonna === 'ratePercent') {
+      return entry.ratePercent;
+    }
+    if (colonna === 'nonDeductiblePercent') {
+      return entry.nonDeductiblePercent;
+    }
+    return null;
+  };
 
   // ── Pannello di modifica ──────────────────────────────────────────
   protected readonly panelOpen = signal(false);
@@ -145,36 +288,37 @@ export class VatCodesPageComponent {
     isActive: this.fb.control(true),
   });
 
+  /** La Ricerca resta in barra: è uno dei due filtri che non entrano nelle colonne. */
   protected readonly filteredCodes = computed(() => {
     const query = this.searchQuery().trim().toLowerCase();
-    const natureId = this.natureFilter();
-    const scope = this.scopeFilter();
-    const active = this.activeFilter();
+    if (!query) {
+      return this.vatCodes();
+    }
     return this.vatCodes().filter((entry) => {
-      if (natureId && entry.natureId !== natureId) {
-        return false;
-      }
-      if (scope && entry.usageScope !== scope) {
-        return false;
-      }
-      if (active === 'active' && !entry.isActive) {
-        return false;
-      }
-      if (active === 'inactive' && entry.isActive) {
-        return false;
-      }
-      if (!query) {
-        return true;
-      }
       const haystack =
         `${entry.code} ${entry.description} ${entry.notes ?? ''} ${entry.nature.label}`.toLowerCase();
       return haystack.includes(query);
     });
   });
 
-  protected readonly groups = computed<readonly VatCodeGroup[]>(() => {
+  // ⭐ Natura, Ambito e Stato: gli stessi tre filtri di prima, come filtri di
+  //    colonna condivisi — con lo stesso significato, ma a valori, con la
+  //    ricerca nel pannello e il verso Includi/Escludi.
+  private readonly righeFiltrate = createColumnFilters<VatCode>({
+    viewId: () => VAT_CODES_VIEW,
+    righe: () => this.filteredCodes(),
+    cellText: this.testoCella,
+    numeroDi: this.numeroDi,
+  });
+
+  /**
+   * ⭐ **Una sezione COMPRIMIBILE per Natura**, nell’ordine delle Nature; dentro,
+   * l’ordine del catalogo (`sortOrder`, poi codice) finché l’operatore non ne
+   * sceglie uno dalle intestazioni. Il conteggio sta nel titolo, come prima.
+   */
+  protected readonly sezioni = computed<readonly DataTableSection<VatCode>[]>(() => {
     const byNature = new Map<string, VatCode[]>();
-    for (const entry of this.filteredCodes()) {
+    for (const entry of this.righeFiltrate()) {
       const bucket = byNature.get(entry.natureId);
       if (bucket) {
         bucket.push(entry);
@@ -182,23 +326,32 @@ export class VatCodesPageComponent {
         byNature.set(entry.natureId, [entry]);
       }
     }
-    return [...byNature.entries()]
-      .map(([, codes]) => {
-        const sorted = [...codes].sort(
+    return [...byNature.values()]
+      .map((codes) => {
+        const ordinati = [...codes].sort(
           (a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code),
         );
         // Non-null: ogni bucket contiene almeno una voce con la propria nature.
-        return { nature: sorted[0]!.nature, codes: sorted } satisfies VatCodeGroup;
+        const nature = ordinati[0]!.nature;
+        return {
+          nature,
+          sezione: {
+            id: nature.id,
+            header: `${nature.label} (${ordinati.length})`,
+            collapsible: true,
+            rows: ordinaPerColonne(ordinati, this.ordine(), {
+              cellText: this.testoCella,
+              numeroDi: this.numeroDi,
+            }),
+          } satisfies DataTableSection<VatCode>,
+        };
       })
-      .sort((a, b) => a.nature.sortOrder - b.nature.sortOrder);
+      .sort((a, b) => a.nature.sortOrder - b.nature.sortOrder)
+      .map((voce) => voce.sezione);
   });
 
   protected readonly hasFilters = computed(
-    () =>
-      this.searchQuery().trim().length > 0 ||
-      this.natureFilter() !== '' ||
-      this.scopeFilter() !== '' ||
-      this.activeFilter() !== 'all',
+    () => this.searchQuery().trim().length > 0 || this.filterStore.conteggio(VAT_CODES_VIEW)() > 0,
   );
 
   protected readonly emptyStateDescription = computed(() => {
@@ -238,6 +391,13 @@ export class VatCodesPageComponent {
   });
 
   constructor() {
+    this.preferenzeColonne.registerView(
+      VAT_CODES_VIEW,
+      VAT_CODES_COLUMN_DEFS,
+      VAT_CODES_COLUMN_PRESETS,
+    );
+    this.colonne = this.preferenzeColonne.visibleColumns(VAT_CODES_VIEW);
+
     if (!this.puoGestireImpostazioniAzienda()) {
       // La scheda resta consultabile: i campi mostrano i valori salvati, ma non
       // accettano modifiche che il server rifiuterebbe comunque.
@@ -274,20 +434,6 @@ export class VatCodesPageComponent {
     return formatVatRate(ratePercent);
   }
 
-  protected isCollapsed(natureId: string): boolean {
-    return this.collapsedNatureIds().has(natureId);
-  }
-
-  protected toggleGroup(natureId: string): void {
-    const next = new Set(this.collapsedNatureIds());
-    if (next.has(natureId)) {
-      next.delete(natureId);
-    } else {
-      next.add(natureId);
-    }
-    this.collapsedNatureIds.set(next);
-  }
-
   protected onSearchInput(event: Event): void {
     const target = event.target;
     if (target instanceof HTMLInputElement) {
@@ -295,32 +441,9 @@ export class VatCodesPageComponent {
     }
   }
 
-  protected onNatureFilterChange(event: Event): void {
-    const target = event.target;
-    if (target instanceof HTMLSelectElement) {
-      this.natureFilter.set(target.value);
-    }
-  }
-
-  protected onScopeFilterChange(event: Event): void {
-    const target = event.target;
-    if (target instanceof HTMLSelectElement) {
-      this.scopeFilter.set(target.value);
-    }
-  }
-
-  protected onActiveFilterChange(event: Event): void {
-    const target = event.target;
-    if (target instanceof HTMLSelectElement) {
-      this.activeFilter.set(target.value as ActiveFilter);
-    }
-  }
-
   protected resetFilters(): void {
     this.searchQuery.set('');
-    this.natureFilter.set('');
-    this.scopeFilter.set('');
-    this.activeFilter.set('all');
+    this.filterStore.azzera(VAT_CODES_VIEW);
   }
 
   // ── Pannello ──────────────────────────────────────────────────────

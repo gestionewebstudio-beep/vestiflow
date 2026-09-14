@@ -28,6 +28,8 @@ describe('document-stock-manual-unload.util (scarico diretto senza movimenti)', 
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         findUnique: vi.fn().mockResolvedValue({ onHand: 10, available: 10 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: { create: vi.fn().mockResolvedValue({}) },
     };
 
@@ -59,6 +61,8 @@ describe('document-stock-manual-unload.util (scarico diretto senza movimenti)', 
         upsert: vi.fn().mockResolvedValue({}),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: { create: vi.fn().mockResolvedValue({}) },
     };
 
@@ -85,6 +89,8 @@ describe('document-stock-manual-unload.util (scarico diretto senza movimenti)', 
         upsert: vi.fn().mockResolvedValue({}),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: { create: vi.fn().mockResolvedValue({}) },
     };
 
@@ -133,6 +139,8 @@ describe('document-stock-adjustment.util (fallback legacy aggregato)', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         findUnique: vi.fn().mockResolvedValue({ onHand: 10, available: 10 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: { create: vi.fn().mockResolvedValue({}) },
     };
   }
@@ -167,7 +175,7 @@ describe('document-stock-adjustment.util (fallback legacy aggregato)', () => {
     expect(result.deltas).toEqual([{ sku: 'SKU-1', delta: 3 }]);
   });
 
-  it('reverseDocumentStockAdjustment: storna l\'intera quantità con direzione opposta', async () => {
+  it("reverseDocumentStockAdjustment: storna l'intera quantità con direzione opposta", async () => {
     const tx = createTx();
 
     const result = await reverseDocumentStockAdjustment(tx as never, {

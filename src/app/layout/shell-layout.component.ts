@@ -49,6 +49,7 @@ import {
   canAccessSalesSection,
   canAccessSettingsSection,
   canAccessSuppliersSection,
+  canReachShopifySettings,
   canOpenRetailRegister,
   canViewCustomers,
   canViewReports,
@@ -471,6 +472,16 @@ export class ShellLayoutComponent {
         label: 'Impostazioni',
         icon: 'pi-cog',
         route: '/app/settings',
+        activeRoutePrefix: '/app/settings',
+      });
+    } else if (canReachShopifySettings(user)) {
+      // ⭐ Senza «Sezione Impostazioni» ma con il permesso di un comando Shopify
+      //    (11/09/2026): la voce porta DIRETTAMENTE a Impostazioni → Shopify, che
+      //    è la sola sede di quei comandi. La radice resta chiusa dalla sua rotta.
+      manageItems.push({
+        label: 'Impostazioni',
+        icon: 'pi-cog',
+        route: '/app/settings/shopify',
         activeRoutePrefix: '/app/settings',
       });
     }

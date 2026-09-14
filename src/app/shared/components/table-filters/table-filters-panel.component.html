@@ -1,0 +1,67 @@
+<!--
+  ⚠️ **Lo scrim è un pulsante**: chiude toccando fuori, e ha un nome per chi
+  legge con uno screen reader.
+-->
+@if (aperto()) {
+  <button
+    type="button"
+    class="table-filters__scrim"
+    aria-label="Chiudi i filtri"
+    (click)="chiudi()"
+  ></button>
+}
+
+<!--
+  ⭐ **Un contenitore solo, due vesti.** Su scrivania è la riga dei filtri di
+  dominio proiettati; sotto `lg` è il foglio laterale, con dentro gli stessi
+  filtri più una voce per ogni colonna filtrabile visibile.
+
+  ⚠️ `tabindex="-1"` per ricevere il fuoco all'apertura, non per entrare nel giro del Tab.
+-->
+<div
+  class="table-filters"
+  [class.table-filters--panel]="compatto()"
+  [class.table-filters--open]="aperto()"
+  [attr.role]="compatto() ? 'dialog' : null"
+  [attr.aria-modal]="compatto() ? 'true' : null"
+  [attr.aria-label]="compatto() ? 'Filtri' : null"
+  tabindex="-1"
+  #pannello
+  (keydown)="onKeydown($event)"
+>
+  @if (compatto()) {
+    <div class="table-filters__head">
+      <h2 class="table-filters__title">Filtri</h2>
+      <app-button variant="ghost" ariaLabel="Chiudi i filtri" (click)="chiudi()">
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </app-button>
+    </div>
+  }
+
+  <ng-content />
+
+  <!--
+    ⭐ **I filtri di COLONNA nel pannello compatto** (`14` §0.2): lo stesso
+    controllo delle intestazioni, con lo stesso stato — la sorgente è una sola,
+    lo store per vista.
+  -->
+  @for (colonna of colonneFiltrabili(); track colonna.id) {
+    <div class="table-filters__field">
+      <span class="table-filters__label">{{ colonna.label }}</span>
+      <app-column-filter
+        [kind]="formaFiltro(colonna)"
+        [columnLabel]="colonna.label"
+        [options]="opzioniFiltro(colonna.id)"
+        [value]="valoreFiltro(colonna.id)"
+        (changed)="onFiltroColonna(colonna.id, $event)"
+      />
+    </div>
+  }
+
+  @if (compatto()) {
+    <div class="table-filters__foot">
+      <app-button variant="ghost" (click)="azzeraFiltri()">Azzera filtri</app-button>
+      <app-button (click)="chiudi()">Vedi risultati</app-button>
+    </div>
+  }
+</div>

@@ -35,6 +35,7 @@ export interface ProductApiRow {
   readonly deletionReason?: string | null;
   readonly shopifySyncEnabled?: boolean;
   readonly shopifyTitle?: string | null;
+  readonly shopifyProductType?: string | null;
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
@@ -271,6 +272,7 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     deletionReason: row.deletionReason ?? null,
     shopifySyncEnabled: row.shopifySyncEnabled ?? true,
     shopifyTitle: row.shopifyTitle ?? undefined,
+    shopifyProductType: row.shopifyProductType ?? undefined,
     catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
     unitOfMeasure: row.unitOfMeasure ?? 'pz',
     defaultVatCodeId: row.defaultVatCodeId ?? null,

@@ -19,14 +19,14 @@ import {
   canManageMfa as userCanManageMfa,
   canManageSettingsCompany,
   canManageTikTokConnection,
+  canReachShopifySettings,
 } from '@core/permissions/tenant-permissions.util';
 import { resolveUserAccessLabel } from '@core/models/user-role-labels.util';
-import { ShopifySyncStatus } from '@core/models/shopify.model';
-import type { IsoDateString } from '@core/models/common.model';
+
 import type { Location } from '@core/models/location.model';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ThemeService } from '@core/services/theme.service';
-import { formatDateTime } from '@core/utils/date.util';
+
 import {
   filterLocationsForSettings,
   isShopifyManagedLocation,
@@ -56,8 +56,6 @@ import type { TenantCompany } from '@domain/tenant/models/tenant-company.model';
 import { TikTokIntegrationPanelComponent } from './components/tiktok-integration-panel/tiktok-integration-panel.component';
 import { TenantOperationalSettingsPanelComponent } from './components/tenant-operational-settings-panel/tenant-operational-settings-panel.component';
 import { TenantBackupPanelComponent } from './components/tenant-backup-panel/tenant-backup-panel.component';
-import { ShopifyIntegrationPanelComponent } from './components/shopify-integration-panel/shopify-integration-panel.component';
-import type { SetupStatusItem } from './models/setup-status.model';
 
 type TenantCompanyState =
   | { readonly status: 'loading' }
@@ -97,7 +95,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     TenantClientCardComponent,
     MfaSettingsComponent,
     TikTokIntegrationPanelComponent,
-    ShopifyIntegrationPanelComponent,
+
     ProfileAvatarUploadComponent,
     TenantOperationalSettingsPanelComponent,
     TenantBackupPanelComponent,
@@ -128,8 +126,18 @@ export class SettingsComponent {
   protected readonly tenantCompanyHint = computed(() =>
     tenantCompanyPanelHint(this.tenantChannelProfile()),
   );
-  /** Cancello del pannello Shopify: profilo del tenant + permesso. Lo tiene lo store. */
+  /**
+   * Cancello delle parti Shopify di QUESTA pagina (colonna Shopify delle sedi,
+   * sezione Location, sottotitolo): profilo del tenant + gestione della
+   * connessione. Lo tiene lo store.
+   */
   protected readonly showShopifyPanel = this.connectionStore.available;
+  /**
+   * ⭐ La card «Shopify» che porta alla pagina dei comandi (`/app/settings/shopify`,
+   * 11/09/2026): la vede chi può eseguire almeno un comando di sincronizzazione,
+   * non solo chi gestisce la connessione — è la stessa guardia della rotta.
+   */
+  protected readonly showShopifyCard = computed(() => canReachShopifySettings(this.currentUser()));
   protected readonly showTikTokPanel = computed(
     () =>
       showTikTokIntegration(this.tenantChannelProfile()) &&
@@ -144,8 +152,6 @@ export class SettingsComponent {
     }
     return 'Profilo, sede fisica, aspetto.';
   });
-
-  protected readonly formatDateTime = formatDateTime;
 
   /**
    * Esito delle azioni della pagina — oggi solo il salvataggio delle sedi
@@ -265,52 +271,8 @@ export class SettingsComponent {
     }),
   );
 
-  protected readonly locationSetupStatus = computed((): SetupStatusItem => {
-    const limit = this.tenantCompany()?.licensedLocationCount ?? 1;
-    const synced = this.locationItems().filter(
-      (location) =>
-        location.isActive &&
-        location.licensedInVf &&
-        location.shopify?.status === ShopifySyncStatus.Synced,
-    );
-    if (synced.length === 0) {
-      return {
-        active: false,
-        label: 'Sedi non attivate',
-        detail:
-          limit === 1
-            ? 'Sincronizza le location da Shopify e seleziona la sede operativa inclusa nel piano.'
-            : `Sincronizza le location da Shopify e seleziona fino a ${limit} sedi operative.`,
-      };
-    }
-
-    const lastSyncedAt = synced.reduce<IsoDateString | undefined>((latest, location) => {
-      const at = location.shopify?.lastSyncedAt;
-      if (!at) {
-        return latest;
-      }
-      return !latest || at > latest ? at : latest;
-    }, undefined);
-
-    const countLabel =
-      synced.length === 1
-        ? '1 location collegata a Shopify'
-        : `${synced.length} location collegate a Shopify`;
-    const timeLabel = lastSyncedAt ? ` · ${this.formatDateTime(lastSyncedAt)}` : '';
-
-    return {
-      active: true,
-      label: 'Location collegate',
-      detail: `${countLabel}${timeLabel}`,
-    };
-  });
-
   protected readonly licensedLocationCount = computed(
     () => this.tenantCompany()?.licensedLocationCount ?? 1,
-  );
-
-  protected readonly licensedLocationActiveCount = computed(
-    () => this.tenantCompany()?.licensedLocationActiveCount ?? 0,
   );
 
   protected readonly canChangeLicensedLocations = computed(
@@ -348,15 +310,6 @@ export class SettingsComponent {
 
   protected readonly roleLabel = computed(() => resolveUserAccessLabel(this.currentUser()));
 
-  /**
-   * Il tenant deve ancora scegliere quali sedi attivare: piano multi-sede,
-   * oppure nessuna sede attiva. Serve al pannello Shopify per completare il
-   * messaggio dopo la sync delle location.
-   */
-  protected readonly mustChooseLocations = computed(
-    () => this.licensedLocationCount() > 1 || this.licensedLocationActiveCount() === 0,
-  );
-
   constructor() {
     this.destroyRef.onDestroy(() => {
       if (this.actionFeedbackTimer) {
@@ -385,12 +338,6 @@ export class SettingsComponent {
 
   protected reloadTenantCompany(): void {
     this.tenantCompanyTick.update((tick) => tick + 1);
-  }
-
-  /** Il pannello Shopify ha toccato le location lato server (sync, disconnessione). */
-  protected onShopifyLocationsChanged(): void {
-    this.reloadLocations();
-    this.reloadTenantCompany();
   }
 
   protected dismissLocationFeedback(): void {

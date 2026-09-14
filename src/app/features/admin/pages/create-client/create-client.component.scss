@@ -116,52 +116,25 @@
   overflow-wrap: anywhere;
 }
 
-.create-client__table-wrap {
-  overflow-x: auto;
-  flex: 1 1 auto;
+// ⛔ Qui c’erano la `<table>` a mano — contenitore, intestazione, riga
+//    cliccabile, la colonna «Assistenza» larga 1% — sostituite dal motore
+//    comune (`docs/26` A14), che porta grammatica, card e allineamenti.
+
+// Seleziona, Colonne e Filtri: la barra densa, configurata dal contenitore.
+.create-client__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  --btn-min-height: var(--control-h-button);
+  --field-height: var(--control-h-button);
+  --field-h: var(--control-h-button);
+  --field-font-size: var(--text-xs);
+  --field-gap: var(--space-1);
+  --button-font-size: var(--text-xs);
+}
+
+// La tabella cede dentro il pannello elenco, che è già una colonna flessibile.
+.create-client__panel--list > app-data-table {
+  flex: 1;
   min-block-size: 0;
-}
-
-.create-client__table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.create-client__table th,
-.create-client__table td {
-  padding: var(--space-3);
-  text-align: start;
-  border-block-end: var(--border-width) solid var(--color-border);
-}
-
-.create-client__table th {
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-caps);
-  color: var(--color-text-subtle);
-  background-color: var(--color-table-header-bg);
-}
-
-.create-client__table tbody tr:hover {
-  background-color: var(--color-surface-hover);
-}
-
-.create-client__table-row {
-  cursor: pointer;
-}
-
-// La tabella non ha larghezze di colonna fisse: il browser distribuisce lo
-// spazio residuo proporzionalmente, e su questa colonna — poco testo di per
-// sé — finiva per allargarla ben oltre il bottone, lasciando un vuoto fra
-// «Assistenza» e «Apri gestionale» qualunque fosse l'allineamento del testo.
-// `width: 1%` la costringe alla larghezza del suo contenuto più largo (il
-// bottone): titolo e bottone restano vicini, e allineati a destra — l'unico
-// contenuto non testuale della riga — restano leggibili l'uno sopra l'altro.
-.create-client__table th:last-child,
-.create-client__table td:last-child {
-  width: 1%;
-  white-space: nowrap;
-  text-align: end;
 }

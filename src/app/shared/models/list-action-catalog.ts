@@ -42,10 +42,11 @@ import type {
  * ## ⚠️ Che cosa NON sta qui
  *
  * I comandi che **non sono gli stessi** su pagine diverse. I quattro pulsanti
- * Shopify si chiamano tutti `shopify-sync` ma due tirano dentro e uno spinge
- * fuori: unificarne la forma nasconderebbe che sono operazioni diverse. Vanno
- * distinti gli id, ed è registrato in `docs/01-registro-difetti-shopify.md`
- * §Livello 5.
+ * Shopify (`shopify-sync`, nella misura qui sopra) erano l’esempio: due
+ * tiravano dentro e uno spingeva fuori, e unificarne la forma avrebbe nascosto
+ * che sono operazioni diverse. ✅ Dall’11/09/2026 non stanno più nelle barre:
+ * vivono in Impostazioni → Shopify, ognuno col proprio blocco e la direzione
+ * scritta accanto (`docs/26` §8, `docs/01` §Livello 5).
  */
 interface FormaComando {
   readonly label: string;

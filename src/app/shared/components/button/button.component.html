@@ -16,6 +16,7 @@
   [attr.aria-label]="ariaLabel() ?? null"
   [attr.aria-pressed]="ariaPressed() ?? null"
   [attr.aria-describedby]="ariaDescribedBy() ?? null"
+  [attr.aria-expanded]="ariaExpanded() ?? null"
   (click)="onClick($event)"
 >
   @if (loading()) {

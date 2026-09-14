@@ -92,7 +92,14 @@ async function convertLegacyTransferMovements(
     }
   }
   for (const entry of net.values()) {
-    await applyInventoryDelta(tx, tenantId, entry.variantId, entry.locationId, -entry.qty);
+    await applyInventoryDelta(
+      tx,
+      tenantId,
+      entry.variantId,
+      entry.locationId,
+      -entry.qty,
+      'locale',
+    );
   }
   await tx.stockMovement.deleteMany({
     where: { id: { in: legacy.map((movement) => movement.id) } },
@@ -148,6 +155,7 @@ export async function syncTransferLineMovements(
         line.variantId,
         originLocationId,
         -line.quantity,
+        'locale',
       );
       await applyInventoryDelta(
         tx,
@@ -155,6 +163,7 @@ export async function syncTransferLineMovements(
         line.variantId,
         targetLocationId,
         line.quantity,
+        'locale',
       );
       await tx.stockMovement.create({
         data: {
@@ -205,6 +214,7 @@ export async function syncTransferLineMovements(
         movement.variantId,
         movement.locationId,
         movement.quantity,
+        'locale',
       );
       if (movement.targetLocationId) {
         await applyInventoryDelta(
@@ -213,6 +223,7 @@ export async function syncTransferLineMovements(
           movement.variantId,
           movement.targetLocationId,
           -movement.quantity,
+          'locale',
         );
       }
       await applyInventoryDelta(
@@ -221,6 +232,7 @@ export async function syncTransferLineMovements(
         line.variantId,
         originLocationId,
         -line.quantity,
+        'locale',
       );
       await applyInventoryDelta(
         tx,
@@ -228,6 +240,7 @@ export async function syncTransferLineMovements(
         line.variantId,
         targetLocationId,
         line.quantity,
+        'locale',
       );
       syncTargets.push({ variantId: movement.variantId, locationId: movement.locationId });
       if (movement.targetLocationId) {
@@ -245,6 +258,7 @@ export async function syncTransferLineMovements(
         line.variantId,
         originLocationId,
         -quantityDelta,
+        'locale',
       );
       await applyInventoryDelta(
         tx,
@@ -252,6 +266,7 @@ export async function syncTransferLineMovements(
         line.variantId,
         targetLocationId,
         quantityDelta,
+        'locale',
       );
       syncTargets.push({ variantId: line.variantId, locationId: originLocationId });
       syncTargets.push({ variantId: line.variantId, locationId: targetLocationId });
@@ -293,6 +308,7 @@ export async function syncTransferLineMovements(
       movement.variantId,
       movement.locationId,
       movement.quantity,
+      'locale',
     );
     if (movement.targetLocationId) {
       await applyInventoryDelta(
@@ -301,6 +317,7 @@ export async function syncTransferLineMovements(
         movement.variantId,
         movement.targetLocationId,
         -movement.quantity,
+        'locale',
       );
     }
     await tx.stockMovement.delete({ where: { id: movement.id } });

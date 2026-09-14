@@ -71,13 +71,13 @@ Il codice esistente è un dato da censire, non una prova della regola corretta.
 
 ⛔ **Questi punti erano scritti come requisiti approvati e non lo sono.** Finché non vengono decisi, restano proposte o domande: **non si implementano**, e nessuna tranche può passarci sopra dichiarandoli acquisiti.
 
-| Punto                                                                                | Dove       | Perché è aperto                                                                          |
-| ------------------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------------------------------------- |
-| **esatto contratto degli snapshot** e necessità delle **chiavi storiche** aggiuntive | §5.2, §5.3 | quali colonne servano davvero, e se le chiavi storiche siano necessarie, non è stabilito |
-| **contenuto tecnico del preflight**                                                  | §14.1      | i quattro requisiti funzionali sono decisi; hash, token, scadenze e idempotenza no       |
-| struttura dell'**outbox**, lock e worker                                             | §8.4       | forma tecnica ipotizzata                                                                 |
-| **wizard di prima sincronizzazione**                                                 | §12        | i nove passi sono una proposta, non un flusso approvato                                  |
-| **politica delle publication per canale**                                            | §10.1      | quali canali, con quale regola                                                           |
+| Punto                                                                                | Dove       | Perché è aperto                                                                                                                                                 |
+| ------------------------------------------------------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **esatto contratto degli snapshot** e necessità delle **chiavi storiche** aggiuntive | §5.2, §5.3 | quali colonne servano davvero, e se le chiavi storiche siano necessarie, non è stabilito                                                                        |
+| **contenuto tecnico del preflight**                                                  | §14.1      | i quattro requisiti funzionali sono decisi; hash, token, scadenze e idempotenza no                                                                              |
+| struttura dell'**outbox**, lock e worker                                             | §8.4       | forma tecnica ipotizzata                                                                                                                                        |
+| **wizard di prima sincronizzazione**                                                 | §12        | i nove passi restano una proposta, non un flusso approvato. ⚠️ Per gli **articoli** vale ora §12.0: due direzioni iniziali approvate, dettagli operativi aperti |
+| **politica delle publication per canale**                                            | §10.1      | quali canali, con quale regola                                                                                                                                  |
 
 ⭐ **Un punto aperto non diventa chiuso perché una tranche lo attraversa.** Se un lavoro incontra una di queste voci, si ferma e la si decide.
 
@@ -97,6 +97,45 @@ Tolte dalla tabella perché **decise**, non perché attraversate. Restano elenca
 | politica di vendita oltre disponibilità                       | §10.4             | dato Shopify bidirezionale, indipendente da stato, pubblicazione e quantità                         |
 
 ---
+
+### ✅ Voci CHIUSE il 07/09/2026 — sedi, clienti, ordini, acquisizione
+
+| Voce                                                          | Dove è decisa  | Che cosa dice                                                                                                                      |
+| ------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **identità di sede e location**                               | §1.13          | due entità autonome; senza collegamento esplicito non si sincronizza niente, in nessuna direzione                                  |
+| **come nasce un collegamento di sede**                        | §1.13.1, §12.4 | mai automatico; tre scelte per riga; nome e indirizzo non sono prove d'identità; uno-a-uno nello stesso negozio                    |
+| **anagrafiche delle sedi**                                    | §1.13.2        | non si sincronizzano, nemmeno quando la creazione parte da una delle due piattaforme                                               |
+| **location scomparsa da Shopify**                             | §1.13.3        | la sede resta con tutti i suoi dati; il collegamento si chiude conservando la storia; nessun riaggancio per nome                   |
+| **quando una sede si può eliminare**                          | §1.13.4        | solo se non collegata e libera secondo tutte e 21 le relazioni; altrimenti si rende non operativa                                  |
+| **chi può disattivare una sede**                              | §1.13.4        | l'operatore; **mai** una sincronizzazione di canale                                                                                |
+| **eliminazione di clienti e ordini da funzioni Shopify**      | §1.14          | non avviene: si chiude o sospende il collegamento. `purgeOrders` è un **difetto da correggere**                                    |
+| **rilascio degli impegni alla disconnessione**                | §1.14.3        | non avviene: gli impegni seguono il ciclo di annullamento dell'ordine                                                              |
+| **ordini acquisiti alla prima connessione**                   | §1.15.1        | si registra l'istante e si parte da lì; nessuna importazione storica, nemmeno proposta                                             |
+| **recupero del periodo non sincronizzato alla riconnessione** | §1.15.2        | proposto, dall'ultimo checkpoint riuscito alla riconnessione, idempotente, solo per lo stesso `shop_gid`                           |
+| **che cosa sopravvive alla disconnessione**                   | §1.15.3        | identità del negozio, prima connessione, disconnessione, ultimo checkpoint, intervallo, riconnessione                              |
+| **fonte autorevole delle quantità dopo un recupero**          | §1.15.5        | VestiFlow; una modifica manuale su Shopify è un disallineamento da mostrare, non una sovrascrittura                                |
+| **da dove parte il primo allineamento degli ARTICOLI**        | §12.0          | **due direzioni approvate**: si importa da Shopify, o si crea da VestiFlow. L'identita' non si deduce mai da nome, SKU o barcode   |
+| **completezza del primo allineamento**                        | §8.9.1         | nessuna priorità fra campi: un articolo parziale **non** è completato. Interruzioni e ripetizioni senza perdite né duplicazioni    |
+| **margine di sincronizzazione**                               | §8.9.2         | si **misura**, con attenzione ai picchi e agli aggiornamenti massivi: la media giornaliera non basta                               |
+| **priorità sotto carico**                                     | §8.9.3         | disponibilità e prezzi prima delle descrizioni, quando serve; le meno urgenti si conservano e si completano                        |
+| **nessuna perdita silenziosa**                                | §8.9.4         | tre stati soli — confermata, da eseguire, fallita con motivo e recupero. Anche le modifiche arrivate durante il primo allineamento |
+
+---
+
+### ⏸ Voci APERTE dopo il consolidamento del 07/09/2026
+
+⛔ **Dopo questo consolidamento restano aperte soltanto queste sei**, più quelle
+già elencate sopra. Un punto che non compare in nessuna delle due liste è
+**deciso**: si applica la sezione che lo argomenta.
+
+| #   | Punto aperto                                                                     | Dove                     | Perché non si può dedurre                                                                                                                                                                                                                                                                                                            |
+| --- | -------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **termine definitivo** per una sede non eliminabile                              | §1.13.4                  | la proposta corrente è «Disattiva», non «Sospendi». La regola funzionale è decisa e non dipende dal nome                                                                                                                                                                                                                             |
+| 2   | **comportamento della sede collegata quando viene disattivata localmente**       | §1.13.5                  | il comportamento proposto è registrato per non perderlo, non perché sia acquisito                                                                                                                                                                                                                                                    |
+| 3   | **conseguenza del rifiuto** di recuperare gli ordini mancanti alla riconnessione | §1.15.4                  | avviso permanente, o blocco del riallineamento delle quantità: due strade difendibili                                                                                                                                                                                                                                                |
+| 4   | **dettagli operativi** del primo allineamento degli articoli                     | §12.0, §12.6             | le due direzioni sono approvate; la procedura dell'operatore, gli schermi e il trattamento dei cataloghi gia' popolati non lo sono                                                                                                                                                                                                   |
+| 5   | ✅ **giacenze iniziali per sede** — CHIUSA il 10/09/2026                         | `docs/DA-FARE.md` §31.-1 | il piano di funzionamento la scioglie: la base **non si calcola e non si deduce**, si crea con una **partenza controllata a fasi** (ordini acquisiti prima, quantita' allineate dopo). E' una **procedura, non un obbligo** verificato dal prodotto. ⏸ Resta aperta solo la quantita' di partenza di un articolo creato in VestiFlow |
+| 6   | **audit persistente e backup pre-operazione**                                    | `docs/DA-FARE.md`        | progettazione e implementazione: di una cancellazione oggi resta una riga di log sul container, che il riavvio perde                                                                                                                                                                                                                 |
 
 ### ⏸ Voci APERTE dal 06/09/2026 — ciclo di vita e stato Shopify
 
@@ -681,6 +720,394 @@ vedere che sta procedendo, non solo che è partita.
 **Dopo l'esecuzione, un risultato**: riusciti, ignorati, falliti — e la possibilità di
 **riprovare solo i falliti**. ⚠️ Oggi nessun elenco lo fa: l'eliminazione multipla dei prodotti
 dice «N prodotti non sono stati eliminati» e non offre nessun modo di ritentare quelli.
+
+### 1.13 Sede VestiFlow e location Shopify sono DUE entità autonome — deciso il 07/09/2026
+
+> **Una sede VestiFlow e una location Shopify sono identità indipendenti. La
+> sincronizzazione avviene soltanto dove esiste un collegamento esplicito, e
+> quel collegamento lo dichiara una persona.**
+
+⛔ **Senza collegamento non succede NIENTE**, e va preso alla lettera:
+
+- nessuna quantità viene sincronizzata;
+- nessuna anagrafica viene sincronizzata;
+- nessuna entità viene creata, modificata, disattivata o eliminata sull'altra piattaforma;
+- ciascuna sede si gestisce con le funzioni della propria piattaforma.
+
+⭐ **Non è una limitazione: è ciò che rende prevedibile il resto.** Una sede che
+non è collegata non ha un corrispondente, quindi nessuna regola di
+sincronizzazione può nominarla — e nessun automatismo può decidere per lei.
+
+#### 1.13.1 Prima configurazione — l'utente sceglie, riga per riga
+
+Per ogni **sede VestiFlow** non collegata, tre possibilità:
+
+- collegarla a una location Shopify esistente;
+- creare una nuova location Shopify;
+- mantenerla soltanto in VestiFlow.
+
+Per ogni **location Shopify** non collegata, le tre simmetriche:
+
+- collegarla a una sede VestiFlow esistente;
+- creare una nuova sede VestiFlow;
+- mantenerla soltanto in Shopify.
+
+⛔ **Il collegamento non è mai automatico. Nome e indirizzo NON sono prove
+d'identità.** Due negozi possono chiamarsi «Magazzino» in due città diverse, e
+lo stesso indirizzo può ospitare due punti vendita distinti. Una proposta basata
+sul nome può comparire come **aiuto alla lettura**, mai come collegamento
+applicato.
+
+⭐ **All'interno dello stesso negozio Shopify il collegamento è uno-a-uno.** Le
+configurazioni molti-a-uno o uno-a-molti richiederebbero una regola di
+ripartizione delle quantità che non esiste e non è stata chiesta.
+
+#### 1.13.2 Le anagrafiche NON si sincronizzano
+
+Nome, indirizzo e ogni altro dato anagrafico delle sedi **non** si
+sincronizzano. Si modificano separatamente sulle due piattaforme.
+
+⚠️ **Vale anche quando la creazione parte da una delle due.** Se si crea una
+location Shopify a partire da una sede VestiFlow — o viceversa — i dati
+dell'altra piattaforma vanno **controllati e confermati a mano**: la creazione
+propone, non replica.
+
+⭐ **Il collegamento serve a instradare i flussi previsti, non a rendere
+identiche le due anagrafiche.** È la stessa distinzione già fatta per il nome
+del prodotto (§1.9): due campi possono descrivere la stessa cosa e servire due
+mestieri diversi.
+
+#### 1.13.3 Location scomparsa da Shopify
+
+Se una location collegata non esiste più su Shopify:
+
+- **la sede VestiFlow resta**;
+- giacenze, movimenti, documenti e riferimenti restano **invariati**;
+- il collegamento **si chiude conservandone la storia**;
+- la sincronizzazione per quella sede **si ferma**;
+- VestiFlow **mostra** che la location non è più disponibile su Shopify;
+- la sede **non viene ricreata** automaticamente su Shopify;
+- una nuova location con **lo stesso nome non viene riagganciata** automaticamente;
+- l'utente può collegare esplicitamente la sede a un'altra location, o crearne una nuova.
+
+⛔ **«Chiudere conservando la storia» richiede uno storico dei collegamenti delle
+location**, equivalente a `shopify_product_links` e `shopify_variant_links`
+(§8.5): senza, «il collegamento è chiuso» e «il collegamento non è mai esistito»
+sono indistinguibili.
+
+⚠️ **Ma quella distinzione non AUTORIZZA nulla, e la frase qui sopra finiva con «ed è
+esattamente la differenza che impedisce il riaggancio automatico»** — letta di corsa
+suggerisce che, avuto lo storico, agganciare per nome una sede **mai collegata** torni
+lecito. ⛔ **Non lo è, in nessuno dei due casi**: il collegamento lo dichiara una persona,
+e lo storico serve a dire **quale dei due casi è**, non a permettere il primo.
+
+⚠️ **Ed è un errore già commesso**, l'08/09/2026, proprio partendo da questa riga: una
+proposta di tranche prescriveva di «condizionare il riaggancio per nome all'assenza di un
+periodo chiuso» — che avrebbe lasciato l'aggancio automatico su ogni sede mai collegata.
+Correzione e censimento in `docs/DA-FARE.md` §12.
+
+⭐ **Una proposta per nome resta ammessa come AIUTO alla lettura**, mai applicata da sola:
+è la stessa forma già scritta per gli articoli, «proposta per nome/opzioni, mai automatica».
+
+#### 1.13.6 La coppia è STABILE: niente riassegnazioni — deciso il 07/09/2026
+
+> **Una sede VestiFlow e una location Shopify già collegate e utilizzate non
+> possono essere riassegnate ad altre controparti.**
+
+| Cosa                                                                         | Si può?                                                                              |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **interrompere e ripristinare la stessa coppia**                             | ✅ conservando la storia, e recuperando gli eventi mancanti prima del riallineamento |
+| **correggere un abbinamento iniziale errato**                                | ✅ soltanto se non ha ancora prodotto effetti, **verificandolo**                     |
+| riassegnare la sede a un'altra location                                      | ⛔                                                                                   |
+| riassegnare la location a un'altra sede                                      | ⛔                                                                                   |
+| creare una sede nuova e collegarla a una location già appartenuta a un'altra | ⛔ è il modo per aggirare il divieto, ed è vietato per nome                          |
+
+**Se la location Shopify viene eliminata e ricreata, o il nuovo negozio ne
+richiede una diversa, si usa una NUOVA SEDE VestiFlow e si forma una nuova
+coppia.** ⛔ Non esistono procedure di sostituzione o migrazione dei
+collegamenti, e non si realizzano ora.
+
+⭐ **Cambiare soltanto nome o indirizzo non cambia l'identità della coppia.** È
+la stessa ragione per cui il modello non contiene né l'uno né l'altro.
+
+##### ⚠️ La conseguenza da rendere chiara: la nuova sede NON eredita le giacenze
+
+La vecchia sede **conserva documenti, movimenti e giacenze**. Nessuna
+disattivazione, nessuna cancellazione, nessuna movimentazione automatica.
+
+⛔ **La merce non passa da sola alla sede nuova.** Se deve passare, lo fa
+l'operatore con la **normale funzione di trasferimento di magazzino** — quella
+che esiste già, con il suo movimento tracciabile. Documenti e movimenti
+precedenti restano dove sono stati registrati, sulla vecchia sede: è la stessa
+disciplina della fotografia documentale (`regole-gestionale`).
+
+##### ⛔ Perché le tabelle sono DUE
+
+**Un indice unico sui soli collegamenti attivi non basta**, e questa è la
+ragione tecnica della forma:
+
+```text
+UNIQUE (location_id) WHERE status = 'active'
+  → appena il collegamento è chiuso, la sede torna libera
+  → la riassegnazione passa, ed è ciò che la decisione esclude
+```
+
+Servono quindi **due cose distinte**, e il modello le tiene distinte:
+
+|                                          |                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **`shopify_location_pairs`** — la coppia | stabile. Porta i due `UNIQUE` **totali**: una sede una sola coppia, una location una sola coppia |
+| **`shopify_location_links`** — i periodi | molti nel tempo. Un solo periodo `active` per coppia; la storia è il loro elenco                 |
+
+⛔ **I periodi NON sono il checkpoint, e non lo sostituiscono.** Il recupero
+degli ordini riparte dall'**ultimo checkpoint riuscito** (§1.15.2-3), che dice
+fin dove si è letto con successo — non quando il collegamento era acceso. Un
+ordine può essere arrivato a collegamento vivo e non essere stato acquisito:
+prenderli come equivalenti farebbe saltare proprio quelli.
+
+⭐ Ciò che i periodi danno è il **contesto**: quando il collegamento si è
+interrotto e perché. Serve a spiegare all'operatore che cosa è successo e a
+delimitare la finestra da ispezionare, non a decidere da dove ripartire.
+
+⭐ **Il trigger di immutabilità è la terza gamba**, e serviva: i due `UNIQUE`
+impediscono di _inserire_ una seconda coppia, non di _modificare_ quella
+esistente. Misurato il 07/09/2026 — un `UPDATE` del GID e uno della sede sono
+passati entrambi, sulla stessa riga, senza che nessun vincolo se ne accorgesse.
+Le colonne identitarie sono ora immutabili, e `updated_at` resta libera.
+
+⚠️ **È il primo trigger di questo database**: le regole di questo tipo vivevano
+in guardie statiche sul codice (`check:cassa-append-only`), che però proteggono
+la superficie esposta, non il dato. Qui la decisione è «la coppia non si
+riassegna mai», e una regola che vale sempre va dove non si può aggirare.
+
+⛔ **`superseded_by_link_id` è stato tolto.** Era stato deciso lo stesso giorno
+per la «sostituzione esplicita»: senza procedure di sostituzione non esiste un
+successore da indicare, e i periodi di una coppia si susseguono nel tempo.
+
+#### ✅ Le tabelle sono scritte — 07/09/2026
+
+La tabella è nella migration `20260907000000_shopify_link_history`, insieme alle
+due sorelle. ⚠️ Qui c'era «il requisito è registrato e la migration **non è
+scritta**»: non vale più.
+
+**Quattro decisioni sono state prese dal proprietario prima di scriverla**,
+perché il modello non era interamente derivabile e dedurle sarebbe stato
+inventarle:
+
+| Decisione                                | Scelta                                                                       |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| **cardinalità**                          | **coppia stabile**: `UNIQUE (location_id)` e `UNIQUE (shop_id, gid)`, TOTALI |
+| **cambio negozio**                       | chiude **anche** i collegamenti di sede, con causale `shop_change`           |
+| **`superseded_by_link_id`**              | ⛔ **ritirato** da §1.13.6: senza sostituzione non c'e' un successore        |
+| **unicità sull'inventory item** (§8.5.2) | si delibera come **quinta** garanzia                                         |
+
+⚠️ **Le prime due voci sono state superate poche ore dopo, dallo stesso
+proprietario** (§1.13.6): «una sede, un solo collegamento vivo» era un indice
+PARZIALE, e un indice parziale lascia la sede libera appena il collegamento è
+chiuso — cioè consente proprio le riassegnazioni che la decisione esclude.
+Restano scritte perché il passaggio spieghi la forma attuale.
+
+⛔ **La cardinalità era ambigua fra due testi entrambi scritti**: questa sezione
+diceva «uno-a-uno all'interno dello stesso negozio», le garanzie 3-4 di §8.5.2
+sono per entità locale a prescindere dal negozio. **Vince la più stretta**, col
+metodo di §8.5.1: il vincolo si rilassa solo dopo aver dichiarato per iscritto
+il caso commerciale che lo giustifica. Una sede non può quindi essere collegata
+a due negozi insieme — sincronizzare quantità verso due negozi richiederebbe una
+regola di ripartizione che non esiste e non è stata chiesta.
+
+⛔ **Qui c'era la descrizione di `superseded_by_link_id` come colonna esistente** —
+«per una sede è la sostituzione esplicita decisa dall'operatore», con la sua FK. È
+testo morto: la colonna è stata **ritirata lo stesso giorno**, due paragrafi più
+sopra e nella tabella delle quattro decisioni, e non è mai entrata nella migration.
+Restava a contraddire il proprio ritiro nella stessa sezione.
+
+⚠️ **Nessuna colonna di nome o indirizzo**, ed è la parte che tiene in piedi il
+divieto di riaggancio: un nome in quella tabella sarebbe l'appiglio per il
+riaggancio automatico che la tabella esiste per impedire. E **nessun**
+`last_event_at` / `last_event_triggered_at`, al contrario delle sorelle: quelle
+colonne ordinano eventi webhook, e per le location **non esiste alcun topic
+registrato** (`shopify-webhook-topics.ts`).
+
+⚠️ **La tabella nasce vuota**, come le due sorelle: nessun backfill in questa
+fase (§8.5.8).
+
+#### 1.13.4 Eliminare una sede VestiFlow
+
+Una sede si elimina **fisicamente** soltanto quando è tutte queste cose insieme:
+
+- **non collegata** a Shopify;
+- **realmente vuota**;
+- priva di giacenze, movimenti, documenti, conteggi, ordini, dispositivi,
+  assegnazioni e qualsiasi altro riferimento;
+- **libera secondo tutte e ventidue le relazioni censite** verso `Location`.
+
+Se esiste anche un solo riferimento, la sede **non si elimina**. Deve poter
+essere resa **non operativa** conservando storia e dati.
+
+⛔ **Una sincronizzazione Shopify non può eseguire automaticamente questa
+disattivazione.** È un'azione dell'operatore, non un effetto collaterale di un
+sync di canale.
+
+⏸ **Il termine dell'azione è l'ultimo dettaglio da confermare.** La proposta
+corrente è **«Disattiva»**, non «Sospendi». La regola funzionale qui sopra è
+decisa e non dipende dal nome che le si darà.
+
+#### 1.13.5 Sede disattivata mentre è collegata — 🔧 DA CONFERMARE
+
+> 🔧 **Comportamento proposto, non ancora deciso.** Registrato perché non vada
+> perso, non perché sia acquisito: nessuna tranche può implementarlo.
+
+- la sede Shopify **non viene modificata**;
+- la sincronizzazione della sede **si ferma**;
+- il collegamento **storico resta**;
+- alla riattivazione viene mostrato il **confronto delle quantità**;
+- nessuna quantità viene sovrascritta automaticamente prima della riconciliazione.
+
+---
+
+### 1.14 Una funzione Shopify non ELIMINA clienti e ordini VestiFlow — deciso il 07/09/2026
+
+> **Nessuna operazione del canale Shopify cancella fisicamente un cliente o un
+> ordine VestiFlow. Può chiudere o sospendere il collegamento; l'eliminazione
+> locale è una funzione VestiFlow separata e controllata.**
+
+⭐ **È la stessa regola già valida per il catalogo (§1.8, §11), estesa alle due
+entità che ne erano rimaste fuori.** Il criterio non cambia: scollegare un
+canale è un'operazione di canale, e non può decidere della vita del dato locale.
+
+#### 1.14.1 Clienti
+
+Una funzione Shopify **non elimina** il cliente VestiFlow. Può chiudere o
+sospendere il collegamento Shopify.
+
+L'eventuale eliminazione locale del cliente è una funzione VestiFlow separata,
+con i suoi permessi e le sue conferme.
+
+#### 1.14.2 Ordini
+
+Una funzione Shopify **non elimina** un ordine VestiFlow.
+
+⚠️ **La regola vale anche quando l'ordine non ha ancora generato un documento.**
+È il caso che sembra innocuo — «non è ancora diventato niente» — ed è quello in
+cui la cancellazione sembra più giustificabile.
+
+Devono essere conservati i collegamenti a **vendite, documenti, pagamenti, resi,
+movimenti e impegni**.
+
+⛔ **`purgeOrders` oggi contiene una cancellazione fisica: è un difetto da
+correggere, non un punto da decidere.** La decisione è presa; l'implementazione
+va allineata. Registrato in `docs/DA-FARE.md`.
+
+#### 1.14.3 Gli impegni non si rilasciano per disconnessione
+
+Gli impegni di magazzino **non** vengono rilasciati implicitamente dalla
+disconnessione Shopify: seguono il ciclo di **annullamento dell'ordine**.
+
+⭐ **E nemmeno per la CHIUSURA di un collegamento** (12/09/2026): l'impegno preso quando il
+collegamento era attivo resta finché l'ordine è aperto, si rilascia con l'annullamento e si
+chiude alla spedizione **senza scarico** — la riga non si risolve più (`DA-FARE` §30.8).
+
+⚠️ **Non è una precisazione teorica.** `stock_reservations.sales_order_id` è
+`ON DELETE CASCADE` — misurato il 07/09/2026 — quindi cancellare un ordine
+porta via i suoi impegni e lascia `inventory_levels.committed` gonfio di impegni
+che non esistono più. È la ragione tecnica per cui §1.14.2 non ammette
+eccezioni.
+
+---
+
+### 1.15 Acquisizione degli ordini: prima connessione e riconnessione — deciso il 07/09/2026
+
+#### 1.15.1 Prima connessione — si parte da adesso
+
+Alla **prima** connessione:
+
+- viene registrato **l'istante della connessione**;
+- vengono acquisiti gli ordini creati **da quel momento in avanti**;
+- gli ordini precedenti **non** vengono importati;
+- **non** viene proposta un'importazione storica automatica.
+
+⭐ **Il confine è un fatto registrato, non una preferenza.** Senza un istante
+salvato, «da quando acquisiamo» diventa una domanda a cui si risponde
+diversamente ogni volta che qualcuno la fa.
+
+#### 1.15.2 Riconnessione allo STESSO negozio — si propone il recupero
+
+Alla riconnessione VestiFlow **propone** di recuperare il periodo non
+sincronizzato.
+
+L'intervallo parte **dall'ultimo checkpoint di sincronizzazione ordini
+completato con successo** — normalmente vicino alla disconnessione — e termina
+alla riconnessione.
+
+⚠️ **Non parte dalla data di disconnessione**, e la differenza conta: fra
+l'ultimo checkpoint riuscito e la disconnessione può esserci una finestra in cui
+la sincronizzazione era già ferma o in errore. Prendere la disconnessione come
+inizio salterebbe proprio gli ordini di quella finestra.
+
+Se l'utente accetta:
+
+1. vengono acquisiti gli ordini mancanti;
+2. vengono riconciliati anche gli **aggiornamenti** avvenuti nel periodo su
+   ordini già noti;
+3. l'acquisizione è **idempotente** tramite gli identificativi Shopify;
+4. VestiFlow applica i relativi effetti;
+5. calcola la situazione aggiornata;
+6. mostra il **confronto** con Shopify;
+7. **prevalgono le quantità calcolate da VestiFlow**;
+8. Shopify viene **riallineato a VestiFlow**.
+
+⛔ **Vale soltanto per la riconnessione allo stesso `shop_gid`.** Un negozio
+differente **non eredita** l'intervallo del precedente: i suoi ordini non sono
+mai stati «non sincronizzati», sono di un'altra storia.
+
+#### 1.15.3 Che cosa va conservato, e che NON si azzera alla disconnessione
+
+- identità del negozio (`shop_gid`);
+- data della **prima connessione**;
+- data della **disconnessione**;
+- **ultimo checkpoint ordini riuscito**;
+- **intervallo non sincronizzato**;
+- data della **riconnessione**.
+
+⛔ **La disconnessione non azzera queste informazioni.** Azzerarle rende
+impossibile calcolare l'intervallo, e la proposta di recupero non può esistere.
+
+⚠️ È il difetto già visto altrove in questo documento: `disconnect()` azzera
+oggi `lastSyncAt` e `lastWebhookEventAt` (§8). Quelle due colonne servono a
+un'altra domanda; la storia della connessione ha bisogno di campi propri, che
+la disconnessione **scrive** invece di cancellare.
+
+#### 1.15.4 Se l'utente RIFIUTA il recupero — ⏸ APERTO
+
+⏸ Non deciso. Le due strade, entrambe difendibili:
+
+- consentire la ripresa mostrando un **avviso permanente**;
+- **bloccare il riallineamento delle quantità** finché il periodo non viene recuperato.
+
+⛔ Nessuna tranche può scegliere implementando.
+
+#### 1.15.5 Fonte delle quantità — prevale VestiFlow
+
+Dopo il recupero degli ordini prevale **VestiFlow**, perché nel periodo di
+disconnessione può aver registrato **altre operazioni locali** — vendite al
+banco, rettifiche, carichi, trasferimenti — che Shopify non ha mai visto.
+
+```text
+ordini e aggiornamenti      Shopify  →  VestiFlow
+calcolo della disponibilità             VestiFlow
+quantità da vendere                     VestiFlow  →  Shopify
+```
+
+⭐ **Coerente con la regola già in vigore** (`regole-gestionale`): «Shopify non è
+fonte della quantità». Qui se ne dichiara la conseguenza sul caso della
+riconnessione, che è quello in cui la tentazione di fidarsi del remoto è più
+forte.
+
+⚠️ **Una modifica manuale delle quantità su Shopify produce un disallineamento
+da MOSTRARE**: non sovrascrive automaticamente VestiFlow, e non viene ignorata
+in silenzio.
+
+---
 
 ## 2. Situazione osservata nel codice al 2 settembre 2026
 
@@ -1505,6 +1932,12 @@ Ogni mutation deve trattare `userErrors` come esito applicativo fallito. Una ris
 
 > 🔧 **Proposta tecnica da verificare**
 
+⚠️ **Questa sezione descrive UNA forma possibile; i requisiti che qualunque forma deve
+soddisfare stanno in §8.9** — nessuna perdita silenziosa, priorità sotto carico, completezza
+del primo allineamento, margine misurato. ⛔ **Outbox, worker e Bulk Operations restano
+opzioni da valutare**, non implementazioni autorizzate: leggere questa sezione come una
+decisione presa è l'errore che §8.9 esiste anche per prevenire.
+
 Le scritture Shopify non devono dipendere da un `void` in memoria.
 
 La transazione locale registra:
@@ -1574,7 +2007,7 @@ risalire al negozio precedente.
 ```text
 shopify_shops
   id (uuid) · tenant_id (FK tenants)
-  shop_gid              gid://shopify/Shop/99462054183   — identità immutabile
+  shop_gid              gid://shopify/Shop/{id}          — identità immutabile
   myshopify_domain      fotografia al momento del collegamento
   first_seen_at · last_seen_at
 
@@ -1607,8 +2040,11 @@ transazione:
 1. **si crea** (o si ritrova, se già noto) l'identità immutabile del nuovo negozio in
    `shopify_shops`;
 2. **si aggiorna** `ShopifyConnection` a puntare al nuovo `shop_id` e al nuovo `shopDomain`;
-3. **si chiudono** tutti i link `active` del **vecchio** negozio — prodotto e variante — con
-   `close_reason = shop_change` (§8.5.2);
+3. **si chiudono** tutti i link `active` del **vecchio** negozio — prodotto, variante **e
+   sede** — con `close_reason = shop_change` (§8.5.2);
+   ⚠️ **Le famiglie sono TRE, non due** — deciso il 07/09/2026. Qui erano nominate solo
+   prodotto e variante, e le sedi sarebbero rimaste collegate a un negozio che non è più
+   quello connesso;
 4. gli identificativi remoti del vecchio negozio **restano storici**: nessuna riga si cancella,
    nessun id si azzera;
 5. **le colonne-cache** esistenti (`shopifyProductId`, `shopifyVariantId`,
@@ -1621,149 +2057,394 @@ transazione:
 chiudere i link. Il comportamento richiesto qui è diverso da quello attuale, e va registrato
 come lavoro di tranche, non come correzione immediata.
 
-### 8.5.2 Storico dei collegamenti Shopify — modello
+#### ✅ Preflight eseguito: entrambi i negozi espongono un GID valido — 07/09/2026
 
-> ✅ **Decisione confermata** (06/09/2026)
+Due letture in sola lettura, una per connessione, con la query `{ shop { id myshopifyDomain } }`
+alla versione API **effettiva del client** (`2026-07`):
 
-**Due tabelle sorelle**, `ShopifyProductLink` e `ShopifyVariantLink`, con FK reali verso
-`Product`/`ProductVariant` e verso `ShopifyShop`. Sono la fonte canonica di collegamento
-(§8.5.5); le colonne-cache esistenti restano un puntatore rapido aggiornato insieme.
+|                                        | Negozio A | Negozio B |
+| -------------------------------------- | --------- | --------- |
+| Shop GID presente e formalmente valido | ✅        | ✅        |
+| distinti fra loro                      | ✅        | ✅        |
+| `myshopifyDomain` == dominio locale    | ✅        | ✅        |
+| errori o permessi mancanti             | nessuno   | nessuno   |
+
+⛔ **GID e domini reali non compaiono in questo documento, né nelle migration.** Restano nel
+database e nelle letture: un identificativo di negozio in un file versionato è un dato del
+cliente in un posto che non lo riguarda.
+
+⭐ **Il valore che mancava esiste ed è acquisibile**: era l'unico punto in cui il backfill
+dipendeva da un dato assente in locale (§8.5.8).
+
+⚠️ **`apiVersion` registrata `2025-01` su un negozio è un valore informativo STANTIO, e non
+blocca niente.** La lettura è avvenuta a `2026-07` ed è riuscita: la colonna si aggiorna solo
+a una riconnessione (`shopify-oauth.service.ts:169`), mentre le chiamate leggono sempre la
+configurazione. È un **debito separato** — il pannello mostra quella colonna — registrato in
+`DA-FARE.md`, non un ostacolo a questo modello.
+
+#### ⭐ L'identificativo canonico è il GID completo — deciso il 07/09/2026
+
+> **Nelle tabelle di collegamento l'identificativo remoto è il GID Shopify completo.** Il
+> modello nuovo è GraphQL, e il GID porta con sé il **tipo** della risorsa: `Product` e
+> `ProductVariant` non possono essere scambiati per errore, cosa che due numeri accanto non
+> impediscono.
+
+Conversioni del backfill, deterministiche:
 
 ```text
-shopify_product_links
-  id · tenant_id · shop_id · product_id
-  shopify_product_id
-  status            active | remotely_deleted | unlinked
-  close_reason      null | remote_delete | not_found | operator | shop_change
-  superseded_by_link_id   FK a se stessa, nullable
-  linked_at · closed_at
-  last_event_at · last_event_triggered_at
-
-shopify_variant_links
-  id · tenant_id · shop_id · product_id · variant_id · product_link_id
-  shopify_variant_id · shopify_inventory_item_id
-  status · close_reason · superseded_by_link_id
-  linked_at · closed_at · last_event_at · last_event_triggered_at
+prodotto        gid://shopify/Product/{id}
+variante        gid://shopify/ProductVariant/{id}
+inventory item  gid://shopify/InventoryItem/{id}
+negozio         gid://shopify/Shop/{id}
 ```
 
-#### Unicità — quattro garanzie, non tre
+⚠️ **Gli identificativi numerici attuali NON si sovrascrivono e non si eliminano**: misurato il
+06/09/2026, sono tutti in forma legacy REST — 178 prodotti e 287 varianti, zero `gid://`.
+Restano nelle colonne esistenti come **cache di compatibilità** per il codice non ancora
+migrato (§8.5.5), e il loro ritiro è la tranche finale.
 
-> ✅ **Decisione confermata**: l'unicità solo sulle righe `active` per id remoto è
-> insufficiente, perché renderebbe ambigua la risoluzione di ordini e resi storici (§8.5.4).
+⛔ **Nelle tabelle nuove non si mette una seconda copia numerica.** Il numero è già disponibile
+nelle colonne legacy e si ricava dal GID con una divisione di stringa: duplicarlo creerebbe due
+scritture da tenere allineate per un dato derivabile — cioè la stessa doppia fonte che §8.5.5
+esiste per chiudere.
 
-| #   | Garanzia                                                       | Indice                                                                        |
-| --- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 1   | un solo record, **storico o corrente**, per `shopifyProductId` | `UNIQUE (shop_id, shopify_product_id)` — su TUTTE le righe, non solo `active` |
-| 2   | un solo record, **storico o corrente**, per `shopifyVariantId` | `UNIQUE (shop_id, shopify_variant_id)` — idem                                 |
-| 3   | un solo collegamento `active` per prodotto locale              | `UNIQUE (product_id) WHERE status = 'active'` — indice **parziale**           |
-| 4   | un solo collegamento `active` per variante locale              | `UNIQUE (variant_id) WHERE status = 'active'` — idem                          |
+⭐ **Il tipo si verifica nel database, non solo nel codice**: ogni colonna GID porta un `CHECK`
+che ne impone il prefisso esatto. Un `gid://shopify/Product/…` in una colonna di variante viene
+rifiutato da PostgreSQL, non da una convenzione.
 
-⭐ **Le garanzie 1-2 sono quelle che rendono impossibile riusare un id remoto dopo la
-chiusura** (la tua regola d'apertura): un id remoto compare **una volta sola** nella tabella,
-per sempre. Le garanzie 3-4 impediscono invece che un'entità locale abbia due collegamenti
-vivi insieme — sono la stessa regola di §3.1 (un solo asse alla volta), applicata al database.
+### 8.5.2 Storico dei collegamenti Shopify — modello
+
+> ✅ **Decisione confermata** (06/09/2026) · ⭐ **modello dati ristrutturato il 07/09/2026**
+
+⛔ **Qui c'erano DUE tabelle, `ShopifyProductLink` e `ShopifyVariantLink`, che facevano
+due mestieri insieme**: dicevano _quale articolo locale è quel GID_ e insieme _da quando a
+quando è stato collegato_. Reggeva finché l'anagrafica locale non si eliminava mai. Dal
+momento in cui l'eliminazione definitiva locale è stata decisa (§1.8, §7), quella forma si
+è spezzata su due punti misurati, e la ristrutturazione non è un ripensamento estetico:
+
+|                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| una riga con `product_id` **NOT NULL** e FK `RESTRICT` rende l'eliminazione definitiva **impossibile**: o si toglie il vincolo, o non si elimina            |
+| resa `product_id` **nullable**, la FK composita `(product_id, tenant_id)` diventa **inerte**: `MATCH SIMPLE` non verifica nulla quando una colonna è `NULL` |
+
+⭐ **Il modello effettivo separa l'IDENTITÀ dai PERIODI**, ed è la stessa forma già decisa
+per le sedi (§1.13.6): la cosa stabile da una parte, i suoi intervalli di tempo dall'altra.
+
+```text
+shopify_product_identities          ← chi è quel GID, per sempre
+  id · tenant_id · shop_id
+  shopify_product_gid               gid://shopify/Product/{id}, forma imposta da CHECK
+  original_product_id               l'appartenenza ORIGINARIA — immutabile, SENZA FK
+  product_id                        il riferimento VIVO — nullable, FK RESTRICT
+  local_deleted_at                  si scrive una volta sola
+  viva                              GENERATED ALWAYS AS (product_id IS NOT NULL) STORED
+
+shopify_product_links               ← DA QUANDO A QUANDO è stato collegato
+  id · tenant_id · identity_id
+  original_product_id               denormalizzato, e una FK composita gli impedisce di mentire
+  status            active | remotely_deleted | unlinked
+  close_reason      null | remote_delete | not_found | operator | shop_change | local_delete
+  linked_at · closed_at
+  last_event_at · last_event_triggered_at
+  richiede_viva     GENERATED ALWAYS AS (CASE WHEN status='active' THEN true END) STORED
+
+shopify_variant_identities          ← due identificativi remoti, non uno
+  … + shopify_variant_gid · shopify_inventory_item_gid
+  product_identity_id · original_variant_id · original_product_id
+  variant_id · product_id           i due riferimenti vivi, che si sganciano INSIEME
+
+shopify_variant_links               ← come sopra, più product_link_id (il periodo padre)
+```
+
+#### ⭐ L'appartenenza è scritta DUE VOLTE, e la distinzione è tutto il modello
+
+|                       |                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `original_product_id` | **dato storico**, come uno snapshot documentale. Immutabile, **senza chiave esterna**, sopravvive alla purga |
+| `product_id`          | **riferimento vivo**. Nullable, FK `RESTRICT`. Si azzera alla purga, e da lì la FK non verifica più nulla    |
+
+⚠️ **Ciò che quella FK smette di garantire lo garantisce la FK diretta sul tenant**, che
+resta `NOT NULL`: una riga sganciata non diventa senza padrone.
+
+⭐ **E `original_product_id` è ciò che blocca la ricreazione automatica**: l'identità
+rimane, quindi un GID già visto non torna assegnabile a un articolo diverso, nemmeno dopo
+che l'anagrafica locale è stata eliminata. È il requisito che l'eliminazione definitiva
+doveva soddisfare, e la ragione per cui la colonna non porta una FK.
+
+#### ⛔ `superseded_by_link_id` NON esiste più
+
+Era stato deciso il 06/09/2026 come «l'esistenza di un successore, e quale». La
+ristrutturazione del 07/09 lo ha superato: **la ripubblicazione è una seconda identità
+sullo stesso `original_product_id`**, e i periodi di un'identità si susseguono nel tempo.
+Un successore da indicare non c'è — si leggono ordinati per `linked_at`.
+
+⚠️ Cade con lui il CHECK «un link non punta a se stesso», e cade il problema che esso non
+risolveva: il ciclo fra due righe, che un vincolo di riga non può vedere. **La garanzia
+applicativa «nessun ciclo» non serve più a nessuno**, perché non c'è più il puntatore che
+poteva formarne uno.
+
+#### Unicità — cinque garanzie, e adesso stanno su DUE tabelle
+
+⭐ **Le garanzie non sono cambiate: è cambiato dove vivono.** Le prime due, e la quinta,
+riguardano l'**identità remota** e stanno sulle tabelle delle identità; la terza e la
+quarta riguardano il **collegamento attivo** e stanno sui periodi.
+
+| #   | Garanzia                                                  | Indice, e su quale tabella                                                    |
+| --- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1   | un solo record, **storico o corrente**, per GID prodotto  | `UNIQUE (shop_id, shopify_product_gid)` su **identities** — su TUTTE le righe |
+| 2   | un solo record, **storico o corrente**, per GID variante  | `UNIQUE (shop_id, shopify_variant_gid)` su **identities** — idem              |
+| 3   | un solo collegamento `active` per **anagrafica** prodotto | `UNIQUE (original_product_id) WHERE status = 'active'` su **links**, parziale |
+| 4   | un solo collegamento `active` per **anagrafica** variante | `UNIQUE (original_variant_id) WHERE status = 'active'` su **links**, parziale |
+| 5   | variante ↔ inventory item è uno-a-uno dentro il negozio   | `UNIQUE (shop_id, shopify_inventory_item_gid)` su **identities**              |
+
+⭐ **Le garanzie 3-4 poggiano su `original_*`, NON su `product_id`/`variant_id`**, ed è la
+conseguenza diretta del nullable: un indice parziale su una colonna che dopo la purga vale
+`NULL` smetterebbe di garantire qualcosa proprio per le righe che più contano. La colonna
+storica non si azzera mai, quindi l'indice morde sempre.
+
+⭐ **Una sesta unicità, tecnica**: `UNIQUE (identity_id) WHERE status = 'active'` — un solo
+periodo vivo per identità. Non è una garanzia di dominio nuova, è il modo in cui i periodi
+esprimono «adesso è collegato una volta sola».
+
+⚠️ La quinta colonna è nullable e PostgreSQL non fa collidere i NULL: il vincolo morde solo
+sulle varianti con inventory item noto.
+
+⭐ **E le sedi hanno le proprie**, con la stessa forma — `UNIQUE (shop_id,
+shopify_location_gid)` e `UNIQUE (location_id)` sulla **coppia**, entrambi su tutte le
+righe: vedi §1.13.3 e §1.13.6.
 
 ⭐ **Un indice unico parziale è già un pattern del progetto**: usato da
-`cash_sessions_open_per_location` e `vat_codes_tenant_default_key`. Non introduce una tecnica
-nuova.
+`cash_sessions_open_per_location` e `vat_codes_tenant_default_key`. Non introduce una
+tecnica nuova.
 
-⚠️ **Sull'indice parziale, nessuna race condition**: è l'indice a decidere, non un controllo
-applicativo — due inserimenti concorrenti che superano entrambi un controllo a livello di
-servizio non sono un problema, perché il secondo si blocca sul conflitto finché il primo non
-fa commit, poi fallisce con un errore di vincolo che il chiamante traduce in un conflitto di
-dominio leggibile. Vale già sotto l'isolamento di default di PostgreSQL, senza bisogno di
-`SERIALIZABLE` né di lock espliciti.
+#### ⛔ Un indice unico non basta: la concorrenza vuole una FK, non un trigger
+
+> **Un periodo `active` esige un'identità VIVA, e a esigerlo è una CHIAVE ESTERNA.**
+
+⚠️ **Misurato il 07/09/2026** su due connessioni vere: con la sola guardia procedurale — un
+trigger, o un controllo nel servizio — due sessioni si incrociano, **entrambe committano**,
+e resta un periodo attivo su un'identità eliminata. Un trigger legge lo stato con il
+proprio snapshot e non vede la transazione dell'altro.
+
+⭐ **Il rimedio è dichiarativo**, e PostgreSQL lo serializza da sé:
+
+```sql
+-- sull'identità: vero quando l'anagrafica c'è ancora
+viva          GENERATED ALWAYS AS (product_id IS NOT NULL) STORED
+UNIQUE (id, viva)
+
+-- sul periodo: `true` se attivo, NULL se chiuso
+richiede_viva GENERATED ALWAYS AS (CASE WHEN status='active' THEN true END) STORED
+FOREIGN KEY (identity_id, richiede_viva)
+  REFERENCES shopify_product_identities (id, viva)
+  ON DELETE RESTRICT ON UPDATE RESTRICT
+```
+
+⭐ **`MATCH SIMPLE` qui lavora a favore**, per una volta: su un periodo **chiuso**
+`richiede_viva` è `NULL`, quindi la FK non verifica nulla e **la storia sopravvive alla
+purga**. Su un periodo **attivo** vale `true`, e allora esige `(id, true)` — cioè
+un'identità viva.
+
+⚠️ **È lo stesso `MATCH SIMPLE` che rendeva inerte la vecchia FK su `product_id`.** Non è
+una contraddizione: là l'inerzia era un difetto perché il vincolo doveva valere sempre,
+qui è la funzione perché il vincolo deve valere **solo** sui periodi attivi. La differenza
+è che ora è **dichiarata**, non subita.
+
+⚠️ **Verificato in concorrenza, nei due ordini**
+(`shopify-articoli-identita.integration-spec.ts`): una transazione riesce, l'altra è
+**rifiutata dalla FK** — e la prova esige il nome del vincolo, perché un rifiuto
+dell'indice unico dei periodi attivi direbbe la cosa giusta per la ragione sbagliata.
 
 #### Stati — tre, non quattro
 
-> ⛔ **Corretto il 06/09/2026: `superseded` NON è uno stato.**
+> ⛔ **Corretto il 06/09/2026: `superseded` NON è uno stato.** Rappresentava solo
+> l'esistenza di un successore, e usarlo come stato **cancella la causa vera**: un link
+> chiuso perché il prodotto è stato eliminato su Shopify, dopo una ripubblicazione,
+> diventerebbe genericamente «sostituito».
 
-Rappresenta solo l'esistenza di un successore, e usarlo come stato **cancella la causa vera**:
-un link chiuso perché il prodotto è stato eliminato su Shopify, dopo una ripubblicazione,
-diventerebbe genericamente «sostituito» — e nessuno saprebbe più che era stato cancellato.
+| Colonna        | Che cosa dice                                                            | Quando cambia                      |
+| -------------- | ------------------------------------------------------------------------ | ---------------------------------- |
+| `status`       | dov'è il collegamento adesso: `active` · `remotely_deleted` · `unlinked` | una volta, alla chiusura — mai più |
+| `close_reason` | **perché** si è chiuso                                                   | fissata alla chiusura, non cambia  |
 
-| Colonna                 | Che cosa dice                                                            | Quando cambia                                                         |
-| ----------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `status`                | dov'è il collegamento adesso: `active` · `remotely_deleted` · `unlinked` | una volta, alla chiusura — mai più                                    |
-| `close_reason`          | **perché** si è chiuso                                                   | fissata alla chiusura, non cambia mai                                 |
-| `superseded_by_link_id` | **se** esiste un successore, e quale                                     | può essere impostata **dopo** la chiusura, quando nasce il nuovo link |
+⭐ **Ripubblicazione, corretta**: il vecchio periodo resta `remotely_deleted` con la sua
+`close_reason` originale (`remote_delete` o `not_found`) — **non la perde mai**. Nasce
+un'identità **nuova** con il GID nuovo, e su di lei un periodo `active`. Nessuna
+riapertura, nessuna riscrittura della causale.
 
-⭐ **Ripubblicazione, corretta**: il vecchio link resta `remotely_deleted` con la sua
-`close_reason` originale (`remote_delete` o `not_found`) — **non la perde mai**. Riceve solo il
-puntatore al successore. Nasce un link **nuovo**, `active`. Nessuna riapertura, nessuna
-riscrittura della causale.
+⭐ **Ripresa della stessa identità** (stesso GID che torna disponibile): non nasce una
+seconda identità, nasce un **periodo nuovo** sulla stessa. È la distinzione che il modello
+a due tabelle rende esprimibile e che quello a una non poteva.
 
-#### I CHECK — cinque, e vanno letti come un gruppo
+⛔ **La ripresa riguarda un'anagrafica ANCORA ESISTENTE, e vuole un'azione esplicita
+autorizzata.** Non è il ripristino di un'identità eliminata definitivamente: quella ha
+`local_deleted_at` valorizzato e `product_id` a `NULL`, e su di lei un periodo `active` è
+**impossibile** — lo vietano il trigger `…_immutabile` (che rifiuta sia di riagganciare sia
+di riscrivere la data) e la FK `…_identita_viva_fkey`, ciascuno da solo. Confondere le due
+cose è l'errore che fa sembrare aperta una regola che il database applica già.
+
+⚠️ **Il permesso non è «l'operatore»**: §7.4 chiede un permesso applicativo esplicito, con
+default a titolare/amministratore, e la ripresa di un collegamento è della stessa famiglia.
+
+⛔ **L'immutabilità la impongono TRIGGER, non i soli UNIQUE**, e la distinzione è stata
+misurata: i vincoli unici impediscono di **inserire** un doppione, non di **modificare** una
+riga esistente. `shopify_product_identities_immutabile` rifiuta di spostare il GID o
+l'appartenenza originaria; `shopify_periodo_immutabile` rifiuta di riscrivere una causale o
+di riaprire un periodo chiuso.
+
+#### ⭐ Una sesta causale: `local_delete`
+
+Ammessa **solo** su prodotti e varianti, e vietata sulle sedi da un CHECK a lista bianca:
+una sede non si elimina definitivamente finché ha una storia (§1.13.4). È la causale con
+cui si chiude un periodo quando è l'**anagrafica locale** a sparire — distinta da
+`remote_delete`, che dice che a sparire è stato il prodotto su Shopify.
+
+#### I CHECK — vanno letti come un gruppo
 
 ```sql
--- 1-2: bidirezionale. Attivo ⇒ nessuna chiusura; chiuso ⇒ chiusura completa.
+-- Sui PERIODI · 1-2: bidirezionale. Attivo ⇒ nessuna chiusura; chiuso ⇒ chiusura completa.
 CHECK (status <> 'active' OR (closed_at IS NULL AND close_reason IS NULL))
-CHECK (status = 'active'  OR (closed_at IS NOT NULL AND close_reason IS NOT NULL))
+CHECK (status =  'active' OR (closed_at IS NOT NULL AND close_reason IS NOT NULL))
 
 -- 3-4: la causale ammessa dipende dallo stato.
 CHECK (status <> 'remotely_deleted' OR close_reason IN ('remote_delete', 'not_found'))
-CHECK (status <> 'unlinked'         OR close_reason IN ('operator', 'shop_change'))
+CHECK (status <> 'unlinked' OR close_reason IN ('operator', 'shop_change', 'local_delete'))
 
--- 5: un link non punta a se stesso.
-CHECK (superseded_by_link_id IS NULL OR superseded_by_link_id <> id)
+-- 5: un periodo non si chiude prima di aprirsi.
+CHECK (closed_at IS NULL OR closed_at >= linked_at)
+
+-- Sulle IDENTITÀ · il riferimento vivo, quando c'è, È l'articolo originario.
+CHECK (product_id IS NULL OR product_id = original_product_id)
+-- O viva, o eliminata localmente. Nessun terzo stato.
+CHECK ((product_id IS NULL) = (local_deleted_at IS NOT NULL))
+-- E il GID ha una forma, non è una stringa qualunque.
+CHECK (shopify_product_gid ~ '^gid://shopify/Product/[0-9]+$')
 ```
 
 ⚠️ **I CHECK 3 e 4 non reggono da soli**: `close_reason IN (...)` su `NULL` vale `NULL`, e un
-CHECK fallisce solo su `FALSE` — un `close_reason` lasciato vuoto su un link `remotely_deleted`
-supererebbe 3-4 in silenzio. È il **CHECK 2** a chiudere il varco, imponendo `close_reason NOT
-NULL` per ogni stato diverso da `active`. **I cinque vanno scritti e letti insieme**: un giorno
-il 2 può sembrare ridondante rispetto a 3-4 e venire tolto per pulizia — non lo è.
+CHECK fallisce solo su `FALSE` — un `close_reason` lasciato vuoto su un periodo
+`remotely_deleted` supererebbe 3-4 in silenzio. È il **CHECK 2** a chiudere il varco,
+imponendo `close_reason NOT NULL` per ogni stato diverso da `active`. **Vanno scritti e
+letti insieme**: un giorno il 2 può sembrare ridondante rispetto a 3-4 e venire tolto per
+pulizia — non lo è.
 
-⛔ **Il CHECK 5 non basta contro un ciclo fra due righe** (A punta a B, B punta ad A): un
-vincolo di riga non può vedere un'altra riga. La garanzia «nessun ciclo» resta **applicativa**
-(si scrive il successore solo in un `UPDATE` che segue l'`INSERT` del nuovo link, mai in un
-ordine che permetta due righe di puntarsi a vicenda), non del database.
+⭐ **Il CHECK «stato coerente» è quello che tiene onesta l'eliminazione**: senza,
+esisterebbe la riga «sganciata ma senza data di eliminazione», che è lo stato in cui non si
+sa più se l'articolo è stato eliminato o se qualcuno ha semplicemente azzerato una colonna.
 
-#### Le FK — verificate, con due correzioni
+#### Le FK
 
 ```text
-FK (product_id, tenant_id)  → products(id, tenant_id)
-FK (shop_id, tenant_id)     → shopify_shops(id, tenant_id)
-FK (superseded_by_link_id, product_id, shop_id)
-     → shopify_product_links(id, product_id, shop_id)     ON DELETE RESTRICT
+-- IDENTITÀ
+FK (tenant_id)             → tenants(id)
+FK (shop_id, tenant_id)    → shopify_shops(id, tenant_id)
+FK (product_id, tenant_id) → products(id, tenant_id)          nullable ⇒ inerte dopo la purga
+   original_product_id                                        NESSUNA FK, per costruzione
 
--- variante, in più:
-FK (variant_id, product_id) → product_variants(id, product_id)   ← la variante È di quel prodotto
-FK (product_link_id, product_id, shop_id)
-     → shopify_product_links(id, product_id, shop_id)             ON DELETE RESTRICT
+-- PERIODI
+FK (identity_id, tenant_id)          → identities(id, tenant_id)          ON DELETE RESTRICT
+FK (identity_id, original_product_id)→ identities(id, original_product_id) la denormalizzazione non mente
+FK (identity_id, richiede_viva)      → identities(id, viva)               ON DELETE/UPDATE RESTRICT
+
+-- VARIANTE, in più
+FK (product_identity_id, tenant_id)  → product_identities(id, tenant_id)
+FK (product_link_id)                 → product_links(id)                  il periodo padre
 ```
 
-⚠️ **`ON DELETE RESTRICT`, esplicito, su entrambe le FK auto-referenziali e gerarchiche —
-correzione tecnica del 06/09/2026.** Mai `SET NULL` (perderebbe il legame con il predecessore o
-col prodotto senza che nessuno se ne accorga) e mai `CASCADE` (su una catena di ripubblicazioni
-propagherebbe una cancellazione lungo tutta la storia). Un link non si cancella mai comunque
-(§8.5.5): `RESTRICT` è la forma che lo dichiara.
+⚠️ **`ON DELETE RESTRICT` esplicito ovunque.** Mai `SET NULL` (perderebbe il legame senza
+che nessuno se ne accorga) e mai `CASCADE` (su una catena di ripubblicazioni propagherebbe
+una cancellazione lungo tutta la storia).
 
-⭐ **Precedente già nel progetto**: `FiscalReceipt.originalReceiptId` è già una FK
-auto-referenziale nello schema attuale — la forma non è nuova per questo database.
-
-⭐ **Ordine di scrittura, verificato**: prima si crea (`INSERT`) il link nuovo `active`, poi si
-aggiorna (`UPDATE`) il vecchio con `superseded_by_link_id`. Nella stessa transazione, senza
-bisogno di vincoli `DEFERRABLE`.
+⭐ **E la FK del padre variante confronta colonne che non si azzerano mai**
+(`original_product_id`), quindi regge anche quando i riferimenti vivi sono già stati
+sganciati — che è esattamente il momento in cui una FK sui riferimenti vivi smetterebbe di
+dire qualcosa.
 
 **Ausiliarie sulle tabelle esistenti**, additive:
 
 ```text
 products          UNIQUE (id, tenant_id)
 product_variants  UNIQUE (id, tenant_id) · UNIQUE (id, product_id)
+locations         UNIQUE (id, tenant_id)
 ```
 
-#### ⚠️ Il Client Prisma non conosce l'indice parziale né i CHECK — mitigazione obbligatoria
+#### ⛔ La storia non si CANCELLA — e il TRUNCATE non è un DELETE
+
+⚠️ **Misurato il 07/09/2026**: il `DELETE` di un periodo passava — nessun vincolo lo
+guardava — e da lì passava anche quello dell'identità, con lo stesso GID che rinasceva su
+un altro prodotto. È la stessa asimmetria già vista sulle sedi («i due UNIQUE impediscono di
+INSERIRE, non di MODIFICARE») un passo più in là: **non impediscono nemmeno di CANCELLARE**.
+
+`BEFORE DELETE` e `BEFORE TRUNCATE` su identità e periodi delle due famiglie, più i periodi
+di sede: dieci trigger. `BEFORE TRUNCATE` è `FOR EACH STATEMENT` ed è **separato** dal
+`BEFORE DELETE`: un `TRUNCATE` non fa scattare i trigger di riga.
+
+⛔ **La COPPIA di sede non li ha, ed è deliberato**: una coppia **senza periodi** deve
+restare cancellabile, perché è la correzione dell'abbinamento iniziale sbagliato (§1.13.6).
+
+⚠️ **I due divieti non hanno la stessa robustezza, e va saputo**: quelli sulle **identità**
+(riaggancio, riscrittura della data) poggiano su un **trigger utente**, spegnibile
+dall'owner; quello sui **periodi** poggia su una **FK**, che per essere tolta richiede il
+superuser. ⛔ E `check:storico-non-cancellabile` verifica oggi solo `mai_delete` /
+`mai_truncate`: se qualcuno cancellasse i trigger `…_immutabile` non arrossirebbe niente.
+
+⛔ **E non è una barriera di PRIVILEGI.** L'API si connette come **owner** del database — la
+stessa scelta per cui scavalca la RLS — quindi `ALTER TABLE … DISABLE TRIGGER` da un
+servizio riuscirebbe. Questi trigger fermano la cancellazione **accidentale**: un `CASCADE`
+che arriva da `tenants`, un `TRUNCATE` di pulizia, una query di manutenzione. A fermare un
+servizio che li spegnesse deliberatamente è una **guardia statica**,
+`npm run check:storico-non-cancellabile`, che fa fallire il lint se un `DISABLE TRIGGER`
+compare fuori da `api/src/test/`. Ferma chi lo scrive, non chi lo esegue — ed è tutto ciò
+che una guardia può fare.
+
+#### ⚠️ Il Client Prisma non conosce l'indice parziale, i CHECK né le colonne generate
 
 Verificato: Prisma legge e scrive la tabella normalmente, ma non valida questi vincoli — una
-violazione arriva come errore PostgreSQL grezzo (`23505`, `23514`), non come `P2002` con
-`meta.target` leggibile, e va tradotta a mano nel servizio applicativo.
+violazione arriva come errore PostgreSQL grezzo (`23505`, `23514`, `23503`), non come `P2002`
+con `meta.target` leggibile, e va tradotta a mano nel servizio applicativo.
 
-⭐ **La mitigazione è già una convenzione del progetto**: un commento `///` sul campo dello
-`schema.prisma` che dichiara dove vive il vincolo che Prisma non può esprimere — usata su
-`PaymentOption`, `CashSession`, `CashSessionDeviceChange`. Va applicata identica qui: ogni
-colonna coinvolta in un CHECK o nell'indice parziale porta il commento che rimanda alla
-migration che lo scrive.
+⚠️ **Le colonne generate (`viva`, `richiede_viva`, `attivo`) non compaiono nello
+`schema.prisma`**: Prisma non le esprime, e non deve — sono calcolate dal database. Vivono
+nella migration, e i modelli le dichiarano nei commenti `///`.
+
+⭐ **La mitigazione è già una convenzione del progetto**: un commento `///` sul campo che
+dichiara dove vive il vincolo che Prisma non può esprimere — usata su `PaymentOption`,
+`CashSession`, `CashSessionDeviceChange`. È applicata identica qui.
+
+#### ⏸ Stato: il modello esiste, i servizi non lo usano ancora
+
+| Fatto                                                                   | Non fatto                                                               |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| schema, migration, vincoli, trigger, RLS e REVOKE                       | **backfill** dai dati esistenti (§8.5.8)                                |
+| collaudo locale: migration da vuoto, da copia con dati, rollback a metà | **passaggio dei lettori** al nuovo modello: i servizi leggono ancora    |
+| falsificazione dei vincoli, concorrenza nei due ordini                  | le colonne-cache su `Product`/`ProductVariant`                          |
+| ⛔ nessuna applicazione al database CONDIVISO                           | la **funzione operativa** di eliminazione definitiva, e il suo registro |
+
+⚠️ **Finché il backfill non c'è, queste tabelle sono vuote**: nessuna lettura le interroga e
+nessuna scrittura le popola. Il modello è verificato, non ancora in servizio.
+
+⛔ **Un guasto muto che si manifesterà alla PRIMA riga scritta** — misurato l'08/09/2026,
+e **più largo di come era stato scritto lo stesso giorno**. Qui c'era «fallirà
+`DELETE /admin/tenants/:id`», come se riguardasse la sola cancellazione amministrativa. La
+causa è una primitiva **condivisa**, `purgeTenantBackupData`, e i suoi chiamanti sono **due**:
+
+```text
+api/src/admin/tenant-delete.util.ts:11                     cancellazione amministrativa
+api/src/tenant/tenant-backup/…-import.service.ts:148       RIPRISTINO di un backup
+```
+
+⚠️ **Quindi alla prima identità scritta si rompe anche il RIPRISTINO di qualunque backup**,
+compreso uno fatto cinque minuti prima: il ripristino purga e reinserisce, e l'ordine di
+cancellazione contiene `products`, `productVariants` e `locations` — che le identità e le
+coppie trattengono con `RESTRICT`.
+
+⛔ **E per identità e periodi non basta aggiungerli all'ordine di cancellazione**, perché
+`shopify_storico_non_si_cancella` vieta ogni DELETE. Le tre operazioni — backup applicativo,
+ripristino, cancellazione del tenant — vanno trattate **separatamente**: la proposta completa,
+con l'effetto sulle esclusioni registrate dopo la data del backup, è in `docs/DA-FARE.md` §10.
+
+⚠️ Oggi non si vede solo perché le tabelle sono vuote — cioè è esattamente il tipo di difetto
+che si scopre in fase 2.
 
 ### 8.5.3 Registro delle consegne webhook — un INBOX, non solo una deduplica
 
@@ -1935,6 +2616,32 @@ locale». È l'unica lettura che ignora `status` di proposito — coerente con �
 | 2-6                | i lettori esistenti migrano ai link uno alla volta                                   |
 | 7                  | ⭐ **le colonne-cache si rimuovono**, con una guardia che ne impedisca il ritorno    |
 
+#### I lettori, misurati il 12/09/2026 — chi decide sullo storico e chi legge ancora la cache
+
+⭐ **Ogni lettura che DECIDE un collegamento passa già dallo storico.** Quelle che restano
+sulla cache la usano come indice per trovare la riga locale, e ciò che poi FANNO su quella
+riga passa da una guardia dello storico. Tabella misurata sui servizi (`rg` sulle quattro
+colonne-cache e sui punti di interrogazione dello storico), non dedotta:
+
+| Lettore                                                                  | Legge          | Decide sullo storico                                                                                                                                                                    |
+| ------------------------------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| import (webhook e lotto): trovare l'anagrafica per id remoto             | cache          | ✅ `puoCreareProdotto`/`Variante` prima di creare, `collegamentoUsabile*` prima di aggiornare (B5-B6, 26.7)                                                                             |
+| push del prodotto: identificativi da inviare, orfane da abbinare         | cache + SKU    | ✅ `collegamentoUsabileVariante` DOPO la scelta (E6/E6-bis), `ha_storia` prima di ripubblicare (E7)                                                                                     |
+| push delle quantità (`inventorySetQuantities`)                           | cache          | ✅ `collegamentoUsabileVariante` prima di risolvere l'articolo di inventario (26.8, E14-E24)                                                                                            |
+| ordini: sede della riga, del reso, dell'evasione                         | coppia → cache | ✅ `resolveShopifyOrderLocationId`: coppia attiva, poi cache — mai il nome                                                                                                              |
+| sedi: riconoscimento al sync, scelta nel percorso, Impostazioni → Sedi   | coppia → cache | ✅ `sediCollegate`/coppia attiva, poi cache; nessun aggancio per nome (B7)                                                                                                              |
+| backfill (§8.5.8 fasi 3-4)                                               | cache          | ✅ scrive SOLO con `registraProdotto`/`registraVariante`/`collega`, e verifica che ogni id in cache abbia un periodo attivo                                                             |
+| webhook `inventory_levels/update` → variante e sede                      | **cache**      | ⚠️ indice soltanto: la riconciliazione non scrive quantità (Shopify non è fonte); l'eventuale ripubblicazione passa dalla guardia del push                                              |
+| righe ordine → variante (`resolveVariantId`: id remoto, poi SKU)         | cache + SKU    | ✅ `collegamentoUsabileVariante` sulla candidata (12/09/2026, sera): con collegamento chiuso la riga NON si risolve, è «Da verificare», l'impegno preesistente segue l'ordine (§1.14.3) |
+| pull giacenze, riconciliazione, Allinea: elenco delle varianti collegate | **cache**      | ⚠️ indice soltanto; l'invio passa dalla guardia del push                                                                                                                                |
+| arricchimento, tassonomia, metafield di categoria (payload GraphQL)      | **cache**      | ⚠️ payload: chiamati dentro percorsi già guardati                                                                                                                                       |
+
+⛔ **La tranche 7 (togliere le colonne-cache) resta RIMANDABILE e dipende da queste quattro
+righe ⚠️**: finché l'indice per id remoto è la colonna, la colonna non si può togliere. Portare
+anche gli indici sullo storico (una `findFirst` sulle identità invece che sulla cache) è lavoro
+senza decisioni aperte: quella sulla riga d'ordine col collegamento chiuso è stata presa il
+12/09/2026 (riga sopra, `DA-FARE` §30.8).
+
 ⛔ **La rimozione non è un'intenzione: è la tranche 7 già fissata nella sequenza.** Due fonti
 autorevoli a tempo indeterminato sono il difetto che questo modello esiste per chiudere — non
 si dichiara qui una data, ma non si dichiara nemmeno un «per sempre» implicito.
@@ -1946,7 +2653,7 @@ si dichiara qui una data, ma non si dichiara nemmeno un «per sempre» implicito
 > varianti si progettano e si costruiscono senza aspettare questa approvazione.
 
 Verificato nel codice, non dedotto: `registerWebhooks` (`shopify-admin.client.ts:212`) **tenta
-la registrazione di tutti gli 8 topic**, inclusi i cinque protetti
+la registrazione di tutti i topic** (8, e **10** dal 13/09/2026 con i due `fulfillment_orders/*`), inclusi i cinque protetti
 (`orders/create`, `orders/updated`, `orders/cancelled`, `customers/create`,
 `customers/update`). `SHOPIFY_PROTECTED_WEBHOOK_TOPICS` non filtra nulla **prima** della
 chiamata: viene letto solo **dopo**, in `shopify-oauth.service.ts:460-462`, per classificare un
@@ -2025,12 +2732,72 @@ fedelmente si torna indietro, e senza provarlo non la si è misurata.
 
 ### 8.5.8 Migration e backfill
 
-> ✅ **Decisione confermata** (06/09/2026)
+> ✅ **Decisione confermata** (06/09/2026) — forma del rilascio decisa il 07/09/2026
 
-**Una sola migration** per la creazione: enum, le tre tabelle, gli indici (compresi i parziali),
-le ausiliarie su `products`/`product_variants`, le FK composite, i `CHECK`, **e nello stesso
-file `ENABLE ROW LEVEL SECURITY` più le `REVOKE`**. ⛔ Non deve esistere una finestra, nemmeno
-di una migration, in cui una tabella applicativa è priva di RLS.
+#### ⭐ Rilascio ESPANDIBILE A FASI, non una migration atomica — deciso il 07/09/2026
+
+⛔ **L'atomica è stata valutata e scartata, e non per prudenza**: il suo passo «collegamento
+della connessione al negozio» richiede lo `shop_gid`, che **non esiste nei dati locali** — non
+è in `ShopifyConnection`, non è in `ShopifyCredential`, e `getShop()` (`shopify-admin.client.ts:106`)
+lo scarta leggendo solo `{ name }`. Una migration atomica dovrebbe interrogare Shopify, cosa
+che una migration non fa.
+
+Le cinque fasi, in quest'ordine:
+
+| #   | Fase                                                                                      | Vincolo                                                 |
+| --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 1   | **schema**: tabelle, enum, indici, FK, CHECK — con `shop_gid` **nullable**                | RLS e REVOKE **nella stessa migration di ogni tabella** |
+| 2   | **acquisizione esplicita dell'identità**: `shop_gid` letto e scritto per ogni connessione | passo dichiarato, mai nascosto dentro una migration     |
+| 3   | **backfill dei collegamenti**                                                             | preceduto dai controlli bloccanti                       |
+| 4   | **verifica completa**: conteggi prima/dopo, nessun id ambiguo                             | —                                                       |
+| 5   | **`NOT NULL` e unicità globale**                                                          | solo qui, e solo se 2-4 sono verdi                      |
+
+⭐ **Il rischio di fermarsi a metà si chiude con lo SCHEMA, non con l'atomicità**: se i campi
+identitari nascono nullable e le tabelle non sono ancora canoniche, un'interruzione lascia uno
+stato **incompleto ma coerente**. Con l'atomica lascerebbe uno stato **impossibile**.
+
+#### ✅ Fasi 3 e 4 — eseguite nel codice il 12/09/2026, NON ancora sul condiviso
+
+| Che cosa                                                                            | Dove                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **controlli bloccanti** (i quattro qui sotto), SQL esplicito, righe nominate        | `ShopifyStoricoBackfillService.controlliBloccanti`                                                                                                                                                                                                                                                                                   |
+| **conversione** con i servizi ordinari, una transazione per tenant                  | `esegui(tenantId, { applica })`: `registraProdotto` → `registraVariante` per variante → `ShopifyLocationLinkService.collega` per sede. ⛔ Nessuna seconda implementazione dello storico; ciò che lo storico VIETA si conta e si nomina, non si riapre                                                                                |
+| **verifica** (fase 4): ogni id in cache ha un periodo attivo, altrimenti è nominato | `nonCoperti(tenantId)`; conteggi prima/dopo per identità e periodi                                                                                                                                                                                                                                                                   |
+| **riga di registro** (`DA-FARE` §14 punto 5, forma di §10.3)                        | `backfill_storico`, attore `backfill`: tentativo col piano, riuscita coi conteggi, stessa correlazione (`conRegistro`). Nessuna riga se non c'è niente da convertire, nessuna per un tenant bloccato                                                                                                                                 |
+| **comando**                                                                         | `npm run backfill:storico-shopify` (prova, `--tutti` o `--tenant=`) · `…:apply` con `--tenant=` **obbligatorio**; bersaglio da UN file (`--env-file`, `VESTIFLOW_ENV_FILE`, `.env`) dichiarato prima e confermato se non locale (`bersaglio.mjs`); esce con 1 se bloccato o se resta un non coperto                                  |
+| **prove**                                                                           | `storico-conversione-cache` (4, sul 5433): conversione + verifica + idempotenza con registro; duplicato → bloccato senza dedupe; negozio assente; periodo chiuso non riaperto e nominato. Script eseguito da `dist/` sul 5433: 3 prodotti, 6 varianti, 1 sede; seconda passata +0; `--tutti --apply` rifiutato; duplicato → codice 1 |
+
+⛔ **Sul database condiviso il backfill NON è stato eseguito**: è un atto autorizzato a parte,
+dopo le migration del ramo (fase D di `docs/28`) e con la prova riletta da una persona. ⏸ La
+**fase 5** (`NOT NULL`, unicità globale) resta dopo, e solo se 2-4 sono verdi anche lì.
+
+⚠️ Il nome del file di prova non finisce in `-backfill`: `vitest.integration.config.ts` escludeva
+con un glob ogni `*-backfill.integration-spec.ts` (scritto per il collaudo a due fasi di
+`stati-ordini-backfill`), e la prova sarebbe rimasta verde senza girare. Il glob ora nomina
+quel solo file.
+
+⛔ **Le tabelle NON sono fonte canonica** finché il backfill non è completo e verificato **e**
+i lettori di push e pull non sono migrati (§8.5.5). Fino ad allora sono una fonte in
+costruzione, e vanno descritte così anche a chi legge il codice.
+
+**Una sola migration** per la creazione: enum, le **cinque** tabelle — `shopify_shops`,
+`shopify_product_links`, `shopify_variant_links`, `shopify_location_pairs` e
+`shopify_location_links` — gli indici
+(compresi i parziali), le ausiliarie su `products`/`product_variants`/`locations`, la colonna
+`shopify_connections.shop_id`, le FK composite, i `CHECK`, **e nello stesso file `ENABLE ROW
+LEVEL SECURITY` più le `REVOKE`**. ⛔ Non deve esistere una finestra, nemmeno di una migration,
+in cui una tabella applicativa è priva di RLS.
+
+⚠️ **Erano «le tre tabelle», ed erano tre per davvero fino al 07/09/2026**: §1.13 ha aggiunto
+lo storico delle sedi lo stesso giorno, e questa riga era rimasta indietro di una decisione.
+Le tabelle si **nominano** invece di contarle, così la prossima aggiunta non lascia un numero
+a smentire un elenco.
+
+⭐ **`shopify_connections.shop_id` è materia di fase 1** e non era stata scritta: senza, non
+esiste modo — nel database — di sapere quale riga di `shopify_shops` sia la corrente per un
+tenant, e il passo 2 della transazione di cambio negozio non ha dove scrivere. Nasce
+**nullable**, come `shop_gid`, e per una ragione in più: una connessione `not_connected` non
+ha alcun negozio a cui puntare, quindi il `NOT NULL` non sarebbe corretto nemmeno a regime.
 
 **Il backfill è preceduto da controlli bloccanti.** La migration si ferma se una qualunque di
 queste query restituisce righe:
@@ -2159,6 +2926,344 @@ Dopo il cutover si aggiunge `check:shopify-rest-catalog` che fallisce in presenz
 
 Le eventuali letture REST residue devono essere in allowlist nominata con ticket di rimozione.
 
+### 8.9 Capacità di sincronizzazione — quattro requisiti CONFERMATI, 09/09/2026
+
+> ⛔ **Questa sezione dice COSA deve succedere, non COME.** §8.3 e §8.4 restano marcate
+> «proposta tecnica da verificare»: outbox, worker e Bulk Operations sono **opzioni da
+> valutare**, non implementazioni autorizzate. I quattro requisiti qui sotto sono invece
+> **confermati dal proprietario**, e vincolano qualunque soluzione si scelga.
+
+⚠️ **Nessuno di questi requisiti tocca la matrice dei campi (§9.2)**, né il funzionamento
+autonomo di VestiFlow senza Shopify: quelli restano quello che sono.
+
+#### 8.9.1 Primo allineamento — nessuna priorità fra campi
+
+> **Ogni articolo deve risultare completo per tutti i dati previsti. Un articolo importato
+> parzialmente NON va dichiarato completato.**
+
+⛔ **Nel primo allineamento non esiste una gerarchia fra campi**: non si porta prima il
+prezzo e poi la descrizione dichiarando fatto l'articolo. O l'articolo è completo per tutto
+ciò che la matrice prevede, o è ancora in corso.
+
+⚠️ **La differenza con §8.9.3 è deliberata, e va letta insieme**: sotto carico ordinario
+esiste una precedenza fra tipi di aggiornamento; nel primo allineamento **no**. Sono due
+momenti diversi con due regole diverse, e confonderli produrrebbe cataloghi dichiarati
+allineati e incompleti.
+
+⭐ **Interruzioni e ripetizioni non devono produrre perdite né duplicazioni.** Un
+allineamento interrotto si riprende; ripreso due volte non raddoppia niente. È lo stesso
+criterio che §12.0 già applica all'identità — che non si deduce mai da nome, SKU o barcode —
+qui esteso alla completezza.
+
+#### 8.9.2 Attività ordinaria — il margine va MISURATO, non stimato
+
+> **Si deve misurare il margine effettivo di sincronizzazione con Shopify, con particolare
+> attenzione ai picchi improvvisi e agli aggiornamenti massivi.**
+
+⛔ **La media giornaliera non basta**, ed è il punto: un margine che regge in media può non
+reggere nell'ora in cui il negozio ricarica il magazzino o applica un listino nuovo. Una
+capacità si dimensiona sui picchi, non sulla media.
+
+⚠️ **Misura, non congettura.** Finché i numeri non ci sono, qualunque affermazione sul
+«quanto regge» è un'ipotesi — comprese quelle già scritte in questo documento.
+
+#### 8.9.3 Priorità sotto carico — prima ciò che il cliente vede
+
+> **Disponibilità e prezzi destinati al canale hanno precedenza sulle informazioni
+> descrittive, quando serve. Le operazioni meno urgenti restano conservate e vengono
+> completate.**
+
+⭐ **Precedenza, non esclusione.** Una descrizione che aspetta non è una descrizione persa:
+resta in coda e si completa. Un arretrato descrittivo è accettabile; un arretrato che si
+dimentica no.
+
+⚠️ **Il criterio è che cosa il cliente vede sulla vetrina**: una quantità sbagliata vende
+merce che non c'è, un prezzo sbagliato la vende al prezzo sbagliato. Una descrizione vecchia
+di un'ora non ha lo stesso effetto.
+
+#### 8.9.4 Nessuna perdita silenziosa
+
+> **Ogni operazione deve trovarsi sempre in uno di tre stati: confermata, ancora da eseguire,
+> oppure fallita con motivo visibile e possibilità di recupero.**
+
+⛔ **Un quarto stato non esiste**, e in particolare non esiste «sparita». Vale
+indipendentemente dalle priorità di §8.9.3: essere in fondo alla coda è «ancora da eseguire»,
+non è un esito.
+
+⭐ **Anche le modifiche arrivate DURANTE il primo allineamento devono sopravvivere.** È il
+caso più facile da perdere: l'allineamento è lungo, e nel frattempo qualcuno tocca un prezzo.
+Quella modifica non può essere sovrascritta dall'allineamento né scartata perché arrivata nel
+momento sbagliato.
+
+⭐ **Primo caso applicato — 09/09/2026, `DA-FARE` §25**: due webhook sovrapposti dello stesso
+prodotto. Il secondo aspetta sul lock di `importProduct` PRIMA di leggere, poi aggiorna col
+proprio payload: il barcode e il titolo che portava arrivano a destinazione (prova `C5`).
+Rispondere `skipped` avrebbe evitato il doppione perdendo la modifica — cioè il quarto stato
+che qui non esiste.
+
+⚠️ **Raccordo con §8.4**: «il riavvio dell'API non perde la coda» è la stessa esigenza vista
+dal lato tecnico. Lì è una proposta; qui è il requisito che quella proposta — o un'altra —
+dovrà soddisfare.
+
+#### ⏸ Che cosa resta APERTO, e non va dedotto da qui
+
+| Aperto                              | Perché non è deciso                                                                                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **soglie accettabili**              | ritardo tollerato per un aggiornamento critico, dimensione massima dell'arretrato, tempo di smaltimento: sono numeri, e vanno scelti dopo la misura di §8.9.2 |
+| **politica precisa delle priorità** | §8.9.3 dice quale famiglia viene prima; _come_ (code separate, pesi, finestre) non è deciso                                                                   |
+| **soluzione tecnica**               | outbox (§8.4), worker, Bulk Operations: ⛔ **opzioni da valutare, non implementazioni autorizzate**                                                           |
+
+⛔ **Nessuna di queste scelte si fa scrivendo codice**: i requisiti sono registrati per essere
+verificabili, non per essere implementati adesso. Gli scenari corrispondenti — picchi,
+disponibilità e prezzi durante un arretrato descrittivo, interruzione e ripresa, assenza di
+duplicazioni, completamento delle attività secondarie — vivono nel piano di collaudo, con le
+misure da raccogliere.
+
+---
+
+### 8.10 ⏸ PROPOSTA DA VALUTARE — importazione massiva con conferma prima dell'invio
+
+> ⛔ **NON APPROVATA.** È la proposta del proprietario del 09/09/2026, registrata qui perché
+> §8.10 è il punto canonico: salvare prima nel gestionale, mostrare il riepilogo, e inviare a
+> Shopify **solo dopo conferma dell'operatore**.
+>
+> ⚠️ **Questa sezione non ripete §8.9**: i quattro requisiti confermati restano lì e valgono
+> per qualunque soluzione. Qui si valuta **se e come** la proposta li rispetterebbe.
+>
+> ⛔ **Non riapre l'onboarding sospeso** (§12), che resta sospeso.
+
+#### 8.10.1 La domanda che decide la proposta
+
+> **Che cosa succede se, prima della conferma, uno degli articoli importati viene VENDUTO o
+> MODIFICATO?**
+
+⭐ **È la domanda giusta, e non basta sospendere il solo invio iniziale**: se un altro percorso
+pubblica comunque quei dati, la conferma non governa niente. La ricognizione del 09/09/2026 ha
+censito **tutti** i percorsi che scrivono verso Shopify (elenco e prove in `DA-FARE`,
+«ricognizione della sincronizzazione massiva»), e la risposta è in due metà.
+
+**Metà buona.** L'interruttore per prodotto `shopifySyncEnabled` è letto da **tutti e tre** i
+percorsi che toccherebbero quegli articoli, e li ferma:
+
+| Percorso                    | Dove legge il flag                  | Effetto a interruttore spento       |
+| --------------------------- | ----------------------------------- | ----------------------------------- |
+| push del CATALOGO           | `shopify-product-push.service.ts`   | rifiuta con `sync_disabled`         |
+| push delle QUANTITÀ         | `shopify-inventory-push.service.ts` | rifiuta con `sync_disabled`         |
+| pull del catalogo (webhook) | `shopify-product-pull.service.ts`   | ⛔ **scarta il webhook per intero** |
+
+Quindi una vendita durante la sospensione muove la giacenza **in locale** e non parte; alla
+conferma il push manda la **quantità corrente**, non un delta, quindi la vendita è già dentro
+e non si perde. Lo stesso per una modifica di prezzo o di descrizione.
+
+**Metà cattiva — tre ostacoli, tutti verificati nel codice.**
+
+⛔ **1 · Spegnere l'interruttore su un articolo GIÀ COLLEGATO lo ARCHIVIA su Shopify.** La
+transizione acceso→spento su un salvataggio esegue l'archiviazione remota, attesa
+(`products.service.ts`, e §1.8). L'interruttore è quindi utilizzabile per articoli **nuovi**,
+creati già spenti, e **inutilizzabile** per trattenere aggiornamenti di articoli esistenti: li
+toglierebbe dalla vendita. ⚠️ La stessa etichetta «Sincronizza con Shopify» esiste in due
+punti diversi dell'interfaccia — una casella nella scheda e un pulsante nel dettaglio — e
+solo la casella ha questo effetto.
+
+⛔ **2 · A interruttore spento i webhook in arrivo NON vengono messi in coda: vengono
+scartati.** È una perdita nella direzione opposta, ed è il quarto stato che §8.9.4 vieta. Una
+sospensione lunga su un catalogo collegato perderebbe in silenzio le modifiche fatte
+dall'altra parte.
+
+⛔ **3 · L'import CSV non onora l'interruttore, e non potrebbe.** Mancano **due** anelli: la
+colonna «Sincronizza con Shopify» non esiste né in export né in import, e il percorso di
+import non passa dal servizio che onorerebbe il campo — scrive con una `create` propria, quindi
+il valore cade sul default di schema, che è **acceso**. Ogni prodotto importato da CSV nasce
+sincronizzato e viene accodato al push subito. ⚠️ E una colonna aggiunta a mano dall'operatore
+verrebbe **scartata in silenzio**: le intestazioni sconosciute non producono nessun avviso.
+
+#### 8.10.2 Tre casi diversi, che la proposta non deve confondere
+
+| Caso                                        | Che cosa cambia                                                                                                    | Che cosa serve davvero                                                                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Primo caricamento**                       | il catalogo non è ancora su Shopify: non c'è niente da archiviare, e l'interruttore spento alla creazione è sicuro | §8.9.1 chiede **completezza per articolo**: oggi non esiste nessun dato che dica «questo articolo è completo». La conferma dell'operatore non la sostituisce              |
+| **Importazione massiva durante l'attività** | gli articoli toccati possono essere **già collegati**, e intorno si vende                                          | ⛔ l'interruttore qui **non si può usare** (ostacolo 1). Serve un marcatore diverso, che trattenga l'INVIO senza toccare lo stato di vendita remoto né scartare i webhook |
+| **Ripristino di un backup**                 | ⛔ **non è un'importazione**, e non va trattato come tale                                                          | il ripristino ha già le sue regole (2b, 3c, allineamento delle cache). ⚠️ E dopo un ripristino i dati su cui un riepilogo si baserebbe **mentono**: vedi §8.10.3          |
+
+#### 8.10.3 Il riepilogo prima della conferma: su quali dati si costruirebbe
+
+⭐ **Il proprietario chiede tre classi distinte.** La ricognizione dice quali sono costruibili
+oggi:
+
+| Classe                                       | Stato                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **(a) differenze locali non ancora inviate** | costruibile per le **quantità** (confronto di valore fra il Disponibile e l'ultimo inviato) e per le **immagini**; ⛔ **non costruibile per i campi del catalogo**: non esiste un marcatore di «modificato e non inviato», e il confronto fra le date non lo sostituisce perché entrambe le date le muove la sincronizzazione stessa |
+| **(b) divergenze osservate su Shopify**      | esiste **solo per le quantità**, e solo se i webhook sono attivi. Per i campi del catalogo il pull sovrascrive senza confrontare: nessuna divergenza viene registrata                                                                                                                                                                |
+| **(c) esiti incerti dopo un'interruzione**   | ⛔ **non costruibile**. Il meccanismo giusto esiste nel progetto — una riga di registro «tentativo» senza esito — ma i percorsi Shopify non lo usano per i tentativi, solo per i rifiuti                                                                                                                                             |
+
+⛔ **E «ultimo invio riuscito» non dimostra lo stato remoto attuale.** Non lo dimostra nemmeno
+nell'istante in cui viene scritto — dice che cosa VestiFlow ha mandato, non che cosa Shopify
+ha adesso — e dopo un **ripristino** torna indietro nel tempo insieme al Disponibile locale.
+⚠️ Il caso peggiore non è che il dato sia vecchio: è che diventi **falso e coerente con sé
+stesso**, perché Disponibile e ultimo-inviato tornano dallo stesso archivio e coincidono. Il
+push conclude allora che non c'è niente da mandare, mentre Shopify tiene un numero diverso.
+
+⭐ **La forma giusta esiste già nel progetto, per gli ordini**: la riconciliazione degli ordini
+spariti dal canale confronta lo stato locale con l'elenco remoto invece di fidarsi di ciò che
+si crede di aver inviato, e si rifiuta di concludere quando l'elenco remoto è sospetto. È il
+precedente da guardare se il riepilogo dovrà dire qualcosa sul remoto.
+
+#### 8.10.4 Le decisioni da chiedere al proprietario
+
+⛔ **Nessuna di queste si prende scrivendo codice**, e nessuna è dedotta qui.
+
+| #   | Decisione                                                                                                                                                           | Perché non è deducibile                                                                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Il **marcatore di sospensione** è l'interruttore esistente (solo per articoli nuovi) o un campo nuovo che trattenga l'invio senza archiviare né scartare i webhook? | la prima è a costo zero e copre solo il primo caricamento; la seconda copre anche l'importazione durante l'attività, ma è un concetto nuovo nel modello |
+| 2   | Durante la sospensione, i **webhook in arrivo** su quegli articoli si scartano (come oggi), si mettono in attesa, o si applicano?                                   | §8.9.4 vieta lo scarto silenzioso, ma «si applicano» significa che il riepilogo mostra dati che cambiano sotto gli occhi dell'operatore                 |
+| 3   | La conferma è **per lotto** o **per articolo**?                                                                                                                     | un lotto è un gesto solo; per articolo consente di escludere le righe sospette, ma moltiplica i gesti su un'importazione grande                         |
+| 4   | Che cosa succede agli articoli **non confermati** dopo un tempo, o se l'operatore non conferma mai?                                                                 | restano sospesi per sempre è un arretrato invisibile; scadono è una decisione che nessuno ha preso                                                      |
+| 5   | Il riepilogo deve dire qualcosa sullo **stato remoto**, o solo su ciò che si sta per mandare?                                                                       | dire il remoto richiede di leggerlo davvero (vedi §8.10.3), che è un'altra funzione e un altro costo                                                    |
+| 6   | La colonna CSV «Sincronizza con Shopify» va aggiunta, e con quale **contratto sui valori**?                                                                         | oggi non esiste in nessuna direzione; se si aggiunge vanno decisi il valore vuoto, quello sconosciuto, e che cosa fa un giro export→import              |
+
+⚠️ **Vincolo che vale comunque**: VestiFlow senza Shopify continua a funzionare, e la matrice
+dei campi (§9.2), i movimenti e le regole delle quantità non cambiano.
+
+---
+
+### 8.11 Il FUNZIONAMENTO RICHIESTO — regole CONFERMATE, 09-10/09/2026
+
+> ✅ **Confermate dal proprietario.** Prevalgono da subito, ciascuna per sé (§0). ⛔ Non
+> autorizzano codice: lo stato e la differenza da colmare stanno in `DA-FARE.md`, le prove
+> nello scenario `N` del piano di collaudo.
+>
+> ⭐ **Raccordo con il quadro funzionale.** `SINCRONIZZAZIONE-QUADRO-FUNZIONALE.md` è la
+> lettura d'insieme preparata dal proprietario; **questa sezione ne è la resa normativa**, e le
+> due non vanno tenute allineate a mano su tutto: qui entra **solo ciò che il quadro marca come
+> richiesto**. L'aggiornamento del **10/09/2026** recepisce la partenza controllata, la scelta
+> dell'operatore sulle vendite aperte, il regime continuo e il comando Allinea. Supera le
+> precedenti proposte incompatibili su questi punti, ma non le trasforma in codice già pronto.
+> Restano aperti i dettagli tecnici non decisi e le scelte sulle importazioni da file e sulla
+> colonna sì/no. Lo stato applicativo resta in `DA-FARE`.
+>
+> ⚠️ **Non ripetono la matrice dei campi (§9.2), i movimenti né le regole delle quantità**: le
+> presuppongono.
+
+#### 8.11.1 Prima configurazione — sedi
+
+Per gestire il magazzino serve **almeno una sede operativa VestiFlow**. I collegamenti con le
+location Shopify sono **uno-a-uno** e li sceglie **l'operatore**.
+
+⛔ **Nessuna somma automatica delle quantità di sedi diverse.** ⛔ **Nessun collegamento
+indovinato dal nome**: un nome uguale non è un'identità.
+
+#### 8.11.2 Prima configurazione — catalogo
+
+Si sceglie **una direzione iniziale**: Shopify → VestiFlow, oppure VestiFlow → Shopify (le due
+direzioni di §12.0).
+
+⛔ **La fusione automatica di due cataloghi già popolati è ESCLUSA da questa fase.** ⛔ E la
+scelta non autorizza **cancellazioni o sovrascritture** del catalogo di destinazione.
+
+**Partenza delle quantità — decisione del 10/09/2026.** Dopo la mappatura delle sedi,
+l'allineamento iniziale si svolge in una o più fasi controllate: si acquisiscono e si verificano
+gli ordini online pendenti del periodo gestito e si sistemano le differenze. Un effetto già
+compreso nelle quantità iniziali non deve essere contato di nuovo quando arriva l'ordine.
+Un ordine aperto ma già correttamente impegnato non deve essere evaso per consentire l'avvio.
+
+**VestiFlow non ferma le vendite Shopify e non ne richiede la sospensione come condizione di
+esecuzione.** È l'operatore a scegliere se fermarle dal negozio oppure allineare a vendite
+aperte, accettando il rischio di nuovi ordini durante l'operazione e di ulteriori passaggi.
+La sincronizzazione resta operativa durante l'allineamento; non si introduce un blocco di
+manutenzione che impedisca gli scambi necessari.
+
+La preparazione stabilisce il punto di partenza del regime continuo. Non equivale a inizializzare
+le righe con una sovrascrittura automatica alla prima vendita o al primo carico locale.
+I dettagli precedentemente proposti per il wizard (§12) non sono autorizzati da questo flusso.
+
+#### 8.11.3 Attività ordinaria
+
+La matrice canonica dei campi (§9.2) **resta invariata**, e **la scelta iniziale non cambia la
+direzione della sincronizzazione successiva**: è un punto di partenza, non un regime.
+
+⛔ **VestiFlow deve funzionare integralmente anche senza Shopify.**
+
+#### 8.11.4 Ordini — il confine temporale
+
+Alla **prima connessione** si registra un **confine temporale**: entrano soltanto gli ordini
+creati **da quel momento in poi**.
+
+⛔ **Una pausa o una riconnessione allo stesso negozio NON sposta quel confine**, e non deve
+far dimenticare gli ordini del periodo intermedio.
+
+⚠️ **Che cosa un ordine autorizza, e che cosa no.** Le informazioni dell'ordine devono
+identificare **articoli, quantità ordinate e sedi interessate**. ⛔ **Non sono
+un'autorizzazione a copiare la disponibilità Shopify nella giacenza locale.**
+
+#### 8.11.5 Quantità e ORIGINE degli effetti
+
+| Origine dell'effetto         | Che cosa deve succedere                                                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **già applicato da Shopify** | si **acquisisce** in VestiFlow, e per quella sola acquisizione **non** parte un reinvio automatico della disponibilità al canale |
+| **operazione locale**        | genera un **aggiornamento da trasmettere**                                                                                       |
+
+⛔ **L'arrivo di un ordine Shopify non deve cancellare aggiornamenti locali ancora pendenti.**
+
+⛔ **Nessun invio della sincronizzazione continua deve sovrascrivere vendite online non ancora acquisite**, e la protezione
+dev'essere **effettiva**: non bastano dichiarare VestiFlow autorevole, attendere qualche
+secondo, o confrontare due numeri uguali.
+
+Una vendita locale genera il proprio effetto da sottrarre, un carico quello da aggiungere;
+un effetto acquisito da Shopify non viene rispedito. Restano invariate le regole della quantità
+pubblicabile e dei negativi: non è un'autorizzazione a inviare delta grezzi senza tali regole.
+Il risultato richiesto è la convergenza dopo l'elaborazione, non l'uguaglianza istantanea durante
+il transito degli eventi.
+
+**Rettifiche manuali Shopify.** Non diventano giacenza o movimenti VestiFlow e non vengono
+corrette automaticamente imponendo il totale locale. L'operatore deve gestire le quantità in
+VestiFlow; se interviene nell'admin Shopify o tramite altri sistemi, l'eventuale scarto resta
+fuori dalla garanzia di allineamento ordinario e si corregge col comando esplicito di §8.11.7.
+Il limite va spiegato nelle guide. Non esonera dall'acquisire ordini o dal conservare gli effetti
+locali pendenti.
+
+#### 8.11.6 Emergenza e ripresa
+
+Serve una **sospensione riconoscibile**, **distinta dalla cancellazione dei collegamenti**.
+
+⛔ Non deve **archiviare prodotti**, **azzerare quantità** né **interrompere il lavoro locale**.
+
+La pausa esplicita ferma ingressi e uscite; alla riattivazione si recupera il periodo sospeso e
+il lavoro locale conservato. La sospensione per articolo o variante vale su tutte le sue sedi.
+È distinta dall'allineamento: non si attiva automaticamente per la preparazione iniziale o per
+Allinea, e non spegne le vendite del negozio Shopify.
+
+#### 8.11.7 Riallineamento manuale, e importazioni massive
+
+**Decisione del 10/09/2026:** il comando **Allinea** è richiedibile dall'operatore quando vuole,
+anche a vendite aperte. Controlla le differenze per variante e sede e porta **Shopify alle
+disponibilità pubblicabili di VestiFlow**, mai il contrario.
+Non riscrive le coppie uguali e non sospende automaticamente sincronizzazione o vendite.
+
+Il suo effetto su Shopify è limitato alle disponibilità: non pubblica catalogo, non cambia prezzi
+e non modifica lo stato degli ordini. **Resta da confermare** se il pulsante debba acquisire
+automaticamente prima gli ordini del periodo gestito o usare quelli acquisiti dal percorso
+ordinario o manuale. Il recupero automatico non è stato deciso implicitamente dal nome Allinea.
+
+La scelta di eseguirlo a vendite aperte comporta un rischio residuo accettato: fra recupero e
+scrittura può arrivare un ordine non ancora acquisito e può essere necessaria una nuova passata.
+Una lista vuota o due quantità uguali non provano che gli eventi siano esauriti; non si promette
+che un singolo giro chiuda sempre ogni scarto. Registrare una sovrascrittura la rende tracciabile,
+non annulla eventuali vendite prodotte da una quantità errata.
+
+Questa decisione riguarda il riallineamento esplicito, non autorizza un invio ordinario a imporre
+un totale incompleto. Restano le protezioni su tenant, negozio, sedi, identità escluse,
+concorrenza, idempotenza, esiti incerti e modifiche locali sopraggiunte. Un errore tecnico non
+diventa un successo per il solo fatto che l'operatore ha accettato il rischio degli ordini in volo.
+La forma della UI oltre al comando richiesto non è definita qui.
+
+**Stato: funzionamento approvato, non dichiarato implementato da questa modifica documentale.**
+Implementazione e collaudi restano in `DA-FARE` §31. Il ritentativo di un invio e il riallineamento
+esplicito restano operazioni diverse.
+
+Le **importazioni massive** servono anche durante l'attività ordinaria, da file come CSV
+Shopify e XML fornitori. ⛔ **Un file non dimostra un collegamento remoto**, e ⛔ **la
+disponibilità del fornitore non è la giacenza VestiFlow.**
+
 ---
 
 ## 9. Proprietà e direzione dei campi — MATRICE CANONICA
@@ -2194,28 +3299,29 @@ oggi superate: «Nome, descrizione, brand → bidirezionale», «Immagini e arri
 → bidirezionale per allowlist», «Categorie/collezioni/metafield → Shopify o configurazione
 esplicita». È sostituita per intero, e la direzione di ogni campo è ora **decisa**.
 
-| Dato                                            | Direzione                                                              |
-| ----------------------------------------------- | ---------------------------------------------------------------------- |
-| Nome VestiFlow (`Product.name`)                 | **solo VestiFlow**                                                     |
-| Nome Shopify (`shopifyTitle`)                   | **bidirezionale**                                                      |
-| Descrizione                                     | **VestiFlow → Shopify**                                                |
-| Categoria VestiFlow                             | **solo VestiFlow**                                                     |
-| Tipo prodotto Shopify (`productType`)           | **bidirezionale**                                                      |
-| Categoria standard Shopify                      | **bidirezionale**                                                      |
-| Brand VestiFlow / vendor Shopify                | **bidirezionale**                                                      |
-| Tag                                             | **bidirezionali**                                                      |
-| Collezioni manuali                              | **bidirezionali** per l'appartenenza del prodotto                      |
-| Collezioni automatiche                          | **Shopify → VestiFlow**, per la sola visualizzazione dell'appartenenza |
-| Immagine principale                             | **bidirezionale**                                                      |
-| Immagini Shopify aggiuntive                     | **solo Shopify**, non gestite da VestiFlow                             |
-| SEO                                             | **solo Shopify**, non gestita da VestiFlow                             |
-| Metafield configurati in VestiFlow              | **bidirezionali**                                                      |
-| Metafield non configurati                       | **solo Shopify**, mai modificati da VestiFlow                          |
-| SKU e barcode                                   | **bidirezionali**                                                      |
-| Prezzi di vendita                               | **VestiFlow → Shopify**                                                |
-| Quantità                                        | **VestiFlow → Shopify**                                                |
-| Vendita oltre disponibilità (`inventoryPolicy`) | **bidirezionale**                                                      |
-| Opzioni e varianti                              | **bidirezionali**, con le regole sulla cancellazione di §11.1 e §11.7  |
+| Dato                                            | Direzione                                                                  |
+| ----------------------------------------------- | -------------------------------------------------------------------------- |
+| Nome VestiFlow (`Product.name`)                 | **solo VestiFlow**                                                         |
+| Nome Shopify (`shopifyTitle`)                   | **bidirezionale**                                                          |
+| Descrizione                                     | **bidirezionale** _(11/09/2026)_                                           |
+| Categoria VestiFlow                             | **solo VestiFlow** — mai inviata, mai sovrascritta                         |
+| Tipo prodotto Shopify (`productType`)           | **bidirezionale**, in un campo **suo**                                     |
+| Categoria standard Shopify                      | **bidirezionale**                                                          |
+| Brand VestiFlow / vendor Shopify                | **bidirezionale**                                                          |
+| Tag                                             | **bidirezionali**                                                          |
+| Collezioni manuali                              | **bidirezionali** per l'appartenenza del prodotto                          |
+| Collezioni automatiche                          | **Shopify → VestiFlow**, per la sola visualizzazione dell'appartenenza     |
+| Immagini (tutte)                                | **bidirezionali** per le NUOVE; nessuna cancellazione propagata _(11/09)_  |
+| SEO                                             | **solo Shopify** — VestiFlow non la gestisce ne la mostra (§9.11)          |
+| Metafield configurati in VestiFlow              | **bidirezionali**                                                          |
+| Metafield non configurati                       | **solo Shopify**, mai modificati da VestiFlow                              |
+| SKU e barcode                                   | **bidirezionali**                                                          |
+| Prezzi di vendita                               | **VestiFlow → Shopify**                                                    |
+| Prezzo barrato                                  | **bidirezionale** con Shopify attivo; senza Shopify, locale _(11/09)_      |
+| Costo d’acquisto                                | **comanda VestiFlow**: negli AGGIORNAMENTI Shopify non lo scrive _(11/09)_ |
+| Quantità                                        | **VestiFlow → Shopify**                                                    |
+| Vendita oltre disponibilità (`inventoryPolicy`) | **bidirezionale**                                                          |
+| Opzioni e varianti                              | **bidirezionali**, con le regole sulla cancellazione di §11.1 e §11.7      |
 
 ### 9.3 Nome VestiFlow e Nome Shopify
 
@@ -2232,14 +3338,23 @@ etichetta nella scheda — sta in **§1.9**. Qui resta il minimo che la matrice 
 
 ### 9.4 Descrizione
 
-- la descrizione viene inviata **esclusivamente da VestiFlow a Shopify**;
-- una modifica eseguita direttamente **su Shopify non aggiorna VestiFlow**;
-- un invio successivo da VestiFlow può quindi **sostituire** la descrizione presente su
-  Shopify.
+> ✅ **Decisione del proprietario, 11/09/2026.** Prevale su quanto c'era qui.
 
-⚠️ **Questo comportamento va dichiarato nell'interfaccia** (§9.9). Chi scrive la descrizione
-nell'admin Shopify non ha modo di sapere che il prossimo salvataggio dal gestionale la
-sovrascriverà, e lo scoprirebbe solo dopo averla persa.
+- la descrizione si sincronizza in **entrambe le direzioni**;
+- vale la regola generale dei campi bidirezionali (§9.1): **prevale l'ultima modifica
+  valida salvata**, e l'eco di una scrittura appena inviata **non** genera una nuova
+  modifica.
+
+⛔ **Qui c'era «esclusivamente da VestiFlow a Shopify»**, con l'avvertenza che un invio
+successivo poteva sostituire la descrizione scritta nell'admin. Non vale piu' — e va
+ricordato **perche'** cadeva: rendeva la descrizione l'unico campo testuale che si poteva
+perdere lavorando dove capita, e **il codice la importava comunque**. Specifica e
+implementazione dicevano due cose diverse, e nessuna delle due se ne accorgeva.
+
+⚠️ **La decisione ha un prerequisito che NON è ancora deciso**: un campo bidirezionale
+regge solo se esiste il meccanismo di §9.10 — origine della scrittura, istanti, hash,
+riconoscimento dell'eco. Finche' quello resta una proposta, «prevale l'ultima modifica»
+non ha un modo dichiarato di stabilire **quale** sia l'ultima.
 
 ### 9.5 Categorie: quattro concetti distinti, non sinonimi
 
@@ -2253,8 +3368,89 @@ sovrascriverà, e lo scoprirebbe solo dopo averla persa.
 La **Categoria VestiFlow** è una classificazione esclusivamente gestionale: non viene inviata
 a Shopify e non viene sovrascritta da Shopify.
 
-Il **Tipo prodotto Shopify** è un campo Shopify separato, memorizzato in VestiFlow e
-sincronizzato in entrambe le direzioni.
+⛔ **In particolare non si mescola col Tipo prodotto Shopify**, in nessuna delle due
+direzioni: non parte come `product_type`, e `product_type` non ci rientra dentro.
+
+Il **Tipo prodotto Shopify** è un campo Shopify separato, memorizzato in VestiFlow **in una
+colonna sua** e sincronizzato in entrambe le direzioni. È questo — e solo questo — il campo
+che comunica con `productType` di Shopify.
+
+#### ✅ I due campi sono SEPARATI — 11/09/2026
+
+⛔ **Fino a quel giorno il mescolamento era simmetrico**, e nessuna colonna dedicata
+esisteva:
+
+```text
+in ENTRATA   remote.product_type  ->  Product.category
+in USCITA    Product.category     ->  product_type
+colonna      shopifyProductType   ->  non esisteva
+```
+
+⚠️ **`Product.category` conteneva quindi valori di DUE provenienze**, indistinguibili da
+fuori: quelli scritti da un operatore e quelli arrivati da Shopify.
+
+| Oggi         |                                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| colonna      | `products.shopify_product_type`, `TEXT NULL`                                                             |
+| in entrata   | `remote.product_type` → `shopifyProductType`; `category` **non si tocca**                                |
+| in uscita    | `shopifyProductType` → `productType`; `category` **non esce**                                            |
+| nella scheda | «Tipo prodotto Shopify», casella propria accanto agli altri campi del canale, solo dove Shopify è attivo |
+
+#### ⭐ La colonna nasce VUOTA per tutti — deciso dal proprietario, 11/09/2026
+
+> **Nessuna copia da `category`, nemmeno sulle righe già collegate a Shopify.**
+
+⛔ Era stata proposta una copia sui soli prodotti collegati, per conservare il valore
+visibile. **Non approvata**, e la ragione la dice il proprietario: _«non assumere che
+`category` coincida oggi con il `product_type` remoto solo perché in passato quel valore è
+stato importato o inviato: potrebbe essere cambiato successivamente»_.
+
+⭐ **Sono due dati diversi**: `category` conserva il proprio valore interno,
+`shopifyProductType` riceve il `product_type` effettivo **dalla lettura prevista dal
+percorso di sincronizzazione**. Una copia sarebbe un valore provvisorio da correggere dopo,
+cioè un dato che sembra acquisito e non lo è.
+
+⛔ **La migration aggiunge il campo vuoto e non contatta Shopify.** Nessuna cancellazione,
+nessun invio automatico.
+
+#### ⛔ VUOTO significa «non ancora acquisito», MAI «cancellalo»
+
+È la condizione che rende la colonna vuota sicura, e va tenuta ferma in ogni percorso in
+uscita: quando `shopifyProductType` è vuoto **la chiave non entra nel payload**, e Shopify
+conserva il tipo prodotto che ha.
+
+⚠️ Scritta come stringa vuota sarebbe invece una cancellazione, e al primo invio dopo la
+separazione svuoterebbe il tipo prodotto di **tutto il catalogo remoto**.
+
+⭐ **Per gli articoli non collegati il campo si compila a parte**: non deriva dalla
+categoria interna, che è esattamente ciò che questa sezione vieta.
+
+#### ⛔ Vale anche per il CSV in formato Shopify — 11/09/2026
+
+> **La regola è del CAMPO, non del percorso: la sincronizzazione continua e il file
+> valgono uguale.**
+
+La colonna `Type` di quel CSV **è** il `product_type` di Shopify — è il formato di
+esportazione di Shopify, e quel file si ricarica in Shopify Admin.
+
+```text
+in USCITA   Type       <- shopifyProductType      Categoria <- category
+in ENTRATA  Type       -> shopifyProductType      categoria -> category
+```
+
+⭐ **La colonna «Categoria» è di VestiFlow**, come «Codice articolo», ed esiste perché il
+**ritorno del file** non perda la classificazione di magazzino ora che non viaggia più
+dentro `Type`. Shopify ignora le colonne che non conosce.
+
+⛔ **In lettura si aggancia solo «categoria», mai «category» nudo**: l’export Shopify ha
+una colonna `Product Category` (la tassonomia) e alcuni fogli la abbreviano in `Category`.
+Agganciarla rimetterebbe un dato del canale dentro la categoria interna.
+
+⚠️ **Un export Shopify autentico non ha «Categoria»**: in quel caso la categoria interna
+resta vuota e la sceglie l’operatore — lo stesso comportamento del webhook.
+
+⭐ **Il ritorno del file non può sovrascrivere**: l’import massivo CREA soltanto, e un
+articolo già a catalogo viene marcato come già importato senza nessuna scrittura.
 
 La **Categoria standard Shopify** è un nodo della tassonomia ufficiale Shopify:
 
@@ -2278,15 +3474,51 @@ italiano non si deduce da un raggruppamento di vetrina.
 - **creazione, rinomina, regole ed eliminazione** delle collezioni non fanno parte della
   scheda prodotto e non sono gestite da questa sincronizzazione.
 
-### 9.7 Immagine principale
+### 9.7 Immagini
 
-- VestiFlow gestisce **una sola immagine**: l'immagine principale;
-- se cambia su Shopify, viene aggiornata in VestiFlow; se cambia in VestiFlow, viene
-  aggiornata su Shopify;
-- se viene **rimossa**, la rimozione si propaga nell'altra direzione;
-- le altre immagini presenti su Shopify **non** vengono importate, riordinate, modificate o
-  eliminate da VestiFlow;
-- ⛔ **sostituire l'immagine principale non cancella le altre immagini Shopify.**
+> ✅ **Regola CAMBIATA dal proprietario l’11/09/2026. Sostituisce la precedente.**
+
+⛔ **Qui c’era «VestiFlow gestisce una sola immagine: la principale»**, con la rimozione che
+si propagava nell’altra direzione e le immagini aggiuntive di Shopify dichiarate fuori
+gestione. Non vale più, e va ricordato perché il codice ne porta ancora le tracce: la prima
+stesura della sincronizzazione filtrava sulla sola principale e cancellava la copia vecchia
+a ogni sostituzione.
+
+**VestiFlow gestisce TUTTE le immagini.**
+
+|                      |                                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Importazione**     | tutte le immagini si copiano nell’archivio VestiFlow, conservando l’ORDINE e quindi l’identificazione della principale |
+| **Sincronizzazione** | le immagini **nuove** viaggiano nelle due direzioni, senza duplicazioni                                                |
+| **Cancellazioni**    | ⛔ eliminare un’immagine da un sistema **NON** elimina la copia nell’altro                                             |
+| **Errori**           | un errore di lettura o download **non cancella** immagini esistenti                                                    |
+
+⭐ **Le due gallerie possono quindi DIFFERIRE dopo una cancellazione**, ed è una conseguenza
+accettata, non un difetto da rimediare: è il prezzo di non cancellare mai per conto di
+qualcun altro.
+
+⛔ **Nessuna cancellazione remota automatica.** VestiFlow non toglie media da Shopify, e la
+capacità di farlo non esiste nei client — è sorvegliata da una prova
+(`shopify-no-destructive.spec.ts`).
+
+#### ⚠️ Il limite che NON è chiuso: ciò che si cancella RIENTRA
+
+> **Un’immagine che l’operatore cancella in VestiFlow viene riacquisita alla
+> sincronizzazione successiva.**
+
+⛔ **Non è una svista dell’implementazione: la distinzione non esiste nel modello.**
+Misurato l’11/09/2026:
+
+```text
+ProductImage.shopifyImageId   unico legame col media remoto, e muore con la riga
+ProductImage                  nessun deletedAt: la cancellazione non lascia traccia
+storico dei collegamenti      prodotti, varianti e sedi. Nessuna entita per le immagini
+registro append-only          nessuna operazione di immagine fra quelle tracciate
+```
+
+⭐ Ne discende che «cancellata dall’operatore» e «mai vista» sono, al giro dopo,
+**indistinguibili**. ⏸ **Nessun meccanismo è stato inventato**: il punto resta aperto e
+dichiarato in `DA-FARE` §31.28, insieme alle strade possibili — e a quale prezzo.
 
 ### 9.8 Metafield
 
@@ -2327,15 +3559,95 @@ Testi funzionali minimi:
 | **Tipo prodotto Shopify**                  | «Si sincronizza in entrambe le direzioni con Shopify.»                                         |
 | **Categoria standard Shopify**             | «Categoria della tassonomia ufficiale Shopify. Si sincronizza in entrambe le direzioni.»       |
 | **Collezioni**                             | «Le appartenenze manuali si sincronizzano. Quelle automatiche dipendono dalle regole Shopify.» |
-| **Descrizione**                            | «Viene inviata da VestiFlow a Shopify. Le modifiche fatte su Shopify non vengono importate.»   |
+| **Descrizione**                            | «Si sincronizza in entrambe le direzioni con Shopify.»                                         |
 | **Immagine**                               | «VestiFlow sincronizza soltanto l'immagine principale.»                                        |
 | **Metafield**                              | «Si sincronizzano soltanto i campi Shopify configurati in VestiFlow.»                          |
 | **Continua a vendere senza disponibilità** | «Impostazione Shopify sincronizzata in entrambe le direzioni. Non modifica la giacenza.»       |
+
+### 9.11 Prezzo barrato, costo e SEO
+
+> ✅ **Decisioni del proprietario, 11/09/2026.**
+
+**Prezzo barrato.** È **bidirezionale quando Shopify è attivo**, e rispetta le sospensioni
+della sincronizzazione come ogni altro campo. Senza Shopify resta un dato gestito
+localmente. ⭐ La ragione: il barrato esiste per **mostrare lo sconto al cliente**, e chi
+fa una promozione la fa dove la vede.
+
+**Costo d’acquisto.** Lo **comanda VestiFlow**. Negli aggiornamenti Shopify non lo
+sovrascrive, non lo azzera e non lo modifica; un eventuale invio verso Shopify porta il
+valore di VestiFlow. ⭐ La ragione: il costo lo determina l’arrivo merce, e da lui dipende
+il margine di ogni report.
+
+⏸ **L’acquisizione del costo durante la PRIMA IMPORTAZIONE è DA DEFINIRE NEL PERCORSO
+INIZIALE** (§9.12): non è vietata, ed è un’altra cosa. ⛔ «Comanda VestiFlow» governa la
+sincronizzazione **successiva** — usarla per impedire l’acquisizione di partenza sarebbe
+proprio il prestito di argomenti fra i due momenti che §9.12 esclude.
+
+**SEO.** Si gestisce **esclusivamente su Shopify**. VestiFlow non la modifica, non la
+cancella e non offre campi per scriverla; nessun invio da VestiFlow può toccarla.
+
+⚠️ **I dati SEO già memorizzati NON si cancellano per questa decisione.** Conservazione
+e gestione funzionale sono due cose diverse: le colonne restano dove sono, semplicemente
+non si espongono nell’interfaccia e non si arricchiscono. Cancellarle sarebbe una perdita
+decisa per simmetria, e la simmetria non è una ragione.
+
+### 9.12 Partenza iniziale e sincronizzazione continua sono due momenti
+
+> ✅ **Chiarimento del proprietario, 11/09/2026.**
+
+|                               |                                                                                                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Partenza iniziale**         | l’utente sceglie se portare il catalogo **da Shopify a VestiFlow** o **da VestiFlow a Shopify**. Le modalità di acquisizione appartengono a quel percorso |
+| **Sincronizzazione continua** | valgono le regole **per campo** di questo capitolo                                                                                                        |
+
+⛔ **Le due non si prestano gli argomenti l’una all’altra.** Non si usano le regole della
+sincronizzazione continua per impedire un’acquisizione iniziale, né la prima importazione
+per autorizzare sovrascritture successive.
+
+⭐ **E le regole per campo NON guardano dove è nato l’articolo.** Un prodotto creato in
+VestiFlow e uno arrivato da Shopify hanno **la stessa gestione**: decide il **campo**, non
+la provenienza.
+
+#### ✅ La guardia d’origine è stata SOSTITUITA — 11/09/2026
+
+⛔ **Fino a quel giorno non era così**, ed era misurato: per un prodotto di origine
+VestiFlow l’import aggiornava **solo** `shopifyTitle` e poi usciva
+(`shouldSkipShopifyCatalogImport`, ora rimossa). Nessun campo bidirezionale tornava
+indietro. Per un prodotto importato passava invece tutto, categoria interna e costo
+compresi: **due regimi opposti sullo stesso articolo**, decisi dalla provenienza.
+
+⚠️ **Non è stata tolta e basta**: senza le regole per campo al suo posto sarebbe passato
+l’aggiornamento intero. Ciò che resta di VestiFlow ora resta tale **per tutti**:
+
+```text
+Product.name          fuori dall allowlist dell import, come sempre
+articleCode           fuori: scritto solo alla creazione
+category              fuori: categoria interna (§9.5)
+purchasePriceMinor    fuori dagli AGGIORNAMENTI: comanda VestiFlow (§9.11)
+sellingPriceMinor     fuori: il prezzo articolo è dell operatore
+```
+
+⭐ **`isVestiflowCatalogOwner` resta**, e serve ancora: decide `catalogOrigin` e
+`shopifyCatalogLinkKind`, cioè **che cosa l’articolo è**. Non autorizza più nessuna
+scrittura.
+
+⚠️ **Il costo delle varianti ha due casi, e non è una contraddizione**: su una variante già
+collegata non si scrive (è un aggiornamento), su una comparsa ora su Shopify si acquisisce
+— non c’è nessun valore VestiFlow da proteggere, ed è la stessa acquisizione della prima
+importazione.
 
 ### 9.10 Ultimo scrittore non significa sovrascrittura cieca
 
 > 🔧 **Proposta tecnica da verificare** — il MECCANISMO, non la regola. Che prevalga l'ultima
 > modifica valida salvata, e che l'eco non generi una nuova modifica, è **deciso** in §9.1.
+
+⛔ **Precisazione del proprietario, 11/09/2026.** Era stata proposta un'**impronta** del
+valore sincronizzato come meccanismo minimo. Non basta, e non è approvata: **riconoscere
+un'eco non stabilisce l'ordine delle modifiche.** Un'impronta dice «questo l'ho
+già visto», non «questo è arrivato dopo».
+
+⛔ **E non è approvata la regola «vince il remoto».** Un conflitto fra una modifica locale
+non ancora inviata e una remota **non si risolve facendo vincere automaticamente Shopify**.
 
 Per i campi bidirezionali conservare:
 
@@ -2441,7 +3753,47 @@ disponibile VestiFlow      = giacenza − impegnata
 quantità inviata a Shopify = max(0, disponibile VestiFlow)
 ```
 
-⛔ **La scorta di sicurezza è stata TOLTA dalla formula** (02/09/2026). Compariva come «regola base già confermata» — `max(0, giacenza − impegnata − scorta di sicurezza)` — e non era confermata da nessuno: è una proposta che si era travestita da decisione.
+#### ⭐ Il «disponibile VestiFlow» è una COLONNA, e si legge — non si rifà — 09/09/2026
+
+> **`inventory_levels.available` è il valore canonico. Il canale lo legge da lì, come lo
+> legge la schermata. L'unica trasformazione che resta è il clamp: `max(0, available)`.**
+
+⛔ **Fino al 09/09/2026 il push e la riconciliazione RICALCOLAVANO `giacenza − impegnata`**
+per conto loro, con `computeShopifyPublishableAvailable(onHand, committed, 0)`. Era un
+secondo motore del Disponibile accanto a quello del gestionale: finché i due coincidevano
+non si vedeva, e il giorno che avessero divergere l'operatore avrebbe letto un numero e il
+canale ne avrebbe ricevuto un altro — senza che nessuno dei due risultasse sbagliato.
+
+⭐ **Il cambio è stato autorizzato dopo una VERIFICA, non per simmetria.** Censite le sette
+aree che scrivono giacenza, impegni e disponibile — documenti e movimenti, impegni e ordini,
+cassa, inventario fisico, import CSV, ripristino e anagrafica, Shopify — ognuna con una
+seconda lettura indipendente incaricata di confutare la prima. Nessun verdetto è stato
+ribaltato. In tutto il codice di produzione i punti che scrivono `inventory_levels` sono sei,
+e i tre campi dell'invariante li toccano **solo** le due util centrali, che li muovono
+sempre insieme:
+
+| Punto                                                  | Che cosa scrive                                |
+| ------------------------------------------------------ | ---------------------------------------------- |
+| `inventory-level-delta.util.ts`                        | `onHand` e `available` dello **stesso** delta  |
+| `committed-delta.util.ts`                              | `committed` e `available` di delta **opposti** |
+| `inventory-incoming.util.ts`                           | solo `incoming`, fuori dall'invariante         |
+| `inventory-import.service.ts` · `inventory.service.ts` | solo `minThreshold`                            |
+| `products.service.ts`                                  | `deleteMany`: toglie la riga intera            |
+| ripristino da backup                                   | reinserisce le righe **com'erano**             |
+
+⚠️ Nessun SQL grezzo tocca `inventory_levels` nel codice di produzione.
+
+⭐ **Verificato anche sul database**, non solo letto: `invariante-disponibile.integration-spec`
+misura `available = onHand - committed` dopo carico, scarico sotto zero, impegno e rilascio,
+nascita della riga, `incoming`, rollback a scritture avvenute, dodici delta in parallelo,
+giacenza e impegni mescolati, export e ripristino. ⛔ Il controllo conta le righe **incoerenti
+dell'intero tenant**, non guarda la riga in mano: una riga sfuggita altrove lo farebbe fallire
+lo stesso. Una prova costruisce un'incoerenza a mano per verificare che il controllo la veda.
+
+⛔ **La scorta di sicurezza è stata TOLTA dalla formula** (02/09/2026), e il **parametro** è
+stato tolto dal codice il 09/09/2026: restava accettato dalla funzione e valorizzato a `0` da
+entrambi i chiamanti — un comando che non comandava, e che prima o poi qualcuno avrebbe
+valorizzato credendolo configurato. Compariva come «regola base già confermata» — `max(0, giacenza − impegnata − scorta di sicurezza)` — e non era confermata da nessuno: è una proposta che si era travestita da decisione.
 
 ⭐ **La disponibilità negativa resta visibile in VestiFlow**, ed è un fatto che l'operatore deve vedere. Non viene trasformata in un movimento, in una rettifica o in un azzeramento: verso il canale si pubblica zero, in casa si legge il numero vero.
 
@@ -2701,10 +4053,15 @@ client.ts` intercetta il `404` solo per le `DELETE` in uscita (e lo tratta come 
 oggi nessun evento e nessun controllo lo attiva. È lavoro di tranche, non debito da correggere
 in una riga.
 
-⭐ **Il modello che dà a questa sezione dove scrivere il proprio esito è progettato**, non più
-solo evocato: `ShopifyProductLink`/`ShopifyVariantLink` (§8.5.2), con gli stati `active` /
-`remotely_deleted` / `unlinked` che sostituiscono ogni interpretazione ad hoc di «eliminato».
-Resta lavoro di tranche **costruirlo**: la progettazione non è implementazione.
+⭐ **Il modello che dà a questa sezione dove scrivere il proprio esito è SCRITTO E COLLAUDATO
+in locale** (§8.5.2): identità remote `shopify_product_identities` /
+`shopify_variant_identities` e periodi `shopify_product_links` / `shopify_variant_links`, con
+gli stati `active` / `remotely_deleted` / `unlinked` che sostituiscono ogni interpretazione ad
+hoc di «eliminato».
+
+⚠️ **Ma resta un bersaglio senza grilletto anche per un secondo motivo**: le tabelle esistono
+e **nessun servizio le scrive**. Mancano il backfill e il passaggio dei lettori (§8.5.8), che
+sono lavoro di tranche: il modello verificato non è il modello in servizio.
 
 ### 11.8 Prevenzione della reimportazione
 
@@ -2750,10 +4107,18 @@ voce 2), il primo `products/update` o `products/create` in arrivo per quello ste
 impedire. Non è ipotetico: è il comportamento che il codice produce oggi, verificato leggendo
 la funzione.
 
-⭐ **Il «riferimento tecnico minimo» che questa sezione chiedeva è progettato**: è
-`ShopifyProductLink`/`ShopifyVariantLink` con `status = 'remotely_deleted'` o `unlinked`
-(§8.5.2) — la stessa tabella che serve §11.7, non una seconda. `findFirst` dovrà interrogare
-i link prima di concludere «mai visto» (§8.5.4).
+⭐ **Il «riferimento tecnico minimo» che questa sezione chiedeva è SCRITTO** (§8.5.2), e non è
+il periodo: è l'**identità remota** — `shopify_product_identities` con `local_deleted_at`
+valorizzato e `original_product_id` intatto.
+
+⛔ **La distinzione conta.** Un periodo chiuso dice che _quel collegamento_ è finito; è
+l'identità a dire che _quel GID appartiene a quell'articolo, per sempre_, ed è lei a
+sopravvivere all'eliminazione definitiva dell'anagrafica — proprio perché
+`original_product_id` **non porta una chiave esterna**. Cercare l'esclusione fra i periodi
+avrebbe lasciato passare la reimportazione nel caso che questa sezione esiste per impedire.
+
+⚠️ `findFirst` dovrà interrogare le **identità** prima di concludere «mai visto» (§8.5.4). Non
+lo fa ancora: le tabelle sono vuote finché non c'è il backfill.
 
 ### 11.9 Pubblicazione successiva
 
@@ -2787,6 +4152,290 @@ regola funzionale già scritta.
 > 🔧 **PROPOSTA DA ESAMINARE — l'intero capitolo.**
 >
 > I nove passi qui descritti sono una forma ipotizzata del wizard, non un flusso approvato. Nessuna sottosezione di questo capitolo autorizza un'implementazione.
+
+### 12.-1 ✅ LA PRIMA CONNESSIONE HA TRE FASI — deciso dal proprietario, 11/09/2026
+
+> **Una sezione «Prima connessione Shopify» nelle Impostazioni, separata dai comandi della
+> sincronizzazione ordinaria.**
+
+| Fase                                    | Che cosa succede                                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **1 · Scelte iniziali**                 | si decide se **importare** il catalogo da Shopify a VestiFlow o **esportarlo** da VestiFlow a Shopify |
+| **2 · Configurazione**                  | si collegano le sedi VestiFlow alle sedi Shopify e si completano le impostazioni necessarie           |
+| **3 · Riepilogo, controlli e conferma** | si vede che cosa verrà fatto, quali sedi sono associate e quali anomalie ci sono; si conferma         |
+
+#### ⛔ Prima della conferma finale non si trasferisce NIENTE
+
+⛔ **Le prime due fasi e il riepilogo non trasferiscono catalogo né quantità, e non avviano
+la sincronizzazione continua.** Preparano le scelte, e basta.
+
+⭐ **Salvare le scelte e la configurazione è permesso**, ed è il senso stesso delle prime
+due fasi: la direzione scelta e le sedi collegate si conservano, così l’operatore può
+interrompere e riprendere senza rifare tutto.
+
+⭐ **E leggere è permesso**: i controlli hanno bisogno di sapere che cosa c’è dalle due
+parti, e leggere non cambia niente.
+
+⛔ **Ciò che resta vietato prima della conferma è preciso, e non di più:**
+
+```text
+vietato    trasferire il CATALOGO
+vietato    trasferire le QUANTITA
+vietato    avviare la sincronizzazione CONTINUA
+permesso   salvare scelte e configurazione, e leggere per i controlli
+```
+
+⭐ **Il trasferimento parte soltanto dopo la conferma finale.** È la riga che separa una
+preparazione reversibile da un’operazione che tocca due cataloghi.
+
+#### ⛔ La conferma AVVIA, non dichiara riuscito
+
+⚠️ **Confermare fa partire l’operazione: non equivale a dire che è andata bene.** L’esito
+deve mostrare **le eventuali anomalie** prima di dichiarare conclusa la partenza e attiva la
+sincronizzazione continua.
+
+⭐ È la stessa disciplina del comando Allinea (§31.23 di `DA-FARE`) **quanto alla
+TRASPARENZA DELL’ESITO**: un’operazione che si dichiara conclusa senza dire che cosa non è
+riuscito manda l’operatore a fidarsi di un elenco che non ha visto.
+
+⛔ **Il richiamo si ferma lì.** Non decide che cosa succede alla sincronizzazione continua
+**in presenza di anomalie**: se si attivi lo stesso, se attenda, se dipenda dal tipo di
+anomalia. ⏸ Quella condizione è **da definire nel blocco della partenza iniziale**, e non
+si deduce dal comportamento di un altro comando.
+
+#### Se entrambi i lati hanno articoli
+
+Resta la **preparazione controllata**, senza fusioni automatiche: la regola è nel quadro
+funzionale (`SINCRONIZZAZIONE-QUADRO-FUNZIONALE.md` §2) e non si duplica qui.
+
+#### Dopo la partenza, tre cose restano separate
+
+```text
+sincronizzazione dei dati ARTICOLO     le regole per campo (§9)
+Allinea giacenze                       solo le quantita, VestiFlow -> Shopify
+sospensione e riattivazione            un comando suo
+```
+
+⚠️ **E questa sezione non riapre §9**: le regole per campo valgono **dopo** la partenza, e
+non guardano da dove è nato l’articolo (§9.12).
+
+#### ⭐ Mandato dell’11/09/2026 sera — il percorso COMPLETO, e la quarta fase
+
+_Il proprietario: «voglio completare il percorso della prima connessione Shopify, non
+soltanto B7 … procedi per blocchi interni fino alla consegna funzionante»._ Il rinvio qui
+sopra («registrata, non avviata») **non vale più**; e il wizard rinviato da `DA-FARE` §15.3
+entra in questo blocco, nel posto detto dal proprietario: **tutto in Impostazioni → Shopify**,
+nella fase di collegamento iniziale.
+
+##### ⛔ Tre MOMENTI, e le regole dell’uno non si applicano all’altro
+
+| Momento                       | Che cosa è                                                                                                                                                               | Regole                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PRIMA CONNESSIONE**         | prepara e trasferisce i dati iniziali secondo la scelta dell’utente: Shopify → VestiFlow (Shopify è la fonte iniziale di catalogo e quantità) oppure VestiFlow → Shopify | scelta della direzione, collegamento esplicito delle sedi, controllo degli articoli già presenti, anteprima, conferma, trasferimento ed esito. Prima della conferma si salvano scelte e configurazione e si legge per i controlli; non si trasferisce niente e non parte la sincronizzazione continua. La **ripresa** di un trasferimento interrotto appartiene alla stessa partenza e non ripete gli effetti già applicati; le parti escluse si completano dopo senza reinizializzare quelle già attive |
+| **SINCRONIZZAZIONE CONTINUA** | parte sulle parti correttamente preparate e attivate                                                                                                                     | il catalogo segue le regole per campo (§9) qualunque sia l’origine dell’articolo; per le quantità **comanda VestiFlow**: i movimenti locali si trasmettono, gli effetti degli ordini Shopify già applicati sul canale non si inviano una seconda volta; restano sospensioni, recuperi, protezioni e tentativi incerti. ⛔ La direzione scelta nella prima connessione **non** diventa la direzione della sincronizzazione                                                                                |
+| **ALLINEA GIACENZE**          | un comando esplicito successivo, VestiFlow → Shopify (`DA-FARE` §31.23)                                                                                                  | non ripete la prima connessione, non importa catalogo, non cambia le regole della sincronizzazione continua                                                                                                                                                                                                                                                                                                                                                                                              |
+
+##### ✅ La QUARTA fase — conclusione e attivazione PARZIALE, decisa dal proprietario l’11/09/2026
+
+> **La sincronizzazione continua parte per gli articoli e le sedi correttamente preparati.**
+> Quelli problematici restano **esclusi, identificabili e recuperabili** dopo la correzione.
+> I problemi generali che impediscono di operare — connessione non valida, nessuna sede
+> utilizzabile — **impediscono l’attivazione**.
+
+⛔ Una riga non risolta **non deve entrare nella sincronizzazione per errore**: l’esclusione
+si realizza con i meccanismi esistenti (l’interruttore per articolo `shopifySyncEnabled`, e
+per le sedi l’assenza del collegamento), non con uno stato nuovo. Non si interrompe la
+sincronizzazione delle parti già attive quando si completa il collegamento di altre. Nessuna
+azione distruttiva, nessuna ricreazione automatica.
+
+##### ✅ Le cinque risposte dell’11/09/2026, che fissano il perimetro
+
+| #   | Punto                                     | Decisione                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Quantità iniziali Shopify → VestiFlow** | confermate, e riguardano **soltanto** la partenza scelta in quella direzione: «comanda VestiFlow» governa il dopo. ⛔ Nessun vincolo «solo dove VestiFlow è a zero»: zero è un valore, non prova che il dato sia assente. L’anteprima mostra quantità attuali e variazioni previste; la conferma autorizza. I casi non determinabili restano esclusi e segnalati. Le variazioni sono **tracciate** (movimenti) e **non duplicate alla ripresa**. ⚠️ Si acquisisce la **giacenza fisica** (`on_hand`), non il disponibile: con impegni aperti non sono intercambiabili |
+| 2   | **Quantità iniziali VestiFlow → Shopify** | si riusa il motore di Allinea (§31.23) sul perimetro scelto e collegato, con confronto remoto e protezioni; riusare il motore non confonde la prima connessione col pulsante d’uso successivo                                                                                                                                                                                                                                                                                                                                                                         |
+| 3   | **Cataloghi entrambi popolati**           | i casi ambigui (stesso SKU dalle due parti senza collegamento) restano **esclusi e nominati**: nessun collegamento inventato, nessun doppione. Nessuna schermata di abbinamento in questo blocco. ⛔ Non si impone di cambiare SKU o cancellare articoli: i dati potrebbero essere corretti; il caso si conserva, e il collegamento manuale resta un’altra modalità                                                                                                                                                                                                   |
+| 4   | **Connessioni già esistenti**             | si conservano stato effettivo, collegamenti e sospensioni; non si impone una nuova partenza, ma **non si deduce «già attiva»** dalla sola assenza dello stato del percorso; nessuna inizializzazione implicita di basi o abilitazioni                                                                                                                                                                                                                                                                                                                                 |
+| 5   | **Ordini durante la partenza**            | inclusi nel mandato; dopo l’attivazione resta il recupero continuo. Il confine temporale deve essere **coerente con le quantità trasferite**: un ordine precedente ancora aperto non sparisce, un effetto già compreso nelle quantità iniziali non si sottrae di nuovo; ⛔ non basta filtrare per data di creazione. Prima di implementare il passaggio si mostrano tre casi — ordine precedente ancora aperto, ordine arrivato durante il trasferimento, ripresa dopo interruzione — e la decisione mancante si sottopone precisa                                    |
+
+⭐ **Le tre fasi restano VISIBILI** — scelte, configurazione, controllo e conferma —;
+trasferimento, esito e attivazione seguono la conferma. L’implementazione è descritta in
+`docs/27-prima-connessione-shopify.md`.
+
+⛔ **I nove passi qui sotto restano una PROPOSTA**, e dove divergono da questa sezione vince
+questa: le fasi sono decise, la loro suddivisione interna no.
+
+### 12.0 Il primo allineamento degli ARTICOLI — due direzioni approvate, 07/09/2026
+
+> **Stato aggiornato al 10/09/2026:** due direzioni iniziali approvate e partenza controllata
+> delle quantità confermata in §8.11.2. Restano da realizzare i dettagli tecnici; il wizard
+> completo qui proposto non è autorizzato implicitamente da quelle decisioni.
+
+⭐ **La COMPLETEZZA di questo allineamento è ora un requisito confermato, e vive in §8.9.1**:
+nessuna priorità fra campi, un articolo parziale non è completato, e interruzioni o
+ripetizioni non producono perdite né duplicazioni. ⚠️ Con esso vanno letti §8.9.4 — le
+modifiche che arrivano **durante** l'allineamento non si perdono — e §8.9.3, che introduce
+una precedenza fra tipi di aggiornamento valida **solo a regime**, non qui.
+
+⚠️ **Qui c'era «la progettazione è SOSPESA», e non vale più.** La sospensione era
+totale e nasceva da un problema vero — non esiste una regola affidabile per
+stabilire l'identità di un articolo fra le due piattaforme — ma quel problema si
+aggira scegliendo **da dove si parte**, invece di risolverlo dopo.
+
+#### Le due direzioni
+
+|                            |                                                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 · Parto da Shopify**   | si importano prodotti e varianti in VestiFlow **conservando gli identificativi remoti**, e i collegamenti si registrano **durante l'importazione**                  |
+| **2 · Parto da VestiFlow** | si prepara il catalogo a mano o via CSV; quando VestiFlow **crea** prodotti e varianti su Shopify, registra gli identificativi restituiti e i relativi collegamenti |
+
+⭐ **In entrambi i casi la corrispondenza non si deduce: discende dall'operazione
+stessa.** Chi importa sa da quale prodotto remoto è nato ogni articolo locale;
+chi crea sa quale identificativo Shopify ha appena restituito. ⛔ **Nome, SKU e
+barcode non entrano nella determinazione dell'identità**, in nessuno dei due
+percorsi — è la stessa regola di §8.5.4 e §11.9.
+
+⚠️ **Questa scelta riguarda esclusivamente il punto di partenza.** La matrice dei
+campi bidirezionali e unidirezionali di **§9.2 resta invariata**: da dove si parte
+non cambia chi possiede cosa.
+
+#### ⛔ I limiti, che vanno dichiarati e non aggirati
+
+- **Due cataloghi già popolati**, con articoli apparentemente uguali e senza
+  collegamenti certi, **non sono risolti** da nessuna delle due direzioni. Il
+  caso resta aperto.
+- **Un CSV ordinario non dimostra l'identità** di articoli già presenti su
+  Shopify: crea articoli locali, non prova che corrispondano a quelli remoti.
+- **Nessuna fusione automatica**, nessuna cancellazione, nessuna sostituzione
+  implicita del catalogo di destinazione.
+- **La scelta delle giacenze iniziali per sede resta da definire**: importare le
+  anagrafiche **non autorizza** a sommare o sovrascrivere quantità (§12.9).
+
+#### L'importazione CSV che esiste già
+
+⚠️ **Non è da scrivere: è da verificare e adattare.** E non è nemmeno «solo
+locale»: l'importazione **innesca già un invio ai canali**. Vanno tenuti distinti
+quattro livelli, perché l'adattamento li tocca tutti.
+
+| #   | Livello                                | Che cosa fa oggi (letto il 07/09/2026)                                                                                                                                                                                                                        |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **creazione locale dal CSV**           | `shopify-csv.parse.ts` e `shopify-csv.mapper.ts` producono prodotti e varianti **locali**. Formato accettato: quello **di Shopify** — handle, tag e prezzi decimali passano dai mapper Shopify. ⛔ Non è «un CSV qualsiasi». Nel mapper non compare alcun GID |
+| 2   | **invio automatico ai canali**         | `ProductsImportService` chiama `channelSync.enqueueProductPush` **dopo ogni creazione**. È post-commit e non bloccante: un fallimento diventa un `logger.warn` e l'import riesce lo stesso                                                                    |
+| 3   | **registrazione degli identificativi** | la fa il **percorso di pubblicazione**, non il CSV: `shopify-product-push.service.ts` scrive `shopifyProductId`, `shopifyVariantId` e `shopifyInventoryItemId` **nelle colonne legacy**                                                                       |
+| 4   | **nuovo storico dei collegamenti**     | ⛔ **non ancora adottato da nessun servizio**: le tabelle esistono e restano vuote (§8.5.5)                                                                                                                                                                   |
+
+⭐ **La distinzione è tutta qui**: l'assenza di GID nel mapper dimostra che **il
+mapper** non ricostruisce collegamenti remoti — non che l'importazione resti
+locale. Su un tenant Shopify un catalogo caricato da CSV **viene pubblicato**, e
+gli identificativi tornano indietro per la via del push.
+
+⛔ **Non va quindi descritta come assente, né come già conforme al primo
+allineamento.** Il suo adattamento dovrà considerare anche gli **effetti
+successivi al caricamento**: se e quando l'invio automatico debba scattare
+durante un primo allineamento, che cosa accade alle righe che falliscono in
+silenzio, e come il percorso di pubblicazione registrerà i collegamenti **nel
+nuovo modello** oltre che nelle colonne legacy.
+
+⚠️ Che cosa cambiare — e se il formato Shopify resti l'unico accettato — è parte
+dei dettagli operativi ancora aperti.
+
+#### ⏸ Il futuro CSV ESTESO VestiFlow — requisito registrato, da non implementare ora
+
+⚠️ **Due formati, e non vanno confusi**:
+
+|                          |                                                                                                                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CSV di Shopify**       | quello che l'export di Shopify produce e che l'import odierno accetta. ⛔ **Non porta identificativi remoti**: handle, titolo, opzioni, prezzi. Da un file così **nessuna corrispondenza remota è dimostrabile** |
+| **CSV esteso VestiFlow** | non esiste ancora. Aggiunge **colonne opzionali** che dichiarano l'identità remota, e solo grazie a quelle un caricamento può registrare collegamenti                                                            |
+
+##### Che cosa dovrà fare, quando si farà
+
+**Le colonne sono DUE e distinte** — l'ID prodotto Shopify e l'ID variante
+Shopify — perché rispondono a due domande diverse e possono essere presenti una
+senza l'altra.
+
+**Prima di scrivere qualunque cosa, si verifica:**
+
+- il **negozio di provenienza**: un identificativo di un altro negozio non vale
+  per questo;
+- che la **variante appartenga davvero al prodotto indicato**, e non a un altro.
+
+⭐ **Solo dopo le verifiche** i riferimenti si conservano nel **nuovo modello dei
+collegamenti** — identità remote e periodi (§8.5.2) — non nelle sole colonne
+legacy.
+
+**Che cosa non deve poter accadere:**
+
+- ⛔ **riassegnare un'identità già associata a un altro articolo**: è la
+  condizione che il modello impone per costruzione, e il CSV non fa eccezione;
+- ⛔ **riaprire automaticamente un collegamento chiuso**: un collegamento si
+  chiude per una ragione, e un file caricato non è quella ragione;
+- ⛔ **creare copie su Shopify quando gli identificativi sono validi**: l'articolo
+  remoto **esiste già**, e ricrearlo è il duplicato che tutto questo impianto
+  serve a evitare;
+- ⛔ **ripiegare sulla creazione quando gli identificativi sono errati o
+  incoerenti**: si **segnala il problema** e ci si ferma su quella riga. Il
+  ripiego silenzioso su «allora lo creo» è il modo in cui un errore di battitura
+  diventa un catalogo doppio.
+
+**E ripetere l'importazione non deve duplicare nulla** — né prodotti, né
+varianti, né collegamenti. L'idempotenza è un requisito, non una proprietà
+sperata: un file ricaricato per sbaglio è il caso normale, non l'eccezione.
+
+##### ⛔ Due cose che un identificativo NON autorizza
+
+**Un CSV senza queste colonne non dimostra alcuna corrispondenza remota.**
+Resta un caricamento di anagrafiche locali, e ricade nella direzione 2.
+
+**E nemmeno un ID valido, da solo, autorizza a fondere due articoli locali
+preesistenti.** Sapere che il prodotto remoto X corrisponde all'articolo locale A
+non dice nulla su che cosa fare dell'articolo locale B che gli somiglia: la
+fusione di due anagrafiche locali è un'altra decisione, che nessun file può
+prendere.
+
+##### Dipendenze e perimetro
+
+⚠️ **Questo requisito poggia sul modello a identità e periodi**, che oggi esiste
+come schema ma **non è adottato da alcun servizio** (§8.5.5). Non si implementa
+prima che quel modello sia adottato e collaudato.
+
+⛔ **Restano invariati**: le giacenze iniziali (aperte, §12.9), la matrice dei
+campi (§9.2) e il piano tecnico corrente. Questo requisito riguarda **come nasce
+un collegamento da un file**, non chi possiede cosa né quante unità ci sono.
+
+#### Che cosa NON diventa approvato
+
+⛔ **Il wizard a nove passi di questo capitolo resta una proposta**, e le
+schermate di corrispondenza fra articoli (§12.6) **non sono approvate**. Le due
+direzioni qui sopra non passano da un matching: lo rendono superfluo, che è
+un'altra cosa dal renderlo valido.
+
+Fino a nuova progettazione restano esclusi:
+
+- proposte automatiche di corrispondenza;
+- collegamenti dedotti da nome, SKU o barcode;
+- creazioni automatiche che possano produrre duplicati;
+- importazione di quantità per varianti non già collegate in modo certo;
+- interfacce di abbinamento.
+
+⚠️ **Una schermata di abbinamento non risolve il problema: lo sposta
+sull'operatore.** Confermare centinaia di corrispondenze proposte su basi
+inaffidabili produce conferme date per stanchezza, e un duplicato confermato a
+mano è indistinguibile da uno corretto.
+
+#### Che cosa NON è il primo allineamento
+
+⛔ **La riconnessione allo stesso negozio non lo ripete.** Conserva i
+collegamenti e segue il recupero già deciso in §1.15.2 — dall'**ultimo checkpoint
+riuscito**, idempotente, senza duplicare gli effetti.
+
+⛔ **E il backfill non è la procedura dell'operatore.** Il backfill (§8.5.8,
+fase 3) è la conversione tecnica dei collegamenti **già esistenti** nelle colonne
+legacy verso il modello a identità e periodi: non chiede nulla a nessuno e non
+crea articoli. Sono due lavori distinti e non si sostituiscono.
+
+⭐ **Che cosa NON è mai stato sospeso**: §12.4 (sedi e location) segue §1.13, che
+è decisa. Connessione, verifica tecnica e ordini seguono §1.15, anch'essa decisa.
 
 ### 12.1 Stati della connessione
 
@@ -2830,16 +4479,33 @@ Nessuna scrittura.
 
 ### 12.4 Step 1 — Sedi e location
 
-Tabella di corrispondenza esplicita:
+⭐ **La regola vive in §1.13**, che è la sede canonica della decisione. Qui resta
+solo ciò che riguarda il passo del wizard.
 
-- location Shopify a sinistra;
-- sede VestiFlow a destra;
-- proposta per nome solo come aiuto;
-- conferma umana;
-- possibilità di escludere una location;
-- nessuna duplicazione automatica prima del matching.
+⛔ **Qui c'era «proposta per nome solo come aiuto» dentro un elenco che non
+diceva altro**, e letta insieme a «nessuna duplicazione automatica prima del
+matching» lasciava intendere che dopo il matching una duplicazione automatica ci
+fosse. §1.13 chiude la questione: **il collegamento non è mai automatico**, né
+prima né dopo, e nome e indirizzo non sono prove d'identità.
 
-Le configurazioni molti-a-uno o uno-a-molti richiedono una regola separata. Il flusso standard è uno-a-uno.
+Il passo presenta le due liste — location Shopify e sedi VestiFlow — e per ogni
+riga **non collegata** offre le tre scelte di §1.13.1: collegare a una esistente,
+crearne una sull'altra piattaforma, o lasciarla dov'è.
+
+- conferma **umana** per ogni collegamento;
+- possibilità di **escludere** una location;
+- una proposta per nome può comparire come **aiuto alla lettura**, mai applicata;
+- **nessuna** creazione o duplicazione automatica, in nessun momento;
+- **nessuna** sincronizzazione di nome e indirizzo (§1.13.2).
+
+Il flusso standard è **uno-a-uno** dentro lo stesso negozio Shopify. Le
+configurazioni molti-a-uno o uno-a-molti richiedono una regola di ripartizione
+delle quantità che non esiste e non è stata chiesta.
+
+⛔ **Nessun fallback su «la prima sede».** Se una location non è collegata, le
+sue quantità non vanno da nessuna parte: non esiste una sede di ripiego, né
+alfabetica né per data di creazione. È la conseguenza diretta di §1.13 — senza
+collegamento non si sincronizza niente.
 
 ### 12.5 Step 2 — Lettura snapshot remoto
 
@@ -2858,6 +4524,17 @@ Acquisire in modo paginato:
 La lettura viene identificata da un `reconciliationRunId`. Se scade o il remoto cambia sostanzialmente, l'anteprima viene rigenerata.
 
 ### 12.6 Step 3 — Matching prodotti e varianti
+
+> ⛔ **NON APPROVATA, e resa superflua dalle due direzioni di §12.0.** L'ordine
+> di affidabilita` qui sotto resta una proposta, e la sua parte automatica e`
+> esclusa: nessun collegamento per SKU, barcode, nome o opzioni, nemmeno come
+> proposta applicata.
+>
+> ⭐ Nei due percorsi approvati **non c'e` un matching da fare**: la
+corrispondenza discende dall'importazione o dalla creazione. Questa sezione
+resta scritta perche` descrive il caso che le due direzioni **non** risolvono
+> — due cataloghi gia` popolati senza collegamenti certi — che e` tuttora
+> aperto.
 
 Ordine di affidabilità:
 
@@ -2911,6 +4588,13 @@ Un lordo 25,00 al 22% deve tornare 25,00 dopo scorporo e ricomposizione.
 
 ### 12.9 Step 6 — Baseline inventariale
 
+> **Aggiornamento del 10/09/2026:** il funzionamento della partenza controllata, anche in più
+> passaggi e a vendite aperte per scelta dell'operatore, è approvato in §8.11.2. Non è più una
+> domanda aperta su come l'utente debba lavorare. Le modalità tecniche di questo step restano
+> invece una proposta: il documento di apertura e il wizard descritti sotto non sono autorizzati
+> implicitamente. La scelta del catalogo non autorizza somme di sedi né un riallineamento
+> automatico nascosto nel primo invio ordinario.
+
 Le quantità vengono trattate solo dopo la mappatura location.
 
 Per la direzione Shopify → VestiFlow:
@@ -2945,6 +4629,14 @@ La baseline salva:
 - data e run.
 
 ### 12.11 Step 8 — Anteprima completa
+
+> ⛔ **NON APPROVATA nella forma qui descritta per gli ARTICOLI**: l'anteprima
+> elenca creazioni e collegamenti che dipendono da un matching che le due
+> direzioni di §12.0 non usano. Resta valida la forma — si conferma cio` che
+accadra`, non cio` che si spera — e resta valida per sedi e ordini.
+>
+> ⚠️ Che cosa mostri l'anteprima nei due percorsi approvati e` parte dei
+> **dettagli operativi ancora aperti**.
 
 Prima di scrivere mostrare:
 
@@ -3240,25 +4932,25 @@ La Tranche 0 si esegue a fette, una alla volta, con verifica prima di passare al
 0B.1 sono chiuse. Restano il contratto autonomo dei movimenti e la lacuna dichiarata del
 percorso «Concludi ordine».
 
-|           |                                                                                                               |                                                                                                     |
-| --------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **0A.1**  | **totali economici di riga sul percorso generico**                                                            | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0B.1**  | **filtro Sede del Registro canonico**                                                                         | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                                                     | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                                                   | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**                                         | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| —         | «Concludi ordine» (ordine cliente → documento)                                                                | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                     |
-| —         | **convergenza Corrispettivi**                                                                                 | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte |
-| —         | contratto autonomo dei movimenti (§5.3)                                                                       | ⏸ da fare                                                                                           |
-| **1A**    | **modello locale del ciclo di vita**: `lifecycleStatus`, cestino, indici, migration                           | ✅ **completata e verificata il 03/09/2026**, commit `8bf85363` — build, 2345 unit, 72 integrazione |
-| **1B**    | **esposizione e visibilità**: predicati, elenco/Cestino/selezioni, etichette, guardia §6.2                    | ✅ **completata il 03/09/2026** — vedi commit `feat(catalogo): applica visibilità e stati`          |
-| —         | cestino e ripristino come COMANDI, eliminazione definitiva                                                    | ⏸ da fare (Tranche 1C)                                                                              |
-| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)                                              | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)     |
-| —         | nome interno separato dal «Nome Shopify» (§1.9)                                                               | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»   |
-| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10)                                  | ✅ **fatto e provato sullo shop il 03/09/2026**                                                     |
-| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**                                      | ✅ **completata e verificata il 03/09/2026**, comprese le prove d'integrazione                      |
-| **2A**    | **primitive GraphQL del catalogo** (§8.6): productSet, varianti, opzioni, publication, collezioni, inventario | ✅ **completata il 03/09/2026** · ⚠️ prove unitarie: il contratto va verificato sullo shop          |
-| —         | **migrazione push Shopify a GraphQL** (Tranche 2B e 3)                                                        | ⏸ **da eseguire**, decisa in §1.6                                                                   |
+|           |                                                                                                               |                                                                                                                                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **0A.1**  | **totali economici di riga sul percorso generico**                                                            | ✅ **completata e verificata**, con i test eseguiti                                                                                                                                              |
+| **0B.1**  | **filtro Sede del Registro canonico**                                                                         | ✅ **completata e verificata**, con i test eseguiti                                                                                                                                              |
+| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                                                     | ✅ **completata e verificata**, con i test eseguiti                                                                                                                                              |
+| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                                                   | ✅ **completata e verificata**, con i test eseguiti                                                                                                                                              |
+| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**                                         | ✅ **completata e verificata**, con i test eseguiti                                                                                                                                              |
+| —         | «Concludi ordine» (ordine cliente → documento)                                                                | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                                                                                                                  |
+| —         | **convergenza Corrispettivi**                                                                                 | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte                                                                                              |
+| —         | contratto autonomo dei movimenti (§5.3)                                                                       | ⏸ da fare                                                                                                                                                                                        |
+| **1A**    | **modello locale del ciclo di vita**: `lifecycleStatus`, cestino, indici, migration                           | ✅ **completata e verificata il 03/09/2026**, commit `8bf85363` — build, 2345 unit, 72 integrazione                                                                                              |
+| **1B**    | **esposizione e visibilità**: predicati, elenco/Cestino/selezioni, etichette, guardia §6.2                    | ✅ **completata il 03/09/2026** — vedi commit `feat(catalogo): applica visibilità e stati`                                                                                                       |
+| —         | cestino e ripristino come COMANDI, eliminazione definitiva                                                    | ⚠️ i **quattro comandi API** sono scritti (08/09/2026, `DA-FARE` §17); restano l'interfaccia, il registro e il collaudo operativo, e per gli articoli **collegati** il cestino non è disponibile |
+| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)                                              | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)                                                                                                  |
+| —         | nome interno separato dal «Nome Shopify» (§1.9)                                                               | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»                                                                                                |
+| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10)                                  | ✅ **fatto e provato sullo shop il 03/09/2026**                                                                                                                                                  |
+| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**                                      | ✅ **completata e verificata il 03/09/2026**, comprese le prove d'integrazione                                                                                                                   |
+| **2A**    | **primitive GraphQL del catalogo** (§8.6): productSet, varianti, opzioni, publication, collezioni, inventario | ✅ **completata il 03/09/2026** · ⚠️ prove unitarie: il contratto va verificato sullo shop                                                                                                       |
+| —         | **migrazione push Shopify a GraphQL** (Tranche 2B e 3)                                                        | ⏸ **da eseguire**, decisa in §1.6                                                                                                                                                                |
 
 ⛔ **Non c'è più una voce «correzione del vecchio export dai movimenti».** Quel percorso **non si ripara**: si dismette. Ripararlo — e a maggior ragione alimentarlo con nuovi snapshot economici — significherebbe investire lavoro in un motore che deve sparire, e ritardarne la fine.
 

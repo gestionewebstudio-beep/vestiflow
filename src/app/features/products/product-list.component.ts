@@ -59,12 +59,7 @@ import type {
   ProductFilterChange,
   ProductStatusOption,
 } from './components/product-toolbar/product-toolbar.component';
-import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
-import {
-  formatShopifyProductsSyncFeedback,
-  type ShopifySyncFeedback,
-} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import {
   DEFAULT_PRODUCT_ORDER,
@@ -82,7 +77,6 @@ import {
 } from './models/product-table-columns.config';
 
 const SEARCH_DEBOUNCE_MS = 300;
-const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
 // Le etichette vengono dall'unico dizionario di stato (product-status.util):
 // qui erano ripetute a mano, e «Archiviato» è sopravvissuto alla sua correzione.
@@ -118,7 +112,7 @@ type ProductListState =
     ErrorStateComponent,
     ProductToolbarComponent,
     ProductTableComponent,
-    ShopifySyncFeedbackComponent,
+
     DeleteConfirmComponent,
   ],
   templateUrl: './product-list.component.html',
@@ -126,7 +120,7 @@ type ProductListState =
 })
 export class ProductListComponent {
   private readonly service = inject(ProductService);
-  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -139,8 +133,6 @@ export class ProductListComponent {
 
   protected readonly productListView = PRODUCT_LIST_VIEW;
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
-
-  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
   // presente, e schermo compatto. Su scrivania resta il lettore HID.
@@ -164,9 +156,7 @@ export class ProductListComponent {
   // Testo ricerca "draft": locale, debounced. Inizializzato una volta dall'URL.
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
   protected readonly exporting = computed(() => this.blobExport.isActive(PRODUCTS_CSV_EXPORT_ID));
-  protected readonly shopifyCatalogLoading = signal(false);
-  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
-  protected readonly shopifySyncError = signal<string | null>(null);
+
   protected readonly bulkPrintLoading = signal(false);
   private readonly selection = createListSelection('multiple');
   protected readonly selectedProductIds = this.selection.ids;
@@ -187,12 +177,6 @@ export class ProductListComponent {
   protected readonly deleteBusy = signal(false);
   private readonly pendingDeleteIds = signal<readonly string[]>([]);
   protected readonly selectedCount = computed(() => this.selectedProductIds().size);
-
-  protected readonly showShopifyCatalogSync = computed(
-    () =>
-      this.canImportExportCatalog() &&
-      showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
-  );
 
   protected readonly showShopifyColumn = computed(() =>
     showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
@@ -480,19 +464,8 @@ export class ProductListComponent {
           },
         ] as const)
       : []),
-    ...(this.showShopifyCatalogSync()
-      ? ([
-          {
-            id: 'shopify-sync',
-            label: 'Importa catalogo',
-            icon: 'pi-sync',
-            requires: 'none',
-            busy: this.shopifyCatalogLoading(),
-            ariaLabel: 'Sincronizza il catalogo da Shopify',
-            run: () => this.importCatalogFromShopify(),
-          },
-        ] as const)
-      : []),
+    // ⛔ Qui c’era «Importa catalogo» (Shopify): sta in Impostazioni → Shopify,
+    //    con lo stesso permesso (11/09/2026).
     /*
       ⭐ **Duplica è sceso dalla riga alla barra** (30/08/2026), e il catalogo lo
       aveva già: `requires: 'one'` — acceso con un articolo scelto, spento CON il
@@ -708,35 +681,6 @@ export class ProductListComponent {
     void this.router.navigateByUrl('/app/products/import');
   }
 
-  protected importCatalogFromShopify(): void {
-    if (this.shopifyCatalogLoading()) {
-      return;
-    }
-
-    this.shopifyCatalogLoading.set(true);
-    this.clearShopifyFeedback();
-    this.shopifySyncError.set(null);
-
-    this.shopifyConnectionService
-      .syncProducts()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.shopifyCatalogLoading.set(false);
-          this.showShopifyFeedback(formatShopifyProductsSyncFeedback(result));
-          this.reload();
-        },
-        error: (err: unknown) => {
-          this.shopifyCatalogLoading.set(false);
-          this.shopifySyncError.set(this.extractErrorMessage(err));
-        },
-      });
-  }
-
-  protected dismissShopifyFeedback(): void {
-    this.clearShopifyFeedback();
-  }
-
   protected exportProducts(): void {
     if (this.exporting()) {
       return;
@@ -785,23 +729,6 @@ export class ProductListComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
-  }
-
-  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
-    this.clearShopifyFeedback();
-    this.shopifyFeedback.set(feedback);
-    this.shopifyFeedbackTimer = setTimeout(() => {
-      this.shopifyFeedback.set(null);
-      this.shopifyFeedbackTimer = null;
-    }, SHOPIFY_FEEDBACK_DISMISS_MS);
-  }
-
-  private clearShopifyFeedback(): void {
-    if (this.shopifyFeedbackTimer) {
-      clearTimeout(this.shopifyFeedbackTimer);
-      this.shopifyFeedbackTimer = null;
-    }
-    this.shopifyFeedback.set(null);
   }
 
   private extractErrorMessage(err: unknown): string {

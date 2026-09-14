@@ -14,6 +14,9 @@ yarn-error.log
 # Backend NestJS (api/)
 /api/dist
 /api/coverage
+# I rapporti delle corse di copertura unita (unità + integrazione), rigenerati a ogni esecuzione.
+/api/.vitest-reports
+/api/.vitest-rapporti
 
 # IDEs and editors
 .idea/

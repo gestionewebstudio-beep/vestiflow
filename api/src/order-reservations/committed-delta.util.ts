@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client';
 
+import { registraOrigine, type OrigineVariazione } from '../inventory/inventory-level-delta.util';
+
 /**
  * Applica una variazione della quantità Impegnata (`committed`) in modo
  * ATOMICO, mantenendo l'invariante `available = onHand - committed`:
@@ -15,6 +17,7 @@ export async function applyCommittedDelta(
   variantId: string,
   locationId: string,
   delta: number,
+  origine: OrigineVariazione,
 ): Promise<void> {
   // Garantisce l'esistenza della riga senza modificarne i valori.
   await tx.inventoryLevel.upsert({
@@ -31,4 +34,8 @@ export async function applyCommittedDelta(
     where: { tenantId, variantId, locationId },
     data: { committed: { increment: delta }, available: { increment: -delta } },
   });
+
+  // ⚠️ Qui `available` si muove di **meno** delta: un impegno in piu' e' una
+  //    disponibilita' in meno. Il segno che conta per l'origine e' quello.
+  await registraOrigine(tx, tenantId, variantId, locationId, -delta, origine);
 }

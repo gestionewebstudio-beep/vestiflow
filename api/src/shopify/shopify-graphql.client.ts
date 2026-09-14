@@ -3,14 +3,21 @@ import {
   HttpStatus,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 
+import { registraChiamataGraphql } from './shopify-chiamata-uscente.util';
 import { ShopifyConfigService } from './shopify-config.service';
 import {
   standardMetafieldDefinitionTemplateGid,
   templateNumericIdToAttributeNumericId,
   matchCategoryAttributeToMetafieldTemplate,
 } from './shopify-category-metafields.util';
+import type {
+  FulfillmentOrderRemoto,
+  LetturaFulfillmentOrders,
+} from './shopify-fulfillment-orders.util';
+import type { ShopifyUserError } from './shopify-inventory-user-error.util';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
 import {
   parseGraphQlCostExtensions,
@@ -64,8 +71,21 @@ export interface MetafieldsSetInput {
 
 interface GraphQlResponse<T> {
   readonly data?: T;
-  readonly errors?: readonly { message: string }[];
+  readonly errors?: readonly { message: string; extensions?: { code?: string } }[];
   readonly extensions?: unknown;
+}
+
+/**
+ * Shopify ha risposto `ACCESS_DENIED`: all'app manca un ambito. Distinto dagli
+ * altri errori perché chiede un'azione diversa — aggiungere l'ambito e
+ * ricollegare — e chi legge deve poterlo dire senza cercare nel testo.
+ * Misurato il 13/09/2026 sul negozio vero, chiedendo `fulfillmentOrders`
+ * senza `read_merchant_managed_fulfillment_orders`.
+ */
+export class ShopifyGraphqlAccessDeniedException extends InternalServerErrorException {
+  constructor(message: string) {
+    super(message);
+  }
 }
 
 /** I campi prodotto che il push catalogo aggiorna con `productUpdate`. */
@@ -163,6 +183,50 @@ export interface ShopifyRemoteQuantity {
   readonly available: number | null;
 }
 
+/**
+ * L'esito della lettura di UNA sede, chiesta per identificativo.
+ *
+ * ⛔ **Un'assenza NON è uno zero, e i quattro esiti restano distinti.** Chi legge
+ *    deve poter dire quale dei tre modi di «non c'è» ha incontrato: pubblicare o
+ *    calcolare su un valore inventato è il difetto che questa forma esiste per
+ *    impedire.
+ *
+ * ⚠️ **`available` NON è clampata.** Il pubblicabile si clampa quando si
+ *    SCRIVE (`max(0, …)`, e l'API rifiuta le negative); un canale che *porta*
+ *    un valore negativo va letto per quello che è, o il residuo di oversell
+ *    sparisce in silenzio.
+ */
+export type ShopifyRemoteLevel =
+  | {
+      readonly found: false;
+      /**
+       * `articolo_assente`     l'inventory item non esiste sul canale
+       * `sede_non_stoccata`    l'articolo esiste, ma non ha un livello ATTIVO in quella sede
+       * `quantita_assente`     il livello c'è, ma non espone `available`
+       */
+      readonly reason: 'articolo_assente' | 'sede_non_stoccata' | 'quantita_assente';
+    }
+  | { readonly found: true; readonly available: number };
+
+/**
+ * Le TRE quantità di un livello, per la prima connessione (`docs/27` §3).
+ *
+ * ⚠️ Disponibile e giacenza fisica non sono intercambiabili: con impegni aperti
+ *    `available = on_hand − committed`. La base iniziale di VestiFlow prende la
+ *    giacenza FISICA (`on_hand`); gli impegni arrivano dagli ordini aperti.
+ */
+export type ShopifyRemoteStock =
+  | {
+      readonly found: false;
+      readonly reason: 'articolo_assente' | 'sede_non_stoccata' | 'quantita_assente';
+    }
+  | {
+      readonly found: true;
+      readonly onHand: number;
+      readonly available: number;
+      readonly committed: number;
+    };
+
 /** Una riga di `inventorySetQuantities`: quantità ASSOLUTA per item e location. */
 export interface ShopifyInventoryQuantityInput {
   readonly inventoryItemId: string;
@@ -174,12 +238,20 @@ export interface ShopifyInventoryQuantityInput {
    *
    * ⛔ **Si chiama `changeFromQuantity`, e il nome è quello di Shopify**: in
    *    `2026-07` `compareQuantity` non esiste più e `ignoreCompareQuantity` è
-   *    stato tolto da `InventorySetQuantitiesInput` — chi vuole scrivere senza
-   *    confronto OMETTE il campo, non alza una bandiera. Tenere qui un nome
-   *    diverso avrebbe richiesto un mapper fra due vocabolari per la stessa
-   *    cosa. Misurato per introspezione sullo shop di sviluppo il 03/09/2026.
+   *    stato tolto da `InventorySetQuantitiesInput`. Tenere qui un nome diverso
+   *    avrebbe richiesto un mapper fra due vocabolari per la stessa cosa.
+   *    Misurato per introspezione sullo shop di sviluppo il 03/09/2026.
+   *
+   * ⛔ **OBBLIGATORIO, e `null` non è «assente»** — corretto il 09/09/2026 sulla
+   *    documentazione: un numero esegue il confronto, `null` esplicito lo
+   *    **disattiva**, e il campo **omesso** è un errore. Qui c'era scritto il
+   *    contrario, e il simulatore lo riproduceva rovesciato.
+   *
+   * ⚠️ **Che VestiFlow non debba mai usare `null` è una regola NOSTRA**, e la
+   *    fa rispettare il servizio: senza un ultimo valore confermato non si
+   *    invia affatto (`base_assente`). L'API lo ammette, noi no.
    */
-  readonly changeFromQuantity: number;
+  readonly changeFromQuantity: number | null;
 }
 
 /** Un media del prodotto. Solo l'id: è l'unica cosa stabile che Shopify espone. */
@@ -195,10 +267,41 @@ const MEDIA_SELECTION = `media(first: 250) { nodes { id } }`;
 
 @Injectable()
 export class ShopifyGraphqlClient {
+  private readonly logger = new Logger(ShopifyGraphqlClient.name);
+
   constructor(
     private readonly shopifyConfig: ShopifyConfigService,
     private readonly rateLimiter: ShopifyRateLimiterService,
   ) {}
+
+  /**
+   * L'IDENTITA' del negozio collegato — `docs/24` §8.5.1, fase 2 di §8.5.8.
+   *
+   * ⭐ **Il GID, non il dominio.** `myshopifyDomain` e' di fatto stabile ma
+   *    resta una stringa: il cambio negozio riscrive `shopDomain`, e da li' non
+   *    si risale al negozio precedente. `gid://shopify/Shop/{id}` e' permanente.
+   *
+   * ⛔ **Serve GraphQL, e non e' un vezzo**: `/shop.json` (REST) restituisce un
+   *    id NUMERICO, e comporre il GID da quel numero significherebbe fabbricare
+   *    un'identita' invece di leggerla — proprio dove l'identita' e' tutto.
+   *    E' la stessa query del preflight del 07/09/2026.
+   *
+   * ⚠️ `myshopifyDomain` si legge e si conserva come **fotografia**: serve a
+   *    riconoscere il negozio a occhio, non a identificarlo.
+   */
+  async getShopIdentity(
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<{ readonly shopGid: string; readonly myshopifyDomain: string | null }> {
+    const data = await this.graphql<{
+      shop: { id: string; myshopifyDomain: string | null } | null;
+    }>(shopDomain, accessToken, `query ShopIdentity { shop { id myshopifyDomain } }`);
+    const shopGid = data.shop?.id?.trim();
+    if (!shopGid) {
+      throw new Error('Shopify non ha restituito l identita del negozio');
+    }
+    return { shopGid, myshopifyDomain: data.shop?.myshopifyDomain?.trim() || null };
+  }
 
   async listTaxonomyCategories(
     shopDomain: string,
@@ -1286,6 +1389,119 @@ export class ShopifyGraphqlClient {
   }
 
   /**
+   * I FULFILLMENT ORDER di un ordine: dove Shopify ha assegnato ogni riga prima
+   * della spedizione (`DA-FARE` §10e.7-bis, deciso il 13/09/2026).
+   *
+   * ⭐ **Sola lettura, ambito `read_merchant_managed_fulfillment_orders`.** Non
+   *    lancia per l'ambito mancante: lo RESTITUISCE (`permesso_mancante`), perché
+   *    l'import dell'ordine deve andare avanti — senza impegno e con l'azione
+   *    scritta sull'ordine — e non fermarsi a metà. Ogni altro errore diventa
+   *    `lettura_fallita` con il testo, per la stessa ragione.
+   *
+   * ⛔ **Non si legge `remainingQuantity` per impegnare**: è quanto resta da
+   *    evadere SU SHOPIFY, e VestiFlow sottrae già le spedizioni applicate. Qui
+   *    serve solo a sapere se un fulfillment order porta ancora quella riga.
+   */
+  async getFulfillmentOrders(
+    shopDomain: string,
+    accessToken: string,
+    orderGid: string,
+  ): Promise<LetturaFulfillmentOrders> {
+    const query = `
+      query OrderFulfillmentOrders($id: ID!) {
+        order(id: $id) {
+          id
+          fulfillmentOrders(first: 50) {
+            pageInfo { hasNextPage }
+            nodes {
+              id
+              status
+              assignedLocation { location { id } }
+              lineItems(first: 250) {
+                pageInfo { hasNextPage }
+                nodes { id remainingQuantity totalQuantity lineItem { id } }
+              }
+            }
+          }
+        }
+      }
+    `;
+    try {
+      const data = await this.graphql<{
+        order: {
+          fulfillmentOrders: {
+            pageInfo?: { hasNextPage: boolean } | null;
+            nodes: readonly {
+              id: string;
+              status: string;
+              assignedLocation: { location: { id: string } | null } | null;
+              lineItems: {
+                pageInfo?: { hasNextPage: boolean } | null;
+                nodes: readonly {
+                  id: string;
+                  remainingQuantity: number;
+                  totalQuantity: number;
+                  lineItem: { id: string } | null;
+                }[];
+              };
+            }[];
+          };
+        } | null;
+      }>(shopDomain, accessToken, query, { id: toShopifyGid('Order', orderGid) });
+      const nodi = data.order?.fulfillmentOrders?.nodes ?? [];
+      // ⭐ Completa solo se nessuna delle due connessioni ha un'altra pagina: una
+      //    lettura troncata non autorizza a rilasciare un impegno (13/09/2026).
+      const completa =
+        data.order?.fulfillmentOrders?.pageInfo?.hasNextPage !== true &&
+        nodi.every((nodo) => nodo.lineItems?.pageInfo?.hasNextPage !== true);
+      const fulfillmentOrders: FulfillmentOrderRemoto[] = nodi.map((nodo) => ({
+        id: nodo.id,
+        status: nodo.status,
+        assignedLocationGid: nodo.assignedLocation?.location?.id ?? null,
+        righe: (nodo.lineItems?.nodes ?? []).map((riga) => ({
+          lineItemGid: riga.lineItem?.id ?? null,
+          remainingQuantity: riga.remainingQuantity,
+          totalQuantity: riga.totalQuantity,
+        })),
+      }));
+      return { ok: true, fulfillmentOrders, completa };
+    } catch (error: unknown) {
+      const dettaglio = error instanceof Error ? error.message : String(error);
+      if (error instanceof ShopifyGraphqlAccessDeniedException) {
+        return { ok: false, motivo: 'permesso_mancante', dettaglio };
+      }
+      return { ok: false, motivo: 'lettura_fallita', dettaglio };
+    }
+  }
+
+  /**
+   * L'ORDINE di un fulfillment order: i webhook `fulfillment_orders/*` nominano
+   * solo il fulfillment order, e l'ordine si risale da qui. `null` se non
+   * esiste (o non è leggibile): chi chiama decide che cosa registrare.
+   *
+   * @returns l'id REST dell'ordine (`legacyResourceId`), quello che
+   *          `/orders/{id}.json` accetta.
+   */
+  async getOrderIdOfFulfillmentOrder(
+    shopDomain: string,
+    accessToken: string,
+    fulfillmentOrderGid: string,
+  ): Promise<string | null> {
+    const query = `
+      query FulfillmentOrderOrder($id: ID!) {
+        fulfillmentOrder(id: $id) { id order { id legacyResourceId } }
+      }
+    `;
+    const data = await this.graphql<{
+      fulfillmentOrder: { id: string; order: { id: string; legacyResourceId: string } } | null;
+    }>(shopDomain, accessToken, query, {
+      id: toShopifyGid('FulfillmentOrder', fulfillmentOrderGid),
+    });
+    const legacy = data.fulfillmentOrder?.order?.legacyResourceId;
+    return legacy != null && String(legacy).trim() !== '' ? String(legacy) : null;
+  }
+
+  /**
    * La quantità che Shopify ha ADESSO, per il confronto prima di scrivere.
    *
    * ⭐ Serve a `inventorySetQuantities`, che rifiuta la scrittura se il valore è
@@ -1334,6 +1550,149 @@ export class ShopifyGraphqlClient {
   }
 
   /**
+   * La quantità che il canale porta adesso **in UNA sede**, chiesta per
+   * IDENTIFICATIVO.
+   *
+   * ⛔ **Non è una variante economica di `getRemoteQuantities`: quella non sa
+   *    rispondere a questa domanda.** `inventoryLevels(first: N)` restituisce
+   *    le sedi dell'articolo **nell'ordine di Shopify** e la selezione non
+   *    chiede `pageInfo`: la nostra sede può non essere nella pagina, e chi
+   *    legge non ha modo di accorgersene. «Troncato» e «non stoccato in quella
+   *    sede» arrivano **identici**, entrambi come assenza.
+   *
+   * ⚠️ **E abbassare `first` al numero di sedi mappate peggiora le cose**: non
+   *    è un filtro, è una troncatura. Con tre sedi remote e una sola collegata,
+   *    `first: 1` restituisce la prima che Shopify elenca — non la nostra.
+   *
+   * ⭐ **Contratto verificato su `2026-07`**: `inventoryItem.inventoryLevel`
+   *    accetta `locationId: ID!` e restituisce un `InventoryLevel` **nullable**.
+   *    ⚠️ Ha anche `includeInactive` (default `false`): un livello **inattivo**
+   *    in quella sede torna quindi `null`, e cade in `sede_non_stoccata` —
+   *    che è la lettura giusta per chi deve pubblicare, ma va saputo.
+   *
+   * ⛔ **Questa lettura NON tocca la base di confronto.** `changeFromQuantity`
+   *    resta l'ultimo confermato (`lastPushedAvailable`): sostituirlo col
+   *    remoto appena letto cambierebbe una protezione esistente, e non è
+   *    quello che questo blocco fa.
+   */
+  async getRemoteLevelAtLocation(
+    shopDomain: string,
+    accessToken: string,
+    inventoryItemGid: string,
+    locationGid: string,
+  ): Promise<ShopifyRemoteLevel> {
+    const query = `
+      query InventoryLevelAtLocation($id: ID!, $locationId: ID!) {
+        inventoryItem(id: $id) {
+          id
+          inventoryLevel(locationId: $locationId) {
+            id
+            quantities(names: ["available"]) { name quantity }
+          }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      inventoryItem: {
+        id: string;
+        inventoryLevel: {
+          id: string;
+          quantities: readonly { name: string; quantity: number }[];
+        } | null;
+      } | null;
+    }>(shopDomain, accessToken, query, {
+      // ⛔ `ID!` vuole un GID. Misurato sul negozio vero il 13/09/2026: il push
+      //    passava l'id NUMERICO dell'articolo e della location, e Shopify
+      //    rispondeva «Variable $id of type ID! was provided invalid value» —
+      //    75 coppie su 75 «non allineate», zero scritture. Il simulatore non
+      //    tipizza le variabili e non se n'era accorto. Il GID si forma QUI,
+      //    al confine, per ogni chiamante.
+      id: toShopifyGid('InventoryItem', inventoryItemGid),
+      locationId: toShopifyGid('Location', locationGid),
+    });
+
+    if (!data.inventoryItem) {
+      return { found: false, reason: 'articolo_assente' };
+    }
+    const livello = data.inventoryItem.inventoryLevel;
+    if (!livello) {
+      return { found: false, reason: 'sede_non_stoccata' };
+    }
+    const voce = livello.quantities?.find((q) => q.name === 'available');
+    // ⚠️ `?? null` sarebbe sbagliato qui: `0` è un valore legittimo e
+    //    `!voce.quantity` lo scarterebbe. Si guarda il TIPO, non la verità.
+    if (!voce || typeof voce.quantity !== 'number') {
+      return { found: false, reason: 'quantita_assente' };
+    }
+    // ⭐ Nessun clamp: un canale in oversell resta negativo.
+    return { found: true, available: voce.quantity };
+  }
+
+  /**
+   * Giacenza fisica, disponibile e impegnato di UN articolo in UNA sede — la
+   * lettura della prima connessione Shopify → VestiFlow (`docs/27` §3).
+   *
+   * ⚠️ Stessa forma di `getRemoteLevelAtLocation`, e per le stesse ragioni: si
+   *    chiede la sede per identificativo, e «non stoccata» resta distinguibile
+   *    da «troncata». ⛔ Non sostituisce quella lettura: il push continua a
+   *    confrontare `available`, questa serve solo a stabilire la base.
+   */
+  async getRemoteStockAtLocation(
+    shopDomain: string,
+    accessToken: string,
+    inventoryItemGid: string,
+    locationGid: string,
+  ): Promise<ShopifyRemoteStock> {
+    const query = `
+      query InventoryStockAtLocation($id: ID!, $locationId: ID!) {
+        inventoryItem(id: $id) {
+          id
+          inventoryLevel(locationId: $locationId) {
+            id
+            quantities(names: ["on_hand", "available", "committed"]) { name quantity }
+          }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      inventoryItem: {
+        id: string;
+        inventoryLevel: {
+          id: string;
+          quantities: readonly { name: string; quantity: number }[];
+        } | null;
+      } | null;
+    }>(shopDomain, accessToken, query, {
+      // ⛔ `ID!` vuole un GID. Misurato sul negozio vero il 13/09/2026: il push
+      //    passava l'id NUMERICO dell'articolo e della location, e Shopify
+      //    rispondeva «Variable $id of type ID! was provided invalid value» —
+      //    75 coppie su 75 «non allineate», zero scritture. Il simulatore non
+      //    tipizza le variabili e non se n'era accorto. Il GID si forma QUI,
+      //    al confine, per ogni chiamante.
+      id: toShopifyGid('InventoryItem', inventoryItemGid),
+      locationId: toShopifyGid('Location', locationGid),
+    });
+    if (!data.inventoryItem) {
+      return { found: false, reason: 'articolo_assente' };
+    }
+    const livello = data.inventoryItem.inventoryLevel;
+    if (!livello) {
+      return { found: false, reason: 'sede_non_stoccata' };
+    }
+    const leggi = (nome: string): number | null => {
+      const voce = livello.quantities?.find((q) => q.name === nome);
+      return voce && typeof voce.quantity === 'number' ? voce.quantity : null;
+    };
+    const onHand = leggi('on_hand');
+    const available = leggi('available');
+    if (onHand === null || available === null) {
+      return { found: false, reason: 'quantita_assente' };
+    }
+    // `committed` può mancare sulle sedi senza impegni: allora vale zero.
+    return { found: true, onHand, available, committed: leggi('committed') ?? 0 };
+  }
+
+  /**
    * Scrive le giacenze come quantità ASSOLUTE (docs/24 §10.5).
    *
    * ⛔ **Il confronto si dichiara SEMPRE** (`changeFromQuantity`): è il modo in
@@ -1343,9 +1702,13 @@ export class ShopifyGraphqlClient {
    *
    * ⚠️ **Qui c'era `ignoreCompareQuantity: false`, e in `2026-07` quel campo NON
    *    ESISTE**: `InventorySetQuantitiesInput` non lo dichiara, quindi mandarlo
-   *    fa rifiutare l'intera mutation. Il contratto è cambiato di forma — non si
-   *    alza più una bandiera per saltare il confronto: si OMETTE il campo. Il
-   *    tipo lo rende obbligatorio proprio perché ometterlo sia una decisione.
+   *    fa rifiutare l'intera mutation.
+   *
+   * ⛔ **E qui c'era anche «per saltare il confronto si OMETTE il campo». È il
+   *    contrario.** Corretto il 09/09/2026 sulla documentazione: il campo è
+   *    **obbligatorio**, e a disattivare il confronto è un `null` **esplicito**;
+   *    ometterlo è un errore dell'API. Il tipo lo rende obbligatorio per questo,
+   *    non perché ometterlo fosse una scelta.
    *
    * ⚠️ **`referenceDocumentUri` è obbligatorio** e deve essere riconducibile a
    *    VestiFlow: è ciò che rende la scrittura auditabile nell'admin Shopify.
@@ -1369,17 +1732,17 @@ export class ShopifyGraphqlClient {
       readonly idempotencyKey: string;
       readonly quantities: readonly ShopifyInventoryQuantityInput[];
     },
-  ): Promise<void> {
+  ): Promise<readonly ShopifyUserError[]> {
     const mutation = `
       mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
         inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
-          userErrors { field message }
+          userErrors { field message code }
         }
       }
     `;
     const data = await this.graphql<{
       inventorySetQuantities: {
-        userErrors: readonly { field: string[] | null; message: string }[];
+        userErrors: readonly { field: string[] | null; message: string; code: string | null }[];
       } | null;
     }>(shopDomain, accessToken, mutation, {
       idempotencyKey: input.idempotencyKey,
@@ -1387,15 +1750,55 @@ export class ShopifyGraphqlClient {
         name: 'available',
         reason: input.reason,
         referenceDocumentUri: input.referenceDocumentUri,
+        // ⚠️ In `2026-07` `ignoreCompareQuantity` non esiste più: a disattivare
+        //    il confronto è un `null` esplicito su `changeFromQuantity`.
         quantities: input.quantities.map((entry) => ({
           inventoryItemId: entry.inventoryItemId,
           locationId: entry.locationId,
           quantity: entry.quantity,
+          // ⛔ **Sempre presente, anche quando vale `null`.** Il campo è
+          //    obbligatorio nel contratto `2026-07`: ometterlo è un errore
+          //    dell'API, non un invio senza confronto. Qui c'era uno spread
+          //    condizionato che lo toglieva se era `undefined` — rimasto da
+          //    quando il campo era facoltativo, e ormai irraggiungibile perché
+          //    il tipo lo richiede. Un ramo morto che descrive il contratto
+          //    sbagliato è peggio di nessun ramo.
           changeFromQuantity: entry.changeFromQuantity,
         })),
       },
     });
-    this.throwOnUserErrors('inventorySetQuantities', data.inventorySetQuantities?.userErrors);
+    // ⭐ **Gli `userErrors` si RESTITUISCONO, non si sollevano.** Un confronto
+    //    fallito e un guasto di trasporto sono due esiti diversi: il primo dice
+    //    che la scrittura NON è avvenuta, il secondo che non si sa. Sollevarli
+    //    entrambi li rendeva indistinguibili, e un difetto accertato finiva
+    //    trattato come un guasto temporaneo da risolvere insistendo.
+    //
+    // ⛔ **Ma una risposta MANCANTE non è un elenco vuoto.** Qui c'era
+    //    `data.inventorySetQuantities?.userErrors ?? []`, che trasformava una
+    //    mutation assente o malformata nella firma della riuscita: il chiamante
+    //    avanzava l'ultimo valore confermato e chiudeva il tentativo **per una
+    //    risposta che non c'era**. Corretto il 10/09/2026.
+    //
+    // ⭐ **Sollevare è il modo giusto di dirlo**, e non è una scorciatoia: chi
+    //    legge un elenco di `userErrors` non ha un valore per «non lo so», e il
+    //    push tratta già l'eccezione come esito IGNOTO — tentativo conservato,
+    //    confermato fermo, ripetizione con la stessa chiave.
+    const payload = data.inventorySetQuantities;
+    if (!payload || !Array.isArray(payload.userErrors)) {
+      throw new Error(
+        `Shopify (${shopDomain}): risposta di inventorySetQuantities assente o malformata — ` +
+          'esito IGNOTO, non una riuscita. Chiave ' +
+          `${input.idempotencyKey}.`,
+      );
+    }
+    return payload.userErrors.map((e) => ({
+      field: e.field ?? null,
+      message: e.message,
+      // ⚠️ Il campo può mancare se un giorno la selezione cambia: `null`
+      //    significa «nessun codice», e la classificazione lo tratta come
+      //    sconosciuto — cioè in modo prudente.
+      code: e.code ?? null,
+    }));
   }
 
   /**
@@ -1451,6 +1854,8 @@ export class ShopifyGraphqlClient {
     const apiVersion = this.shopifyConfig.apiVersion;
     const url = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
     const maxRetries = this.shopifyConfig.apiMaxRetries;
+    // ⭐ Una mutation è una SCRITTURA e si vede sempre nel log; una query è una lettura.
+    registraChiamataGraphql(this.logger, query);
 
     for (let attempt = 0; ; attempt += 1) {
       await this.rateLimiter.beforeGraphqlRequest(shopDomain);
@@ -1487,9 +1892,11 @@ export class ShopifyGraphqlClient {
       const json = (await response.json()) as GraphQlResponse<T>;
       this.rateLimiter.onGraphQlCost(shopDomain, parseGraphQlCostExtensions(json.extensions));
       if (json.errors?.length) {
-        throw new InternalServerErrorException(
-          `Shopify GraphQL: ${json.errors.map((entry) => entry.message).join('; ')}`,
-        );
+        const messaggio = `Shopify GraphQL: ${json.errors.map((entry) => entry.message).join('; ')}`;
+        if (json.errors.some((entry) => entry.extensions?.code === 'ACCESS_DENIED')) {
+          throw new ShopifyGraphqlAccessDeniedException(messaggio);
+        }
+        throw new InternalServerErrorException(messaggio);
       }
       if (!json.data) {
         throw new InternalServerErrorException('Shopify GraphQL: risposta senza data');

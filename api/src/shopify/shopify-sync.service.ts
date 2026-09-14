@@ -14,10 +14,7 @@ import { OnlineOrderLifecycleService } from '../order-reservations/online-order-
 import type { ReservationLineInput } from '../order-reservations/stock-reservation.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
-import {
-  mapShopifyLineDiscountMinor,
-  shopifyLineTotalMinor,
-} from './shopify-line-discount.util';
+import { mapShopifyLineDiscountMinor, shopifyLineTotalMinor } from './shopify-line-discount.util';
 import { mapShopifyLineVat } from './shopify-line-vat.util';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { mapShopifyRefunds, type ShopifyRefundKind } from './shopify-refund.util';
@@ -29,8 +26,24 @@ const REFUND_KIND_TO_PRISMA: Record<ShopifyRefundKind, SalesOrderRefundKind> = {
   cancellation: SalesOrderRefundKind.cancellation,
 };
 import { ShopifyConnectionService } from './shopify-connection.service';
+import type {
+  OrigineAcquisizioneOrdine,
+  RigaConfermataAltrove,
+  SpedizioneInput,
+} from '../order-reservations/online-order-lifecycle.service';
 import { extractShopifyOrderGid } from './shopify-order-id.util';
+import { quantitaCorrentePerRiga, spedizioniDelPayload } from './shopify-order-righe.util';
+import { gidVariante, ShopifyLinkHistoryService } from './shopify-link-history.service';
 import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
+import {
+  motivoSedeNonDeterminabile,
+  senzaMotivoSede,
+  type MotivoRigaSenzaSede,
+} from './shopify-fulfillment-orders.util';
+import {
+  ShopifyFulfillmentOrdersService,
+  type SedeRigaRisolta,
+} from './shopify-fulfillment-orders.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 
 @Injectable()
@@ -44,6 +57,8 @@ export class ShopifySyncService {
     private readonly onlineOrderLifecycle: OnlineOrderLifecycleService,
     private readonly inventoryReconciliation: ShopifyInventoryReconciliationService,
     private readonly inventoryPush: ShopifyInventoryPushService,
+    private readonly storico: ShopifyLinkHistoryService,
+    private readonly fulfillmentOrders: ShopifyFulfillmentOrdersService,
   ) {}
 
   async handleWebhook(tenantId: string, topic: string, payload: unknown): Promise<void> {
@@ -57,7 +72,7 @@ export class ShopifySyncService {
       case 'orders/create':
       case 'orders/updated':
       case 'orders/cancelled':
-        await this.applyOrderFromShopify(tenantId, data);
+        await this.applyOrderFromShopify(tenantId, data, 'continua');
         break;
       case 'inventory_levels/update':
         await this.applyInventoryLevelFromShopify(
@@ -71,6 +86,10 @@ export class ShopifySyncService {
       case 'products/create':
       case 'products/update':
         await this.shopifyProductPull.importProductFromWebhook(tenantId, data);
+        break;
+      case 'fulfillment_orders/order_routing_complete':
+      case 'fulfillment_orders/moved':
+        await this.applyFulfillmentOrderWebhook(tenantId, data);
         break;
       default:
         this.logger.debug(`Webhook Shopify ignorato: ${topic}`);
@@ -134,10 +153,42 @@ export class ShopifySyncService {
     return 'created';
   }
 
+  /**
+   * ⭐ Assegnazione tardiva o SPOSTAMENTO di sede su Shopify (13/09/2026): il
+   *    webhook nomina un fulfillment order, non un ordine. Si risale all'ordine
+   *    e lo si REIMPORTA per la via di sempre: gli impegni nascono o si spostano
+   *    con `syncOrderReservationsTx` — solo `committed`, nessun movimento.
+   */
+  private async applyFulfillmentOrderWebhook(
+    tenantId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const ordine = await this.fulfillmentOrders.ordineDelWebhook(tenantId, payload);
+    if (!ordine) {
+      const messaggio =
+        'Webhook fulfillment_orders senza un ordine risolvibile: nessun aggiornamento applicato.';
+      this.logger.warn(`[${tenantId}] ${messaggio}`);
+      await this.shopifyConnection.recordError(
+        tenantId,
+        messaggio,
+        'fulfillment_order_senza_ordine',
+      );
+      return;
+    }
+    await this.applyOrderFromShopify(tenantId, ordine, 'continua');
+  }
+
   /** Allinea un ordine Shopify in locale (webhook o import bulk). */
+  /**
+   * @param acquisizione da dove arriva l’ordine (`docs/27` §5-bis): `continua`
+   *   (webhook, recupero) scarica un’evasione anche senza impegno; `pendenti`
+   *   (partenza) prende solo impegni; `massiva` («Importa ordini») conserva
+   *   il comportamento storico — evaso senza impegno = `not_applied`.
+   */
   async applyOrderFromShopify(
     tenantId: string,
     order: Record<string, unknown>,
+    acquisizione: OrigineAcquisizioneOrdine = 'massiva',
   ): Promise<'created' | 'updated' | 'skipped'> {
     const shopifyOrderId = this.shopifyOrderId(order);
     if (!shopifyOrderId) {
@@ -146,8 +197,29 @@ export class ShopifySyncService {
 
     const existingBefore = await this.prisma.salesOrder.findFirst({
       where: { tenantId, shopifyOrderId },
-      select: { id: true },
+      select: { id: true, shopifyUpdatedAt: true },
     });
+
+    // ⭐ Le notifiche arrivano anche FUORI ORDINE e ritentate (Shopify non garantisce
+    //    la consegna in sequenza): il payload di quando l'ordine era aperto e non
+    //    pagato può arrivare dopo quello evaso. Misurato il 13/09/2026 (percorso 20,
+    //    prova 4 sul negozio): il magazzino reggeva, la testata tornava «non evaso»
+    //    e «da pagare». Un payload con `updated_at` PIÙ VECCHIO dell'ultimo applicato
+    //    non scrive niente; uguale si applica (le riletture dopo
+    //    `fulfillment_orders/moved` hanno lo stesso `updated_at`, e una ripetizione
+    //    è idempotente). Qui l'uscita anticipata — prima del cliente — e dentro la
+    //    transazione il confronto vero, sulla riga bloccata (due notifiche insieme).
+    const payloadUpdatedAt = this.shopifyUpdatedAt(order);
+    if (
+      existingBefore?.shopifyUpdatedAt &&
+      payloadUpdatedAt &&
+      payloadUpdatedAt < existingBefore.shopifyUpdatedAt
+    ) {
+      this.logger.log(
+        `Ordine ${shopifyOrderId}: notifica del ${payloadUpdatedAt.toISOString()} più vecchia dello stato applicato (${existingBefore.shopifyUpdatedAt.toISOString()}): ignorata`,
+      );
+      return 'skipped';
+    }
 
     const customer = order.customer as Record<string, unknown> | undefined;
     let customerId: string | null = null;
@@ -212,10 +284,28 @@ export class ShopifySyncService {
     }
 
     let savedOrderId: string | null = null;
+    // ⭐ Le righe che NON si risolvono perché il collegamento è CHIUSO (12/09/2026):
+    //    niente impegno né scarico attraverso cache o SKU; «Da verificare» col
+    //    motivo; l'impegno preesistente si conserva (docs/24 §1.14.3).
+    const righeChiuse: { readonly externalLineId: string; readonly motivo: string }[] = [];
+    const shopId = await this.storico.negozioDelTenant(this.prisma, tenantId);
 
+    let notificaVecchia: { applicato: Date } | null = null;
     await this.prisma.$transaction(async (tx) => {
+      if (existingBefore && payloadUpdatedAt) {
+        // La riga si blocca QUI: una notifica più vecchia arrivata insieme a quella
+        // nuova aspetta il suo commit e poi si confronta col valore che ha scritto.
+        const bloccata = await tx.$queryRaw<{ shopify_updated_at: Date | null }[]>`
+          SELECT "shopify_updated_at" FROM "sales_orders" WHERE "id" = ${existingBefore.id}::uuid FOR UPDATE`;
+        const applicato = bloccata[0]?.shopify_updated_at ?? null;
+        if (applicato && payloadUpdatedAt < applicato) {
+          notificaVecchia = { applicato };
+          return;
+        }
+      }
       const orderData = {
         orderNumber: String(order.name ?? order.order_number ?? shopifyOrderId),
+        ...(payloadUpdatedAt ? { shopifyUpdatedAt: payloadUpdatedAt } : {}),
         source,
         financialStatus: this.mapFinancialStatus(String(order.financial_status ?? 'pending')),
         fulfillmentStatus: this.mapFulfillmentStatus(
@@ -254,11 +344,19 @@ export class ShopifySyncService {
       // riga VF restano invariati tra webhook, requisito per gli impegni.
       const lineRows = await Promise.all(
         lines.map(async (line, index) => {
-          const variantId = await this.resolveVariantId(
+          const risolta = await this.resolveVariantId(
             tenantId,
+            shopId,
             line.variant_id as number | undefined,
             line.sku as string | undefined,
           );
+          const variantId = risolta.variantId;
+          if (risolta.motivo) {
+            righeChiuse.push({
+              externalLineId: line.id != null ? String(line.id) : `pos-${index}`,
+              motivo: `Riga «${String(line.sku ?? line.title ?? index)}»: ${risolta.motivo} Nessun impegno né scarico; nessun riaggancio automatico.`,
+            });
+          }
           const unitMinor = shopifyDecimalToMinor(String(line.price ?? '0'));
           const qty = Number(line.quantity ?? 0);
           const discountMinor = mapShopifyLineDiscountMinor(line);
@@ -333,17 +431,37 @@ export class ShopifySyncService {
 
       savedOrderId = saved.id;
     });
+    if (notificaVecchia) {
+      this.logger.log(
+        `Ordine ${shopifyOrderId}: notifica del ${payloadUpdatedAt!.toISOString()} più vecchia dello stato applicato (${(notificaVecchia as { applicato: Date }).applicato.toISOString()}): ignorata`,
+      );
+      return 'skipped';
+    }
 
     if (savedOrderId) {
       await this.emitCanonicalOrderEvents(tenantId, savedOrderId, shopifyOrderId, order, {
         isNew: !existingBefore,
+        acquisizione,
+        righeChiuse: righeChiuse.map((r) => r.externalLineId),
       });
+      if (righeChiuse.length > 0) {
+        await this.segnalaRigheChiuse(tenantId, savedOrderId, righeChiuse);
+      }
     }
 
     // Nessun documento nasce dalla sincronizzazione: DDT/fattura si generano a
     // mano dalla schermata ordine, quando l'operatore lo decide. La sync muove
     // solo impegni ed evasione (emitCanonicalOrderEvents sopra).
     return existingBefore ? 'updated' : 'created';
+  }
+
+  /** L'`updated_at` del payload, se c'è ed è una data valida; altrimenti null (non si giudica). */
+  private shopifyUpdatedAt(order: Record<string, unknown>): Date | null {
+    if (typeof order.updated_at !== 'string' || !order.updated_at) {
+      return null;
+    }
+    const data = new Date(order.updated_at);
+    return Number.isNaN(data.getTime()) ? null : data;
   }
 
   /**
@@ -367,8 +485,14 @@ export class ShopifySyncService {
     placedAt: Date,
     order: Record<string, unknown>,
   ): Promise<void> {
+    // Le righe d'ordine per id remoto: la riga rimborsata si aggancia a quella.
+    const righeOrdine = await tx.salesOrderLine.findMany({
+      where: { orderId: salesOrderId, externalLineId: { not: null } },
+      select: { id: true, externalLineId: true },
+    });
+    const rigaPerIdRemoto = new Map(righeOrdine.map((r) => [String(r.externalLineId), r.id]));
     for (const row of mapShopifyRefunds(order, placedAt)) {
-      const { externalRefundId, taxLines, kind, ...data } = row;
+      const { externalRefundId, taxLines, lines, kind, ...data } = row;
       const saved = await tx.salesOrderRefund.upsert({
         where: { tenantId_externalRefundId: { tenantId, externalRefundId } },
         create: {
@@ -382,6 +506,25 @@ export class ShopifySyncService {
         update: { currency, kind: REFUND_KIND_TO_PRISMA[kind], ...data },
         select: { id: true },
       });
+
+      // ⭐ Le RIGHE rimborsate, per quantità: la fonte delle annullate (`cancel`),
+      //    delle rese e delle solo-denaro. Riscritte per intero come le aliquote:
+      //    lo stesso rimborso torna a ogni webhook, e il canale è la verità.
+      await tx.salesOrderRefundLine.deleteMany({ where: { refundId: saved.id } });
+      if (lines.length > 0) {
+        await tx.salesOrderRefundLine.createMany({
+          data: lines.map((line) => ({
+            tenantId,
+            refundId: saved.id,
+            salesOrderLineId: rigaPerIdRemoto.get(line.externalLineId) ?? null,
+            externalLineId: line.externalLineId,
+            quantity: line.quantity,
+            restockType: line.restockType,
+            subtotalMinor: line.subtotalMinor,
+            taxMinor: line.taxMinor,
+          })),
+        });
+      }
 
       // La scomposizione si riscrive per intero: è derivata, e ricalcolarla
       // costa meno che riconciliarla riga per riga.
@@ -397,6 +540,21 @@ export class ShopifySyncService {
         });
       }
     }
+
+    // ⭐ La testata SOMMA le proprie rettifiche, come somma le righe (`totalMinor`):
+    //    è ciò che rende «Rettifiche» ordinabile su un elenco paginato dal server.
+    //    Il totale aggiornato lo genera il database (`current_total_minor`), non
+    //    si scrive. Si somma dal persistito, non dal payload: lo stesso rimborso
+    //    torna a ogni webhook e la somma deve valere anche quando il payload ne
+    //    porta uno solo.
+    const somma = await tx.salesOrderRefund.aggregate({
+      where: { salesOrderId },
+      _sum: { totalMinor: true },
+    });
+    await tx.salesOrder.update({
+      where: { id: salesOrderId },
+      data: { refundTotalMinor: somma._sum.totalMinor ?? 0 },
+    });
   }
 
   /**
@@ -409,7 +567,12 @@ export class ShopifySyncService {
     salesOrderId: string,
     shopifyOrderId: string,
     order: Record<string, unknown>,
-    context: { readonly isNew: boolean },
+    context: {
+      readonly isNew: boolean;
+      readonly acquisizione: OrigineAcquisizioneOrdine;
+      /** `externalLineId` delle righe non risolte per collegamento chiuso. */
+      readonly righeChiuse?: readonly string[];
+    },
   ): Promise<void> {
     const channel = this.mapOrderSource(order);
     const base = {
@@ -417,46 +580,39 @@ export class ShopifySyncService {
       channel,
       salesOrderId,
       externalOrderId: shopifyOrderId,
+      acquisizione: context.acquisizione,
     } as const;
 
     const savedLines = await this.prisma.salesOrderLine.findMany({
       where: { orderId: salesOrderId },
       select: { id: true, variantId: true, sku: true, quantity: true, externalLineId: true },
     });
-    const reservationLines: ReservationLineInput[] = savedLines.flatMap((line) =>
-      line.variantId && line.quantity > 0
+    // ⭐ L'impegno segue la quantità CORRENTE della riga, non quella ordinata:
+    //    dopo un annullamento parziale (`restock_type = 'cancel'`, merce mai
+    //    partita) resta da spedire di meno, e `syncOrderReservationsTx` adegua
+    //    l'impegno — a zero, lo rilascia. La riga d'ordine resta com'è: il
+    //    valore economico è già rettificato dal rimborso (`sales_order_refunds`).
+    const correnti = quantitaCorrentePerRiga(order);
+    const quantitaDaImpegnare = (line: (typeof savedLines)[number]): number =>
+      (line.externalLineId ? correnti.get(line.externalLineId) : undefined) ?? line.quantity;
+    const reservationLines: ReservationLineInput[] = savedLines.flatMap((line) => {
+      const quantity = quantitaDaImpegnare(line);
+      return line.variantId && quantity > 0
         ? [
             {
               salesOrderLineId: line.id,
               variantId: line.variantId,
               sku: line.sku,
-              quantity: line.quantity,
+              quantity,
               externalLineRef: line.externalLineId,
             },
           ]
-        : [],
-    );
-
-    const locationId =
-      reservationLines.length > 0
-        ? await resolveShopifyOrderLocationId(this.prisma, tenantId, order)
-        : null;
-
-    // updated_at distingue aggiornamenti reali dai retry dello stesso webhook.
-    const updatedSuffix =
-      typeof order.updated_at === 'string' && order.updated_at
-        ? order.updated_at
-        : String(Date.now());
-
-    await this.onlineOrderLifecycle.handle({
-      ...base,
-      type: context.isNew
-        ? OnlineOrderEventType.online_order_created
-        : OnlineOrderEventType.online_order_updated,
-      dedupeSuffix: context.isNew ? undefined : updatedSuffix,
-      locationId,
-      lines: reservationLines,
+        : [];
     });
+
+    const righeChiuse = savedLines
+      .filter((line) => line.externalLineId && context.righeChiuse?.includes(line.externalLineId))
+      .map((line) => line.id);
 
     const cancelledAtRaw =
       typeof order.cancelled_at === 'string' && order.cancelled_at ? order.cancelled_at : null;
@@ -464,6 +620,98 @@ export class ShopifySyncService {
     const fulfillment = this.mapFulfillmentStatus(
       String(order.fulfillment_status ?? 'unfulfilled'),
     );
+    const ordineAperto =
+      !cancelledAtRaw &&
+      financial !== SalesOrderFinancialStatus.voided &&
+      fulfillment !== SalesOrderFulfillmentStatus.fulfilled;
+
+    // ⭐ La sede degli impegni è PER RIGA e viene dai FULFILLMENT ORDER di Shopify
+    //    (13/09/2026, `DA-FARE` §10e.7-bis): si legge SEMPRE per un ordine aperto
+    //    con righe da impegnare — anche se il payload porta `location_id`, che
+    //    non dice dove Shopify farà evadere. Una riga irrisolta (assegnazione in
+    //    attesa, location non collegata, riga divisa, lettura mancante) NON
+    //    ricade sulla sede dell'ordine: niente nasce e l'ordine dice l'azione.
+    //    ⛔ Nessuna sede indovinata (B7). L'impegno che aveva si conserva —
+    //    tranne se una lettura COMPLETA conferma che tutta la quantità residua
+    //    sta in una location non collegata: allora è candidata al RILASCIO, e
+    //    la decisione sulla quantità la prende il ciclo di vita (13/09/2026).
+    const sediRighe: ReadonlyMap<string, SedeRigaRisolta> =
+      ordineAperto && reservationLines.length > 0
+        ? await this.fulfillmentOrders.sediDelleRighe(
+            tenantId,
+            shopifyOrderId,
+            reservationLines.map((line) => ({
+              salesOrderLineId: line.salesOrderLineId,
+              externalLineId: line.externalLineRef ?? null,
+            })),
+          )
+        : new Map();
+    const righeConSede: ReservationLineInput[] = [];
+    const righeIrrisolte: string[] = [];
+    const righeDaRilasciare: RigaConfermataAltrove[] = [];
+    const motivi: MotivoRigaSenzaSede[] = [];
+    for (const line of reservationLines) {
+      const sede = sediRighe.get(line.salesOrderLineId);
+      if (sede && 'locationId' in sede) {
+        righeConSede.push({ ...line, locationId: sede.locationId });
+        continue;
+      }
+      if (sede && 'motivo' in sede) {
+        motivi.push(sede.motivo);
+        if (sede.motivo.tipo === 'location_non_collegata' && sede.motivo.letturaCompleta) {
+          righeDaRilasciare.push({
+            salesOrderLineId: line.salesOrderLineId,
+            quantity: line.quantity,
+            residuoAssegnatoAltrove: sede.motivo.residuoAssegnato,
+          });
+          continue;
+        }
+      }
+      righeIrrisolte.push(line.salesOrderLineId);
+    }
+    await this.aggiornaMotivoSede(tenantId, base.salesOrderId, motivi);
+
+    // updated_at distingue aggiornamenti reali dai retry dello stesso webhook.
+    const updatedSuffix =
+      typeof order.updated_at === 'string' && order.updated_at
+        ? order.updated_at
+        : String(Date.now());
+
+    // ⭐ Un'assegnazione o uno spostamento nel fulfillment order NON cambiano
+    //    `updated_at` dell'ordine: senza le sedi nella chiave, la rilettura dopo
+    //    `fulfillment_orders/moved` sarebbe scartata come doppione dello stesso
+    //    webhook (misurato sul percorso 16). Le spedizioni tengono la loro chiave.
+    const improntaSedi = righeConSede
+      .map((line) => `${line.salesOrderLineId}=${line.locationId}`)
+      .sort()
+      .join(',');
+    await this.onlineOrderLifecycle.handle({
+      ...base,
+      type: context.isNew
+        ? OnlineOrderEventType.online_order_created
+        : OnlineOrderEventType.online_order_updated,
+      dedupeSuffix: context.isNew ? undefined : `${updatedSuffix}|sedi:${improntaSedi}`,
+      // ⛔ Nessuna sede d'ordine come ripiego: ogni riga porta la sua.
+      locationId: null,
+      lines: righeConSede,
+      righeDaConservare: [...righeChiuse, ...righeIrrisolte],
+      righeDaRilasciare,
+    });
+
+    // ⭐ Le SPEDIZIONI, una per `fulfillment` riuscito, PRIMA dello stato finale:
+    //    ognuna scarica la sua sede e consuma l'impegno per quanto è uscito.
+    //    Ripetibile per versione del payload: gli effetti sono idempotenti riga
+    //    per riga, così una riga rimasta senza sede si riprova quando la
+    //    location viene collegata.
+    for (const spedizione of await this.spedizioniDelPayload(tenantId, order, savedLines)) {
+      await this.onlineOrderLifecycle.handle({
+        ...base,
+        type: OnlineOrderEventType.online_order_shipped,
+        dedupeSuffix: `${spedizione.externalFulfillmentId}:${updatedSuffix}`,
+        occurredAt: spedizione.shippedAt,
+        spedizione,
+      });
+    }
 
     if (cancelledAtRaw || financial === SalesOrderFinancialStatus.voided) {
       await this.onlineOrderLifecycle.handle({
@@ -478,7 +726,8 @@ export class ShopifySyncService {
         type: OnlineOrderEventType.online_order_fulfilled,
         occurredAt: fulfillmentInfo.occurredAt,
         externalFulfillmentId: fulfillmentInfo.externalFulfillmentId,
-        locationId,
+        // La sede dell'USCITA: la location delle evasioni nel payload, collegata.
+        locationId: await resolveShopifyOrderLocationId(this.prisma, tenantId, order),
       });
     } else if (fulfillment === SalesOrderFulfillmentStatus.partially_fulfilled) {
       await this.onlineOrderLifecycle.handle({
@@ -591,26 +840,178 @@ export class ShopifySyncService {
             : null;
 
       for (const [shopifyLocationId, lines] of byShopifyLocation) {
-        const location = shopifyLocationId
-          ? await this.prisma.location.findFirst({
-              where: { tenantId: base.tenantId, shopifyLocationId },
-              select: { id: true },
+        // ⭐ §30.8-bis (12/09/2026): la sede di rientro è quella che Shopify dichiara
+        //    per riga (`refund_line_items[].location_id`), risolta dal collegamento
+        //    ESPLICITO — coppia attiva, poi colonna-cache — come per gli ordini.
+        //    Nessun ripiego: non collegata o assente → nessun carico, e si segnala.
+        const locationId = shopifyLocationId
+          ? await resolveShopifyOrderLocationId(this.prisma, base.tenantId, {
+              location_id: shopifyLocationId,
             })
           : null;
-
-        await this.onlineOrderLifecycle.handle({
+        const esito = await this.onlineOrderLifecycle.handle({
           ...base,
           type: OnlineOrderEventType.online_order_restocked,
           dedupeSuffix: `${refundId}:${shopifyLocationId || 'default'}`,
           occurredAt: occurredAtRaw ? new Date(occurredAtRaw) : undefined,
-          locationId: location?.id ?? null,
+          locationId,
           lines,
         });
+        if (esito === 'not_applied') {
+          this.logger.warn(
+            `Reso senza sede di rientro determinabile (${base.tenantId}, ordine ${base.externalOrderId}, ` +
+              `location Shopify «${shopifyLocationId || 'assente'}»): nessun carico, ordine da verificare.`,
+          );
+        }
       }
     }
   }
 
-  /** Data e id evasione dal payload ordine (primo fulfillment disponibile). */
+  /**
+   * ⭐ Le spedizioni del payload (12/09/2026), una per `fulfillment` riuscito:
+   *    la sede si risolve dal collegamento esplicito (coppia attiva, poi cache —
+   *    mai il nome), una volta per location remota; le righe si agganciano alle
+   *    righe d'ordine salvate per `externalLineId`. Una riga non risolta
+   *    (collegamento chiuso) viaggia con `variantId: null`: chi consuma lo dice.
+   */
+  private async spedizioniDelPayload(
+    tenantId: string,
+    order: Record<string, unknown>,
+    savedLines: readonly {
+      readonly id: string;
+      readonly variantId: string | null;
+      readonly sku: string;
+      readonly externalLineId: string | null;
+    }[],
+  ): Promise<SpedizioneInput[]> {
+    const remote = spedizioniDelPayload(order);
+    if (remote.length === 0) {
+      return [];
+    }
+    const perExternalId = new Map(
+      savedLines.flatMap((line) => (line.externalLineId ? [[line.externalLineId, line]] : [])),
+    );
+    const sediRisolte = new Map<string, string | null>();
+    const risolvi = async (shopifyLocationId: string): Promise<string | null> => {
+      if (!sediRisolte.has(shopifyLocationId)) {
+        sediRisolte.set(
+          shopifyLocationId,
+          await resolveShopifyOrderLocationId(this.prisma, tenantId, {
+            location_id: shopifyLocationId,
+          }),
+        );
+      }
+      return sediRisolte.get(shopifyLocationId) ?? null;
+    };
+    const spedizioni: SpedizioneInput[] = [];
+    for (const remota of remote) {
+      const righe = remota.righe.flatMap((riga) => {
+        const line = perExternalId.get(riga.externalLineId);
+        return line
+          ? [
+              {
+                salesOrderLineId: line.id,
+                variantId: line.variantId,
+                sku: line.sku,
+                quantity: riga.quantity,
+              },
+            ]
+          : [];
+      });
+      if (righe.length === 0) {
+        continue;
+      }
+      spedizioni.push({
+        externalFulfillmentId: remota.externalFulfillmentId,
+        shopifyLocationId: remota.shopifyLocationId,
+        locationId: remota.shopifyLocationId ? await risolvi(remota.shopifyLocationId) : null,
+        shippedAt: remota.createdAt ?? new Date(),
+        righe,
+      });
+    }
+    return spedizioni;
+  }
+
+  /**
+   * Il segmento «Sede non determinabile» del «Da verificare»: si SCRIVE (con
+   * l'azione) quando una riga aperta è irrisolta, si TOGLIE quando non ce ne
+   * sono più — è il segmento che tiene ferma la quantità verso Shopify
+   * (`shopify-ordini-senza-sede.util`), quindi deve sparire quando la sede
+   * arriva, o la protezione non si scioglierebbe mai. Gli altri motivi restano;
+   * se non ne resta nessuno, l'ordine non è più «Da verificare».
+   */
+  private async aggiornaMotivoSede(
+    tenantId: string,
+    salesOrderId: string,
+    motivi: readonly MotivoRigaSenzaSede[],
+  ): Promise<void> {
+    const ordine = await this.prisma.salesOrder.findFirst({
+      where: { id: salesOrderId, tenantId },
+      select: { reviewReason: true, requiresReview: true },
+    });
+    if (!ordine) {
+      return;
+    }
+    const residuo = senzaMotivoSede(ordine.reviewReason);
+    if (motivi.length === 0) {
+      if (!residuo.cambiato) {
+        return;
+      }
+      await this.prisma.salesOrder.updateMany({
+        where: { id: salesOrderId, tenantId },
+        data: {
+          reviewReason: residuo.reviewReason,
+          requiresReview: residuo.reviewReason !== null,
+        },
+      });
+      return;
+    }
+    const motivo = motivoSedeNonDeterminabile(motivi);
+    const nuovo = [residuo.reviewReason, motivo].filter(Boolean).join(' · ');
+    if (ordine.requiresReview && ordine.reviewReason === nuovo) {
+      return;
+    }
+    await this.prisma.salesOrder.updateMany({
+      where: { id: salesOrderId, tenantId },
+      data: { requiresReview: true, reviewReason: nuovo },
+    });
+  }
+
+  /** «Da verificare» per le righe col collegamento chiuso, accodato a ciò che c'è. */
+  private async segnalaRigheChiuse(
+    tenantId: string,
+    salesOrderId: string,
+    righe: readonly { readonly motivo: string }[],
+  ): Promise<void> {
+    const ordine = await this.prisma.salesOrder.findFirst({
+      where: { id: salesOrderId, tenantId },
+      select: { reviewReason: true },
+    });
+    const presente = ordine?.reviewReason ?? '';
+    const nuovi = righe.map((r) => r.motivo).filter((m) => !presente.includes(m));
+    if (nuovi.length === 0 && presente) {
+      return;
+    }
+    await this.prisma.salesOrder.updateMany({
+      where: { id: salesOrderId, tenantId },
+      data: {
+        requiresReview: true,
+        reviewReason: [presente, ...nuovi].filter(Boolean).join(' · '),
+      },
+    });
+  }
+
+  /**
+   * Data e id evasione dal payload ordine: il PRIMO fulfillment, com'è dal
+   * 14/08/2026.
+   *
+   * ⚠️ Con più spedizioni la «data di evasione» — che i documenti assegnano alla
+   *    Vendita e al registro corrispettivi insieme (`docs/08`, `docs/10`) — non è
+   *    definita da nessuna regola scritta: prima o ultima evasione è una
+   *    DECISIONE del proprietario (`DA-FARE` §30.8), non una deduzione tecnica.
+   *    ⛔ Il 12/09/2026 era stata spostata all'ultima e poi RIMESSA com'era:
+   *    le date commerciali non si cambiano senza la regola.
+   */
   private extractFulfillmentInfo(order: Record<string, unknown>): {
     occurredAt: Date | undefined;
     externalFulfillmentId: string | null;
@@ -680,30 +1081,49 @@ export class ShopifySyncService {
     }
   }
 
+  /**
+   * La variante locale di una riga d'ordine: per id remoto (cache), poi per SKU.
+   *
+   * ⭐ **Lo storico decide** (12/09/2026): trovata la candidata, se il collegamento
+   *    con quel GID è CHIUSO, l'identità è eliminata o il GID è di un'altra
+   *    variante, la riga NON si risolve — né dalla cache né dallo SKU, che
+   *    ricondurrebbero alla stessa variante aggirando la chiusura. Il motivo
+   *    torna al chiamante, che segnala l'ordine. Senza negozio migrato o senza
+   *    id remoto (righe custom), la ricerca resta com'era.
+   */
   private async resolveVariantId(
     tenantId: string,
+    shopId: string | null,
     shopifyVariantId?: number,
     sku?: string,
-  ): Promise<string | null> {
+  ): Promise<{ readonly variantId: string | null; readonly motivo?: string }> {
+    let candidata: { id: string } | null = null;
     if (shopifyVariantId != null) {
-      const byShopify = await this.prisma.productVariant.findFirst({
+      candidata = await this.prisma.productVariant.findFirst({
         where: { tenantId, shopifyVariantId: String(shopifyVariantId) },
         select: { id: true },
       });
-      if (byShopify) {
-        return byShopify.id;
-      }
     }
-    if (sku) {
-      const bySku = await this.prisma.productVariant.findFirst({
+    if (!candidata && sku) {
+      candidata = await this.prisma.productVariant.findFirst({
         where: { tenantId, sku },
         select: { id: true },
       });
-      if (bySku) {
-        return bySku.id;
+    }
+    if (!candidata) {
+      return { variantId: null };
+    }
+    if (shopId && shopifyVariantId != null) {
+      const uso = await this.storico.collegamentoUsabileVariante(this.prisma, {
+        shopId,
+        shopifyVariantGid: gidVariante(shopifyVariantId),
+        variantId: candidata.id,
+      });
+      if (uso.tipo !== 'utilizzabile') {
+        return { variantId: null, motivo: uso.motivo };
       }
     }
-    return null;
+    return { variantId: candidata.id };
   }
 
   private shopifyCustomerId(customer: Record<string, unknown>): string | null {

@@ -160,10 +160,11 @@
                         schermata di consultazione debba partire un'azione che
                         modifica il magazzino, e con quale contesto.
                       -->
-                      <th scope="row" class="ricerca__taglia">
+                      <!-- `td` e non `th`: la grammatica condivisa veste ogni `th` da intestazione. -->
+                      <td class="ricerca__taglia">
                         {{ riga.etichetta }}
                         <span class="ricerca__sku">{{ riga.sku }}</span>
-                      </th>
+                      </td>
                       <!--
                         ⭐ **Il numero è cliccabile e apre il «perché»**: gli
                         ordini che stanno impegnando quella taglia in quella

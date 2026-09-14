@@ -1,5 +1,6 @@
 @use 'breakpoints' as bp;
 @use 'list-page' as lp;
+@use 'responsive-table' as rt;
 
 @include lp.list-page('settings-users');
 
@@ -35,36 +36,34 @@
   font-size: var(--text-sm);
 }
 
+/*
+  ⭐ **Una MASCHERA che riusa la grammatica condivisa** (`docs/26` D2): la
+  tabella veste come le righe documento (`data-table-desktop`) e sotto `lg`
+  diventa card con l’etichetta di colonna per cella (`data-table-mobile-cards`).
+
+  ⛔ Qui c’erano una `<table>` vestita a mano — intestazione, bordi, colori
+  propri —, uno scorrimento orizzontale sotto `md`, un pulsante di
+  eliminazione e un link «Personalizza» scritti da zero: sostituiti dai mixin e
+  dai controlli condivisi. Restano solo le celle che hanno un mestiere proprio.
+*/
+@include rt.data-table-desktop('settings-users__table');
+@include rt.data-table-mobile-cards('settings-users__table');
+
+// ⚠️ `overflow: visible`, non `auto`: dentro le celle si aprono le tendine
+//    (`app-select-menu`, pannello `absolute`), e un contenitore che ritaglia
+//    le taglierebbe alla prima riga.
 .settings-users__table-wrap {
   overflow: visible;
 }
 
-@include bp.media-down('md') {
-  .settings-users__table-wrap {
-    overflow-x: auto;
-    padding-block-end: var(--space-2);
-  }
+// La tabella è una griglia di controlli: le celle si allineano in alto, e non
+// hanno l’altezza fissa delle righe di elenco.
+.settings-users__table td {
+  vertical-align: top;
 }
 
-.settings-users__table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-
-  th,
-  td {
-    padding: var(--space-2);
-    border-bottom: var(--border-width) solid var(--color-border);
-    text-align: start;
-    vertical-align: middle;
-  }
-
-  th {
-    text-transform: uppercase;
-    font-weight: var(--font-weight-semibold);
-    background-color: var(--color-table-header-bg);
-    color: var(--color-text-subtle);
-  }
+.settings-users__cell-name {
+  font-weight: var(--font-weight-semibold);
 }
 
 .settings-users__row--inactive td {
@@ -78,11 +77,15 @@
   --select-menu-max-width: 100%;
 }
 
-.settings-users__cell-locations {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
+// ⚠️ La cella resta una CELLA (la grammatica dichiara `tbody td { display:
+//    table-cell }` con peso 3, e un `display: flex` qui perderebbe in silenzio):
+//    a impilarsi sono i figli — le due tendine, o la nota e la tendina.
+.settings-users__cell-locations > * {
+  display: block;
+}
+
+.settings-users__cell-locations > * + * {
+  margin-block-start: var(--space-2);
 }
 
 .settings-users__check {
@@ -110,15 +113,11 @@
   white-space: nowrap;
 }
 
-.settings-users__permissions-toggle {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: var(--text-sm);
-  color: var(--color-interactive);
-  text-decoration: underline;
-  cursor: pointer;
+// «Personalizza» e «Elimina» sono `app-button` alla misura delle celle.
+.settings-users__cell-permissions,
+.settings-users__cell-actions {
+  --button-h: var(--control-h-button);
+  --button-font-size: var(--text-xs);
 }
 
 .settings-users__permissions-row td {
@@ -127,44 +126,35 @@
 }
 
 .settings-users__cell-actions {
-  inline-size: var(--btn-min-height);
   text-align: end;
   white-space: nowrap;
 }
 
-.settings-users__delete-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--field-height);
-  block-size: var(--field-height);
-  padding: 0;
-  color: var(--color-text);
-  cursor: pointer;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
+// Sotto `lg` ogni cella è «etichetta · valore»: le tendine e le caselle stanno
+// nella colonna del valore, allineate a destra come ogni valore di card.
+@include bp.media-down('lg') {
+  // La cella delle sedi porta DUE tendine (sedi, predefinita): nella griglia
+  // «etichetta · valore» della card stanno entrambe nella colonna del valore,
+  // una sotto l’altra — senza, la seconda cadrebbe sotto l’etichetta.
+  .settings-users__cell-locations {
+    display: grid;
+    align-items: stretch;
 
-  i {
-    font-size: var(--text-sm);
+    > * {
+      grid-column: 2;
+      justify-self: end;
+    }
   }
 
-  &:hover:not(:disabled) {
-    background-color: var(--color-surface-hover);
-    color: var(--color-danger);
+  .settings-users__cell-select {
+    min-inline-size: 0;
   }
 
-  &:disabled {
-    cursor: not-allowed;
-    opacity: var(--opacity-disabled);
-  }
-
-  &:focus-visible {
-    outline: var(--focus-ring-width) solid var(--color-focus-ring);
-    outline-offset: var(--focus-ring-offset);
+  // La riga «Personalizza» aperta non ha etichetta: è un pannello dentro la card.
+  .settings-users__permissions-row td {
+    display: block;
   }
 }
-
 .settings-users__create-panel {
   display: grid;
   grid-template-rows: 0fr;

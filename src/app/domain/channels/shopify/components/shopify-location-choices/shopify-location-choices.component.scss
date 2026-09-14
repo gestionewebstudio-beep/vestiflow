@@ -1,0 +1,52 @@
+@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
+
+// Le scelte per location: una tendina per riga, con la grammatica dei riepiloghi.
+
+:host {
+  display: block;
+}
+
+.scelte__vuoto {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-subtle);
+}
+
+.scelte__tabella {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+@include rt.summary-grammar('scelte__tabella');
+
+// Sotto `lg` ogni location è una card: nome, stato, e la tendina a tutta larghezza
+// (come la maschera Utenti, `docs/26` D2). A 390px la cella da tabella la
+// schiacciava a «Cre…».
+@include rt.data-table-mobile-cards('scelte__tabella');
+
+.scelte__cella-scelta {
+  --select-menu-max-width: 100%;
+}
+
+@include bp.media-down('lg') {
+  .scelte__tabella tbody td.scelte__cella-scelta {
+    grid-template-columns: minmax(0, 1fr);
+    --select-menu-width: 100%;
+  }
+
+  .scelte__tabella tbody td.scelte__cella-scelta::before {
+    content: none;
+  }
+}
+
+.scelte__gid {
+  margin-inline-start: var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+}
+
+// La sede VestiFlow: collegata (verde) o no (neutro), distinta dallo stato su Shopify.
+.scelte__non-collegata {
+  color: var(--color-text-muted);
+}

@@ -28,6 +28,8 @@ import {
 import type { Observable, Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import { conEsito, datiOppure } from '@core/utils/esito-caricamento.util';
+import type { EsitoCaricamento } from '@core/utils/esito-caricamento.util';
 import type { AppError } from '@core/models/app-error.model';
 import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
@@ -52,6 +54,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { ProductStockTableComponent } from './components/product-stock-table/product-stock-table.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -99,10 +102,22 @@ import type { CatalogCategory } from './services/catalog-category.service';
 import { CatalogCategoryService } from './services/catalog-category.service';
 import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
+import { hasPendingGrossPrices } from './models/product-form.model';
 import { activeListinoSlots } from './models/product-listino.model';
+import { ProductPriceModeMemoryService } from './services/product-price-mode-memory.service';
 
 const EMPTY_FILTER_OPTIONS: ProductFilterOptions = { categories: [], brands: [], seasons: [] };
+
+export const RIFERIMENTI_ERRORE = {
+  codiciIva:
+    'Codici IVA non caricati: il Codice IVA dell’articolo non è modificabile e i prezzi ivati restano in attesa. Riprova.',
+  impostazioni:
+    'Impostazioni aziendali non caricate: listini e Codice IVA predefinito non sono disponibili. Riprova.',
+  entrambi:
+    'Codici IVA e impostazioni aziendali non caricati: listini, Codice IVA e prezzi ivati non sono disponibili. Riprova.',
+} as const;
 
 const PRODUCTS_LIST_PATH = '/app/products';
 
@@ -154,6 +169,7 @@ type FormLoadState =
     BackButtonComponent,
     ButtonComponent,
     EmptyStateComponent,
+    ProductStockTableComponent,
     ErrorStateComponent,
     InlineBannerComponent,
     TableSkeletonComponent,
@@ -183,6 +199,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   private readonly service = inject(ProductService);
   private readonly unitOptions = inject(UnitOfMeasureOptionService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly priceModeMemory = inject(ProductPriceModeMemoryService);
   private readonly catalogCategoryService = inject(CatalogCategoryService);
   private readonly supplierService = inject(SupplierService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
@@ -380,24 +397,57 @@ export class ProductFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
-  /** Impegnato = giacenza − disponibile (totali multi-sede della variante). */
-  protected stockCommitted(row: VariantSummary): number {
-    return (row.stockOnHand ?? 0) - (row.stockAvailable ?? 0);
-  }
+  // ── Codici IVA e impostazioni azienda: un errore NON è «non configurato» ──
+  //
+  // ⛔ Qui c’era `catchError(() => of([]))` e `catchError(() => of(null))`: connessione
+  //    rifiutata, 500, 403 e «davvero nessun listino» davano la STESSA schermata
+  //    (misurato l’11/09/2026, `e2e/anagrafica-prezzi-caricamento.spec.ts`). Ora
+  //    l’esito si conserva, l’errore si vede e si può ritentare.
+  private readonly riferimentiRicarica = signal(0);
 
-  // Codici IVA per la tendina "Codice IVA" (su errore si degrada a lista vuota).
-  protected readonly vatCodes = toSignal(
-    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
-    { initialValue: [] as readonly VatCode[] },
-  );
-
-  // ── Sezione Listini ───────────────────────────────────────────────────────
-  // Impostazioni azienda: quali listini aggiuntivi esistono, come si chiamano e
-  // qual è il Codice IVA predefinito (aliquota di ripiego per la conversione).
-  private readonly featureSettings = toSignal(
-    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+  private readonly vatCodesLoad = toSignal<EsitoCaricamento<readonly VatCode[]> | null>(
+    toObservable(this.riferimentiRicarica).pipe(
+      switchMap(() => this.vatCodeService.list().pipe(conEsito())),
+    ),
     { initialValue: null },
   );
+  protected readonly vatCodes = computed(() =>
+    datiOppure(this.vatCodesLoad(), [] as readonly VatCode[]),
+  );
+  protected readonly vatCodesUnavailable = computed(() => this.vatCodesLoad()?.ok === false);
+
+  // Impostazioni azienda: quali listini aggiuntivi esistono, come si chiamano e
+  // qual è il Codice IVA predefinito (aliquota di ripiego per la conversione).
+  private readonly featureSettingsLoad = toSignal<EsitoCaricamento<TenantFeatureSettings> | null>(
+    toObservable(this.riferimentiRicarica).pipe(
+      switchMap(() => this.tenantFeatureSettingsService.getSettings().pipe(conEsito())),
+    ),
+    { initialValue: null },
+  );
+  private readonly featureSettings = computed(() =>
+    datiOppure<TenantFeatureSettings | null>(this.featureSettingsLoad(), null),
+  );
+  protected readonly featureSettingsUnavailable = computed(
+    () => this.featureSettingsLoad()?.ok === false,
+  );
+
+  /** Il testo del banner: quale dei due riferimenti manca, e che cosa ne segue. */
+  protected readonly riferimentiErrore = computed((): string | null => {
+    const iva = this.vatCodesUnavailable();
+    const impostazioni = this.featureSettingsUnavailable();
+    if (!iva && !impostazioni) {
+      return null;
+    }
+    if (iva && impostazioni) {
+      return RIFERIMENTI_ERRORE.entrambi;
+    }
+    return iva ? RIFERIMENTI_ERRORE.codiciIva : RIFERIMENTI_ERRORE.impostazioni;
+  });
+
+  protected ricaricaRiferimenti(): void {
+    this.riferimentiRicarica.update((n) => n + 1);
+  }
+
   protected readonly listinoSlots = computed(() => activeListinoSlots(this.featureSettings()));
   protected readonly tenantDefaultVatCodeId = computed(
     () => this.featureSettings()?.defaultVatCodeId ?? null,
@@ -453,19 +503,26 @@ export class ProductFormComponent implements CanComponentDeactivate {
         this.pristine.set(this.serialize(seminata));
       }
     });
-    // Preferenza modalità prezzi: vale anche per le schede esistenti (la
-    // modalità è di chi guarda, non dell'articolo). Errore = si resta sul netto.
-    this.service
-      .getPriceModePreference()
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (pricesIncludeVat) => {
-          if (!this.priceModeTouched) {
-            this.listinoPricesIncludeVat.set(pricesIncludeVat);
-          }
-        },
-        error: () => undefined,
-      });
+    // ⭐ Modalità prezzi: PRIMA la memoria dell’operatore (deciso l’11/09/2026),
+    //    altrimenti la convenzione aziendale dal server. Vale anche per le schede
+    //    esistenti: la modalità è di chi digita, non dell'articolo. Errore = netti.
+    const ricordata = this.priceModeMemory.remembered();
+    if (ricordata !== null) {
+      this.listinoPricesIncludeVat.set(ricordata);
+      this.priceModeTouched = true;
+    } else {
+      this.service
+        .getPriceModePreference()
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (pricesIncludeVat) => {
+            if (!this.priceModeTouched) {
+              this.listinoPricesIncludeVat.set(pricesIncludeVat);
+            }
+          },
+          error: () => undefined,
+        });
+    }
 
     /*
       ⚠️ **Il Codice IVA di un articolo NUOVO nasce col predefinito aziendale**
@@ -507,6 +564,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   protected onPriceModeChange(pricesIncludeVat: boolean): void {
     this.priceModeTouched = true;
     this.listinoPricesIncludeVat.set(pricesIncludeVat);
+    this.priceModeMemory.remember(pricesIncludeVat);
   }
 
   // Validità dei campi per-variante (SKU/prezzi/barcode) riportata dallo step.
@@ -629,6 +687,12 @@ export class ProductFormComponent implements CanComponentDeactivate {
       return false;
     }
     if (this.articleCodeTakenBy() !== null) {
+      return false;
+    }
+    // ⛔ Un importo ivato digitato senza aliquota nota non è ancora un prezzo:
+    //    non si salva come netto, non si trasmette, non diventa zero. Il campo
+    //    lo dice («Scegli il Codice IVA per salvare il prezzo»).
+    if (hasPendingGrossPrices(this.draft().general)) {
       return false;
     }
     // Prezzo/costo a livello articolo: prezzo di vendita obbligatorio e non

@@ -280,6 +280,16 @@
   :host(.select-menu-host--ribaltato) & {
     inset-inline: auto 0;
   }
+  /*
+    ⭐ **Fisso: esce dal contenitore che ritaglia** (`panelFixed`). Le
+    coordinate le mette il componente all’apertura, misurate sul trigger;
+    qui si toglie solo l’ancoraggio relativo alla cella, che con `fixed`
+    non significa più niente.
+  */
+  :host(.select-menu-host--fixed) & {
+    position: fixed;
+    inset: auto;
+  }
   // Largo quanto serve alle opzioni (v4): mai meno del trigger, mai oltre il
   // tetto — un trigger stretto (es. IVA 72px) apre comunque una tendina
   // leggibile su una riga.

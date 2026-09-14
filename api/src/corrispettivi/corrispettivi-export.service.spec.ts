@@ -219,14 +219,15 @@ function servizioExport(righe: readonly ReturnType<typeof rigaFinta>[]) {
       ],
     }),
   };
-  return new CorrispettiviExportService(
-    {} as never,
-    corrispettivi as never,
-  );
+  return new CorrispettiviExportService({} as never, corrispettivi as never);
 }
 
 describe('Excel segue la vista; il CSV resta piatto', () => {
-  const righe = [rigaFinta('a', G17, 10000), rigaFinta('b', G18, 12000), rigaFinta('c', G18, 12000)];
+  const righe = [
+    rigaFinta('a', G17, 10000),
+    rigaFinta('b', G18, 12000),
+    rigaFinta('c', G18, 12000),
+  ];
 
   it('raggruppato: compaiono la data e la riga «Totale giornata»', async () => {
     const xml = await servizioExport(righe).exportAccountantSpreadsheet('t', {

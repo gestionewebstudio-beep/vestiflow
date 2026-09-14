@@ -175,7 +175,13 @@ function mapGroupToImportProduct(
     name,
     description: normalizeProductDescription(parent.bodyHtml) ?? undefined,
     brand: firstNonEmpty(rows.map((row) => row.vendor)) ?? undefined,
-    category: firstNonEmpty(rows.map((row) => row.type)) ?? undefined,
+    // ⛔ `Type` è il tipo prodotto SHOPIFY, e va nel campo suo: qui alimentava
+    //    `category`, cioè la classificazione di magazzino (docs/24 §9.5).
+    shopifyProductType: firstNonEmpty(rows.map((row) => row.type)) ?? undefined,
+    // ⭐ La categoria interna arriva dalla colonna «Categoria», che il nostro
+    //    export scrive. Un export Shopify autentico non ce l’ha: in quel caso
+    //    resta vuota e la sceglie l’operatore, come per il webhook.
+    category: firstNonEmpty(rows.map((row) => row.category)) ?? undefined,
     tags: parseShopifyTags(firstNonEmpty(rows.map((row) => row.tags)) ?? parent.tags),
     status: mapPublishedStatus(firstNonEmpty(rows.map((row) => row.published))),
     sellingPrice: firstVariant?.sellingPrice ?? { amountMinor: 0, currency: DEFAULT_CURRENCY },

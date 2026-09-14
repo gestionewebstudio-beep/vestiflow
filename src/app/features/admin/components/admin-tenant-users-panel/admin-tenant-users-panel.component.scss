@@ -1,4 +1,5 @@
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 :host {
   display: block;
@@ -49,36 +50,26 @@
   border-color: var(--color-danger);
 }
 
+/*
+  ⭐ **Una MASCHERA che riusa la grammatica condivisa** (`docs/26` A13, come
+  Utenti in D2): `data-table-desktop` per la tabella, `data-table-mobile-cards`
+  sotto `lg` con l’etichetta per cella. ⛔ Qui c’erano una `<table>` vestita a
+  mano e uno scorrimento orizzontale sotto `md`.
+*/
+@include rt.data-table-desktop('admin-users__table');
+@include rt.data-table-mobile-cards('admin-users__table');
+
+// ⚠️ `overflow: visible`: dentro le celle si aprono le tendine.
 .admin-users__table-wrap {
   overflow: visible;
 }
 
-@include bp.media-down('md') {
-  .admin-users__table-wrap {
-    overflow-x: auto;
-    padding-block-end: var(--space-2);
-  }
-}
-
-.admin-users__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.admin-users__table th,
 .admin-users__table td {
-  padding: var(--space-2);
-  border-bottom: var(--border-width) solid var(--color-border);
-  text-align: start;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
-.admin-users__table th {
-  text-transform: uppercase;
+.admin-users__cell-name {
   font-weight: var(--font-weight-semibold);
-  background-color: var(--color-table-header-bg);
-  color: var(--color-text-subtle);
 }
 
 .admin-users__table th:nth-child(3),
@@ -90,19 +81,43 @@
 .admin-users__cell-select {
   position: relative;
   overflow: visible;
-}
-
-.admin-users__cell-select {
   --select-menu-max-width: 100%;
 }
 
-.admin-users__cell-locations {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
+// ⚠️ La cella resta una CELLA (`tbody td { display: table-cell }` della
+//    grammatica pesa più di una classe): a impilarsi sono i figli.
+.admin-users__cell-locations > * {
+  display: block;
 }
 
+.admin-users__cell-locations > * + * {
+  margin-block-start: var(--space-2);
+}
+
+// «Vedi permessi» è un `app-button` alla misura della cella.
+.admin-users__cell-permissions {
+  --button-h: var(--control-h-button);
+  --button-font-size: var(--text-xs);
+}
+
+@include bp.media-down('lg') {
+  .admin-users__cell-locations {
+    display: grid;
+
+    > * {
+      grid-column: 2;
+      justify-self: end;
+    }
+  }
+
+  .admin-users__cell-select {
+    min-inline-size: 0;
+  }
+
+  .admin-users__permissions-row td {
+    display: block;
+  }
+}
 .admin-users__all-locations {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
@@ -262,17 +277,6 @@
   gap: var(--space-3);
   padding-block-start: var(--space-2);
   overflow: visible;
-}
-
-.admin-users__permissions-toggle {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: var(--text-sm);
-  color: var(--color-interactive);
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 .admin-users__permissions-row td {

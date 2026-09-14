@@ -327,6 +327,7 @@ dal più corretto al più invasivo:
    | `money-input`       | `--money-input-inline-size`, `--money-input-min-inline-size`, `--money-input-max-inline-size`                                                                         |
    | `segmented`         | `--segmented-color`, `--segmented-font-weight`                                                                                                                        |
    | `table-skeleton`    | `--table-skeleton-cols`                                                                                                                                               |
+   | `nav-tabs`          | `--nav-tabs-fondo` (il colore su cui le schede stanno: di serie quello della pagina), `--nav-tabs-ombra` (l'ombra di scorrimento ai bordi)                            |
    | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`, `--doc-select-cell-toggle-w`                                                                                       |
    | pannello riga       | `--doc-suggestions-z`, `--doc-suggestions-offset`, `--doc-suggestions-inset`, `--doc-suggestions-max-h`, `--doc-suggestions-item-min-h`                               |
    | cella di testata    | `--doc-field-min` — la misura del DATO che la cella ospita (vedi sotto)                                                                                               |
@@ -504,6 +505,17 @@ vesti duplicate erano già una violazione.
 
 ⚠️ **Ricerca e Periodo restano in barra a ogni larghezza** — sono i due che non
 entrano nelle colonne. Periodo ha per questo uno slot proprio, `[period]`.
+
+⭐ **E il Periodo è UN controllo, `app-period-filter`** _(11/09/2026)_ — il selettore
+del Registro Corrispettivi estratto com’era: valore visibile a larghezza stabile, mai
+`filterChip` (un periodo ha sempre un valore), Mese/Trimestre/Anno e giornata singola a
+comparsa, coppia Dal/Al dentro il componente, **senza il prefisso «Periodo:»** — il valore
+si spiega da sé, e a spegnerlo è il componente, non più la pagina dei Corrispettivi.
+⛔ **Qui c’erano nove composizioni a mano**
+degli stessi mattoni — chip con la ×, select che nel pulsante diceva solo «Periodo», date
+con e senza etichetta. **Le voci e la modalità le passa la schermata** (`options`,
+`datesAlways`) e **i confini dei periodi restano del suo risolutore**: condividere il
+controllo non cambia quali dati mostra una schermata (proprietario, 11/09/2026).
 
 ⛔ **Chiudere il pannello non azzera.** L'azzeramento nel pannello è un pulsante
 suo, esplicito: chi apre i filtri, li imposta e preme «Vedi risultati»
@@ -1632,6 +1644,30 @@ esatto del modello.
 bande fisse, a tagliare è il gestore finestre di Windows. In un browser non si può
 togliere la barra strumenti: sotto una certa altezza la pagina scorre, e basta.
 
+#### ⭐ E «una certa altezza» è un NUMERO: la zona dati non cede sotto `--list-data-min-h` _(11/09/2026)_
+
+⛔ **Qui la frase sopra restava una frase**: `min-block-size: 0` sulla zona dati la
+faceva cedere fino a ZERO, e nessuna regola faceva scorrere la pagina. Misurato su un
+telefono da 390px **in orizzontale**, nelle Operazioni di cassa: testata 25, schede 34,
+barra 68, piede ancorato 139 e quattro passi da 20, sotto una topbar da 60 —
+**all’elenco restavano 0 pixel**, un registro senza righe.
+
+⭐ **La zona dati ha un minimo, `--list-data-min-h` (180px, due card e mezza)**: sopra,
+cede come prima e la pagina non scorre; sotto, smette di cedere, il piede sporge oltre
+il bordo e a scorrere è `.shell__content`. Vale per la scrivania bassa e per il
+telefono in orizzontale con la stessa regola, nel telaio (`list-page.component.scss`).
+
+⚠️ **Sulla finestra bassa restano DUE regioni di scorrimento**, elenco dentro e pagina
+fuori, ed è una scelta dichiarata: far cedere il piede e lasciar scorrere tutto con la
+pagina avrebbe tolto al motore il contenitore delimitato che la sua finestra di rendering
+misura — e sul telefono avrebbe reso tutte le 5.000 card. Il dito ci arriva: sulla
+testata o sui totali scorre la pagina, sulle card l’elenco
+(`e2e/cassa-mobile-rotazione.spec.ts`, «telefono da 390 in orizzontale»).
+
+⛔ **Il minimo sta sulla ZONA, mai sull’host**: `min-block-size: auto` sull’host
+risalirebbe, attraverso la griglia, fino alle diecimila righe del contenitore di
+scorrimento.
+
 ⛔ **E il riepilogo non sta DENTRO la regione elastica.** Metterlo lì, con un
 `overflow: hidden` sul contenitore, lo renderebbe **irraggiungibile** su una finestra
 bassa — la barra di scorrimento è un livello più sotto, sull'elenco. Su un registro si
@@ -2107,12 +2143,12 @@ magari utilizzare qualche riga col verde per rendere la pagina elegante e intuit
 appoggiate al grigio, senza niente che dicesse dove finisce una sezione e comincia l'altra.
 La densità era risolta, la **lettura** no.
 
-|                       |                                                                       |
-| --------------------- | --------------------------------------------------------------------- |
-| **la scheda intera**  | superficie bianca, bordo, `--radius-lg`, `--shadow-card`              |
-| **il titolo sezione** | barretta verticale `--border-width-accent` in `--color-primary`       |
-| **il filo sotto**     | `--color-border` **tinto** di brand al 22%, non verde pieno           |
-| **lo stacco**         | 6px fra sezioni: con la card e gli accenti è quanto basta a separarle |
+|                       |                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| **la scheda intera**  | superficie bianca, bordo, `--radius-lg`, `--shadow-card`                             |
+| **il titolo sezione** | il TESTO in `--color-primary` (`--form-section-title-color`); ⛔ **niente barretta** |
+| **il filo sotto**     | `--color-border` **tinto** di brand al 22%, non verde pieno                          |
+| **lo stacco**         | 6px fra sezioni: con la card e gli accenti è quanto basta a separarle                |
 
 ⚠️ **Il verde è quello del BRAND (`--color-primary`), non della sidebar.** §2 riserva
 `--color-nav-*` alla navigazione — «non è un secondo brand, è la palette della
@@ -2120,7 +2156,16 @@ navigazione» — e prenderlo come accento generico è la porta da cui rientra i
 cromatico. Il brand è della stessa famiglia scura e fa lo stesso lavoro.
 
 ⚠️ **A piena tinta il filo sotto ogni titolo sarebbe cinque righe verdi in una schermata**,
-e l'accento smetterebbe di accentare: il colore lo porta la barretta, il filo lo accompagna.
+e l'accento smetterebbe di accentare: il colore lo porta il testo del titolo, il filo lo
+accompagna.
+
+⛔ **Qui c'era «barretta verticale `--border-width-accent` in `--color-primary`», ed era
+già stata RESPINTA lo stesso giorno** (proprietario, 01/09/2026: «blocchetti neri poco
+eleganti, non è stata una buona idea»; `_anagrafica.scss` lo registra). La riga della
+tabella non era stata aggiornata, e il 13/09/2026 la barretta è rientrata su due pannelli
+Shopify seguendo questa regola. La ragione è misurabile: `--color-primary` è `#25343b`, e
+in una barra da 4×14px **legge nero**. La guardia è `npm run check:barrette-titolo`; gli
+accenti TINTI delle card (`color-mix`) e quelli di stato restano un'altra cosa.
 
 ⭐ **E il conto dello spazio torna**: card, accenti e stacchi costano, i 26px del campo li
 restituiscono. Misurato a 1440 su venticinque campi — **955px prima, 945 dopo**.

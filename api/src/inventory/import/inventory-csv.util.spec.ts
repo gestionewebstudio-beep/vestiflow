@@ -82,9 +82,11 @@ SKU-RED-L,Milano,5,1
         },
       ]);
 
-      expect(csv.startsWith('Variante,SKU,Location,Disponibile,Fisico,Impegnato,In arrivo,Soglia minima\n')).toBe(
-        true,
-      );
+      expect(
+        csv.startsWith(
+          'Variante,SKU,Location,Disponibile,Fisico,Impegnato,In arrivo,Soglia minima\n',
+        ),
+      ).toBe(true);
       expect(csv).toContain('Maglietta — M');
     });
   });

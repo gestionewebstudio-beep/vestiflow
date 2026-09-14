@@ -168,9 +168,7 @@ describe('CustomersService', () => {
         create: vi.fn(),
       },
     };
-    prisma.$transaction.mockImplementation(
-      async (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
-    );
+    prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx));
     const service = new CustomersService(prisma as unknown as PrismaService);
 
     await service.update(tenantId, 'cust-1', { alsoSupplier: false });
@@ -194,9 +192,7 @@ describe('CustomersService', () => {
         create: vi.fn(),
       },
     };
-    prisma.$transaction.mockImplementation(
-      async (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
-    );
+    prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx));
     const service = new CustomersService(prisma as unknown as PrismaService);
 
     await service.update(tenantId, 'cust-1', { alsoSupplier: true });
@@ -306,7 +302,7 @@ describe('CustomersService', () => {
       });
     });
 
-    it('crea: il titolare passa anche con l\'elenco permessi vuoto', async () => {
+    it("crea: il titolare passa anche con l'elenco permessi vuoto", async () => {
       const prisma = createPrismaMock();
       const tx = creaTx();
       prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
@@ -442,9 +438,7 @@ describe('CustomersService', () => {
         create: vi.fn().mockResolvedValue({ id: 'cust-new' }),
       },
     };
-    prisma.$transaction.mockImplementation(
-      async (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
-    );
+    prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx));
     prisma.customer.findFirst.mockResolvedValue(
       customerRow({ id: 'cust-new', partyId: 'party-7' }),
     );

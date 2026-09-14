@@ -1,9 +1,6 @@
 import type { DocumentLine } from '@prisma/client';
 
-import {
-  applyStockTransfer,
-  type StockMovementActor,
-} from '../inventory/inventory-movement.util';
+import { applyStockTransfer, type StockMovementActor } from '../inventory/inventory-movement.util';
 import { aggregateStockLines, type StockReconcileResult } from './document-stock-reconcile.util';
 
 export interface DocumentTransferLocations {
@@ -123,9 +120,7 @@ export async function reverseDocumentStockTransfer(
     readonly actor: StockMovementActor;
   },
 ): Promise<StockReconcileResult> {
-  const reason = params.reference
-    ? `Annullamento ${params.reference}`
-    : 'Annullamento documento';
+  const reason = params.reference ? `Annullamento ${params.reference}` : 'Annullamento documento';
   const map = aggregateStockLines(params.lines);
   const deltas: Array<{ sku: string; delta: number }> = [];
 

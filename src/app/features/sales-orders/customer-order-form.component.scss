@@ -359,6 +359,11 @@
   cursor: default;
 }
 
+// Il raccordo del canale (rettifiche, quantità) sotto l'avviso, con lo stesso passo.
+.co-form__rettifiche {
+  margin-block-start: var(--space-2);
+}
+
 // Le due azioni sotto la lista righe stanno su una griglia a due colonne. A chi
 // non gestisce il catalogo ne resta una sola: senza questo, «Inserisci riga
 // vuota» resterebbe largo mezza schermata con un vuoto accanto.

@@ -71,6 +71,12 @@ export class ButtonComponent {
 
   /** Elemento che descrive il pulsante: il motivo della disabilitazione. */
   readonly ariaDescribedBy = input<string | undefined>();
+  /**
+   * Per un pulsante che APRE qualcosa sotto di sé — la riga «Personalizza» dei
+   * permessi utente. Sta sul `<button>` interno: un `[attr.aria-expanded]`
+   * sull'host finirebbe su un elemento senza ruolo, invisibile a chi ascolta.
+   */
+  readonly ariaExpanded = input<boolean | undefined>();
 
   /** Il clic non parte se il pulsante è spento in modo «morbido». */
   protected onClick(event: Event): void {

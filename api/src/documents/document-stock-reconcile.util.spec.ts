@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  aggregateStockLines,
-  buildRevisionSummary,
-} from './document-stock-reconcile.util';
+import { aggregateStockLines, buildRevisionSummary } from './document-stock-reconcile.util';
 
 describe('document-stock-reconcile.util', () => {
   it('aggregateStockLines somma per variante ignorando righe non stock', () => {
@@ -20,8 +17,6 @@ describe('document-stock-reconcile.util', () => {
 
   it('buildRevisionSummary descrive modifica e annullamento', () => {
     expect(buildRevisionSummary(true, [{ sku: 'SKU-1', delta: 2 }])).toContain('SKU-1 +2');
-    expect(buildRevisionSummary(false, [{ sku: 'SKU-1', delta: -3 }], true)).toContain(
-      'annullato',
-    );
+    expect(buildRevisionSummary(false, [{ sku: 'SKU-1', delta: -3 }], true)).toContain('annullato');
   });
 });

@@ -203,6 +203,11 @@ enum OnlineOrderEventType {
   online_order_partially_fulfilled
   online_order_refunded
   online_order_restocked
+  /// ⭐ Una SPEDIZIONE acquisita (12/09/2026): un `fulfillment` del canale, con
+  /// le sue righe e la sua sede. Ripetibile per ordine (suffisso = id evasione
+  /// + versione del payload): gli effetti sono idempotenti riga per riga, in
+  /// `sales_order_shipment_lines`.
+  online_order_shipped
 }
 
 enum SalesOrderFinancialStatus {
@@ -417,6 +422,8 @@ model Tenant {
   onlineOrderEvents                        OnlineOrderEvent[]
   onlineSales                              OnlineSale[]
   onlineSaleLines                          OnlineSaleLine[]
+  salesOrderShipments                      SalesOrderShipment[]
+  salesOrderShipmentLines                  SalesOrderShipmentLine[]
   documents                                Document[]
   documentRevisions                        DocumentRevision[]
   documentAttachments                      DocumentAttachment[]
@@ -439,6 +446,15 @@ model Tenant {
   shopifyCredential                        ShopifyCredential?
   shopifyOAuthStates                       ShopifyOAuthState[]
   shopifyInventorySyncStates               ShopifyInventorySyncState[]
+  shopifyShops                             ShopifyShop[]
+  shopifyProductIdentities                 ShopifyProductIdentity[]
+  shopifyProductLinks                      ShopifyProductLink[]
+  shopifyVariantIdentities                 ShopifyVariantIdentity[]
+  shopifyVariantLinks                      ShopifyVariantLink[]
+  shopifyLocationPairs                     ShopifyLocationPair[]
+  shopifyLocationLinks                     ShopifyLocationLink[]
+  shopifySetup                             ShopifySetup?
+  shopifyLocationChoices                   ShopifyLocationChoice[]
   tiktokConnection                         TikTokConnection?
   tiktokCredential                         TikTokCredential?
   tiktokOAuthStates                        TikTokOAuthState[]
@@ -597,6 +613,171 @@ model TenantUserAuditLog {
   @@map("tenant_user_audit_logs")
 }
 
+/// CHI ha agito: una persona, oppure un processo — `docs/DA-FARE` §10.3.
+///
+/// ⭐ La distinzione e' un requisito, non una comodita': «autore umano o
+/// processo» e' la prima delle tre precisazioni con cui §10.3 estende le nove
+/// voci di `docs/24` §7.4.
+enum PlatformAuditActor {
+  utente
+  webhook
+  pull
+  push
+  backfill
+}
+
+/// CHE COSA si e' tentato. ⭐ Cresce: ogni percorso che entra nel registro
+/// aggiunge il proprio valore, e la migration che lo aggiunge e' il momento in
+/// cui si decide che quell'operazione va tracciata.
+enum PlatformAuditOperation {
+  cestino_prodotto
+  ripristino_prodotto
+  cestino_variante
+  ripristino_variante
+  /// ⭐ La cancellazione amministrativa di un'azienda (§10.2). ⚠️ La riga NON
+  /// ha chiave esterna verso `tenants` e non sta in `TENANT_BACKUP_MODELS`:
+  /// e' l'unico modo perche' la traccia sopravviva all'operazione che descrive.
+  cancellazione_tenant
+  /// ⭐ Un import da Shopify che NON ha creato l'articolo perche' lo storico lo
+  /// vieta (B5-B6, `docs/24` §11.8): eliminato definitivamente, gia' collegato,
+  /// collegamento chiuso. ⛔ Fino al 09/09/2026 il motivo stava solo in un
+  /// `logger.warn`, che il riavvio perde — e §10.3 esclude espressamente il
+  /// solo log tecnico. L'attore e' `pull` o `webhook`, mai una persona.
+  import_prodotto_rifiutato
+  /// Lo stesso, per la singola variante: il rifiuto e' per variante, e il
+  /// prodotto intorno si aggiorna come sempre.
+  import_variante_rifiutata
+  /// ⭐ Un percorso operativo — import o push — ha trovato l'anagrafica per
+  /// COLONNA-CACHE ma lo storico ha rifiutato di usare quel collegamento:
+  /// periodo chiuso (nessuna riapertura automatica, `docs/24` §8.5.2), identita'
+  /// eliminata definitivamente (il GID non e' riutilizzabile, §11.8) o GID di
+  /// un'altra anagrafica. E' il nome che `docs/DA-FARE` §10.3 elenca fin
+  /// dall'inizio. L'attore dice da dove: `webhook`/`pull` oppure `push`.
+  ///
+  /// ⛔ **Qui c'era scritto che l'aggiornamento dell'anagrafica NON e'
+  /// rifiutato**, e che si registrava il rifiuto del solo riaggancio: era il
+  /// comportamento fino al 09/09/2026 (B5a-bis). **Superato da 26.7**: un
+  /// collegamento chiuso non autorizza il passaggio automatico degli
+  /// aggiornamenti, quindi l'import salta l'anagrafica e il push non scrive.
+  riaggancio_rifiutato
+  /// ⭐ 26.7 · il push avrebbe PUBBLICATO DA ZERO un articolo che su questo
+  /// negozio ha gia' una storia: nessuna cache, ma un'identita' con periodo
+  /// chiuso o eliminata definitivamente. La ripubblicazione e' un comando
+  /// esplicito che crea identificativi NUOVI (`docs/24` §11.9) e il riaggancio
+  /// e' un altro comando ancora (§8.5.2): «Sincronizza» non e' ne' l'uno ne'
+  /// l'altro. ⚠️ Non e' `riaggancio_rifiutato`: li' un GID c'era, qui no.
+  ripubblicazione_rifiutata
+  /// ⭐ La conversione delle colonne-cache in storico (`docs/24` §8.5.8, fasi
+  /// 3-4; `docs/DA-FARE` §14 punto 5): una riga per tenant e per esecuzione
+  /// che SCRIVE — tentativo prima, riuscita dentro la transazione con i
+  /// conteggi in `reason`. Attore `backfill`. Un'esecuzione senza niente da
+  /// convertire non lascia traccia, per progetto (idempotenza prima del
+  /// tentativo); un tenant bloccato dai controlli non arriva qui.
+  backfill_storico
+}
+
+/// COM'E' andata.
+///
+/// ⛔ I quattro valori non sono simmetrici, e la sequenza canonica di §10.2
+/// spiega perche': `tentativo` si scrive PRIMA e da solo, `riuscita` DENTRO la
+/// transazione dell'operazione, `rifiutata` e `fallita` FUORI e dopo un
+/// rollback accertato. Un'operazione conclusa lascia `tentativo` + UN solo
+/// esito; un'interruzione puo' lasciare il solo `tentativo`, e non si inventa
+/// un esito per far quadrare un conteggio.
+enum PlatformAuditOutcome {
+  tentativo
+  riuscita
+  rifiutata
+  fallita
+  /// ⭐ **L'operazione non aveva niente da fare** — aggiunto l'08/09/2026.
+  ///
+  /// Due richieste simultanee di cestino: la prima applica, la seconda trova
+  /// l'effetto gia' presente. La seconda NON ha fallito (niente e' andato
+  /// storto), NON e' stata rifiutata (nessuna regola ha detto no) e NON e'
+  /// riuscita (non ha cambiato niente: attribuirle la modifica sarebbe
+  /// falso). Senza questo valore il suo `tentativo` resterebbe senza esito, e
+  /// «tentativo senza esito» smetterebbe di significare «qualcosa e' andato
+  /// storto».
+  ///
+  /// ⚠️ Si scrive DENTRO la transazione, come la riuscita: e' l'esito di
+  /// un'operazione che ha commesso senza modificare niente.
+  ininfluente
+}
+
+/// Il registro UNICO delle operazioni — `docs/DA-FARE` §10.3.
+///
+/// ⭐ **E' di PIATTAFORMA, non del tenant**, e questa e' la proprieta' che lo
+/// distingue da `TenantUserAuditLog`: quello porta
+/// `tenant Tenant @relation(onDelete: Cascade)` e sparisce insieme al proprio
+/// tenant, che e' esattamente cio' che qui non deve accadere.
+///
+/// ⛔ **Nessuna relazione verso `Tenant` ne' verso `User`**, e non e' una
+/// dimenticanza:
+///
+/// - obbligatoria e senza `onDelete`, Prisma emette `RESTRICT`: la
+///   cancellazione del tenant fallirebbe;
+/// - con `onDelete: Cascade`, la traccia sparirebbe con lui;
+/// - **opzionale**, il default di Prisma e' `SET NULL`: la riga
+///   sopravvivrebbe con il tenant AZZERATO — l'esito peggiore, perche' non
+///   fallisce niente e non sparisce niente, ma resta una traccia che non dice
+///   piu' quale cliente e' stato cancellato.
+///
+/// L'identita' del tenant e dell'attore vive quindi come **testo**, che e' la
+/// stessa forma gia' scelta da `TenantUserAuditLog` per attore e bersaglio.
+///
+/// ⛔ **Append-only per STRUTTURA**, come `CashSessionDeviceChange`: nessun
+/// `updatedAt`, nessuna rotta e nessun metodo che modifichi o cancelli. La
+/// guardia `check:registro-append-only` fa fallire il lint se qualcuno ne
+/// scrive uno.
+///
+/// ⛔ **Fuori da `TENANT_BACKUP_MODELS`**, e va tenuto fuori: la' dentro
+/// `purgeTenantBackupData` lo cancellerebbe — nel ripristino oltre che nella
+/// cancellazione — e ogni archivio v4 esistente diventerebbe irripristinabile,
+/// perche' l'import esige `entityCounts` per ogni chiave dichiarata.
+model PlatformAuditLog {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// ⭐ Lega `tentativo` ed esito: senza, sono due fatti che nessuno sa accoppiare.
+  correlationId String @map("correlation_id") @db.Uuid
+
+  /// Il tenant come TESTO: la riga deve restare leggibile dopo la sua cancellazione.
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Il negozio, quando l'operazione ne ha uno. ⚠️ `null` finche' la fase 2
+  /// (§8.5.8) non acquisisce lo `shop_gid`: oggi nessun percorso lo conosce.
+  shopGid String? @map("shop_gid")
+
+  actor       PlatformAuditActor
+  /// Valorizzati solo quando `actor = utente`. Snapshot testuali, nessuna FK.
+  actorUserId String?            @map("actor_user_id") @db.Uuid
+  actorName   String?            @map("actor_name")
+  actorEmail  String?            @map("actor_email")
+
+  operation PlatformAuditOperation
+  outcome   PlatformAuditOutcome
+
+  /// L'entita' toccata, come snapshot: l'identificativo locale resta leggibile
+  /// anche dopo che la riga e' stata eliminata definitivamente.
+  entityId    String? @map("entity_id") @db.Uuid
+  entityLabel String? @map("entity_label")
+  /// L'identificativo remoto, quando c'e' (§10.3: «GID remoto»).
+  remoteGid   String? @map("remote_gid")
+
+  /// La causale dichiarata da chi agisce, distinta dal motivo tecnico sotto.
+  reason String?
+  /// ⭐ Su `rifiutata` e `fallita`: la regola o il vincolo che ha deciso, per
+  /// nome. ⛔ Mai credenziali, mai il payload di un webhook: di quello si
+  /// registra la CORRELAZIONE, non il contenuto (`regole-sicurezza`).
+  detail String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([correlationId], map: "platform_audit_logs_correlation_idx")
+  @@index([tenantId, createdAt], map: "platform_audit_logs_tenant_created_idx")
+  @@index([entityId, createdAt], map: "platform_audit_logs_entity_created_idx")
+  @@map("platform_audit_logs")
+}
+
 model Store {
   id        String   @id @default(uuid()) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid
@@ -696,6 +877,20 @@ model Location {
   cashSessionDeviceChanges   CashSessionDeviceChange[]
   posTerminals               PosTerminal[]
 
+  /// La coppia con una location Shopify (docs/24 §1.13.6).
+  /// ⛔ Il database ne ammette **al massimo una, per sempre**: `@@unique
+  /// ([locationId])` su `ShopifyLocationPair`. E' dichiarata come lista solo
+  /// perche' Prisma non deduce la cardinalita' da un unico dichiarato
+  /// sull'altra tabella.
+  /// ⚠️ NON sostituisce `shopifyLocationId` qui sopra, che resta la cache di
+  /// compatibilita' finche' i lettori non sono migrati (§8.5.5).
+  shopifyLocationPairs   ShopifyLocationPair[]
+  shopifyLocationChoices ShopifyLocationChoice[]
+
+  /// Ausiliaria per la FK composita del collegamento di sede: garantisce che
+  /// sede e collegamento appartengano allo stesso tenant. Ridondante rispetto
+  /// alla chiave primaria, quindi non puo' fallire.
+  @@unique([id, tenantId])
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
   @@index([tenantId, shopifyLocationId])
@@ -724,11 +919,25 @@ model Product {
   shopifyTitle                    String?                 @map("shopify_title")
   description                     String?
   brand                           String?
-  /// Tipo prodotto Shopify (REST product_type) — organizzazione interna negozio.
+  /// Categoria VestiFlow: classificazione ESCLUSIVAMENTE gestionale, dal
+  /// vocabolario di catalog_categories. Non viene inviata a Shopify e Shopify
+  /// non la sovrascrive (docs/24 §9.5).
+  ///
+  /// ⛔ Qui c’era «Tipo prodotto Shopify (REST product_type)»: erano DUE campi
+  ///    in una colonna sola, e il commento lo dichiarava senza che nessuno se
+  ///    ne accorgesse. Il tipo prodotto Shopify vive ora in shopifyProductType.
   category                        String?
   /// Sottocategoria VestiFlow collegata alla categoria (vocabolario gestito
   /// in catalog_categories; salvata come testo, come la categoria).
   subcategory                     String?
+  /// Tipo prodotto Shopify (REST `product_type`): campo del CANALE, in una
+  /// colonna sua e bidirezionale (docs/24 §9.5).
+  ///
+  /// ⚠️ `null` significa «non ancora acquisito», MAI «cancellalo su Shopify»:
+  ///    il payload in uscita omette la chiave, e Shopify lascia il valore che
+  ///    ha. La colonna nasce vuota per tutti — nessuna copia dalla categoria
+  ///    interna, che è un dato diverso (decisione del proprietario, 11/09/2026).
+  shopifyProductType              String?                 @map("shopify_product_type")
   /// Categoria Standard Product Taxonomy (GraphQL), es. gid://shopify/TaxonomyCategory/...
   shopifyTaxonomyCategoryId       String?                 @map("shopify_taxonomy_category_id")
   shopifyTaxonomyCategoryFullName String?                 @map("shopify_taxonomy_category_full_name")
@@ -836,7 +1045,14 @@ model Product {
   images         ProductImage[]
   defaultVatCode VatCode?         @relation(fields: [defaultVatCodeId], references: [id], onDelete: SetNull)
 
+  /// L'identita' remota punta al prodotto; il PERIODO punta all'identita'.
+  shopifyProductIdentities ShopifyProductIdentity[]
+
   @@unique([tenantId, articleCode])
+  /// Ausiliaria per le FK composite di `shopify_product_links`: e' cio' che
+  /// permette al DATABASE di rifiutare un link il cui prodotto appartiene a un
+  /// altro tenant, invece di affidarlo al servizio applicativo.
+  @@unique([id, tenantId])
   @@index([tenantId, status])
   // Cestino per tenant: l'anagrafica ordinaria filtrerà `deletedAt IS NULL`.
   @@index([tenantId, deletedAt])
@@ -942,9 +1158,15 @@ model ProductVariant {
   stockReservations          StockReservation[]
   onlineSaleLines            OnlineSaleLine[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
+  shopifyVariantIdentities   ShopifyVariantIdentity[]
 
   @@unique([tenantId, sku])
   @@unique([tenantId, barcode])
+  /// Ausiliarie per le FK composite di `shopify_variant_links`: la prima lega
+  /// il link al tenant giusto, la seconda garantisce che la variante sia
+  /// davvero figlia del prodotto dichiarato nel link (docs/24 §8.5.2).
+  @@unique([id, tenantId])
+  @@unique([id, productId])
   @@index([productId])
   @@index([tenantId])
   // Lookup sync Shopify/TikTok per tenant (webhook inventory, push/pull).
@@ -1072,10 +1294,12 @@ model StockMovement {
   /// Snapshot del nome operatore (audit stabile anche se l'utente cambia nome).
   createdByName      String               @map("created_by_name")
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  variant        ProductVariant @relation(fields: [variantId], references: [id])
-  location       Location       @relation("MovementLocation", fields: [locationId], references: [id])
-  targetLocation Location?      @relation("MovementTargetLocation", fields: [targetLocationId], references: [id])
+  tenant         Tenant                  @relation(fields: [tenantId], references: [id])
+  variant        ProductVariant          @relation(fields: [variantId], references: [id])
+  location       Location                @relation("MovementLocation", fields: [locationId], references: [id])
+  targetLocation Location?               @relation("MovementTargetLocation", fields: [targetLocationId], references: [id])
+  /// La riga di spedizione che ha prodotto questo scarico (ordini online, 12/09/2026).
+  shipmentLine   SalesOrderShipmentLine?
 
   @@unique([sourceDocumentType, sourceLineId])
   @@index([tenantId, createdAt(sort: Desc)])
@@ -1531,8 +1755,23 @@ model SalesOrder {
   taxMinor                     Int                         @default(0) @map("tax_minor")
   shippingMinor                Int                         @default(0) @map("shipping_minor")
   discountMinor                Int                         @default(0) @map("discount_minor")
+  /// ⭐ La SOMMA delle rettifiche del canale (`sales_order_refunds.total_minor`), scritta
+  /// dove si scrivono i rimborsi: la testata somma le proprie righe, come `totalMinor`.
+  /// Serve a ordinare l'elenco (paginato sul server) per «Rettifiche» (13/09/2026).
+  refundTotalMinor             Int                         @default(0) @map("refund_total_minor")
+  /// Il TOTALE AGGIORNATO (`total_minor − refund_total_minor`), colonna GENERATA dal
+  /// database: una fonte sola, mai scritta dal client. Il valore originario resta
+  /// `totalMinor`. Serve a ordinare per «Tot. aggiornato».
+  currentTotalMinor            Int                         @default(dbgenerated()) @map("current_total_minor")
   placedAt                     DateTime                    @map("placed_at")
   shopifyOrderId               String?                     @map("shopify_order_id")
+  /// L'ultimo `updated_at` Shopify APPLICATO all'ordine (13/09/2026, percorso 20):
+  /// le notifiche arrivano anche fuori ordine e ritentate, e un payload più
+  /// vecchio di questo non sovrascrive stati, righe, totali e rimborsi già
+  /// applicati (uguale → si applica: le riletture dopo `fulfillment_orders/moved`
+  /// hanno lo stesso `updated_at`). NULL per gli ordini manuali e per quelli
+  /// acquisiti prima della colonna: il primo aggiornamento la valorizza.
+  shopifyUpdatedAt             DateTime?                   @map("shopify_updated_at")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
   /// per gli ordini manuali: documento di scarico generato da "Concludi
   /// ordine" o DDT vendita che ha incluso l'ordine (aggancio 1:N: un DDT
@@ -1599,6 +1838,7 @@ model SalesOrder {
   orderEvents          OnlineOrderEvent[]
   onlineSale           OnlineSale?
   refunds              SalesOrderRefund[]
+  shipments            SalesOrderShipment[]
 
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
@@ -1660,9 +1900,12 @@ model SalesOrderLine {
   /// dai totali. Le righe salvate prima di questo campo restano righe normali.
   isReference       Boolean @default(false) @map("is_reference")
 
-  order       SalesOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       SalesOrder               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   reservation StockReservation?
-  vatCode     VatCode?          @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
+  spedizioni  SalesOrderShipmentLine[]
+  /// Le righe RIMBORSATE dal canale (annullate, rese, solo denaro), per quantità.
+  rimborsi    SalesOrderRefundLine[]
+  vatCode     VatCode?                 @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
 
   @@unique([orderId, externalLineId])
   @@index([orderId])
@@ -1726,6 +1969,7 @@ model SalesOrderRefund {
   tenant   Tenant                    @relation(fields: [tenantId], references: [id])
   order    SalesOrder                @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   taxLines SalesOrderRefundTaxLine[]
+  lines    SalesOrderRefundLine[]
 
   @@unique([tenantId, externalRefundId])
   @@index([tenantId, occurredAt(sort: Desc)])
@@ -1753,6 +1997,34 @@ model SalesOrderRefundTaxLine {
 
   @@index([refundId])
   @@map("sales_order_refund_tax_lines")
+}
+
+/// Una RIGA rimborsata dal canale (`refund_line_items[]`): quale riga d'ordine,
+/// quanti pezzi e con quale gesto (`restock_type`: `cancel` = annullata prima
+/// della spedizione, `return` = rientrata, `no_restock` = solo denaro). È la
+/// FONTE delle quantità ANNULLATE: si leggono da qui, non da «ordinate − spedite»
+/// (il residuo può essere ancora da spedire) — proprietario, 13/09/2026, #1014.
+/// Gli importi sono quelli dichiarati dal canale per la riga rimborsata.
+model SalesOrderRefundLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  refundId         String  @map("refund_id") @db.Uuid
+  /// La riga d'ordine, risolta dall'id riga del canale; nulla se la riga non c'è più.
+  salesOrderLineId String? @map("sales_order_line_id") @db.Uuid
+  /// `line_item_id` del canale, stabile fra webhook.
+  externalLineId   String  @map("external_line_id")
+  quantity         Int
+  /// `restock_type` del canale, com'è: `cancel` · `return` · `no_restock` · `legacy_restock`.
+  restockType      String  @map("restock_type")
+  subtotalMinor    Int     @default(0) @map("subtotal_minor")
+  taxMinor         Int     @default(0) @map("tax_minor")
+
+  refund SalesOrderRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  line   SalesOrderLine?  @relation(fields: [salesOrderLineId], references: [id], onDelete: SetNull)
+
+  @@unique([refundId, externalLineId])
+  @@index([salesOrderLineId])
+  @@map("sales_order_refund_lines")
 }
 
 // ── Impegni merce (Impegnata) e eventi canonici ordini online ────────────────
@@ -1952,6 +2224,81 @@ model OnlineSaleLine {
   @@map("online_sale_lines")
 }
 
+/// L'esito di UNA riga di spedizione: lo scarico è avvenuto, oppure no e perché.
+enum ShipmentLineOutcome {
+  /// Movimento creato, impegno consumato per la quantità spedita.
+  scaricata
+  /// La location remota non è collegata a una sede: nessuna sede indovinata (B7).
+  senza_sede
+  /// Ordine storico (`massiva`/`pendenti`) senza impegno: nessuno scarico silenzioso.
+  senza_impegno
+  /// La riga non ha una variante risolta — collegamento chiuso o articolo
+  /// sconosciuto: niente scarico, l'impegno preesistente si chiude senza uscita.
+  senza_variante
+}
+
+/// ⭐ Una SPEDIZIONE di un ordine online — un `fulfillment` del canale, acquisito
+/// come effetto di magazzino identificabile e applicato UNA volta (deciso dal
+/// proprietario il 12/09/2026): magazzino e rappresentazione commerciale sono due
+/// cose. Ogni quantità uscita scarica la SUA sede quando la si acquisisce, anche a
+/// ordine incompleto; la parte ancora da spedire conserva l'impegno; una riga
+/// d'ordine può avere più uscite — spedizioni successive, sedi diverse — e ognuna
+/// è una riga qui, col suo movimento.
+///
+/// ⛔ NON è un documento: la Vendita online resta UNA per ordine, a completamento,
+///    e ADOTTA i movimenti delle spedizioni invece di crearne altri.
+model SalesOrderShipment {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  salesOrderId          String   @map("sales_order_id") @db.Uuid
+  /// L'id dell'evasione sul canale: l'identità dell'effetto.
+  externalFulfillmentId String   @map("external_fulfillment_id")
+  /// La location remota da cui è uscita la merce, com'è nel payload.
+  shopifyLocationId     String?  @map("shopify_location_id")
+  /// La sede VestiFlow risolta dal collegamento esplicito; null = non collegata.
+  /// ⚠️ Nessuna FK: come `OnlineSaleLine.locationId`, è la fotografia della sede
+  ///    dello scarico — il vincolo sulla sede lo porta il movimento.
+  locationId            String?  @map("location_id") @db.Uuid
+  shippedAt             DateTime @map("shipped_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant                   @relation(fields: [tenantId], references: [id])
+  order  SalesOrder               @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  lines  SalesOrderShipmentLine[]
+
+  @@unique([tenantId, salesOrderId, externalFulfillmentId])
+  @@index([salesOrderId])
+  @@map("sales_order_shipments")
+}
+
+/// Una riga di spedizione: quanto di QUELLA riga d'ordine è uscito con QUELLA
+/// spedizione, e con quale esito. È l'unità idempotente: applicata una volta.
+model SalesOrderShipmentLine {
+  id               String              @id @default(uuid()) @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  shipmentId       String              @map("shipment_id") @db.Uuid
+  salesOrderLineId String              @map("sales_order_line_id") @db.Uuid
+  variantId        String?             @map("variant_id") @db.Uuid
+  sku              String
+  quantity         Int
+  esito            ShipmentLineOutcome
+  /// Il movimento di scarico, quando applicato: UNO per riga di spedizione.
+  stockMovementId  String?             @unique @map("stock_movement_id") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id])
+  shipment SalesOrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  line     SalesOrderLine     @relation(fields: [salesOrderLineId], references: [id], onDelete: Restrict)
+  movement StockMovement?     @relation(fields: [stockMovementId], references: [id], onDelete: Restrict)
+
+  @@unique([shipmentId, salesOrderLineId])
+  @@index([salesOrderLineId])
+  @@index([tenantId])
+  @@map("sales_order_shipment_lines")
+}
+
 // ── Integrazione Shopify (stato connessione, MAI token nel modello API) ─────
 
 /// Una connessione per tenant. I token OAuth NON vivono qui: stanno cifrati
@@ -1992,8 +2339,21 @@ model ShopifyConnection {
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  /// Il negozio a cui questa connessione punta ADESSO (docs/24 §8.5.1: «la
+  /// connessione punta al negozio, non lo sostituisce»). Senza, non esiste modo
+  /// — nel database — di sapere quale riga di `ShopifyShop` sia la corrente, e
+  /// il passo 2 della transazione di cambio negozio non ha dove scrivere.
+  ///
+  /// ⚠️ NULLABLE per la stessa ragione di `shopGid`: il valore si acquisisce
+  /// nella fase 2 (§8.5.8). E una connessione `not_connected` non ha comunque
+  /// alcun negozio a cui puntare, quindi il `NOT NULL` non sarebbe corretto
+  /// nemmeno a regime.
+  shopId String? @map("shop_id") @db.Uuid
 
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  shop   ShopifyShop? @relation(fields: [shopId, tenantId], references: [id, tenantId])
+
+  @@index([shopId])
   @@map("shopify_connections")
 }
 
@@ -2039,8 +2399,130 @@ model ShopifyInventorySyncState {
   lastObservedAt               DateTime? @map("last_observed_at")
   mismatchDetected             Boolean   @default(false) @map("mismatch_detected")
   mismatchNote                 String?   @map("mismatch_note")
-  createdAt                    DateTime  @default(now()) @map("created_at")
-  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  // ── Un aggiornamento LOCALE che non e' stato trasmesso ────────────────────
+  //
+  // ⛔ **Non e' `mismatchDetected`, e non deve diventarlo.** Sono due stati che
+  //    si sanno in due modi diversi, e confonderli li rende indistinguibili
+  //    per sempre:
+  //
+  //      mismatchDetected   il canale porta un numero diverso da quello atteso
+  //                         → lo si sa GUARDANDO il canale
+  //      localPushPending   non si e' scritto, e non si sa cosa porti il canale
+  //                         → lo si sa NON avendo guardato niente
+  //
+  // ⭐ **Lo accende una sola cosa**: il push che esce con `stato_cambiato`,
+  //    cioe' quando la coppia si e' mossa sotto la lettura per piu' giri e
+  //    nessuna scrittura e' partita. Senza questo, quel valore restava
+  //    ritrovabile solo per caso — alla prossima vendita sullo stesso articolo.
+  //    Prova `P10`.
+  //
+  // ⭐ **Lo spegne la conferma di un invio, o il constatare che non c'e' piu'
+  //    niente da mandare** (`unchanged`). Mai altro.
+  localPushPending Boolean @default(false) @map("local_push_pending")
+
+  // ── Il TENTATIVO di invio in corso, per poterlo ripetere dopo un riavvio ──
+  //
+  // ⛔ **Sono separati da `lastPushed*`, e la separazione E' il punto.** L'ultimo
+  //    confermato non deve avanzare finche' il canale non ha risposto: usarlo
+  //    come prenotazione segnerebbe come trasmesso cio' che non e' mai partito.
+  //
+  // ⭐ **Non e' una coda**: e' la memoria dell'operazione in corso su QUESTA
+  //    coppia, sulla riga che gia' esiste. Una riga, un tentativo aperto.
+  //
+  // ⚠️ Ci sono anche la destinazione e la base, non solo la chiave: ripetere
+  //    "esattamente la stessa operazione" significa lo stesso negozio, lo stesso
+  //    articolo di inventario, la stessa sede remota e lo stesso confronto.
+  /// Chiave di idempotenza dell'operazione in corso. NULL = nessun tentativo aperto.
+  pendingKey         String?   @unique @map("pending_key")
+  /// Quantita' pubblicabile che il tentativo sta scrivendo.
+  pendingAvailable   Int?      @map("pending_available")
+  /// Valore atteso usato nel confronto. NULL = inviato SENZA confronto.
+  pendingBase        Int?      @map("pending_base")
+  /// Destinazione originale: negozio, articolo di inventario e sede remota.
+  pendingShopDomain  String?   @map("pending_shop_domain")
+  pendingItemId      String?   @map("pending_item_id")
+  pendingLocationRef String?   @map("pending_location_ref")
+  /// Istante della prenotazione: decide se la finestra di idempotenza e' scaduta.
+  pendingAt          DateTime? @map("pending_at")
+
+  // ── Lo SCARICO dei contatori, fotografato alla PRESA ──────────────────────
+  //
+  // ⭐ **Quanto togliere da `L` e da `C` quando questo tentativo si conferma**,
+  //    calcolato nel momento in cui si decide che cosa inviare.
+  //
+  // ⛔ **Non e' una comodita': i due percorsi di scrittura scaricano in modo
+  //    DIVERSO**, e la conferma non ha modo di sapere quale l'ha aperta.
+  //
+  //      invio ordinario   L -= T - R        C -= R - P
+  //      riallineamento    L -= L_w - (A_w - T)   C -= C_w
+  //
+  //    Con la formula dentro la conferma servirebbe un discriminante e due
+  //    rami; con lo scarico gia' calcolato la conferma applica e basta.
+  //
+  // ⚠️ **Fotografarli e' sicuro perche' il tentativo e' UNICO per riga**
+  //    (`pendingKey` unica): fra la presa e la conferma nessun altro invio puo'
+  //    muovere `P`, e i valori restano quelli su cui la decisione e' stata presa.
+  //
+  // ⚠️ NULL = tentativo aperto PRIMA di questa colonna: la conferma ripiega
+  //    sulla formula dell'invio ordinario.
+  pendingDischargeLocal   Int? @map("pending_discharge_local")
+  pendingDischargeChannel Int? @map("pending_discharge_channel")
+
+  /// Questa presa ha fatto NASCERE i contatori.
+  ///
+  /// ⛔ **Serve alla chiusura di un tentativo NON confermato.** La presa
+  ///    inizializza `L` e `C` a zero perche' i movimenti arrivati nella finestra
+  ///    non svaniscano su un NULL; se poi il canale rifiuta, la riga resterebbe
+  ///    «inizializzata» senza che l'allineamento sia riuscito — e con `L = 0` il
+  ///    recupero smetterebbe di correggere il disallineamento, che con `L` NULL
+  ///    avrebbe ripubblicato col valore assoluto.
+  ///
+  /// ⚠️ La chiusura riporta i contatori a NULL **solo se sono ancora a zero**:
+  ///    se nel frattempo e' arrivato un movimento, quel lavoro esiste e resta.
+  pendingHaInizializzato Boolean? @map("pending_ha_inizializzato")
+
+  /// `L` — lo scostamento LOCALE non ancora trasmesso al canale.
+  ///
+  /// ⭐ Si muove per le operazioni di VestiFlow — vendita al banco, carico,
+  ///    rettifica, trasferimento, inventario — e **non** per gli effetti che
+  ///    Shopify ha gia' applicato in casa propria.
+  ///
+  /// ⛔ **Non e' `localPushPending`**: quel booleano dice «c'e' lavoro», questo
+  ///    dice **quanto**.
+  ///
+  /// ⚠️ **NULL = base non stabilita**, ed e' lo stato di partenza di ogni riga
+  ///    esistente: la base la crea la PARTENZA CONTROLLATA (`docs/DA-FARE` §31.-1),
+  ///    non il primo invio ordinario. Un NULL non si somma mai come zero.
+  localPendingDelta Int? @map("local_pending_delta")
+
+  /// `C` — gli effetti di CANALE acquisiti dopo l'ultima conferma.
+  ///
+  /// ⭐ Si muove quando VestiFlow registra in casa un effetto che Shopify ha
+  ///    gia' applicato — l'ordine online, l'evasione, il reso — e serve a NON
+  ///    rimandarglielo indietro.
+  ///
+  /// ⚠️ Stessa regola del NULL.
+  channelAcquiredDelta Int? @map("channel_acquired_delta")
+
+  /// Quando la coda del ritentativo ha ESAMINATO questa riga l'ultima volta.
+  ///
+  /// ⛔ **Non e' `updatedAt`, e la differenza e' il difetto che questa colonna
+  ///    corregge.** Diversi rami di uscita del push escono SENZA scrivere sulla
+  ///    riga (`base_assente`, `collegamento_escluso`, `rinvio_attivo`): con la
+  ///    coda ordinata per `updatedAt` quelle righe restano per sempre le piu'
+  ///    vecchie, e le successive non vengono tentate MAI — nemmeno a passate
+  ///    ripetute, perche' l'ordine non cambia.
+  ///
+  /// ⭐ **Si scrive PRIMA del tentativo, sempre**, qualunque sia l'esito: e' un
+  ///    «l'ho guardata», non un «ce l'ho fatta». Cosi' la riga scende in fondo e
+  ///    la passata dopo prosegue da quelle dietro.
+  ///
+  /// ⚠️ `null` = mai esaminata: sono le prime, e l'ordinamento le mette in testa.
+  lastAttemptAt DateTime? @map("last_attempt_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id])
   variant  ProductVariant @relation(fields: [variantId], references: [id])
@@ -2048,6 +2530,13 @@ model ShopifyInventorySyncState {
 
   @@unique([tenantId, variantId, locationId])
   @@index([tenantId, mismatchDetected])
+  // ⭐ La coda del ritentativo ora seleziona su DUE colonne in OR: senza questo
+  //    indice il secondo ramo diventa una scansione della tabella.
+  @@index([tenantId, localPushPending])
+  @@index([tenantId, pendingAt])
+  /// L'ordine con cui la coda del ritentativo sceglie: meno recentemente
+  /// esaminate per prime, mai esaminate in testa.
+  @@index([tenantId, lastAttemptAt])
   @@map("shopify_inventory_sync_states")
 }
 
@@ -3484,11 +3973,10 @@ model FiscalDevice {
   /// una marca nuova senza toccare il dominio.
   ///
   /// ⛔ Non e' il selettore dell'adapter: quello e' `adapterKey`.
-  brand           FiscalDeviceBrand
+  brand FiscalDeviceBrand
   /// Modello dichiarato dal dispositivo (testo: i cataloghi dei produttori
   /// non sono enumerabili a priori).
-  model           String?
-
+  model String?
 
   /// ⭐ Chiave dell'adapter che parla con questo dispositivo, APERTA e
   /// VERSIONABILE: `<fornitore>.<protocollo>.<versione>`.
@@ -3652,4 +4140,479 @@ model PosTerminal {
   @@unique([tenantId, terminalId])
   @@index([tenantId])
   @@map("pos_terminals")
+}
+
+/// Stato di un collegamento verso Shopify (docs/24 §8.5.2).
+///
+/// ⛔ Tre valori, non quattro: `superseded` NON e' uno stato. L'esistenza di un
+/// successore e' una RELAZIONE (`supersededByLinkId`) e la causa della chiusura
+/// e' una CAUSALE (`closeReason`) — usarlo come stato cancellerebbe la causa
+/// vera, e un link chiuso perche' eliminato su Shopify diventerebbe
+/// genericamente «sostituito».
+enum ShopifyLinkStatus {
+  active
+  remotely_deleted
+  unlinked
+}
+
+/// Perche' un collegamento si e' chiuso. Fissata alla chiusura, non cambia piu'.
+///
+/// ⚠️ La causale ammessa dipende dallo stato, e il vincolo e' un `CHECK` nella
+/// migration `20260907000000_shopify_link_history`: `remotely_deleted` accetta
+/// solo `remote_delete`/`not_found`, `unlinked` solo `operator`/`shop_change`.
+enum ShopifyLinkCloseReason {
+  remote_delete
+  not_found
+  operator
+  /// ⚠️ Ammessa SOLO su prodotti e varianti: una sede non si elimina
+  /// definitivamente finche' ha una storia (§1.13.4). L'enum e' condiviso, il
+  /// permesso no, e a imporlo sono i CHECK a lista bianca nella migration.
+  shop_change
+  /// ⛔ **Presente nel database dal 07/09/2026 e ASSENTE qui fino all'08/09**:
+  /// il tipo PostgreSQL ha cinque valori, Prisma ne dichiarava quattro.
+  /// Non e' una divergenza innocua — una riga con questo valore fa fallire
+  /// OGNI lettura Prisma di quella tabella, export del backup compreso, con
+  /// «Value 'local_delete' not found in enum». Trovata scrivendo la prova di
+  /// un'esclusione dopo il backup. Nessuna migration: il tipo ce l'ha gia'.
+  local_delete
+}
+
+/// Identita' IMMUTABILE di un negozio Shopify, separata dalla connessione
+/// corrente (docs/24 §8.5.1).
+///
+/// ⭐ Esiste perche' `ShopifyConnection` ha `tenantId @unique` e il cambio
+/// negozio RIUSA la stessa riga sovrascrivendo `shopDomain`: senza questa
+/// tabella, dopo un cambio non si puo' piu' risalire al negozio precedente, e
+/// gli identificativi storici diventano ambigui.
+///
+/// ⚠️ `shopGid` nasce NULLABLE ed e' voluto: il valore non esiste nei dati
+/// locali e una migration non puo' interrogare Shopify. Si acquisisce con un
+/// passo esplicito e verificato (fase 2), e solo dopo diventa `NOT NULL`
+/// (docs/24 §8.5.8).
+model ShopifyShop {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// `gid://shopify/Shop/{id}` — identita' permanente del negozio.
+  /// ⚠️ Il formato e' imposto da un `CHECK` nella migration, che Prisma non sa
+  /// esprimere: un GID di tipo sbagliato viene rifiutato dal database.
+  shopGid String? @map("shop_gid")
+
+  /// Fotografia del dominio al collegamento: serve a riconoscere il negozio,
+  /// non a identificarlo (il dominio e' mutabile, il GID no).
+  myshopifyDomain String? @map("myshopify_domain")
+
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime? @map("last_seen_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id])
+  productIdentities ShopifyProductIdentity[]
+  variantIdentities ShopifyVariantIdentity[]
+  locationPairs     ShopifyLocationPair[]
+  connections       ShopifyConnection[]
+
+  /// ⭐ Univoco GLOBALMENTE, non per tenant: lo stesso negozio Shopify non puo'
+  /// appartenere a due tenant VestiFlow insieme (docs/24 §8.5.1). Con `NULL`
+  /// PostgreSQL non collide, quindi le connessioni non ancora acquisite
+  /// convivono.
+  @@unique([shopGid])
+  @@unique([tenantId, shopGid])
+  /// Ausiliaria per le FK composite dei link: garantisce che negozio e link
+  /// appartengano allo stesso tenant.
+  @@unique([id, tenantId])
+  @@map("shopify_shops")
+}
+
+/// L'IDENTITA' REMOTA di un prodotto Shopify: quale articolo locale è quel GID,
+/// per sempre (docs/24 §8.5.2).
+///
+/// ⭐ **L'appartenenza è scritta DUE VOLTE**, e la distinzione è ciò che rende
+/// compatibili l'immutabilità dell'identità e l'eliminazione definitiva
+/// dell'anagrafica:
+///
+/// - `originalProductId` — l'appartenenza **originaria**. Immutabile, e **senza
+///   chiave esterna**: è un dato storico, come gli snapshot documentali. Non si
+///   azzera nemmeno quando il prodotto viene eliminato.
+/// - `productId` — il riferimento **vivo**. Nullable, con FK `Restrict`. Si
+///   sgancia alla purga, e da quel momento la FK non verifica più nulla (in
+///   PostgreSQL una FK composita `MATCH SIMPLE` è inerte con una colonna NULL).
+///   Ciò che smette di garantire lo garantisce la FK diretta sul tenant.
+///
+/// ⛔ **Nessuna unicità su `originalProductId`**, al contrario delle sedi: una
+/// ripubblicazione genera un GID nuovo per lo stesso articolo, quindi più
+/// identità storiche convivono. A restare unico è il collegamento **attivo**.
+model ShopifyProductIdentity {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  shopId   String @map("shop_id") @db.Uuid
+
+  /// `gid://shopify/Product/{id}` — GID completo, mai il numerico.
+  /// ⚠️ Forma imposta da un `CHECK` nella migration
+  /// `20260907000000_shopify_link_history`, che Prisma non sa esprimere.
+  shopifyProductGid String @map("shopify_product_gid")
+
+  /// ⛔ **Immutabile e senza FK**, per costruzione: se avesse una chiave esterna
+  /// con `Restrict`, l'eliminazione definitiva del prodotto sarebbe impossibile.
+  originalProductId String  @map("original_product_id") @db.Uuid
+  /// Il riferimento vivo. `null` dopo la purga dell'anagrafica.
+  productId         String? @map("product_id") @db.Uuid
+
+  /// ⚠️ Si scrive **una volta sola**: l'eliminazione di un prodotto non riscrive
+  /// la data di una variante eliminata prima. Lo impone un trigger.
+  localDeletedAt DateTime? @map("local_deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id])
+  shop    ShopifyShop @relation(fields: [shopId, tenantId], references: [id, tenantId])
+  product Product?    @relation(fields: [productId, tenantId], references: [id, tenantId])
+
+  varianti ShopifyVariantIdentity[]
+  periodi  ShopifyProductLink[]
+
+  /// ⛔ **L'identità remota è unica per negozio, su TUTTE le righe**: è ciò che
+  ///    impedisce di riassegnare un GID a un altro articolo.
+  @@unique([shopId, shopifyProductGid])
+  /// Ausiliarie per le FK composite dei periodi e delle varianti.
+  @@unique([id, tenantId])
+  @@unique([id, shopId])
+  @@unique([id, originalProductId])
+  @@index([tenantId, originalProductId])
+  @@map("shopify_product_identities")
+}
+
+/// L'identità remota di una VARIANTE Shopify (docs/24 §8.5.2).
+///
+/// ⚠️ Porta **due** identificativi remoti — variante e inventory item — ed è la
+/// ragione per cui prodotto e variante hanno tabelle distinte invece di una
+/// polimorfica.
+model ShopifyVariantIdentity {
+  id                String @id @default(uuid()) @db.Uuid
+  tenantId          String @map("tenant_id") @db.Uuid
+  shopId            String @map("shop_id") @db.Uuid
+  productIdentityId String @map("product_identity_id") @db.Uuid
+
+  /// `gid://shopify/ProductVariant/{id}`
+  shopifyVariantGid       String  @map("shopify_variant_gid")
+  /// `gid://shopify/InventoryItem/{id}`
+  shopifyInventoryItemGid String? @map("shopify_inventory_item_gid")
+
+  /// Immutabili e senza FK, come sul prodotto.
+  originalVariantId String  @map("original_variant_id") @db.Uuid
+  originalProductId String  @map("original_product_id") @db.Uuid
+  /// I riferimenti vivi, che si sganciano **insieme**: un CHECK vieta lo stato
+  /// intermedio «variante sganciata, prodotto ancora agganciato».
+  variantId         String? @map("variant_id") @db.Uuid
+  productId         String? @map("product_id") @db.Uuid
+
+  localDeletedAt DateTime? @map("local_deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant                 @relation(fields: [tenantId], references: [id])
+  shop    ShopifyShop            @relation(fields: [shopId, tenantId], references: [id, tenantId])
+  /// ⭐ Il padre è dello stesso tenant, dello stesso negozio **e dello stesso
+  /// prodotto originario**: quest'ultima FK regge anche a riferimenti sganciati,
+  /// perché confronta colonne che non si azzerano mai.
+  padre   ShopifyProductIdentity @relation(fields: [productIdentityId, tenantId], references: [id, tenantId])
+  variant ProductVariant?        @relation(fields: [variantId, tenantId], references: [id, tenantId])
+
+  periodi ShopifyVariantLink[]
+
+  @@unique([shopId, shopifyVariantGid])
+  /// La quinta garanzia (§8.5.2): variante ↔ inventory item è uno-a-uno.
+  @@unique([shopId, shopifyInventoryItemGid])
+  @@unique([id, tenantId])
+  @@unique([id, originalVariantId])
+  @@index([tenantId, originalVariantId])
+  @@map("shopify_variant_identities")
+}
+
+/// Un PERIODO di collegamento dell'identità prodotto (docs/24 §8.5.2).
+///
+/// ⭐ **La ripresa apre un periodo nuovo sulla stessa identità.** Più periodi si
+/// susseguono nel tempo, e la storia è il loro elenco.
+///
+/// ⛔ **Il periodo ATTIVO esige un'identità VIVA, e lo esige una chiave esterna
+/// — non un trigger.** Un trigger non regge in concorrenza: misurato il
+/// 07/09/2026, due sessioni si incrociano, entrambe committano, e resta un
+/// periodo attivo su un'identità eliminata. Una FK la serializza PostgreSQL da
+/// sé. Le colonne generate che la sostengono (`viva`, `richiede_viva`) vivono
+/// nella migration: Prisma non le esprime.
+model ShopifyProductLink {
+  id                String @id @default(uuid()) @db.Uuid
+  tenantId          String @map("tenant_id") @db.Uuid
+  identityId        String @map("identity_id") @db.Uuid
+  /// Denormalizzato dall'identità, e una FK composita impedisce che diverga.
+  /// Serve all'indice parziale che garantisce **un solo collegamento attivo per
+  /// anagrafica locale**.
+  originalProductId String @map("original_product_id") @db.Uuid
+
+  /// ⚠️ Prisma non valida i CHECK: una violazione arriva come errore PostgreSQL
+  ///    grezzo (23514) e va tradotta nel servizio. Su questa colonna poggiano
+  ///    anche due indici unici PARZIALI che Prisma non sa esprimere.
+  status      ShopifyLinkStatus       @default(active)
+  /// ⚠️ Fissata alla chiusura, non cambia mai: un trigger rifiuta di riscriverla
+  ///    e di riaprire un periodo chiuso.
+  closeReason ShopifyLinkCloseReason? @map("close_reason")
+
+  linkedAt             DateTime  @default(now()) @map("linked_at")
+  closedAt             DateTime? @map("closed_at")
+  lastEventAt          DateTime? @map("last_event_at")
+  lastEventTriggeredAt DateTime? @map("last_event_triggered_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant                 @relation(fields: [tenantId], references: [id])
+  identita ShopifyProductIdentity @relation(fields: [identityId, tenantId], references: [id, tenantId])
+
+  variantPeriods ShopifyVariantLink[]
+
+  /// ⛔ **NON dichiarabili qui**: un solo periodo attivo per identità
+  ///    (`…_identity_attivo_key`) e un solo collegamento attivo per anagrafica
+  ///    (`…_original_attivo_key`) sono indici PARZIALI, nella migration.
+  @@index([identityId, linkedAt])
+  @@index([tenantId, status])
+  @@map("shopify_product_links")
+}
+
+/// Un PERIODO di collegamento dell'identità variante (docs/24 §8.5.2).
+model ShopifyVariantLink {
+  id                String  @id @default(uuid()) @db.Uuid
+  tenantId          String  @map("tenant_id") @db.Uuid
+  identityId        String  @map("identity_id") @db.Uuid
+  originalVariantId String  @map("original_variant_id") @db.Uuid
+  /// Il periodo del prodotto padre. ⭐ Nullable, ma un CHECK lo esige quando il
+  /// periodo è attivo, e una FK impone che il padre sia **anch'esso attivo**.
+  productLinkId     String? @map("product_link_id") @db.Uuid
+
+  status      ShopifyLinkStatus       @default(active)
+  closeReason ShopifyLinkCloseReason? @map("close_reason")
+
+  linkedAt             DateTime  @default(now()) @map("linked_at")
+  closedAt             DateTime? @map("closed_at")
+  lastEventAt          DateTime? @map("last_event_at")
+  lastEventTriggeredAt DateTime? @map("last_event_triggered_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id])
+  identita     ShopifyVariantIdentity @relation(fields: [identityId, tenantId], references: [id, tenantId])
+  periodoPadre ShopifyProductLink?    @relation(fields: [productLinkId], references: [id])
+
+  @@index([identityId, linkedAt])
+  @@index([tenantId, status])
+  @@map("shopify_variant_links")
+}
+
+/// La COPPIA sede VestiFlow ↔ location Shopify: stabile, e non riassegnabile
+/// (docs/24 §1.13.6, deciso il 07/09/2026).
+///
+/// ⭐ Sede e location sono due entita' autonome, e si sincronizza soltanto dove
+/// esiste un collegamento esplicito che una persona ha dichiarato. Una volta
+/// abbinate e usate, pero', le due controparti restano legate: se serve un
+/// abbinamento diverso — la location eliminata e ricreata, o un negozio nuovo
+/// che ne richiede un'altra — si crea una NUOVA SEDE e una nuova coppia.
+///
+/// ⛔ **Le due tabelle sono due perche' un indice sui soli collegamenti attivi
+/// non basterebbe**: con `UNIQUE (location_id) WHERE status = 'active'` la sede
+/// tornerebbe libera appena il collegamento e' chiuso, e la riassegnazione
+/// passerebbe. I due `@@unique` qui sotto sono TOTALI, ed e' quello il divieto.
+///
+/// ⚠️ Nessun nome, nessun indirizzo: le anagrafiche non si sincronizzano
+/// (§1.13.2) e cambiarli non cambia l'identita' della coppia (§1.13.6).
+model ShopifyLocationPair {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  shopId     String @map("shop_id") @db.Uuid
+  locationId String @map("location_id") @db.Uuid
+
+  /// `gid://shopify/Location/{id}` — GID completo, mai il numerico.
+  /// ⚠️ Il tipo e' imposto da un `CHECK` nella migration
+  /// `20260907000000_shopify_link_history`. La forma e' la stessa gia' usata
+  /// dal codice di produzione (`shopify-location-id.util.ts`).
+  shopifyLocationGid String @map("shopify_location_gid")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  shop     ShopifyShop @relation(fields: [shopId, tenantId], references: [id, tenantId])
+  location Location    @relation(fields: [locationId, tenantId], references: [id, tenantId])
+
+  /// I periodi in cui questa coppia e' stata collegata. Molti nel tempo: la
+  /// storia e' il loro elenco, ordinato per `linkedAt`.
+  periodi ShopifyLocationLink[]
+
+  /// ⛔ Una sede appartiene a UNA sola coppia, per sempre.
+  @@unique([locationId])
+  /// ⛔ Una location appartiene a UNA sola coppia, per sempre. E' cio' che
+  ///    impedisce di aggirare il divieto creando una sede nuova e collegandola
+  ///    a una location gia' appartenuta a un'altra sede.
+  @@unique([shopId, shopifyLocationGid])
+  /// Ausiliaria per la FK composita dei periodi.
+  @@unique([id, tenantId])
+  @@index([tenantId, shopifyLocationGid])
+  @@map("shopify_location_pairs")
+}
+
+/// Un PERIODO di collegamento della coppia (docs/24 §1.13.6).
+///
+/// ⭐ Interrompere e ripristinare la stessa coppia e' consentito: ogni
+/// ripristino apre un periodo NUOVO.
+///
+/// ⛔ I periodi NON sono il checkpoint e non lo sostituiscono: il recupero degli
+/// ordini riparte dall'ultimo checkpoint riuscito (§1.15.2-3), che dice fin dove
+/// si e' letto con successo — non quando il collegamento era acceso. Un ordine
+/// puo' essere arrivato a collegamento vivo e non essere stato acquisito.
+/// I periodi danno il CONTESTO: quando e perche' il collegamento si e'
+/// interrotto, e quale finestra ispezionare.
+///
+/// ⛔ Nessun `supersededByLinkId`: era stato deciso il 07/09/2026 per la
+/// «sostituzione esplicita», e la decisione dello stesso giorno l'ha superata.
+/// Senza procedure di sostituzione non esiste un successore da indicare, e i
+/// periodi di una coppia si susseguono nel tempo.
+///
+/// ⛔ Nessun `lastEventAt` / `lastEventTriggeredAt`, al contrario delle due
+/// tabelle sorelle: scartano eventi webhook fuori ordine (§8.5.4), e per le
+/// location non esiste alcun topic registrato.
+model ShopifyLocationLink {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  pairId   String @map("pair_id") @db.Uuid
+
+  /// ⚠️ Prisma non valida i CHECK: una violazione arriva come errore
+  ///    PostgreSQL grezzo (23514), non come errore Prisma leggibile, e va
+  ///    tradotta nel servizio. I CHECK stanno nella migration
+  ///    `20260907000000_shopify_link_history` e si leggono come UN GRUPPO:
+  ///    attivo ⇒ nessuna chiusura · chiuso ⇒ chiusura completa · la causale
+  ///    ammessa dipende dallo stato · un periodo non finisce prima di iniziare.
+  ///
+  /// ⚠️ Su questa colonna poggia anche un indice unico PARZIALE che Prisma non
+  ///    sa esprimere: un solo periodo `active` per coppia. Arriva come 23505.
+  status ShopifyLinkStatus @default(active)
+
+  /// ⚠️ Fissata alla chiusura, non cambia mai. Le causali coprono i casi
+  ///    decisi: la location sparita da Shopify (`remote_delete`/`not_found`),
+  ///    l'interruzione voluta (`operator`) e il cambio negozio (`shop_change`).
+  closeReason ShopifyLinkCloseReason? @map("close_reason")
+
+  linkedAt  DateTime  @default(now()) @map("linked_at")
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id])
+  /// ⚠️ `Restrict`, mai `Cascade`: un abbinamento errato si corregge solo se non
+  /// ha ancora prodotto effetti, e in quel caso i periodi si rimuovono PRIMA
+  /// della coppia, in un percorso esplicito che li ha verificati.
+  pair   ShopifyLocationPair @relation(fields: [pairId, tenantId], references: [id, tenantId], onDelete: Restrict, onUpdate: Cascade)
+
+  /// ⛔ **Un solo periodo VIVO per coppia — NON dichiarabile qui.** E' un indice
+  ///    unico PARZIALE (`shopify_location_links_pair_attivo_key`) nella stessa
+  ///    migration. Qui basta davvero: la riassegnazione la vietano i due
+  ///    `@@unique` totali su `ShopifyLocationPair`, non questo.
+  @@index([pairId, linkedAt])
+  @@index([tenantId, status])
+  @@map("shopify_location_links")
+}
+
+// ── La PRIMA CONNESSIONE — il percorso, persistito (docs/27, docs/24 §12.-1) ──
+
+/// La direzione del trasferimento INIZIALE. ⛔ Non diventa la direzione della
+/// sincronizzazione continua (docs/24 §12.-1, «tre momenti»).
+enum ShopifySetupDirection {
+  shopify_to_vestiflow
+  vestiflow_to_shopify
+}
+
+/// Le fasi visibili (scelte, sedi, controllo) e ciò che segue la conferma.
+/// `interrotto` non è mai «completato»: è un trasferimento da riprendere.
+enum ShopifySetupStatus {
+  scelte
+  sedi
+  controllo
+  trasferimento
+  interrotto
+  trasferito
+  attivato
+}
+
+/// Che cosa l’operatore ha deciso per UNA location Shopify (docs/24 §1.13.1).
+enum ShopifyLocationChoiceKind {
+  collega
+  crea
+  lascia
+}
+
+/// UNA riga per tenant: lo stato del percorso della prima connessione.
+///
+/// ⚠️ **Nessuna riga = percorso mai iniziato**, e NON «già attivo»: le connessioni
+///    nate prima del percorso non hanno la riga e non vengono spinte dentro
+///    (risposta 4 del proprietario, 11/09/2026). La riga la crea il callback
+///    OAuth di una connessione nuova.
+model ShopifySetup {
+  id        String                 @id @default(uuid()) @db.Uuid
+  tenantId  String                 @unique @map("tenant_id") @db.Uuid
+  status    ShopifySetupStatus     @default(scelte)
+  direction ShopifySetupDirection?
+
+  /// L’anteprima della fase 3, letta da Shopify e SALVATA: chi conferma vede
+  /// esattamente ciò che è stato mostrato, non una rilettura successiva.
+  anteprima   Json?
+  anteprimaAt DateTime? @map("anteprima_at")
+
+  /// L’avanzamento e l’esito del trasferimento: fase corrente, contatori,
+  /// esclusi con motivo, anomalie. Si aggiorna a ogni passo, così una
+  /// interruzione lascia un esito parziale leggibile — mai un «completato».
+  esito Json?
+
+  /// Correlazione del lotto in corso (una per trasferimento), per il registro.
+  correlationId String? @map("correlation_id") @db.Uuid
+
+  confirmedAt        DateTime? @map("confirmed_at")
+  transferStartedAt  DateTime? @map("transfer_started_at")
+  transferFinishedAt DateTime? @map("transfer_finished_at")
+  activatedAt        DateTime? @map("activated_at")
+  /// L'ultimo id ordine del negozio all'attivazione: il recupero legge «da qui in poi».
+  ordersSinceId      String?   @map("orders_since_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("shopify_setups")
+}
+
+/// UNA riga per (tenant, location Shopify): la scelta dell’operatore.
+///
+/// ⭐ «collega» e «crea» scrivono ANCHE coppia e periodo nello storico delle
+///    sedi: la scelta È il collegamento esplicito. «lascia» non tocca le sedi:
+///    resta qui, così la location non viene riproposta come «da decidere».
+///
+/// ⚠️ Sopravvive al percorso: una location comparsa dopo si decide con lo
+///    stesso meccanismo, dalla sezione Sedi.
+model ShopifyLocationChoice {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  tenantId            String                    @map("tenant_id") @db.Uuid
+  /// Id numerico della location Shopify, normalizzato (senza prefisso GID).
+  shopifyLocationId   String                    @map("shopify_location_id")
+  shopifyLocationName String                    @map("shopify_location_name")
+  choice              ShopifyLocationChoiceKind
+  /// La sede VestiFlow, per «collega» e «crea»; NULL per «lascia».
+  locationId          String?                   @map("location_id") @db.Uuid
+  decidedAt           DateTime                  @default(now()) @map("decided_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  location Location? @relation(fields: [locationId, tenantId], references: [id, tenantId])
+
+  @@unique([tenantId, shopifyLocationId])
+  @@index([tenantId, locationId])
+  @@map("shopify_location_choices")
 }

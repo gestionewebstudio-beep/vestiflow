@@ -72,12 +72,8 @@ describe('article-code.util', () => {
 
   describe('assertValidArticleCodeFormat', () => {
     it('formato non valido -> 422 con messaggio chiaro', () => {
-      expect(() => assertValidArticleCodeFormat('AB C')).toThrowError(
-        UnprocessableEntityException,
-      );
-      expect(() => assertValidArticleCodeFormat('AB C')).toThrowError(
-        ARTICLE_CODE_FORMAT_MESSAGE,
-      );
+      expect(() => assertValidArticleCodeFormat('AB C')).toThrowError(UnprocessableEntityException);
+      expect(() => assertValidArticleCodeFormat('AB C')).toThrowError(ARTICLE_CODE_FORMAT_MESSAGE);
     });
 
     it('formato valido -> nessuna eccezione', () => {
@@ -123,7 +119,7 @@ describe('article-code.util', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('codice occupato -> 409 con il nome dell\'articolo proprietario', async () => {
+    it("codice occupato -> 409 con il nome dell'articolo proprietario", async () => {
       await expect(
         assertArticleCodeAvailableInTx(
           fakeTx({ existingProductName: 'Maglia Basic' }),
@@ -143,9 +139,9 @@ describe('article-code.util', () => {
 
   describe('resolveArticleCodeForCreateInTx (regola generale per tutti i flussi)', () => {
     it('codice fornito e valido -> normalizzato in maiuscolo e usato', async () => {
-      await expect(
-        resolveArticleCodeForCreateInTx(fakeTx(), 'tenant-1', ' abc001 '),
-      ).resolves.toBe('ABC001');
+      await expect(resolveArticleCodeForCreateInTx(fakeTx(), 'tenant-1', ' abc001 ')).resolves.toBe(
+        'ABC001',
+      );
     });
 
     it('codice assente -> progressivo generato', async () => {

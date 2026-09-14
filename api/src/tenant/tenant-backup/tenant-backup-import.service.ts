@@ -13,10 +13,18 @@ import { SupabaseService } from '../../auth/supabase.service';
 import { PlatformAdminService } from '../../common/platform-admin/platform-admin.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  isStoricoShopify,
   TENANT_BACKUP_DEFERRED_FIELDS,
   TENANT_BACKUP_IMPORT_ORDER,
   type TenantBackupEntityFile,
 } from './tenant-backup.constants';
+import {
+  allineaCacheIncoerenti,
+  PERMESSO_RIPRISTINO,
+  soloAssenti,
+  verificaStoricoRipristinabile,
+  VINCOLI_DA_DIFFERIRE,
+} from './tenant-backup-storico.util';
 import type {
   TenantBackupImportResult,
   TenantBackupManifest,
@@ -27,6 +35,7 @@ import {
   backupModel,
   purgeTenantBackupData,
   validateBackupReferences,
+  validateInventoryCoherence,
   type BackupData,
   type BackupRow,
 } from './tenant-backup-entities.util';
@@ -94,6 +103,10 @@ export class TenantBackupImportService {
     const { manifest, data, attachments } = await readTenantBackupArchive(zipBuffer, tenantId);
     this.assertNoPlatformAdminEmails(data.users ?? []);
     validateBackupReferences(data, tenantId, currentUserId);
+    // ⭐ I NUMERI, non solo la struttura: un archivio con una giacenza che non
+    //    torna si rifiuta qui — prima della purga, prima degli upload, prima
+    //    della transazione. Il tenant resta esattamente com'era.
+    validateInventoryCoherence(data);
     const currentDbUser = await this.prisma.user.findFirstOrThrow({
       where: { id: currentUserId, tenantId },
     });
@@ -143,13 +156,41 @@ export class TenantBackupImportService {
       }
       await this.prisma.$transaction(
         async (tx) => {
+          // ⭐ Le due dichiarazioni che rendono possibile il ripristino con lo
+          //    storico in piedi, e vivono ENTRAMBE solo in questa transazione.
+          //
+          //    1. Le quattro FK verso l'anagrafica si differiscono al commit:
+          //       fra la purga e il reinserimento le righe di storico puntano
+          //       a prodotti e sedi che in quell'istante non ci sono.
+          //    2. Il permesso di riga, acceso PER QUESTO TENANT, senza il quale
+          //       un'identita' gia' sganciata non potrebbe essere reinserita su
+          //       un database vuoto.
+          await tx.$executeRawUnsafe(
+            `SET CONSTRAINTS ${VINCOLI_DA_DIFFERIRE.map((nome) => `"${nome}"`).join(', ')} DEFERRED`,
+          );
+          // ⚠️ `set_config(…, true)` = LOCAL: sparisce al commit e al rollback,
+          //    e una connessione riusata dal pool non se lo porta dietro.
+          await tx.$executeRawUnsafe(`SELECT set_config($1, $2, true)`, PERMESSO_RIPRISTINO, tenantId);
+
           await this.resolveGlobalReferences(tx, data, manifest);
           await assertHistoricalReferenceTenants(tx, data, tenantId);
+          // ⛔ PRIMA della purga: un'incongruenza dello storico deve fermare il
+          //    ripristino con una frase che la nomina, non con una violazione
+          //    di chiave esterna al commit.
+          const storicoPresente = await verificaStoricoRipristinabile(tx, data, tenantId);
           await purgeTenantBackupData(tx, tenantId, currentUserId);
           await this.importTenantProfile(tx, tenantId, data.tenant);
           const deferred: { key: TenantBackupEntityFile; id: unknown; values: BackupRow }[] = [];
           for (const key of TENANT_BACKUP_IMPORT_ORDER) {
-            const rows = data[key] ?? [];
+            // ⭐ Lo storico si reinserisce SOLO PER ASSENZA: su un tenant vivo
+            //    le righe ci sono gia' e non si toccano — comprese le esclusioni
+            //    decise DOPO il backup, che un reinserimento sovrascriverebbe.
+            //    Su un database vuoto non c'e' niente, e si reinserisce tutto.
+            const rows = isStoricoShopify(key)
+              ? soloAssenti(data[key] ?? [], storicoPresente.get(key))
+              : (data[key] ?? []);
+            // ⚠️ Il conteggio dichiara le righe EFFETTIVAMENTE inserite: dire
+            //    «12 identita'» dopo averne saltate 12 sarebbe un resoconto falso.
             entityCounts[key] = rows.length;
             if (key === 'users') {
               await this.importUsers(tx, tenantId, currentDbUser, rows);
@@ -178,6 +219,19 @@ export class TenantBackupImportService {
               where: { id: row.id },
               data: row.values,
             });
+          }
+          // ── 26.7 · le cache incoerenti, dopo il reinserimento ──────────────
+          //
+          // ⭐ **Ultimo passo, e non a caso**: le colonne-cache si giudicano
+          //    contro lo storico che c'è ADESSO — quello del database, più le
+          //    righe appena reinserite per assenza. Farlo prima significherebbe
+          //    giudicarle contro uno storico incompleto.
+          const allineate = await allineaCacheIncoerenti(tx, tenantId);
+          if (allineate.prodotti > 0 || allineate.varianti > 0) {
+            this.logger.log(
+              `Ripristino: cache Shopify allineate allo storico — ` +
+                `${allineate.prodotti} prodotti, ${allineate.varianti} varianti.`,
+            );
           }
         },
         { timeout: 300_000, maxWait: 30_000, isolationLevel: 'Serializable' },

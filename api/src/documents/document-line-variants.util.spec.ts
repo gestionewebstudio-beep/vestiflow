@@ -90,8 +90,8 @@ describe('loadStockLineVariantsOrThrow', () => {
   it('l’errore è un UnprocessableEntityException', async () => {
     const { tx } = txWith([]);
 
-    await expect(
-      loadStockLineVariantsOrThrow(tx, 'tenant-1', [line()]),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(loadStockLineVariantsOrThrow(tx, 'tenant-1', [line()])).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
   });
 });

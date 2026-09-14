@@ -51,12 +51,9 @@ describe('user-location-scope.util', () => {
   });
 
   it('applyReadLocationScope limita commesso senza view_all alla sede assegnata', () => {
-    expect(
-      applyReadLocationScope(
-        ['loc-nap', 'loc-rome'],
-        baseUser({ permissions: [] }),
-      ),
-    ).toEqual(['loc-rome']);
+    expect(applyReadLocationScope(['loc-nap', 'loc-rome'], baseUser({ permissions: [] }))).toEqual([
+      'loc-rome',
+    ]);
   });
 
   it('applyReadLocationScope espone tutte le sedi con view_all_locations', () => {

@@ -8,7 +8,6 @@ import {
   isVestiflowCatalogOwner,
   resolveCatalogOriginForShopifyImport,
   resolveShopifyCatalogLinkKindForImport,
-  shouldSkipShopifyCatalogImport,
 } from './catalog-origin.util';
 
 const createdAt = new Date('2026-01-10T10:00:00.000Z');
@@ -37,7 +36,6 @@ describe('catalog-origin.util', () => {
       images: [{ storagePath: null }],
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
-    expect(shouldSkipShopifyCatalogImport(snapshot)).toBe(true);
   });
 
   it('considera owner VestiFlow prodotti con upload locali collegati a Shopify', () => {
@@ -50,7 +48,6 @@ describe('catalog-origin.util', () => {
       images: [{ storagePath: 'tenant/p1/a.jpg' }],
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
-    expect(shouldSkipShopifyCatalogImport(snapshot)).toBe(true);
   });
 
   it('promuove import legacy Shopify collegati alla create', () => {
@@ -63,7 +60,6 @@ describe('catalog-origin.util', () => {
       images: [{ storagePath: null }],
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(false);
-    expect(shouldSkipShopifyCatalogImport(snapshot)).toBe(false);
     expect(resolveCatalogOriginForShopifyImport(snapshot)).toBe(CatalogOrigin.shopify);
     expect(resolveShopifyCatalogLinkKindForImport(snapshot)).toBe(ShopifyCatalogLinkKind.imported);
   });
@@ -79,5 +75,4 @@ describe('catalog-origin.util', () => {
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
   });
-
 });

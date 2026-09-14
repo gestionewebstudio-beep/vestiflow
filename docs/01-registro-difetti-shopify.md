@@ -1160,6 +1160,16 @@ Vanno **distinti gli id** — un id che non distingue è peggio di un'etichetta 
 perché nessuno strumento può accorgersene. È la controparte, nel codice, degli «otto pulsanti
 per quattro operazioni» qui sopra, e si risolve con la stessa riorganizzazione.
 
+✅ **Chiuso l’11/09/2026** (`docs/26` §8): i quattro pulsanti sono **spariti dalle barre**. I
+comandi generali stanno in una sede sola, **Impostazioni → Shopify**, in quattro blocchi —
+Catalogo · Giacenze · Clienti · Ordini — ciascuno con la **direzione scritta accanto**
+(«Shopify ⇄ VestiFlow, campo per campo», «VestiFlow → Shopify», «Shopify → VestiFlow») e con
+un’etichetta che la dice: «Importa catalogo», «Riallinea le giacenze su Shopify» e «Allinea
+giacenze su Shopify», «Importa clienti», «Importa ordini». Non esistono più quattro
+`ListAction` con lo stesso id, quindi non c’è più un id da distinguere. «Sincronizza con
+Shopify» del dettaglio prodotto (il push del singolo articolo) resta dov’è: è un’azione sul
+singolo elemento, non un comando generale.
+
 **Due etichette quasi identiche fanno l'opposto.** «Sincronizza con Shopify» (dettaglio prodotto: l'unico push dell'intera applicazione) e «Sincronizza catalogo da Shopify» (pull).
 
 **Tre pulsanti «Riprova» su tre endpoint diversi**, nessuno dei quali contatta Shopify.

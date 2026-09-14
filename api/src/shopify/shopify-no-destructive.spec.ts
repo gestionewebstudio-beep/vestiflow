@@ -55,6 +55,32 @@ describe('Shopify — nessuna cancellazione remota di catalogo esprimibile', () 
     expect(codice).not.toMatch(/\bproductVariantDelete\b/);
   });
 
+  /**
+   * ⛔ **Le immagini AGGIUNTIVE della galleria Shopify non si toccano**
+   *    (`docs/24` §9.7): VestiFlow ne gestisce una sola, la principale, e
+   *    sostituirla «non cancella le altre immagini Shopify».
+   *
+   * ⚠️ **Questa guardia non c’era**: copriva prodotti e varianti, e i media
+   *    no. Oggi la cancellazione remota non è nemmeno esprimibile, ed è il
+   *    modo più solido di rispettare quella regola — ma senza una prova
+   *    nessuno se ne accorgerebbe il giorno in cui la si aggiunge.
+   */
+  it('e nessuno dei due client sa cancellare MEDIA remoti', () => {
+    for (const percorso of [REST, GRAPHQL]) {
+      const codice = soloCodice(percorso);
+
+      expect(codice).not.toMatch(/\bproductDeleteMedia\b/);
+      expect(codice).not.toMatch(/\bfileDelete\b/);
+      expect(codice).not.toMatch(/\bproductImageDelete\b/);
+
+      // E nemmeno per la porta REST: DELETE /products/{id}/images/{id}.json
+      const finestre = [...codice.matchAll(/method:\s*'DELETE'/g)].map((match) =>
+        codice.slice(Math.max(0, (match.index ?? 0) - 300), match.index ?? 0),
+      );
+      expect(finestre.filter((finestra) => /\/images\//.test(finestra))).toEqual([]);
+    }
+  });
+
   it('nessuno dei due client espone un metodo che cancelli prodotti o varianti', () => {
     for (const percorso of [REST, GRAPHQL]) {
       const codice = soloCodice(percorso);

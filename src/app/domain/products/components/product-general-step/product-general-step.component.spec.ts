@@ -51,6 +51,17 @@ const VAT_22: VatCode = {
   sortOrder: 1,
 };
 
+/** Un Codice IVA NOTO ad aliquota zero (esente): netto e ivato coincidono per definizione. */
+const VAT_ESENTE: VatCode = {
+  ...VAT_22,
+  id: 'vat-esente',
+  code: 'N4',
+  ratePercent: 0,
+  calculationMode: 'zero_rate',
+  description: 'Esente',
+  isDefault: false,
+};
+
 const LISTINO_SLOTS: readonly ProductListinoSlot[] = [
   { position: 1, field: 'listino1Price', label: 'Ingrosso', inputId: 'product-listino-1-price' },
 ];
@@ -59,6 +70,7 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   articleCode: '',
   name: '',
   shopifyTitle: '',
+  shopifyProductType: '',
   description: '',
   brand: '',
   category: '',
@@ -380,16 +392,241 @@ describe('ProductGeneralStepComponent', () => {
 
       expect(screen.getByLabelText(/Prezzo barrato/)).toHaveValue(null);
     });
+  });
 
-    it('senza aliquota il toggle non compare: non c è nulla da scorporare', async () => {
+  /**
+   * ⭐ Deciso dal proprietario l’11/09/2026: Netti/Ivati è SEMPRE visibile e
+   *    selezionabile; un importo ivato digitato senza aliquota nota resta in
+   *    attesa nella compilazione — non diventa un netto in silenzio, non si
+   *    salva — e quando l’aliquota arriva l’ivato resta fermo.
+   *
+   * ⛔ Qui c’era «senza aliquota il toggle non compare: non c’è nulla da
+   *    scorporare», e l’identità di `toNet` faceva di «100 ivati» un «100 netti».
+   */
+  describe('Netti/Ivati senza aliquota nota', () => {
+    it('il selettore c’è comunque, e la testata dice che i prezzi salvati si leggono al netto', async () => {
       await renderStep({
         value: EMPTY_GENERAL,
         listinoSlots: LISTINO_SLOTS,
         vatCodes: [],
         tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
       });
 
-      expect(screen.queryByLabelText('Modalità dei prezzi in questa sezione')).toBeNull();
+      expect(screen.getByLabelText('Modalità dei prezzi in questa sezione')).toBeInTheDocument();
+      expect(
+        screen.getByText('Senza Codice IVA i prezzi salvati si leggono al netto.'),
+      ).toBeInTheDocument();
+    });
+
+    it('in Ivati senza Codice IVA l’importo resta in attesa: la frase accanto, il netto fermo', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        // Prezzo Shopify uguale al prezzo articolo: il follow è acceso, e segue in attesa.
+        value: { ...EMPTY_GENERAL, sellingPrice: 40, shopifyPrice: 40 },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        shopifyActive: true,
+        tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      const price = screen.getByLabelText('Prezzo di vendita');
+      await user.clear(price);
+      await user.type(price, '100');
+
+      // La frase sta accanto a OGNI importo in attesa: prezzo articolo e prezzo Shopify.
+      expect(screen.getAllByText('Scegli il Codice IVA per salvare il prezzo')).toHaveLength(2);
+      const draft = onChange.mock.calls.at(-1)?.[0];
+      expect(draft?.pendingGrossPrices).toEqual({ sellingPrice: 100, shopifyPrice: 100 });
+      // ⛔ Il netto NON è diventato 100, e non è diventato zero: il campo svuotato
+      //    vale `null` (come sempre), e il 100 sta solo in attesa.
+      expect(draft?.sellingPrice).not.toBe(100);
+      expect(draft?.sellingPrice).not.toBe(0);
+    });
+
+    it('scelta successiva dell’aliquota: 100 restano 100 ivati e nasce il netto, senza attesa', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        value: EMPTY_GENERAL,
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      const price = screen.getByLabelText('Prezzo di vendita');
+      await user.clear(price);
+      await user.type(price, '100');
+      expect(onChange.mock.calls.at(-1)?.[0].pendingGrossPrices?.sellingPrice).toBe(100);
+
+      // L’aliquota arriva (qui dal predefinito aziendale; dal Codice IVA dell’articolo è lo stesso).
+      fixture.componentRef.setInput('tenantDefaultVatCodeId', VAT_22.id);
+      await fixture.whenStable();
+
+      expect(price).toHaveValue(100);
+      const draft = onChange.mock.calls.at(-1)?.[0];
+      expect(draft?.pendingGrossPrices).toBeUndefined();
+      expect(draft?.sellingPrice).toBeCloseTo(81.967213, 6);
+      expect(screen.queryByText('Scegli il Codice IVA per salvare il prezzo')).toBeNull();
+    });
+
+    it('un Codice IVA noto ad aliquota zero NON è un codice mancante: 100 ivati sono 100 netti subito', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        value: { ...EMPTY_GENERAL, defaultVatCodeId: VAT_ESENTE.id },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22, VAT_ESENTE],
+        tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      const price = screen.getByLabelText('Prezzo di vendita');
+      await user.clear(price);
+      await user.type(price, '100');
+
+      const draft = onChange.mock.calls.at(-1)?.[0];
+      expect(draft?.sellingPrice).toBe(100);
+      expect(draft?.pendingGrossPrices).toBeUndefined();
+      expect(screen.queryByText('Scegli il Codice IVA per salvare il prezzo')).toBeNull();
+    });
+
+    it('passando ai Netti un importo in attesa diventa il netto, dichiarato dall’operatore', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        value: EMPTY_GENERAL,
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [],
+        tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      const price = screen.getByLabelText('Prezzo di vendita');
+      await user.clear(price);
+      await user.type(price, '100');
+      await user.click(screen.getByRole('button', { name: 'Netti' }));
+      await fixture.whenStable();
+
+      const draft = onChange.mock.calls.at(-1)?.[0];
+      expect(draft?.sellingPrice).toBe(100);
+      expect(draft?.pendingGrossPrices).toBeUndefined();
+      expect(price).toHaveValue(100);
+    });
+
+    it('i prezzi esistenti restano com’erano: senza aliquota si leggono al netto, e OGNI campo lo dice', async () => {
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        value: { ...EMPTY_GENERAL, sellingPrice: 81.9672, listino1Price: 10 },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [],
+        tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      expect(screen.getByLabelText('Prezzo di vendita')).toHaveValue(81.97);
+      expect(screen.getByLabelText('Ingrosso')).toHaveValue(10);
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.queryByText('Scegli il Codice IVA per salvare il prezzo')).toBeNull();
+      // ⛔ Un netto sotto «Ivati» non passa per ivato: i due campi valorizzati lo dichiarano,
+      //    il barrato vuoto no (non c’è niente da dichiarare).
+      expect(
+        screen.getAllByText('Importo netto salvato: senza Codice IVA non si converte'),
+      ).toHaveLength(2);
+    });
+
+    it('caso MISTO: un netto salvato e un ivato in attesa convivono, ognuno col suo cartellino, e alla scelta dell’IVA ognuno conserva il suo', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        value: { ...EMPTY_GENERAL, sellingPrice: 81.9672, listino1Price: 10 },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      // Si ridigita SOLO il listino, come ivato: 61.
+      const listino = screen.getByLabelText('Ingrosso');
+      await user.clear(listino);
+      await user.type(listino, '61');
+
+      // Prezzo di vendita: netto salvato, dichiarato. Listino: ivato in attesa, dichiarato.
+      expect(screen.getByLabelText('Prezzo di vendita')).toHaveValue(81.97);
+      expect(
+        screen.getAllByText('Importo netto salvato: senza Codice IVA non si converte'),
+      ).toHaveLength(1);
+      expect(screen.getAllByText('Scegli il Codice IVA per salvare il prezzo')).toHaveLength(1);
+      let draft = onChange.mock.calls.at(-1)?.[0];
+      expect(draft?.sellingPrice).toBe(81.9672);
+      // Il campo ridigitato è stato svuotato prima: il suo netto di prima non c’è più
+      // (null, non zero) e il 61 sta in attesa. Il salvataggio è bloccato finché resta così.
+      expect(draft?.listino1Price).toBeNull();
+      expect(draft?.pendingGrossPrices).toEqual({ listino1Price: 61 });
+
+      // Arriva il 22%: il netto salvato resta 81,9672 (a schermo 100,00 ivati), il 61 resta 61 (50 netti).
+      fixture.componentRef.setInput('tenantDefaultVatCodeId', VAT_22.id);
+      await fixture.whenStable();
+
+      expect(screen.getByLabelText('Prezzo di vendita')).toHaveValue(100);
+      expect(listino).toHaveValue(61);
+      draft = onChange.mock.calls.at(-1)?.[0];
+      expect(draft?.sellingPrice).toBe(81.9672);
+      expect(draft?.listino1Price).toBe(50);
+      expect(draft?.pendingGrossPrices).toBeUndefined();
+      expect(
+        screen.queryByText('Importo netto salvato: senza Codice IVA non si converte'),
+      ).toBeNull();
+      expect(screen.queryByText('Scegli il Codice IVA per salvare il prezzo')).toBeNull();
+    });
+
+    it('gli importi in attesa arrivano dal draft: sopravvivono al cambio di scheda', async () => {
+      await renderStep({
+        value: { ...EMPTY_GENERAL, pendingGrossPrices: { listino1Price: 61 } },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [],
+        tenantDefaultVatCodeId: null,
+        pricesIncludeVat: true,
+      });
+
+      expect(screen.getByLabelText('Ingrosso')).toHaveValue(61);
+      expect(screen.getByText('Scegli il Codice IVA per salvare il prezzo')).toBeInTheDocument();
+    });
+
+    it('Codici IVA NON caricati: la frase lo dice, e il Codice IVA dell’articolo non si tocca', async () => {
+      const user = userEvent.setup();
+      await renderStep({
+        value: { ...EMPTY_GENERAL, defaultVatCodeId: VAT_22.id },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [],
+        vatCodesUnavailable: true,
+        tenantDefaultVatCodeId: VAT_22.id,
+        pricesIncludeVat: true,
+      });
+
+      const price = screen.getByLabelText('Prezzo di vendita');
+      await user.clear(price);
+      await user.type(price, '100');
+
+      expect(
+        screen.getByText('Codici IVA non caricati: il prezzo ivato resta in attesa'),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Codice IVA del prodotto')).toBeDisabled();
     });
   });
   /*
@@ -448,6 +685,66 @@ describe('ProductGeneralStepComponent', () => {
       fixture.detectChanges();
 
       expect(screen.getByLabelText<HTMLInputElement>(/Nome Shopify/).value).toBe('MAGL-COT-BLU');
+    });
+
+    // ⭐ «Tipo prodotto Shopify» e «Categoria» sono DUE campi, e per questo
+    //    devono essere due caselle: fino all’11/09/2026 erano una sola, e
+    //    l’operatore non poteva sapere quale dei due stava scrivendo
+    //    (docs/24 §9.5).
+    it('senza Shopify il «Tipo prodotto Shopify» non esiste, la Categoria sì', async () => {
+      const { container } = await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: false,
+        shopifyActive: false,
+      });
+
+      expect(screen.queryByLabelText(/Tipo prodotto Shopify/)).toBeNull();
+      // ⛔ La categoria interna resta: non è un campo del canale, e senza
+      //    Shopify serve comunque a chi lavora in magazzino.
+      expect(container.querySelector('#product-category')).toBeTruthy();
+    });
+
+    it('⭐ con Shopify sono due caselle distinte, e portano valori diversi', async () => {
+      const { container } = await renderStep({
+        value: {
+          ...EMPTY_GENERAL,
+          category: 'Abbigliamento donna',
+          shopifyProductType: 'Maglieria',
+        },
+        categories: [],
+        shopifyConnected: true,
+        shopifyActive: true,
+      });
+
+      expect(screen.getByLabelText<HTMLInputElement>(/Tipo prodotto Shopify/).value).toBe(
+        'Maglieria',
+      );
+      expect(container.querySelector<HTMLInputElement>('#product-category')?.value).toBe(
+        'Abbigliamento donna',
+      );
+    });
+
+    it('⭐ e si modifica: è il lato VestiFlow→Shopify della direzione', async () => {
+      // ⚠️ Senza questa casella il campo sarebbe importato e rispedito
+      //    identico: un’eco, non una direzione.
+      const user = userEvent.setup();
+      const { fixture, container } = await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: true,
+        shopifyActive: true,
+      });
+
+      const casella = screen.getByLabelText<HTMLInputElement>(/Tipo prodotto Shopify/);
+      expect(casella.value).toBe('');
+
+      await user.type(casella, 'Maglieria');
+      fixture.detectChanges();
+
+      expect(casella.value).toBe('Maglieria');
+      // ⛔ E la categoria interna non si è mossa di un carattere.
+      expect(container.querySelector<HTMLInputElement>('#product-category')?.value).toBe('');
     });
   });
 });

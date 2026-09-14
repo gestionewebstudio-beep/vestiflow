@@ -25,6 +25,7 @@
   -->
   <table
     class="data-table"
+    [class.data-table--con-totali]="totals()"
     [attr.aria-label]="caption() || null"
     [attr.aria-rowcount]="finestraAttiva() ? righeTotaliAria() : null"
   >
@@ -119,6 +120,7 @@
                   [columnLabel]="col.label"
                   [options]="filterOptionsOf(col.id)"
                   [value]="columnFilters()[col.id] ?? null"
+                  [panelFixed]="true"
                   (changed)="onColumnFilter(col.id, $event)"
                 />
               }
@@ -155,7 +157,28 @@
               [attr.colspan]="totalColumns()"
               scope="colgroup"
             >
-              {{ titolo }}
+              @if (section.collapsible) {
+                <!--
+                  ⭐ Sezione COMPRIMIBILE (`docs/26` D3): il titolo è il pulsante,
+                  la freccia dice lo stato, `aria-expanded` lo dice a chi ascolta.
+                -->
+                <button
+                  type="button"
+                  class="data-table__section-toggle"
+                  [attr.aria-expanded]="!sezioneChiusa(section.id)"
+                  (click)="commutaSezione(section.id)"
+                >
+                  <i
+                    class="pi data-table__section-toggle-icon"
+                    [class.pi-chevron-down]="!sezioneChiusa(section.id)"
+                    [class.pi-chevron-right]="sezioneChiusa(section.id)"
+                    aria-hidden="true"
+                  ></i>
+                  {{ titolo }}
+                </button>
+              } @else {
+                {{ titolo }}
+              }
             </th>
           </tr>
         }

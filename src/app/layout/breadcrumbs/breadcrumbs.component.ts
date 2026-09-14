@@ -92,6 +92,7 @@ const LINKABLE_PATHS: ReadonlySet<string> = new Set([
   '/app/settings',
   '/app/settings/codici-iva',
   '/app/settings/pagamenti',
+  '/app/settings/shopify',
   '/app/guide',
   '/app/admin',
   '/app/admin/clients',
@@ -105,6 +106,15 @@ const REGISTRO_TYPE_LABELS: Readonly<Record<string, string>> = Object.fromEntrie
       .map((item): [string, string] => [item.queryParams?.['type'] ?? '', item.label]),
   ),
 );
+
+/** Le cinque schede di Impostazioni → Shopify (`docs/29` §3): segmento → nome. */
+const SCHEDE_SHOPIFY_LABELS: Readonly<Record<string, string>> = {
+  'prima-connessione': 'Prima connessione',
+  sincronizzazione: 'Sincronizzazione automatica',
+  operazioni: 'Operazioni manuali',
+  problemi: 'Problemi ed esiti',
+  connessione: 'Connessione e sedi',
+};
 
 /** Un segmento id (uuid o numerico lungo) non ha etichetta propria. */
 function isIdSegment(segment: string): boolean {
@@ -155,6 +165,25 @@ export class BreadcrumbsComponent {
     const [path, query = ''] = raw.split('?');
     const params = new URLSearchParams(query);
     const segments = path!.split('/').filter((s) => s && s !== 'app');
+
+    // Impostazioni → Shopify: il segmento «shopify» vale «Ordini Shopify» sotto
+    // Vendite; qui è la pagina dei comandi generali (11/09/2026). Dal 13/09/2026 la
+    // pagina ha cinque schede nella rotta, e ognuna porta il proprio nome — non il
+    // segmento grezzo («sincronizzazione»), che è quello che compariva.
+    if (
+      (segments.length === 2 || segments.length === 3) &&
+      segments[0] === 'settings' &&
+      segments[1] === 'shopify'
+    ) {
+      const scheda = segments[2] ? SCHEDE_SHOPIFY_LABELS[segments[2]] : undefined;
+      return scheda
+        ? [
+            { label: SEGMENT_LABELS['settings']!, link: '/app/settings' },
+            { label: 'Shopify', link: '/app/settings/shopify' },
+            { label: scheda },
+          ]
+        : [{ label: SEGMENT_LABELS['settings']!, link: '/app/settings' }, { label: 'Shopify' }];
+    }
 
     // Arrivo merce in modifica: la rotta `documents/:id/edit` è esclusiva del
     // form arrivo merce (gli altri tipi usano sotto-percorsi dedicati). Il

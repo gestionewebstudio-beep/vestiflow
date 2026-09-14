@@ -79,8 +79,11 @@
 
   <ng-template appCell="fulfillmentStatus" let-order>
     <span class="sales-table__cell-value">
-      <app-badge [flat]="true" [tone]="fulfillmentTone(order.fulfillmentStatus)">
-        {{ fulfillmentLabel(order.fulfillmentStatus) }}
+      <app-badge
+        [flat]="true"
+        [tone]="fulfillmentTone(order.fulfillmentStatus, !!order.cancelledAt)"
+      >
+        {{ fulfillmentLabel(order.fulfillmentStatus, !!order.cancelledAt) }}
       </app-badge>
     </span>
   </ng-template>
@@ -160,79 +163,57 @@
       <span class="list-card__anchor">{{ order.orderNumber }}</span>
     </div>
 
+    <!--
+      ⭐ Le parole della card sono TUTTE quelle della riga (`docs/26` A25):
+      origine, sede e i tre stati. Qui c’erano solo sede e stato ordine,
+      perché sotto `lg` il motore era spento e a mostrare il resto era una
+      seconda card scritta a mano, fuori dal motore.
+    -->
     <div class="list-card__words">
+      <span class="sales-table__origin">
+        <span
+          class="sales-table__origin-dot {{ originDotClass(order.source) }}"
+          aria-hidden="true"
+        ></span>
+        {{ sourceLabel(order.source) }}
+      </span>
       @if (visibile('location')) {
         <span>{{ cellText(order, 'location') }}</span>
       }
-      <span>{{ orderStateLabel(order) }}</span>
+      <app-badge [flat]="true" [tone]="orderStateTone(order)">{{
+        orderStateLabel(order)
+      }}</app-badge>
+      <app-badge [flat]="true" [tone]="financialTone(order.financialStatus)">
+        {{ financialLabel(order.financialStatus) }}
+      </app-badge>
+      <app-badge
+        [flat]="true"
+        [tone]="fulfillmentTone(order.fulfillmentStatus, !!order.cancelledAt)"
+      >
+        {{ fulfillmentLabel(order.fulfillmentStatus, !!order.cancelledAt) }}
+      </app-badge>
     </div>
 
-    @if (visibile('netTotal') || visibile('total')) {
+    @if (visibile('netTotal') || visibile('total') || visibile('updatedTotal')) {
       <div class="list-card__figures">
         @if (visibile('netTotal')) {
           <span class="tabular-nums">Imp. {{ formatMoney(order.subtotal) }}</span>
         }
+        @if (visibile('refundTotal') && order.refundTotal && order.refundTotal.amountMinor !== 0) {
+          <span class="tabular-nums">Rett. − {{ formatMoney(order.refundTotal) }}</span>
+        }
         @if (visibile('total')) {
-          <span class="list-card__total">{{ formatMoney(order.total) }}</span>
+          <span
+            class="tabular-nums"
+            [class.list-card__total]="!visibile('updatedTotal') || !order.refundTotal?.amountMinor"
+          >
+            {{ formatMoney(order.total) }}
+          </span>
+        }
+        @if (visibile('updatedTotal') && order.refundTotal?.amountMinor) {
+          <span class="list-card__total">{{ formatMoney(totaleAggiornato(order)) }}</span>
         }
       </div>
     }
   </ng-template>
 </app-data-table>
-
-<!-- Vista mobile (mockup restyling): card verticali a layout fisso, non la
-     tabella per etichetta:valore. Le colonne configurabili valgono solo su
-     desktop; qui il contenuto è sempre lo stesso, ottimizzato per il pollice. -->
-<ul class="sales-cards" aria-label="Ordini cliente">
-  @for (order of orders(); track order.id) {
-    <li>
-      <article
-        class="sales-cards__card"
-        [class.sales-cards__card--selected]="selectable() && selectedIds().has(order.id)"
-        tabindex="0"
-        [attr.aria-label]="rowLabel(order)"
-        (click)="rowClick.emit(order)"
-        (keydown.enter)="rowClick.emit(order)"
-        (keydown.space)="$event.preventDefault(); rowClick.emit(order)"
-      >
-        <div class="sales-cards__row1">
-          <span class="sales-cards__num tabular-nums">{{ order.orderNumber }}</span>
-          <span class="sales-cards__total tabular-nums">{{ formatMoney(order.total) }}</span>
-        </div>
-        <div class="sales-cards__row2">
-          <span class="sales-table__origin">
-            <span
-              class="sales-table__origin-dot {{ originDotClass(order.source) }}"
-              aria-hidden="true"
-            ></span>
-            {{ sourceLabel(order.source) }}
-          </span>
-          <span class="sales-cards__sep" aria-hidden="true">·</span>
-          <span class="tabular-nums">{{ compactDate(order.placedAt) }}</span>
-        </div>
-        <div class="sales-cards__customer">{{ order.customerName }}</div>
-        <div class="sales-cards__badges">
-          <app-badge [flat]="true" [tone]="orderStateTone(order)">{{
-            orderStateLabel(order)
-          }}</app-badge>
-          <app-badge [flat]="true" [tone]="financialTone(order.financialStatus)">
-            {{ financialLabel(order.financialStatus) }}
-          </app-badge>
-          <app-badge [flat]="true" [tone]="fulfillmentTone(order.fulfillmentStatus)">
-            {{ fulfillmentLabel(order.fulfillmentStatus) }}
-          </app-badge>
-        </div>
-        <!--
-          ⛔ **Anche la card aveva il menu «···»**, ed è andato via con quello
-          della riga (02/09/2026): erano due vesti dello stesso comando, e la
-          decisione vale per entrambe — `14` §«Il menu tre-puntini di riga
-          SPARISCE». Su schermo stretto le funzioni restano dove sono per tutti,
-          nella barra in fondo alla pagina.
-        -->
-        <div class="sales-cards__footer">
-          <span class="sales-cards__location">{{ order.locationName ?? '—' }}</span>
-        </div>
-      </article>
-    </li>
-  }
-</ul>

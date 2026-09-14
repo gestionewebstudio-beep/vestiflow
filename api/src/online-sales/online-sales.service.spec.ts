@@ -49,6 +49,7 @@ function createService(locationId: string | null, trovata = true) {
           orderNumber: 'OS-1',
           externalOrderId: 'ext-1',
           externalFulfillmentId: null,
+          order: { refundTotalMinor: 0, refunds: [], lines: [] },
           customerName: 'Cliente',
           customerAddress: null,
           subtotalMinor: 0,

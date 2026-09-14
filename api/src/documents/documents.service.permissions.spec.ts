@@ -58,8 +58,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
   /** Estrae il filtro `type` che il servizio ha messo nella clausola AND. */
   function typesInWhere(): readonly DocumentType[] | null {
     const call = prisma.document.findMany.mock.calls[0]?.[0] as
-      | { where?: { AND?: unknown } }
-      | undefined;
+      { where?: { AND?: unknown } } | undefined;
     const and = call?.where?.AND;
     const blocks = Array.isArray(and) ? and : and ? [and] : [];
     for (const block of blocks as { type?: { in?: DocumentType[] } }[]) {
@@ -79,9 +78,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
       );
 
       const types = typesInWhere();
-      expect(types).toEqual(
-        expect.arrayContaining([DocumentType.sales_ddt, DocumentType.quote]),
-      );
+      expect(types).toEqual(expect.arrayContaining([DocumentType.sales_ddt, DocumentType.quote]));
       expect(types).not.toContain(DocumentType.invoice);
       expect(types).not.toContain(DocumentType.supplier_invoice);
     });
@@ -530,12 +527,12 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       };
       const prisma = {
         tenantFeatureSettings: { findUnique: vi.fn().mockResolvedValue(null) },
-      // Intestazione congelata alla creazione (document-issuer.util).
-      tenant: {
-        findUniqueOrThrow: vi
-          .fn()
-          .mockResolvedValue({ name: 'Negozio test', companyProfile: null }),
-      },
+        // Intestazione congelata alla creazione (document-issuer.util).
+        tenant: {
+          findUniqueOrThrow: vi
+            .fn()
+            .mockResolvedValue({ name: 'Negozio test', companyProfile: null }),
+        },
         $transaction: vi.fn(async (fn: (client: unknown) => Promise<unknown>) => fn(tx)),
       };
       const settings = {
@@ -599,7 +596,6 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       );
     });
   });
-
 });
 
 /**

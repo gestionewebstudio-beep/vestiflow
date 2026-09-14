@@ -448,6 +448,37 @@ SELECT count(*) FROM _prisma_migrations
 - [ ] Restore di prova completato
 - [ ] Data test e durata annotate: **\*\***\_\_\_**\*\***
 
+### 7-bis. Rotazione della passphrase — senza perdere i backup esistenti
+
+⚠️ **Perché esiste questa sezione**: il 12/09/2026 la passphrase locale è comparsa in chiaro
+in una trascrizione di lavoro (uno strumento oscurava per nome, e «PASSPHRASE» non era nella
+lista). Un valore esposto si sostituisce; un backup cifrato con quel valore resta leggibile
+**solo** con quel valore. Le due cose vanno tenute insieme.
+
+**Che cosa dipende dalla passphrase**: ogni file `database.dump.enc` prodotto da
+`backup:full`/`backup:db` (AES-256-GCM, chiave derivata con scrypt e sale per file) e gli
+artifact del workflow `db-backup.yml` (GitHub Secret, ritenzione 30 giorni). `run-restore.mjs`
+la legge dall'ambiente al momento del ripristino: **non esiste una passphrase «di sistema»**,
+esiste quella con cui QUEL file è stato cifrato.
+
+**La procedura, nell'ordine — la esegue il titolare:**
+
+1. Generare la nuova (≥ 16 caratteri): `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+   Non incollarla in chat, ticket o terminali condivisi.
+2. Sostituirla nel **GitHub Secret** `BACKUP_ENCRYPTION_PASSPHRASE` e in `api/.env` su **ogni**
+   PC che fa backup locali (titolare e collega). Da lì ogni backup nuovo usa la nuova.
+3. Conservare la **vecchia offline** (gestore di password) etichettata «backup fino al <data>».
+   Un backup vecchio si ripristina impostando, per quella sola esecuzione, la passphrase
+   vecchia nell'ambiente di `run-restore.mjs`. Nessuna modifica al codice.
+4. Se un artifact vecchio scaricato in locale va conservato oltre i 30 giorni, ricifrarlo
+   (decifra con la vecchia, cifra con la nuova) con uno script dedicato — da scrivere solo se
+   serve.
+5. ⛔ **Mai cancellare la vecchia prima del passo 3**: i backup esistenti diventerebbero
+   irrecuperabili.
+
+⭐ Per elencare le destinazioni di un file di ambiente senza rischiare di stampare un segreto:
+`npm run env:destinazioni [file]` — mostra solo ciò che è dichiarato mostrabile.
+
 ---
 
 ## 8. Runbook — Disaster recovery (produzione)

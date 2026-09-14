@@ -142,7 +142,14 @@ async function convertLegacyUnloadMovements(
   }
 
   for (const entry of net.values()) {
-    await applyInventoryDelta(tx, tenantId, entry.variantId, entry.locationId, -entry.qty);
+    await applyInventoryDelta(
+      tx,
+      tenantId,
+      entry.variantId,
+      entry.locationId,
+      -entry.qty,
+      'locale',
+    );
   }
   await tx.stockMovement.deleteMany({
     where: { id: { in: legacy.map((movement) => movement.id) } },
@@ -196,7 +203,14 @@ export async function syncUnloadLineMovements(
       // ⛔ Chi non sa dire il costo non dice «sconosciuto»: dice zero. Un costo
       // canonico non è mai NULL (`regole-gestionale`).
       const newLineUnitCost = params.unitCostForNewLine?.(line) ?? 0;
-      await applyInventoryDelta(tx, params.tenantId, line.variantId, locationId, -line.quantity);
+      await applyInventoryDelta(
+        tx,
+        params.tenantId,
+        line.variantId,
+        locationId,
+        -line.quantity,
+        'locale',
+      );
       await tx.stockMovement.create({
         data: {
           tenantId: params.tenantId,
@@ -239,14 +253,29 @@ export async function syncUnloadLineMovements(
         movement.variantId,
         movement.locationId,
         movement.quantity,
+        'locale',
       );
-      await applyInventoryDelta(tx, params.tenantId, line.variantId, locationId, -line.quantity);
+      await applyInventoryDelta(
+        tx,
+        params.tenantId,
+        line.variantId,
+        locationId,
+        -line.quantity,
+        'locale',
+      );
       syncTargets.push({ variantId: movement.variantId, locationId: movement.locationId });
       syncTargets.push({ variantId: line.variantId, locationId });
       deltas.push({ sku, delta: movement.quantity - line.quantity });
     } else if (quantityDelta !== 0) {
       // La giacenza si muove SOLO della differenza: 3 → 2 restituisce un pezzo.
-      await applyInventoryDelta(tx, params.tenantId, line.variantId, locationId, -quantityDelta);
+      await applyInventoryDelta(
+        tx,
+        params.tenantId,
+        line.variantId,
+        locationId,
+        -quantityDelta,
+        'locale',
+      );
       syncTargets.push({ variantId: line.variantId, locationId });
       deltas.push({ sku, delta: -quantityDelta });
     }
@@ -295,6 +324,7 @@ export async function syncUnloadLineMovements(
       movement.variantId,
       movement.locationId,
       movement.quantity,
+      'locale',
     );
     await tx.stockMovement.delete({ where: { id: movement.id } });
     deltas.push({ sku: movement.sku, delta: movement.quantity });

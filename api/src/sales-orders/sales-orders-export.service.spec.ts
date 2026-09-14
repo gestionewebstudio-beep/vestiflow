@@ -82,7 +82,11 @@ describe('SalesOrdersExportService', () => {
       const prisma = prismaConSedi([]);
       const service = new SalesOrdersExportService(prisma as unknown as PrismaService);
 
-      const csv = await service.exportCsv('tenant-1', {}, testClerkUser({ assignedLocationIds: [] }));
+      const csv = await service.exportCsv(
+        'tenant-1',
+        {},
+        testClerkUser({ assignedLocationIds: [] }),
+      );
 
       expect(prisma.salesOrder.findMany).not.toHaveBeenCalled();
       expect(csv.split('\r\n').filter((r) => r.length > 0)).toHaveLength(1);

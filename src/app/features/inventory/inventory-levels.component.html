@@ -21,19 +21,8 @@
 >
   <app-inventory-tabs tabs />
 
-  <div warnings>
-    @if (shopifySyncError(); as message) {
-      <p class="inventory-levels__shopify-error" role="alert">{{ message }}</p>
-    }
-
-    @if (shopifyFeedback(); as feedback) {
-      <app-shopify-sync-feedback
-        [message]="feedback.message"
-        [tone]="feedback.tone"
-        (dismissed)="dismissShopifyFeedback()"
-      />
-    }
-  </div>
+  <!-- ⭐ «Riallinea su Shopify» e il suo esito stanno in Impostazioni → Shopify
+       (11/09/2026): lo stato di sincronizzazione per riga resta qui. -->
 
   <!--
     ⚠️ Lo scanner sta coi filtri: è un modo di CERCARE, non un'azione di pagina.
@@ -132,22 +121,7 @@
           icon="pi-inbox"
         />
       } @else {
-        <ul class="inventory-levels__reservations">
-          @for (reservation of reservations(); track reservation.id) {
-            <li class="inventory-levels__reservation">
-              <span class="inventory-levels__reservation-order">
-                {{ channelLabel(reservation.channel) }}
-                <strong class="tabular-nums">{{ reservation.orderNumber }}</strong>
-              </span>
-              <span class="inventory-levels__reservation-qty tabular-nums">
-                {{ reservation.quantity }} {{ reservation.quantity === 1 ? 'pezzo' : 'pezzi' }}
-              </span>
-              <span class="inventory-levels__reservation-location">
-                {{ reservation.locationName }}
-              </span>
-            </li>
-          }
-        </ul>
+        <app-stock-reservations-table [rows]="reservations()" />
       }
     </app-slide-panel>
   </div>

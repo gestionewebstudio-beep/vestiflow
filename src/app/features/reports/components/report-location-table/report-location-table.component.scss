@@ -1,16 +1,6 @@
-@use 'responsive-table' as rt;
-
 :host {
   display: block;
 }
 
-.report-table__wrapper {
-  inline-size: 100%;
-}
-
-@include rt.stack-table('report-table');
-
-.report-table__cell--warning {
-  color: var(--status-warning-fg);
-  font-weight: var(--font-weight-semibold);
-}
+// ⛔ Qui c’erano il mixin `stack-table` e la tinta della cella «Sotto soglia»:
+//    la tabella è sul motore comune (`docs/26` A10).

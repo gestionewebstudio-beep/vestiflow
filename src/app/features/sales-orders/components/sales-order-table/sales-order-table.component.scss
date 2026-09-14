@@ -55,122 +55,17 @@
   color: var(--color-text-subtle);
 }
 
-.sales-cards {
-  display: none;
-}
-
-@include bp.media-down('lg') {
-  .sales-cards {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .sales-cards__card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    background-color: var(--color-surface);
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: background-color var(--transition-fast) var(--ease-standard);
-  }
-
-  .sales-cards__card:hover,
-  .sales-cards__card:active {
-    background-color: var(--color-surface-hover);
-  }
-
-  .sales-cards__card--selected {
-    background-color: var(--color-row-active, var(--color-surface-hover));
-    border-color: var(--color-primary);
-  }
-
-  .sales-cards__card:focus-visible {
-    outline: var(--focus-ring-width) solid var(--color-focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .sales-cards__row1 {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-  }
-
-  .sales-cards__num {
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text);
-  }
-
-  .sales-cards__total {
-    font-size: var(--text-md);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text);
-  }
-
-  .sales-cards__row2 {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  .sales-cards__sep {
-    color: var(--color-text-subtle);
-  }
-
-  .sales-cards__customer {
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text);
-  }
-
-  .sales-cards__badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-2);
-  }
-
-  .sales-cards__footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-  }
-
-  .sales-cards__location {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
 /*
-  ⛔ Il motore è SPENTO sotto `lg`, dove questa schermata ha una vista mobile
-  PROPRIA (`.sales-cards`, a layout fisso, scritta per il pollice).
+  ⭐ Sotto `lg` la card è quella del MOTORE (`appRowCard`), a ogni larghezza
+  (`docs/26` A25, 11/09/2026).
 
-  Senza questa riga si vedrebbero DUE viste mobili: il ripiego a card del motore
-  e le card di qui. È il difetto che la specifica righe documento chiama «la
-  stessa riga non esiste due volte», ed è invisibile finché non si stringe la
-  finestra.
+  ⛔ Qui c’erano una `<ul class="sales-cards">` scritta a mano, con i propri
+  stili, e `app-data-table { display: none }` sotto `lg` per non vederla due
+  volte. L’elenco sul telefono stava quindi FUORI dal motore: senza il
+  pulsante «Seleziona», senza pannello filtri, senza riga totali ancorata e
+  senza finestra di rendering — e il template `appRowCard` scritto il 30/08
+  non si vedeva mai.
 */
-@include bp.media-down('lg') {
-  app-data-table {
-    display: none;
-  }
-}
-
 /*
   ⚠️ **Il ponte dell'altezza.**
 

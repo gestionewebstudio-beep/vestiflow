@@ -1670,3 +1670,267 @@ significa «solo quelle sedi», ed è sempre una scelta dell'operatore.
 a mano fuori dai builder: non porta né il filtro Sede né quello di **periodo**. Il numero si
 riferisce quindi a tutto lo storico del tenant, non all'intervallo mostrato. Va deciso a parte a
 quale dei due debba riferirsi; il test lo esclude **nominandolo**, invece di ignorarlo.
+
+---
+
+## §22 · La data del corrispettivo online è quella del PAGAMENTO — proposta del 12/09/2026, verificata sul codice e raccordata con la specifica Pagamenti, da validare col commercialista
+
+_Il proprietario, il 12/09/2026: «Caso normale: ordine interamente pagato prima della spedizione
+→ il corrispettivo si registra alla data del pagamento, senza aspettare l'evasione (art. 6 DPR
+633/1972). Riepilogo giornaliero automatico per aliquota, con riferimenti agli ordini e gestione
+delle fatture senza duplicazioni. Eccezioni visibili — acconti, spedizioni prima del pagamento,
+rimborsi, dati mancanti — senza date inventate. Le spedizioni parziali di un ordine già pagato
+restano un problema di magazzino: non spezzano né rinviano quel corrispettivo.» E poi: «Non
+riapriamo regole già decise. Circoscrivi il lavoro ai dati di pagamento e alla corretta inclusione
+temporale nel Registro, raccordandoli con le funzioni esistenti. Non costruire un nuovo sistema di
+corrispettivi e non modificare magazzino o spedizioni.»_
+
+⛔ **Non è implementato, e qui non si implementa niente**: è la verifica chiesta, e la proposta
+circoscritta. La casistica fiscale la valida il commercialista; la decisione di costruire è del
+proprietario. ⭐ **Magazzino e spedizioni non cambiano**: impegno all'ordine, scarico alla
+spedizione anche parziale e per sede, Vendita online al completamento (`DA-FARE` §30.8). Cambia
+**solo da dove il Registro prende data e importo** della vendita online.
+
+### 22.1 · Regole già decise, che si riusano o si completano — non si riaprono
+
+| Regola                                                                                                         | Dov'è decisa                                        | Nel codice oggi — misurato il 12/09                                                                                                                                                                                                                                                             | Che cosa manca                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rimborsi e rettifiche negative** alla loro data, per aliquota, sottratte nei totali                          | `08` §4, §14 qui                                    | **c'è**: `SalesOrderRefund` + `SalesOrderRefundTaxLine` (`taxes_included` gestito), righe con segno negativo (`corrispettivi.service.ts`), sottratte da `accumulaCorrispettivi`                                                                                                                 | niente: **si riusa**                                                                                                                          |
+| **Fatturati esclusi** dai totali dove duplicherebbero — derivato da `SalesOrder.documentId`, mai da una spunta | `08` «L'esclusione dei fatturati si deriva», §7 qui | **manca in due punti**: (a) il filtro del Registro non guarda `documentId` (`buildCorrispettiviOrderWhere`); (b) un ordine **non manuale non si aggancia** a un documento (`documents.service.ts`, `source !== manual` → 422) mentre `07` §5-bis prevede la fattura «da/include Ordine Shopify» | **completamento della regola**, non decisione nuova: (a) è una condizione nel Registro; (b) è il percorso fattura ← ordine di canale, di `07` |
+| **Annullamenti**: si contano, non si sottraggono, perché la vendita annullata non era entrata                  | `08` §4; commento in `corrispettivi-query.util.ts`  | `kind: { not: cancellation }` sulle rettifiche; l'importo del rimborso viene da `refund_line_items[].subtotal` (il **valore** delle righe), non dal denaro restituito: un annullamento di ordine **mai pagato** porta comunque un importo                                                       | **la condizione va adeguata** se la vendita entra al pagamento (22.3)                                                                         |
+| **Nessun «periodo chiuso»**: i controlli sono avvisi, mai blocchi; l'export si estrae su richiesta             | `08` «Conseguenza misurata»                         | il riepilogo **dichiara** già ciò che non conta («evasi senza data», annullamenti)                                                                                                                                                                                                              | le eccezioni della proposta si **dichiarano** nello stesso posto — «periodo non completo» è una dichiarazione, non una chiusura               |
+| **Riferimenti agli ordini e giornata**                                                                         | §17 qui                                             | `orderNumber` per riga, raggruppamento per giorno economico                                                                                                                                                                                                                                     | niente                                                                                                                                        |
+
+### 22.2 · Raccordo con la specifica Pagamenti e Tesoreria v1.1 (21/08/2026) — tre cose distinte
+
+`VestiFlow_Specifica_Pagamenti_Tesoreria_v1_1_21-08-2026_CLAUDE.md`: **approvata, non ancora
+implementata** (i rami `feature/pagamenti-*` non hanno commit oltre `origin/main`; nessun
+modello Scadenza/Movimento/Allocazione nello schema).
+
+| Che cosa                                                                                                                                                                                    | Chi la governa                                                                                                                                                                                                                                 | Serve al Registro?                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **1 · La transazione del canale** — quando e quanto il cliente ha pagato su Shopify, con quale metodo                                                                                       | la specifica la **prescrive come fotografia**: §7.7 «il metodo importato è la fotografia della transazione»; «gli importi originari delle vendite Shopify non vengono ricalcolati localmente»; «non inventare un incasso bancario al checkout» | **sì** — è tutto ciò che serve                                                       |
+| **2 · Pagamenti e Tesoreria** — Tipo pagamento condiviso sugli ordini Shopify, riversamenti reali del gateway/corriere (un movimento, N allocazioni), Intermediario COD, Registro Pagamenti | §0.1, §1, §7.7, §9: **blocco futuro**, un solo dominio, nessun motore parallelo dentro Shopify                                                                                                                                                 | **no**: il Registro è economico e «il pagamento non deve raddoppiare i totali» (§16) |
+| **3 · Fatturati esclusi e rettifiche negative**                                                                                                                                             | `08`, `07` §5-bis, §7 qui                                                                                                                                                                                                                      | già decise: riuso/completamento (22.1)                                               |
+
+⭐ **La fotografia della transazione NON è un secondo motore Pagamenti**: è il dato del canale sul
+proprio ordine — come `financialStatus`, `taxMinor`, i rimborsi con la loro `processed_at` —
+e la specifica lo chiede proprio in questa forma. Il giorno in cui Pagamenti arriverà, il
+riversamento sarà un movimento reale **allocato** all'ordine, e leggerà la fotografia per il
+Tipo pagamento; non la sostituirà. Quindi **non è una soluzione provvisoria**, e **non dipende**
+dalla Tesoreria. ⚠️ Il censimento di §12 della specifica chiede «dati pagamento Shopify /
+gateway / COD»: la tabella di 22.4 è quella voce, e resta valida per quel censimento.
+
+⛔ **La specifica NON risolve la data del Registro.** Nomina il Registro solo per dire che è
+economico e che non va raddoppiato (§7.1, §16, App. E): non dice a quale data una vendita
+online vi entra. Il punto aperto resta aperto, e lo chiude il commercialista.
+
+### 22.3 · Gli annullamenti, verificati caso per caso
+
+| Caso                                                                                        | Oggi                                                                               | Con l'ingresso al pagamento                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **pagato → entra → annullato e rimborsato prima della spedizione**                          | la vendita non era entrata (niente evasione); il rimborso `cancellation` è escluso | **positivo una volta** (la riga vendita, alla data del pagamento) **e negativo una volta** (il rimborso `cancellation`, alla sua `processed_at`, unico per `externalRefundId`); i webhook ripetuti non raddoppiano: ordine per `shopifyOrderId`, rimborso per `externalRefundId` |
+| **mai pagato né spedito → annullato**                                                       | fuori, ma il rimborso porta il valore delle righe (contato, non sottratto)         | resta fuori **da sé** se la condizione diventa «**la rettifica entra se e solo se la vendita che rettifica è entrata**» — nessun importo fittizio, senza casi speciali                                                                                                           |
+| pagato → spedito → reso                                                                     | vendita all'evasione, reso negativo alla sua data                                  | vendita al pagamento (prima), reso negativo alla sua data: invariato nella sostanza                                                                                                                                                                                              |
+| mai pagato → spedito (contrassegno) → reso, Shopify porta `paid` a totale zero (`01` §2.13) | vendita all'evasione, reso negativo                                                | **eccezione** «spedito prima del pagamento»: entra all'evasione (la regola ordinaria), il reso la rettifica; il `paid` a zero non è un pagamento — al commercialista                                                                                                             |
+
+⭐ La condizione «la rettifica entra se la sua vendita è entrata» **sostituisce** `not: cancellation`
+e copre tutti e quattro i casi con una regola sola: è il minimo, e non riapre niente.
+
+### 22.4 · Che cosa arriva da Shopify, e che cosa VestiFlow conserva — misurato il 12/09/2026
+
+| Dato di pagamento                                                           | Nel payload dell'ordine (`orders/create` · `orders/updated`)                                                                                                                                                                                                                         | VestiFlow oggi                                                                                                                                                    |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `financial_status`                                                          | sì: `pending · authorized · partially_paid · paid · partially_refunded · refunded · voided`                                                                                                                                                                                          | conservato in `SalesOrder.financialStatus` — ⚠️ **`partially_paid` non è nell'enum e diventa `pending`** (`mapFinancialStatus`): un acconto è invisibile          |
+| **data del pagamento**                                                      | **no**: l'ordine porta `created_at`, `processed_at` (data «dell'ordine», usata dai report Shopify), `updated_at`; l'incasso sta nelle **transazioni** (`GET orders/{id}/transactions.json`: `kind` sale/capture/authorization/refund, `status`, `processed_at`, `amount`, `gateway`) | **nessuna data di incasso persistita**; `placedAt` = `created_at`; le transazioni **non si leggono** (misurato il 14/08 in `01` «Cosa resta aperto», ancora vero) |
+| importo pagato                                                              | `total_price` (dovuto); il **pagato** solo dalle transazioni                                                                                                                                                                                                                         | `totalMinor` = dovuto                                                                                                                                             |
+| metodo (`payment_gateway_names`, `gateway`, `payment_terms`)                | sì                                                                                                                                                                                                                                                                                   | **non letti** (zero occorrenze): contrassegno e bonifico indistinguibili da un `pending` qualsiasi                                                                |
+| IVA per riga (`line_items[].tax_lines[]`: `rate`, `price`)                  | sì                                                                                                                                                                                                                                                                                   | `SalesOrderLine.lineVatTotalMinor` + `vatSnapshot` (aliquota) — c'è                                                                                               |
+| `taxes_included` (prezzi ivati)                                             | sì                                                                                                                                                                                                                                                                                   | letto **solo** per i rimborsi; sulle vendite `SalesOrder.pricesIncludeVat` resta al default `false`                                                               |
+| IVA della spedizione (`shipping_lines[].tax_lines`)                         | sì                                                                                                                                                                                                                                                                                   | **non letta**: `SalesOrder.taxMinor` = `total_tax`, che la **include** (§12): per aliquota dalle righe non torna al centesimo                                     |
+| rimborsi (`refunds[]`: righe, `processed_at`, `restock_type`, per aliquota) | sì                                                                                                                                                                                                                                                                                   | conservati, alla loro data, con righe IVA — **riuso** (22.1)                                                                                                      |
+| webhook `orders/paid`                                                       | esiste (protetto, come `orders/*`)                                                                                                                                                                                                                                                   | non registrato — e **non serve**: il passaggio a `paid` arriva già con `orders/updated`                                                                           |
+
+**Sul condiviso di prova** (sola lettura, 12/09): 13 ordini online — `paid`/`fulfilled` 4 (uno
+senza data di evasione), **`paid`/`unfulfilled` 3** (pagati, non spediti: oggi fuori dal
+Registro), `pending`/`unfulfilled` 2, `refunded` 3, `partially_refunded` 1; 6 rimborsi con 7 righe
+IVA per aliquota; **nessun ordine online agganciato a un documento** (il cancello lo vieta). Il
+caso «normale» della proposta esiste già nei dati, e oggi non si vede.
+
+### 22.5 · Il minimo intervento — proposta, non eseguita; con i suoi limiti dichiarati
+
+_Il proprietario, 12/09 sera: «pagamento parziale non significa inclusione dell'intero ordine e
+le date dei diversi pagamenti non devono andare perse; l'inclusione della vendita non basta a
+stabilire l'importo della rettifica: riusa il negativo esistente, verificando i casi già
+individuati; separa "filtro di esclusione fatturati" da "possibilità effettiva di collegare la
+fattura all'ordine Shopify"». Le tre semplificazioni che stavano qui sono corrette sotto._
+
+**A · Acquisire i pagamenti (raccordo Shopify; niente Tesoreria)**
+
+| #   | Intervento                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Misura                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| A1  | `partially_paid` nell'enum e in `mapFinancialStatus`                                                                                                                                                                                                                                                                                                                                                                                                       | migration di enum, una riga                  |
+| A2  | **La fotografia dei pagamenti del canale, UNA RIGA PER TRANSAZIONE** — non un solo `channelPaidAt`: `SalesOrderChannelPayment` (`externalTransactionId` unico, `kind` sale/capture, `status`, `processedAt`, `amountMinor`, `gateway`), la stessa forma di `SalesOrderRefund`; scritta quando `financial_status` diventa `paid`/`partially_paid`, da `GET orders/{id}/transactions.json` (una chiamata per ordine), anche nel recupero; idempotente per id | migration (tabella), sync + una `GET`, prove |
+| A3  | **Il denaro dei rimborsi** (`refunds[].transactions[]`, già nel payload: `kind: refund`, `status`, `amount`, `processed_at`; oggi non letto) — ⏸ **non approvato e non necessario a B2**: servirebbe solo a una dichiarazione; si decide con la regola del Registro, non prima                                                                                                                                                                             | eventuale: 2 colonne, `shopify-refund.util`  |
+| —   | ⚠️ Prerequisito già noto: «Protected customer data» sull'app, senza cui né i webhook `orders/*` né `GET transactions` rispondono (`docs/28`)                                                                                                                                                                                                                                                                                                               | del titolare                                 |
+
+**B · L'ingresso nel Registro**
+
+| #   | Intervento                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Misura                                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| B1  | **Ingresso al pagamento SOLO per l'ordine `paid` con UNA transazione riuscita che copre l'intero totale**, alla data di quella transazione, se precede l'evasione. ⛔ Un acconto (`partially_paid`, 20 € su 100) **non fa entrare 100 €**; un totale raggiunto con **più** pagamenti non entra per pagamento: entrambi restano **fuori dall'automatismo iniziale e dichiarati** (B3), finché il commercialista non fissa la regola (un rigo per acconto alla sua data?). Le date restano tutte in A2                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `buildCorrispettiviOrderWhere`, `occurredAt`, prove |
+| B2  | **La rettifica: si riusa il negativo esistente** (valore delle righe + rettifiche fuori riga, per aliquota, alla `processed_at` — regola del 14/08, **invariata**) con **una sola condizione** al posto di `not: cancellation`: **la vendita che rettifica è entrata**. Basta da sola per i quattro casi di 22.3. ⛔ **La condizione «solo con rimborso monetario riuscito e pari al valore» è RITIRATA come condizione**: proposta non approvata, e **sbagliata** sul caso già previsto di `#1006` — spedito non incassato, entrato all'evasione, poi reso: Shopify restituisce **zero denaro** e il reso **deve** rettificare a valore (provato sul negozio il 14/08, `01` §2.13, `08` §4). Non va confuso con «mai pagato né spedito», che resta fuori perché la sua vendita non è entrata. Il denaro dei rimborsi (A3) può al più diventare una **dichiarazione** («denaro restituito diverso dal valore»), non approvata; le rettifiche esistenti non si toccano | `buildCorrispettiviRefundWhere`, prove              |
+| B3  | **Dichiarazioni** nel riepilogo, accanto a «evasi senza data» (avvisi, nessun blocco): acconti e pagamenti multipli (B1), spediti non pagati (`fulfilled` + `pending`/`authorized`), pagati senza transazione letta, rettifiche di B2 non entrate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | riepilogo + interfaccia, prove                      |
+| B4  | **Esclusione dei fatturati come RIGA NEGATIVA DERIVATA** alla data della fattura (§22.8): dal legame `documentId` → fattura valida — tipo `invoice` o `invoice_accompanying` (⛔ non `SALES_INVOICE_DOCUMENT_TYPES`, che contiene la Nota di credito), stato **non** `draft` né `cancelled`; stessi importi della vendita col segno meno; DDT, proforma e note collegati **non** producono niente. ⛔ Qui c'era «filtro sui totali»: lasciava la riga positiva nell'export e cambiava i totali passati — sostituito il 12/09 sera. Completamento di `08`                                                                                                                                                                                                                                                                                                                                                                                                              | riga derivata nel servizio, prove                   |
+
+⛔ **B4 non chiude «ordini Shopify fatturati».** Finché il percorso **fattura ← ordine di canale**
+non esiste (B5, sotto), il filtro non ha niente da escludere: sul condiviso nessun ordine online
+è agganciato. Il percorso resta **incompleto e dichiarato tale** anche a intervento fatto.
+
+**C · Fuori da questo raccordo, e dichiarato**
+
+| #   | Che cosa                                                                                                                                                                                         | Dove appartiene                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| B5  | il percorso **fattura ← ordine di canale** (il cancello `source !== manual` in `documents.service.ts`, contro `07` §5-bis) — **necessario** per dichiarare completi gli ordini Shopify fatturati | famiglia Fattura (`07`), mandato a parte                              |
+| C1  | **per aliquota** sulle vendite online: persistere `taxes_included` e l'IVA di spedizione, righe IVA come sui rimborsi                                                                            | Registro, dopo la validazione: non serve alla data                    |
+| C2  | Tipo pagamento condiviso sugli ordini Shopify, riversamenti, Intermediario COD, Registro Pagamenti                                                                                               | blocco Pagamenti v1.1 — legge la fotografia di A2, non la sostituisce |
+
+### 22.6 · Che cosa copre il primo intervento, e che cosa viene soltanto segnalato
+
+| Caso                                                                                 | Primo intervento                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ordine `paid` con un pagamento intero, poi spedito                                   | **entra al pagamento** (B1); le uscite fisiche restano al magazzino                                                                                                                                           |
+| ordine `paid` con un pagamento intero, annullato e rimborsato prima della spedizione | positivo al pagamento **e** negativo alla `processed_at` del rimborso, una volta ciascuno (B2 a+b)                                                                                                            |
+| ordine spedito prima del pagamento (contrassegno, bonifico, `authorized`)            | **come oggi**: entra all'evasione (regola approvata), **segnalato** «spedito non pagato»                                                                                                                      |
+| ordine spedito e reso, denaro restituito pari al valore                              | **come oggi**: negativo alla sua data                                                                                                                                                                         |
+| ordine mai pagato né spedito, annullato                                              | fuori per la sola condizione di B2: la vendita non è entrata, il rimborso non rettifica niente; nessun importo fittizio                                                                                       |
+| acconto (`partially_paid`), o totale raggiunto con più pagamenti                     | ⛔ **non entra per pagamento — segnalato**; se spedito entra all'evasione **per l'intero importo**, come oggi: è un **limite dichiarato, non un comportamento corretto**; date conservate in A2               |
+| rimborso fallito/in sospeso, o importo restituito diverso dal valore                 | entra **a valore come oggi** (la rettifica segue la vendita entrata); la differenza di denaro è al più una dichiarazione futura, non approvata (A3)                                                           |
+| reso di ordine mai incassato che Shopify porta a `paid` a totale zero (`01` §2.13)   | come oggi: vendita all'evasione, reso a rettificare **a valore, senza denaro** (`#1006`, provato sul negozio il 14/08); il `paid` a zero non produce un ingresso per pagamento — nessuna transazione riuscita |
+| ordine Shopify fatturato                                                             | ⛔ **non risolto**: la riga negativa derivata (B4, §22.8) non ha niente da derivare senza B5 — dichiarato incompleto                                                                                          |
+| per aliquota sulle vendite online                                                    | come oggi: solo il Corrispettivo manuale lo espone (C1 dopo)                                                                                                                                                  |
+
+⚠️ **`refunds[].transactions: []` è un limite ATTUALE del simulatore**, non una ragione per
+rimandare le prove al negozio vero: i casi monetari — transazione riuscita, fallita, in sospeso,
+importo diverso dal valore, e le transazioni di pagamento di A2 — **si aggiungono a
+`NegozioSimulato` e si provano nell'isolato**. Il negozio vero conferma poi **payload e
+comportamento reale** (`docs/28` §3), non è l'unico modo di provare la logica. ⭐ Rimborsi e
+annullamenti **sono già stati provati sul negozio il 14/08** (`#1004`–`#1008`: reso con rientro,
+rimborso senza rientro, annullamento, reso di ordine non incassato — `08` «Provato sul negozio il
+14/08», `01` §2.13–2.15): quello che `docs/28` deve ancora provare è ciò che il ramo ha aggiunto
+dopo (spedizioni parziali e per sede, collegamento chiuso, storico) e la consegna dei webhook.
+
+### 22.7 · Regole approvate e regola da confermare — tenute distinte
+
+| Già approvata (si riusa o si completa)                                                                    | Dove                |
+| --------------------------------------------------------------------------------------------------------- | ------------------- |
+| il negativo nasce dal rimborso, alla sua data, per aliquota, e si sottrae                                 | `08` §4             |
+| gli annullamenti di vendite mai entrate non rettificano niente                                            | `08` §4             |
+| i fatturati si escludono dalla relazione reale con la fattura, mai da una spunta                          | `08`                |
+| la fattura può nascere «da/include Ordine Shopify», senza scaricare                                       | `07` §5-bis         |
+| nessun «periodo chiuso»: avvisi, mai blocchi; export su richiesta                                         | `08`                |
+| per il flusso supportato oggi il Registro usa la data di evasione                                         | `08`, `10`          |
+| la fotografia della transazione del canale, nessun motore Pagamenti parallelo, niente incasso al checkout | Pagamenti v1.1 §7.7 |
+
+| **Da confermare col commercialista** (nessuna delle righe sopra la decide)           |
+| ------------------------------------------------------------------------------------ |
+| l'ordine pagato per intero prima della spedizione entra alla data del pagamento (B1) |
+| gli acconti: un rigo per acconto alla sua data per l'importo pagato? e il saldo?     |
+| «spedito prima del pagamento» resta all'evasione; con più consegne, quale            |
+| il `paid` a totale zero dopo un reso non incassato non è un pagamento                |
+
+**Che cosa resta aperto, e la forma della soluzione — risposta del 12/09 sera, non una
+progettazione.** Non sono solo gli acconti: sono tre cose di natura diversa.
+
+| Aperto                                           | Natura                     | La soluzione, quando la regola sarà fissata                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **la regola fiscale** (tabella sopra)            | decisione, non codice      | la conferma del commercialista; gli acconti ne sono il sotto-caso più difficile                                                                                                                                                                                                                                                                                                                                                  |
+| **acconti e pagamenti multipli**                 | regola + estensione di B1  | se l'art. 6 vale per ogni pagamento: **una riga di Registro per pagamento** — le righe di A2 esistono già una per transazione — alla sua data per il suo importo, IVA ripartita **pro quota per aliquota** dai totali per aliquota dell'ordine; il saldo alla sua data; alla spedizione entra solo il residuo non ancora pagato. È la forma che il Registro usa già per le rettifiche (una riga per evento): nessun motore nuovo |
+| **precisione per aliquota** delle vendite online | dato mancante, non calcolo | C1: conservare i **totali per aliquota dell'ordine come li dà Shopify** (`order.tax_lines[]`, oggi non letti: comprendono la spedizione) più `taxes_included`, nella forma di `SalesOrderRefundTaxLine`; il Registro li **legge** («somma, non ricalcola»). Chiude anche l'imposta di spedizione che oggi non si ripartisce                                                                                                      |
+| **ordini Shopify fatturati**                     | percorso mancante          | B4 (riga negativa derivata alla data della fattura, §22.8) + B5 (fattura ← ordine di canale, `07` §5-bis)                                                                                                                                                                                                                                                                                                                        |
+
+L'export per la contabilità si dichiara pronto **dopo** questi quattro, non prima.
+
+### 22.8 · La regola di legge invece del parere — 12/09/2026, sera
+
+_Il proprietario: «chiedere al commercialista non mi fido: ogni commercialista potrebbe darmi
+risposte diverse. Vorrei seguire la regola fiscale italiana se possibile, o una soluzione senza
+complicare troppo.»_
+
+**La regola è scritta, e non è un parere** — art. 6 DPR 633/1972 (testo su normattiva.it):
+
+| Comma | Che cosa dice                                                                                                                                                                                                                                      |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | le cessioni di beni **mobili** si considerano effettuate nel momento della **consegna o spedizione**                                                                                                                                               |
+| 4     | se **prima** di quel momento «sia emessa fattura, o sia **pagato in tutto o in parte** il corrispettivo, l'operazione si considera effettuata, **limitatamente all'importo fatturato o pagato**, alla data della fattura o a quella del pagamento» |
+
+⭐ **Quindi la regola semplice E quella di legge coincidono: una riga di Registro per EVENTO** —
+ogni pagamento riuscito alla sua data per il suo importo; la spedizione per il residuo non
+ancora pagato. Per l'ordine tipico (un pagamento intero al checkout) è **una riga alla data del
+pagamento**; l'acconto non è un caso speciale, è la stessa riga con un importo parziale; un
+ordine spedito senza pagamento entra alla spedizione, com'è oggi. È la forma che il Registro
+usa già per le rettifiche, e i dati sono quelli di A2 (una riga per transazione).
+
+⚠️ **Ciò che la legge non dice, e che qui si decide dichiarandolo**: quale istante sia «il
+pagamento» con carta o PayPal — la **transazione riuscita del cliente** (la data che Shopify dà),
+non l'accredito al negoziante; `authorized` non è un pagamento; il `paid` a totale zero dopo
+un reso non lo è. Sull'acconto di un ordine con **più aliquote** l'imposta si ripartisce **pro
+quota** fra le aliquote dell'ordine: convenzione dichiarata, non norma.
+
+⚠️ Le vendite online a privati sono vendite per corrispondenza (art. 22 DPR 633/1972): niente
+obbligo di fattura se non richiesta, esonero dalla certificazione (DPR 696/1996 art. 2 lett.
+oo), **annotazione nel registro dei corrispettivi** (art. 24). È ciò che il Registro deve
+produrre: righe per giorno, per evento, per aliquota. **Riferimenti da rileggere nel testo
+vigente prima di dichiararli in un export**, non da presumere.
+
+**Le tre precisazioni dello stesso giorno**
+
+| Punto         | Che cosa è già deciso e implementato                                                                                                                                                                                                                                                                                                                                                                                                       | Quindi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pagamenti** | il proprietario li rimanda: A1–A2 si completano **nel blocco Pagamenti** (v1.1, §7.7: la fotografia della transazione è già prevista lì)                                                                                                                                                                                                                                                                                                   | fino ad allora il Registro resta alla **data di evasione** (regola ordinaria, comma 1) per tutti gli ordini: **deviazione nota** dal comma 4 per gli ordini pagati prima della spedizione, dichiarata dal 14/08 (`08`); l'export non si dichiara pronto. B1–B3 seguono A2                                                                                                                                                                                                                                                                                                                                        |
+| **IVA**       | ⛔ **non** «dall'anagrafica dell'articolo» (`Product.defaultVatCodeId` serve alle righe da catalogo): dal 14/08 (difetto `01` §3.12) la riga online porta **l'IVA dichiarata dal canale** (`tax_lines`: aliquota e importo), abbinata **per aliquota** a un Codice IVA dell'anagrafica fiscale (`findVatCodeForDerivedRate`), snapshot «non abbinata» se manca; ripartizione proporzionale solo come ripiego per righe senza dichiarazione | è giusto così: ricalcolare col codice dell'articolo è vietato (`07` §15, Pagamenti §7.7) e trasformerebbe un'IVA estera in un 22%. La precisione per aliquota che manca è **solo l'IVA di spedizione** (C1, un campo) — le righe sanno già la propria. ⚠️ Nessun confronto oggi fra aliquota del canale e Codice IVA dell'articolo: controllo possibile, non previsto                                                                                                                                                                                                                                            |
+| **Fattura**   | `07` §5-bis e §15, `08`: l'ordine di canale **si converte** in fattura, che **conserva i valori del canale**; l'esclusione dal Registro si **deriva** dal legame (`documentId`) — **deciso 14/08, non iniziato** (B5: oggi il collegamento è rifiutato)                                                                                                                                                                                    | ⚠️ due precisioni: (1) il corrispettivo **non si annulla**: la vendita resta visibile **una volta**, esclusa dai totali dove duplicherebbe (§2 «visibilità ≠ partecipazione»); (2) **il DDT non esclude niente**: è documento di trasporto, non fiscale ai fini IVA — esclude solo la fattura valida (B4). ⏸ **Da definire**: la fattura emessa in un periodo **successivo** a quello del corrispettivo (differita da DDT, o chiesta dopo): si sottrae nel periodo della vendita o si annota a parte «per corrispettivo già registrato». È l'unico punto normativo aperto della fattura, ed è di `08`, non nuovo |
+
+**La forma giusta dell'esclusione: una riga NEGATIVA derivata, alla data della fattura — 12/09 sera**
+
+_Il proprietario: «il corrispettivo fatturato escluso solo dai totali potrebbe essere un problema
+per chi usa l'export per dare la stampa al commercialista: uscirebbe il totale lì dentro.
+Fiscalmente va aggiunta una riga negativa?»_ — **Sì**, ed è la regola che il Registro ha già:
+«il passato non si riscrive, si rettifica» (`08` §4). Un'esclusione muta dai totali lascia la
+riga positiva nell'export con il suo importo e cambia i totali di un periodo passato senza che
+nessuna riga lo dica: è lo stesso difetto della riscrittura che `08` ha scartato per i resi.
+
+```text
+14/08   vendita   #1004        +50,00     ← resta com'è, nel suo giorno
+03/09   fatturata FT 12/2026   −50,00     ← derivata dal legame, alla data della FATTURA
+```
+
+| Regola                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| la riga negativa è **derivata** dal legame (`SalesOrder.documentId` → fattura valida: `invoice`/`invoice_accompanying`, non `draft` né `cancelled`), come le rettifiche sono derivate da `SalesOrderRefund`: nessun record nuovo |
+| porta la **data della fattura**, il suo numero, gli **stessi importi** della vendita col segno meno (imponibile, IVA, totale, e per aliquota le stesse righe); una fattura che copre N ordini produce N righe, una per vendita   |
+| la vendita resta **visibile una volta** nel suo giorno; i totali del periodo sono **netti**; «di cui fatturati» = somma delle righe negative                                                                                     |
+| chiude anche la **fattura in periodo successivo**: la vendita resta nel mese in cui è stata annotata, lo storno cade nel mese della fattura — nessun totale passato cambia                                                       |
+| CSV, PDF, Excel e Stampa **la portano come ogni altra riga**: l'export non ha bisogno di sapere niente di «escluso»                                                                                                              |
+
+⚠️ **Base normativa riferita, da rileggere nel testo vigente**: la fattura va nel registro delle
+fatture emesse (art. 23 DPR 633/72); l'art. 24 ammette di computare nei corrispettivi giornalieri
+anche le operazioni fatturate purché **indicate distintamente**, e in nessun caso l'imposta si
+liquida due volte. Una riga di storno collegata alla fattura è la forma con cui la pratica
+contabile realizza esattamente questo, e conserva la tracciabilità che la Risoluzione 274/E/2009
+chiede per le rettifiche. ⛔ Non è una funzione nuova: **B4 cambia forma** — da «filtro sui
+totali» a «riga negativa derivata» — e resta a valle di **B5** (senza collegamento, niente da
+derivare).
+
+⛔ **Nessuna modifica al codice** finché la seconda tabella non è validata e il proprietario non
+ha dato il via. Nessun nuovo modulo, nessun nuovo motore, nessuna schermata nuova, nessuna
+modifica a magazzino e spedizioni. **È una soluzione circoscritta, non la gestione completa di
+tutti i corrispettivi online**: acconti, pagamenti multipli e ordini fatturati restano
+**limiti dichiarati**, non gestiti.
+
+⭐ **Sequenza fissata dal proprietario il 12/09 sera**: **prima** la regola del Registro (la
+seconda tabella di 22.7, col commercialista), **poi** il raccordo minimo (A1–A2, B1–B4).
+⛔ Il perimetro è descritto a sufficienza: **nessuna progettazione generale ulteriore**, nessuna
+condizione nuova. **L'export per la contabilità NON è dichiarato pronto.** Magazzino e
+sincronizzazione (`docs/28`, residui 1–4 e 6–8 del punto di ripresa) restano un lavoro separato
+e **non si rifanno**.

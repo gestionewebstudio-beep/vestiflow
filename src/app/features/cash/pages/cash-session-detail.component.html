@@ -148,18 +148,33 @@
       @if (s.movements.length === 0) {
         <p class="sd__note">Nessun versamento né prelievo.</p>
       } @else {
-        <ul class="sd__movements">
-          @for (m of s.movements; track m.id) {
-            <li>
-              <span class="sd__mov-type">{{ etichettaMovimento(m.type) }}</span>
-              <span class="sd__mov-amount">{{ soldi(m.amountMinor) }}</span>
-              <span class="sd__mov-reason">{{ m.reason }}</span>
-              <span class="sd__mov-when">
-                {{ m.createdAt | date: 'dd/MM HH:mm' }} · {{ m.createdByName }}
+        <!-- ⭐ Sul motore comune (`docs/26` A19): un elenco di registrazioni. -->
+        <app-data-table
+          caption="Movimenti del cassetto"
+          [columns]="colonneCassetto"
+          [sections]="sezioniCassetto()"
+          [rowId]="idDi"
+          [cellText]="testoCassetto"
+          [sortable]="true"
+          [sort]="ordineCassetto()"
+          (sortChange)="ordineCassetto.set($event)"
+        >
+          <ng-template appRowCard let-m>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__when">{{ testoCassetto(m, 'createdAt') }}</span>
+                <span class="list-card__what">{{ etichettaMovimento(m.type) }}</span>
               </span>
-            </li>
-          }
-        </ul>
+            </div>
+            <div class="list-card__words">
+              <span>{{ m.reason }}</span>
+              <span>{{ m.createdByName }}</span>
+            </div>
+            <div class="list-card__figures">
+              <span class="list-card__total tabular-nums">{{ soldi(m.amountMinor) }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
       }
 
       @if (s.status === 'open' && puoMuovereCassetto()) {
@@ -209,18 +224,38 @@
       @if (s.documents.length === 0) {
         <p class="sd__note">Nessuna vendita né reso.</p>
       } @else {
-        <ul class="sd__documents">
-          @for (d of s.documents; track d.id) {
-            <li [class.sd__doc--cancelled]="d.status === 'cancelled'">
-              <a [routerLink]="['/app/cassa/operazioni', d.id]">
-                {{ d.kind === 'sale' ? 'Vendita' : 'Reso' }} {{ d.reference }}
-              </a>
-              <span>{{ d.documentDate | date: 'dd/MM/yyyy' }}</span>
+        <!-- ⭐ Sul motore comune (`docs/26` A19): il clic di riga apre l’operazione. -->
+        <app-data-table
+          caption="Operazioni della sessione"
+          [columns]="colonneDocumenti"
+          [sections]="sezioniDocumenti()"
+          [rowId]="idDi"
+          [cellText]="testoDocumento"
+          [sortable]="true"
+          [sort]="ordineDocumenti()"
+          (sortChange)="ordineDocumenti.set($event)"
+          [rowClickable]="true"
+          [rowLabel]="etichettaDocumento"
+          (rowClick)="apriDocumento($event)"
+        >
+          <ng-template appRowCard let-d>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__when">{{ formatDate(d.documentDate) }}</span>
+                <span class="list-card__what">{{ etichettaDocumento(d) }}</span>
+              </span>
+              @if (d.status === 'cancelled') {
+                <span class="list-card__anchor">Annullato</span>
+              }
+            </div>
+            <div class="list-card__words">
               <span>{{ d.createdByName }}</span>
-              <span class="sd__doc-total">{{ soldi(d.totalMinor) }}</span>
-            </li>
-          }
-        </ul>
+            </div>
+            <div class="list-card__figures">
+              <span class="list-card__total tabular-nums">{{ soldi(d.totalMinor) }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
       }
     </app-form-section>
 
@@ -230,17 +265,29 @@
         {{ s.fiscalDeviceLabel ?? 'Nessun registratore selezionato per questa sessione.' }}
       </p>
       @if (s.deviceChanges.length > 0) {
-        <ul class="sd__movements">
-          @for (c of s.deviceChanges; track c.id) {
-            <li>
-              <span class="sd__mov-type">Cambio</span>
-              <span class="sd__mov-reason">{{ c.reason }}</span>
-              <span class="sd__mov-when">
-                {{ c.createdAt | date: 'dd/MM HH:mm' }} · {{ c.changedByName }}
+        <app-data-table
+          caption="Cambi di registratore"
+          [columns]="colonneCambi"
+          [sections]="sezioniCambi()"
+          [rowId]="idDi"
+          [cellText]="testoCambio"
+          [sortable]="true"
+          [sort]="ordineCambi()"
+          (sortChange)="ordineCambi.set($event)"
+        >
+          <ng-template appRowCard let-c>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__when">{{ testoCambio(c, 'createdAt') }}</span>
+                <span class="list-card__what">Cambio</span>
               </span>
-            </li>
-          }
-        </ul>
+            </div>
+            <div class="list-card__words">
+              <span>{{ c.reason }}</span>
+              <span>{{ c.changedByName }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
       }
     </app-form-section>
   }

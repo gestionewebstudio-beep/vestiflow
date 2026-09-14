@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { EMPTY, map, type Observable, tap, timeout } from 'rxjs';
+import { EMPTY, expand, map, type Observable, scan, tap, timeout } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
@@ -12,6 +12,9 @@ import { canManageShopifyConnection } from '@core/permissions/tenant-permissions
 import { shopifyConnectionFromDto } from '../models/shopify-connection.mapper';
 import type { ShopifyConnectionDto } from '../models/shopify-connection.dto';
 import type {
+  AvanzamentoAllineamentoDto,
+  PosizioneAllineamentoDto,
+  ShopifyAlignBloccoDto,
   ShopifyClearErrorsDto,
   ShopifyDisableWebhooksDto,
   ShopifySyncCustomersDto,
@@ -34,6 +37,19 @@ const HTTP_TIMEOUT_MS = 15000;
 const SYNC_PRODUCTS_TIMEOUT_MS = 180_000;
 /** Import giacenze: batch per location e varianti collegate. */
 const SYNC_INVENTORY_TIMEOUT_MS = 180_000;
+
+/**
+ * Il tempo massimo di UN BLOCCO, non del controllo intero.
+ *
+ * ⭐ **Ogni blocco è limitato nel LAVORO** — al massimo duecento coppie
+ *    esaminate e cinquanta scritte — ed è per questo che il controllo di un
+ *    catalogo grande non finisce in una richiesta sola.
+ *
+ * ⚠️ **Ma «poche righe» non garantisce «pochi secondi»**, e non va detto: la
+ *    durata dipende da quanto risponde Shopify, che da qui non si governa. Il
+ *    limite serve proprio ai casi in cui il canale è lento.
+ */
+const ALIGN_BLOCK_TIMEOUT_MS = 120_000;
 /** Import clienti/ordini: paginazione REST su tutto lo storico. */
 const SYNC_CUSTOMERS_ORDERS_TIMEOUT_MS = 180_000;
 
@@ -149,6 +165,57 @@ export class ShopifyConnectionService {
     return this.http
       .post<ShopifySyncInventoryDto>(`${this.config.apiBaseUrl}/shopify/sync/inventory`, {})
       .pipe(timeout(SYNC_INVENTORY_TIMEOUT_MS));
+  }
+
+  /**
+   * ALLINEA LE DISPONIBILITÀ: una pressione, un controllo COMPLETO.
+   *
+   * ⭐ **Il gesto è uno solo.** Chi preme non deve premere di nuovo per
+   *    proseguire: qui i blocchi si incatenano da soli seguendo `prossimo`,
+   *    finché il server non dice `fine`.
+   *
+   * ⭐ **Emette dopo OGNI blocco**, così l’avanzamento si vede mentre va, e
+   *    l’elenco delle non allineate si accumula senza perdere niente: ogni
+   *    coppia è esaminata una volta sola in tutto il giro.
+   *
+   * ⛔ **Se la catena si interrompe, `completo` resta falso.** Non si dichiara
+   *    concluso ciò che non lo è, e l’elenco parziale non va mostrato come
+   *    finale. Una pressione nuova riparte dal principio: è il comportamento
+   *    voluto, non uno spreco.
+   */
+  allineaDisponibilita(): Observable<AvanzamentoAllineamentoDto> {
+    const blocco = (prossimo: PosizioneAllineamentoDto | null) =>
+      this.http
+        .post<ShopifyAlignBloccoDto>(`${this.config.apiBaseUrl}/shopify/sync/inventory/align`, {
+          prossimo,
+        })
+        .pipe(timeout(ALIGN_BLOCK_TIMEOUT_MS));
+
+    const inizio: AvanzamentoAllineamentoDto = {
+      totale: 0,
+      esaminate: 0,
+      allineate: 0,
+      giaAllineate: 0,
+      nonAllineate: [],
+      completo: false,
+    };
+
+    return blocco(null).pipe(
+      expand((risposta) => (risposta.fine ? EMPTY : blocco(risposta.prossimo))),
+      scan(
+        (finora, risposta) => ({
+          totale: risposta.totale,
+          esaminate: finora.esaminate + risposta.esaminate,
+          allineate: finora.allineate + risposta.allineate,
+          giaAllineate: finora.giaAllineate + risposta.giaAllineate,
+          nonAllineate: [...finora.nonAllineate, ...risposta.nonAllineate],
+          // ⛔ Lo dice il SERVER, e solo per il blocco che ha appena chiuso
+          //    il perimetro: non si deduce dal fatto che la catena si è fermata.
+          completo: risposta.fine,
+        }),
+        inizio,
+      ),
+    );
   }
 
   syncCustomers(): Observable<ShopifySyncCustomersDto> {

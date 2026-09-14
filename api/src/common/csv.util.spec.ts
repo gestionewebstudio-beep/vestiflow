@@ -17,10 +17,13 @@ describe('csv.util', () => {
 
   describe('serializeCsv', () => {
     it('serializza header e righe con escape', () => {
-      const csv = serializeCsv(['SKU', 'Nome'], [
-        { SKU: 'A-1', Nome: 'Prodotto, speciale' },
-        { SKU: 'B-2', Nome: 'Normale' },
-      ]);
+      const csv = serializeCsv(
+        ['SKU', 'Nome'],
+        [
+          { SKU: 'A-1', Nome: 'Prodotto, speciale' },
+          { SKU: 'B-2', Nome: 'Normale' },
+        ],
+      );
 
       expect(csv).toBe('SKU,Nome\nA-1,"Prodotto, speciale"\nB-2,Normale\n');
     });

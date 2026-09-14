@@ -1,15 +1,17 @@
 import { expect, test } from '@playwright/test';
 
 function shopifyPanel(page: import('@playwright/test').Page) {
-  return page.getByRole('region', { name: 'Integrazione Shopify' });
+  // Dal 13/09/2026 la regione prende il nome dal titolo di pagina, «Shopify».
+  return page.getByRole('region', { name: 'Shopify', exact: true });
 }
 
 test.describe('Integrazione Shopify', () => {
+  // ⭐ Dall’11/09/2026 il pannello ha una pagina propria, Impostazioni → Shopify:
+  //    a un tenant senza modulo la rotta rimanda alla dashboard, e le prove che
+  //    guardano il pannello lo dicono col `skip` invece di passare a vuoto.
   test.beforeEach(async ({ page }) => {
-    await page.goto('/app/settings');
-    await expect(page.locator('h1.settings__title')).toHaveText('Impostazioni', {
-      timeout: 30_000,
-    });
+    await page.goto('/app/settings/shopify');
+    await expect(page).toHaveURL(/\/app\/(settings\/shopify|dashboard)/, { timeout: 30_000 });
   });
 
   test('mostra pannello connessione Shopify quando abilitato', async ({ page }) => {
@@ -19,7 +21,7 @@ test.describe('Integrazione Shopify', () => {
       return;
     }
 
-    await expect(panel.getByRole('heading', { name: 'Integrazione Shopify' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Shopify' })).toBeVisible();
   });
 
   test('tenant connesso mostra dominio shop e stato sync', async ({ page }) => {
@@ -62,6 +64,10 @@ test.describe('Integrazione Shopify', () => {
   });
 
   test('pannello Sede fisica in Impostazioni', async ({ page }) => {
+    await page.goto('/app/settings');
+    await expect(page.locator('h1.settings__title')).toHaveText('Impostazioni', {
+      timeout: 30_000,
+    });
     const heading = page.getByRole('heading', { name: 'Sede fisica', exact: true });
     if (!(await heading.isVisible())) {
       test.skip(true, 'Pannello Sede fisica non disponibile per questo tenant.');
@@ -97,7 +103,10 @@ test.describe('Integrazione Shopify', () => {
     await expect(dialog).toBeHidden();
   });
 
-  test('wizard Disconnetti e rimuovi dati mostra opzioni purge', async ({ page }) => {
+  // ⛔ «Disconnetti e rimuovi dati» è SPENTO finché l'API rifiuta la purga (422), col
+  //    motivo accanto (proprietario, 13/09/2026). Qui c'erano due prove che aprivano il
+  //    wizard: un comando acceso che poi viene negato era il difetto.
+  test('«Disconnetti e rimuovi dati» è spento, e dice perché', async ({ page }) => {
     const panel = shopifyPanel(page);
     if (!(await panel.isVisible())) {
       test.skip(true, 'Integrazione Shopify non abilitata per questo tenant.');
@@ -106,36 +115,19 @@ test.describe('Integrazione Shopify', () => {
 
     const purgeBtn = panel.getByRole('button', { name: 'Disconnetti e rimuovi dati' });
     if (!(await purgeBtn.isVisible())) {
-      test.skip(true, 'Shopify non connesso: wizard purge non disponibile.');
+      test.skip(true, 'Shopify non connesso: il comando non c’è.');
       return;
     }
 
-    await purgeBtn.click();
-
-    const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('heading', { name: 'Rimuovi dati Shopify' })).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(dialog.getByText('Catalogo importato da Shopify')).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Disconnetti senza rimuovere' })).toBeVisible();
-
-    await dialog.getByRole('button', { name: 'Annulla' }).click();
-    await expect(dialog).toBeHidden();
+    await expect(purgeBtn).toBeDisabled();
+    await expect(purgeBtn).toHaveAccessibleDescription(/l'API rifiuta la rimozione/);
   });
 
-  test('wizard purge: step conferma richiede dominio e consenso', async ({ page }) => {
+  test.skip('wizard purge: step conferma richiede dominio e consenso — sospeso con la purga', async ({
+    page,
+  }) => {
     const panel = shopifyPanel(page);
-    if (!(await panel.isVisible())) {
-      test.skip(true, 'Integrazione Shopify non abilitata per questo tenant.');
-      return;
-    }
-
     const purgeBtn = panel.getByRole('button', { name: 'Disconnetti e rimuovi dati' });
-    if (!(await purgeBtn.isVisible())) {
-      test.skip(true, 'Shopify non connesso: wizard purge non disponibile.');
-      return;
-    }
-
     await purgeBtn.click();
 
     const dialog = page.getByRole('dialog');

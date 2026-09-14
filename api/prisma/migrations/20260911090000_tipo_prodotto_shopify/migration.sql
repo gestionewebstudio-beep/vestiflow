@@ -1,0 +1,20 @@
+-- Tipo prodotto Shopify in una colonna SUA, separata dalla categoria interna.
+--
+-- Fino a oggi `products.category` serviva due mestieri opposti: la categoria
+-- VestiFlow, scelta dall'operatore dal vocabolario `catalog_categories`, e il
+-- `product_type` di Shopify, che l'import ci scriveva dentro e il push ne
+-- rileggeva. Da fuori i due valori non si distinguevano (docs/24 §9.5).
+--
+-- La colonna nasce VUOTA per tutti, ed è una decisione del proprietario
+-- (11/09/2026): nessuna copia da `category`, nemmeno sulle righe collegate a
+-- Shopify. Sono due dati diversi — la categoria interna conserva il proprio
+-- valore, il tipo prodotto Shopify arriva dalla lettura prevista dal percorso
+-- di sincronizzazione.
+--
+-- ⚠️ NULL significa «non ancora acquisito», MAI «cancellalo su Shopify»: il
+--    payload in uscita omette la chiave quando la colonna è vuota, quindi il
+--    valore remoto resta quello che è. Questa migration non contatta Shopify e
+--    non invia niente.
+--
+-- ⛔ `category` NON viene toccata da questa migration, in nessuna riga.
+ALTER TABLE "products" ADD COLUMN "shopify_product_type" TEXT;

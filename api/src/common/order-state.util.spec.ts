@@ -148,23 +148,22 @@ describe('Ordine cliente manuale — lo stato si LEGGE, non si deduce', () => {
     expect(() => statoOrdineClienteRichiesto(manuale(null))).toThrow(ConflictException);
   });
 
-  it.each([
-    SalesOrderSource.shopify_online,
-    SalesOrderSource.shopify_pos,
-    SalesOrderSource.store,
-  ])('%s non ha un ciclo commerciale VestiFlow', (source) => {
-    expect(leggiStatoOrdineCliente({ source, commercialState: null })).toEqual({
-      ok: false,
-      motivo: 'ordine-di-canale',
-    });
-  });
+  it.each([SalesOrderSource.shopify_online, SalesOrderSource.shopify_pos, SalesOrderSource.store])(
+    '%s non ha un ciclo commerciale VestiFlow',
+    (source) => {
+      expect(leggiStatoOrdineCliente({ source, commercialState: null })).toEqual({
+        ok: false,
+        motivo: 'ordine-di-canale',
+      });
+    },
+  );
 
   /**
    * ⚠️ Anche se qualcuno riempisse la colonna su un ordine di canale — che il
    * database non impedisce, perché non c'è un DEFAULT ma nemmeno un vincolo —
    * la lettura resta «non è roba nostra». È il `source` a decidere.
    */
-  it("⚠️ un ordine di canale con lo stato valorizzato resta fuori", () => {
+  it('⚠️ un ordine di canale con lo stato valorizzato resta fuori', () => {
     expect(
       leggiStatoOrdineCliente({
         source: SalesOrderSource.shopify_online,

@@ -74,3 +74,17 @@ export function hasAnyTenantPermission(
   const effective = resolveEffectivePermissions(user);
   return permissions.some((permission) => effective.includes(permission));
 }
+
+/**
+ * Forma a gruppi: almeno un permesso da OGNI gruppo («una di queste E
+ * quella») — lo specchio di `RequireAllPermissionGroups` dell’API, valutato
+ * come la sua guardia. Un gruppo VUOTO è un errore di programmazione, non
+ * «nessun requisito»: nega, non apre. Con zero gruppi non c’è niente da
+ * chiedere, e la risposta è sì.
+ */
+export function hasAllTenantPermissionGroups(
+  user: PermissionUser | null | undefined,
+  groups: readonly (readonly TenantPermissionKey[])[],
+): boolean {
+  return groups.every((group) => group.length > 0 && hasAnyTenantPermission(user, group));
+}

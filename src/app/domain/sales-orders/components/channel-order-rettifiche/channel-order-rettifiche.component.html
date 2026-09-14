@@ -1,0 +1,61 @@
+<section class="rettifiche" aria-labelledby="rettifiche-titolo">
+  <h3 id="rettifiche-titolo" class="rettifiche__titolo">
+    Valore originario, rettifiche e totale aggiornato
+    <span class="rettifiche__meta">il canale rettifica, VestiFlow non riscrive</span>
+  </h3>
+
+  <dl class="rettifiche__totali">
+    <div class="rettifiche__voce">
+      <dt>Valore originario</dt>
+      <dd class="tabular-nums">{{ formatMoney(originalTotal()) }}</dd>
+    </div>
+    @for (rettifica of refunds(); track rettifica.id) {
+      <div class="rettifiche__voce rettifiche__voce--rettifica">
+        <dt>
+          {{ etichetta(rettifica.kind) }}
+          <span class="rettifiche__data tabular-nums">{{
+            formatDateTime(rettifica.occurredAt)
+          }}</span>
+          @if (rettifica.note) {
+            <span class="rettifiche__nota">«{{ rettifica.note }}»</span>
+          }
+        </dt>
+        <dd class="tabular-nums rettifiche__negativo">− {{ formatMoney(rettifica.total) }}</dd>
+      </div>
+    } @empty {
+      <div class="rettifiche__voce">
+        <dt>Rettifiche</dt>
+        <dd class="rettifiche__nessuna">nessuna</dd>
+      </div>
+    }
+    @if (refunds().length > 1) {
+      <div class="rettifiche__voce rettifiche__voce--rettifica">
+        <dt>Totale rettifiche ({{ refunds().length }})</dt>
+        <dd class="tabular-nums rettifiche__negativo">− {{ formatMoney(refundTotal()) }}</dd>
+      </div>
+    }
+    <div class="rettifiche__voce rettifiche__voce--aggiornato">
+      <dt>Totale aggiornato</dt>
+      <dd class="tabular-nums">{{ formatMoney(updatedTotal()) }}</dd>
+    </div>
+  </dl>
+
+  @if (righeConMovimento().length > 0) {
+    <ul class="rettifiche__righe" aria-label="Quantità per riga">
+      @for (riga of righeConMovimento(); track riga.id) {
+        <li class="rettifiche__riga">
+          <span class="rettifiche__riga-nome">{{ riga.description }}</span>
+          <span class="rettifiche__riga-quantita tabular-nums">
+            ordinati {{ riga.ordered }}
+            <span class="rettifiche__sep">·</span>
+            <span [class.rettifiche__annullati]="riga.cancelled > 0"
+              >annullati {{ riga.cancelled }}</span
+            >
+            <span class="rettifiche__sep">·</span>
+            spediti {{ riga.shipped }}
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</section>

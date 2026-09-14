@@ -1,0 +1,19 @@
+-- L'ultimo `updated_at` Shopify APPLICATO a un ordine di canale.
+--
+-- ⭐ PERCHE'. Shopify non garantisce l'ordine di consegna delle notifiche e le
+--    ritenta (fino a 8 volte in 4 ore): il payload di quando l'ordine era ancora
+--    aperto e non pagato puo' arrivare DOPO quello evaso. Misurato il 13/09/2026
+--    (percorso 20, e nella prova 4 sul negozio vero): il magazzino restava giusto
+--    — nessun secondo scarico, nessun impegno ricreato — ma la testata tornava
+--    «non evaso» e «da pagare», perche' i due stati si scrivevano dal payload,
+--    sempre. Nessuna colonna diceva quale aggiornamento fosse gia' stato applicato.
+--
+--    Con questa colonna un payload con `updated_at` PIU' VECCHIO del persistito
+--    non scrive niente (stati, righe, totali, rimborsi); uguale → si applica,
+--    perche' le riletture dopo `fulfillment_orders/moved` portano lo stesso
+--    `updated_at` e devono passare. E' l'orologio di Shopify confrontato con se
+--    stesso, per lo stesso ordine: non un orologio locale.
+--
+--    NULL per gli ordini manuali e per quelli acquisiti prima della colonna: il
+--    primo aggiornamento che arriva la valorizza. Nessun riempimento.
+ALTER TABLE "sales_orders" ADD COLUMN "shopify_updated_at" TIMESTAMP(3);

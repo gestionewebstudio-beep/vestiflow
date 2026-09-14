@@ -181,11 +181,7 @@ describe('subtotali per giornata', () => {
   /** L'esempio della specifica: 18/08 → 130, 17/08 → 70, periodo → 200. */
   const SCENARIO = {
     ...VUOTE_PER_GIORNO,
-    ordini: [
-      venditaDi(G18, 10000, 1800),
-      venditaDi(G18, 5000, 900),
-      venditaDi(G17, 8000, 1440),
-    ],
+    ordini: [venditaDi(G18, 10000, 1800), venditaDi(G18, 5000, 900), venditaDi(G17, 8000, 1440)],
     rettifiche: [
       { totalMinor: 2000, taxMinor: 360, occurredAt: G18 },
       { totalMinor: 1000, taxMinor: 180, occurredAt: G17 },

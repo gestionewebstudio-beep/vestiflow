@@ -59,6 +59,20 @@ describe('location-selection.util', () => {
     ).toBe(false);
   });
 
+  it('isShopifyManagedLocation: collegata dal percorso (id, dati non ancora letti) è collegata', () => {
+    // La coppia c'è e l'id la segue; lo stato «non connessa» dice solo che
+    // «Sincronizza location» non ha ancora letto i dati (13/09/2026).
+    expect(
+      isShopifyManagedLocation(
+        createLocation({
+          id: 'loc-3',
+          name: 'Sede B',
+          shopify: { status: ShopifySyncStatus.NotConnected, shopifyId: '113512284455' },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('isShopifyImportResidualLocation distingue LOC-01 onboarding da import Shopify', () => {
     expect(
       isShopifyImportResidualLocation(

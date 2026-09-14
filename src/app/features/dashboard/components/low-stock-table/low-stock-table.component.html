@@ -1,39 +1,36 @@
-<div class="low-stock__wrapper">
-  <table class="low-stock">
-    <colgroup>
-      <col class="low-stock__col low-stock__col--variant" />
-      <col class="low-stock__col low-stock__col--location" />
-      <col class="low-stock__col low-stock__col--numeric" />
-      <col class="low-stock__col low-stock__col--numeric" />
-    </colgroup>
-    <thead>
-      <tr>
-        <th scope="col">Variante</th>
-        <th scope="col">Location</th>
-        <th scope="col" class="low-stock__cell--numeric">Disponibile</th>
-        <th scope="col" class="low-stock__cell--numeric">Soglia</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (row of rows(); track row.variantId + row.locationId) {
-        <tr class="low-stock__row">
-          <td data-label="Variante">
-            <span class="low-stock__title">{{ row.title }}</span>
-            <span class="low-stock__sku tabular-nums">{{ row.sku }}</span>
-          </td>
-          <td data-label="Location">{{ row.locationName }}</td>
-          <td class="low-stock__cell--numeric" data-label="Disponibile">
-            <span class="low-stock__cell-value">
-              <app-badge [flat]="true" [tone]="row.available <= 0 ? 'error' : 'warning'">
-                <span class="tabular-nums">{{ row.available }}</span>
-              </app-badge>
-            </span>
-          </td>
-          <td class="low-stock__cell--numeric tabular-nums" data-label="Soglia">
-            {{ row.minThreshold }}
-          </td>
-        </tr>
-      }
-    </tbody>
-  </table>
-</div>
+<app-data-table
+  caption="Varianti sotto scorta"
+  [columns]="colonne"
+  [sections]="sezioni()"
+  [rowId]="rowId"
+  [cellText]="testoCella"
+  [sortable]="true"
+  [sort]="ordine()"
+  (sortChange)="ordine.set($event)"
+>
+  <!-- Il disponibile è la ragione della riga: colorato, ma il numero resta leggibile. -->
+  <ng-template appCell="available" let-row>
+    <app-badge [flat]="true" [tone]="row.available <= 0 ? 'error' : 'warning'">
+      <span class="tabular-nums">{{ row.available }}</span>
+    </app-badge>
+  </ng-template>
+
+  <!-- La card: variante in testa, SKU e sede fra le parole, i due numeri coi nomi. -->
+  <ng-template appRowCard let-row>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ row.title }}</span>
+      </span>
+    </div>
+    <div class="list-card__words">
+      <span class="tabular-nums">{{ row.sku }}</span>
+      <span>{{ row.locationName }}</span>
+    </div>
+    <div class="list-card__figures">
+      <span class="tabular-nums">Soglia {{ row.minThreshold }}</span>
+      <span class="list-card__total" [class.list-card__total--negative]="row.available <= 0">
+        Disp. <span class="tabular-nums">{{ row.available }}</span>
+      </span>
+    </div>
+  </ng-template>
+</app-data-table>

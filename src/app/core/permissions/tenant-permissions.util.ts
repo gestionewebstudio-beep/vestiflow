@@ -1,4 +1,7 @@
-import { showRetailSalesRegister } from '@core/models/tenant-channel-profile.model';
+import {
+  showRetailSalesRegister,
+  showShopifyIntegration,
+} from '@core/models/tenant-channel-profile.model';
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 import {
@@ -12,6 +15,7 @@ import {
 } from '@core/models/tenant-permission.model';
 
 import {
+  hasAllTenantPermissionGroups,
   hasAnyTenantPermission,
   hasFullTenantAccess,
   hasTenantPermission,
@@ -120,6 +124,31 @@ export const ONLINE_SALES_VIEW_GROUPS: readonly (readonly TenantPermissionKey[])
 export const MANUAL_RECEIPT_WRITE_GROUPS: readonly (readonly TenantPermissionKey[])[] = [
   ...ONLINE_SALES_VIEW_GROUPS,
   [TenantPermission.ReportsFiscalRegister],
+];
+
+/**
+ * ⭐ **Importa clienti da Shopify: le combinazioni che l’API già chiede**
+ * (deciso dal proprietario l’11/09/2026: «allineare il frontend alle
+ * combinazioni già richieste dall’API, senza inventare nuovi permessi»).
+ * Specchio di `SHOPIFY_CUSTOMERS_SYNC_GROUPS`: «Esportare dati» E «Gestire
+ * clienti» — l’import crea e aggiorna l’anagrafica, la stessa scrittura di
+ * `POST /customers`.
+ */
+export const SHOPIFY_CUSTOMERS_SYNC_GROUPS: readonly (readonly TenantPermissionKey[])[] = [
+  [TenantPermission.ReportsExport],
+  [TenantPermission.CustomersManage],
+];
+
+/**
+ * ⭐ **Importa ordini da Shopify**, specchio di `SHOPIFY_ORDERS_SYNC_GROUPS`:
+ * «Esportare dati» E la consultazione delle vendite online (sezione Vendite o
+ * Report, E la famiglia «Vendite online e corrispettivi»). Si chiede la
+ * consultazione e non la gestione perché `online_sale` è una famiglia di sola
+ * consultazione: nessun preset assegna `doc.online_sale.manage`.
+ */
+export const SHOPIFY_ORDERS_SYNC_GROUPS: readonly (readonly TenantPermissionKey[])[] = [
+  [TenantPermission.ReportsExport],
+  ...ONLINE_SALES_VIEW_GROUPS,
 ];
 
 export const REQUIRED_TENANT_PERMISSIONS_KEY = 'requiredTenantPermissions';
@@ -337,12 +366,60 @@ export function canSyncInventoryFromShopify(user: User | null | undefined): bool
   return canImportExportInventory(user);
 }
 
-/** Sync clienti/vendite da Shopify (export dati). */
-export function canSyncShopifyOperationalData(user: User | null | undefined): boolean {
+/**
+ * «Importa clienti» in Impostazioni → Shopify: chi possiede le combinazioni
+ * dell’API vede ed esegue il comando (`SHOPIFY_CUSTOMERS_SYNC_GROUPS`).
+ *
+ * ⛔ Qui c’era `canSyncShopifyOperationalData` = il solo `reports.export`,
+ * per clienti E ordini insieme: chiedeva MENO dell’API, e a un manager con
+ * il solo «Esportare dati» avrebbe mostrato due comandi rifiutati con 403.
+ */
+export function canSyncCustomersFromShopify(user: User | null | undefined): boolean {
   if (hasFullTenantAccess(user)) {
     return true;
   }
-  return canExportOperationalData(user);
+  return hasAllTenantPermissionGroups(user, SHOPIFY_CUSTOMERS_SYNC_GROUPS);
+}
+
+/** «Importa ordini» in Impostazioni → Shopify (`SHOPIFY_ORDERS_SYNC_GROUPS`). */
+export function canSyncOrdersFromShopify(user: User | null | undefined): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  return hasAllTenantPermissionGroups(user, SHOPIFY_ORDERS_SYNC_GROUPS);
+}
+
+/**
+ * ⭐ **Impostazioni → Shopify si raggiunge con il permesso di UN comando** (11/09/2026).
+ *
+ * I comandi generali di sincronizzazione — catalogo, giacenze, clienti, ordini —
+ * stanno in una sola sede, Impostazioni → Shopify, e non più nelle barre degli
+ * elenchi. Chi ha il permesso di uno di quei comandi deve poter arrivare alla
+ * pagina ed eseguirlo, **senza** che questo gli apra le altre impostazioni:
+ * la pagina ha una rotta propria (`/app/settings/shopify`) con questa guardia,
+ * e la radice delle Impostazioni resta dietro `section.settings`.
+ *
+ * ⛔ Connessione, credenziali e sedi restano di chi gestisce la connessione
+ * (`canManageShopifyConnection`): questo predicato apre la PAGINA, ogni
+ * comando dentro tiene il proprio permesso — e il confine vero è l’API.
+ *
+ * ⚠️ **`reports.export` da solo NON apre la pagina**: non è il permesso di
+ * nessun comando. Clienti e ordini chiedono le combinazioni dell’API
+ * (`canSyncCustomersFromShopify`, `canSyncOrdersFromShopify`): aprire la
+ * pagina a chi ha il solo «Esportare dati» gli mostrerebbe una sezione
+ * senza comandi.
+ */
+export function canReachShopifySettings(user: User | null | undefined): boolean {
+  if (!showShopifyIntegration(user?.tenantChannelProfile)) {
+    return false;
+  }
+  return (
+    canManageShopifyConnection(user) ||
+    canSyncCatalogFromShopify(user) ||
+    canSyncInventoryFromShopify(user) ||
+    canSyncCustomersFromShopify(user) ||
+    canSyncOrdersFromShopify(user)
+  );
 }
 
 export function canSyncProductToShopify(user: User | null | undefined): boolean {

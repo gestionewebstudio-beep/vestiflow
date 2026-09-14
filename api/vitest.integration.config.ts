@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
+import unita from './vitest.config';
+
 /**
  * Suite di INTEGRAZIONE: gira contro un PostgreSQL vero, in un container
  * locale. Configurazione separata da `vitest.config.ts` apposta.
@@ -17,6 +19,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.integration-spec.ts'],
+    // ⭐ La copertura è UNA misura su UN perimetro: le stesse opzioni dell'unitaria
+    //    (sorgenti, esclusioni, soglie), così i due rapporti si possono unire
+    //    (`coverage:unita` in package.json) e il gate giudica unità + integrazione.
+    coverage: unita.test!.coverage,
     /**
      * ⛔ **Il collaudo della migration è a DUE FASI e resta fuori da qui.**
      *
@@ -31,9 +37,17 @@ export default defineConfig({
      */
     exclude: [
       '**/node_modules/**',
-      'src/**/*-backfill.integration-spec.ts',
+      // ⛔ Il file per NOME, non `*-backfill`: il glob escludeva in silenzio
+      //    qualunque prova nuova così chiamata (misurato il 12/09/2026 sulla
+      //    conversione cache → storico, verde senza essere mai eseguita).
+      'src/**/stati-ordini-backfill.integration-spec.ts',
       'src/**/cassa-migrations.integration-spec.ts',
       'src/**/cassa-browser.integration-spec.ts',
+      // ⭐ Anche la pagina Shopify vera in un browser vero (13/09/2026): come
+      //    `cassa-browser` vuole la build `integration` e Chromium, e gira in
+      //    `test:cassa:real` DOPO la build — qui la build non c'è ancora
+      //    (misurato nella CI della PR #9, 14/09/2026).
+      'src/**/shopify-pagina.integration-spec.ts',
     ],
     // Carica api/.env (Vitest non lo fa) e TOGLIE dal processo la connessione
     // a DEV: dentro questa suite non deve nemmeno esistere come variabile.

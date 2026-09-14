@@ -4,6 +4,8 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { OnlineOrderLifecycleService } from '../order-reservations/online-order-lifecycle.service';
 import type { ShopifyConnectionService } from './shopify-connection.service';
 import type { ShopifyInventoryPushService } from './shopify-inventory-push.service';
+import type { ShopifyLinkHistoryService } from './shopify-link-history.service';
+import type { ShopifyFulfillmentOrdersService } from './shopify-fulfillment-orders.service';
 import type { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import type { ShopifyProductPullService } from './shopify-product-pull.service';
 import { ShopifySyncService } from './shopify-sync.service';
@@ -48,6 +50,7 @@ describe('ShopifySyncService', () => {
 
     const shopifyConnection = {
       touchSync: vi.fn().mockResolvedValue(undefined),
+      recordError: vi.fn().mockResolvedValue(undefined),
     };
 
     const shopifyProductPull = {
@@ -66,6 +69,18 @@ describe('ShopifySyncService', () => {
       pushLevel: vi.fn().mockResolvedValue({ pushed: true }),
     };
 
+    // Nessun negozio migrato: la risoluzione delle righe resta quella di prima.
+    const storico = {
+      negozioDelTenant: vi.fn().mockResolvedValue(null),
+      collegamentoUsabileVariante: vi.fn().mockResolvedValue({ tipo: 'utilizzabile' }),
+    };
+
+    // Nessun fulfillment order letto: ogni riga aperta resta senza sede.
+    const fulfillmentOrders = {
+      sediDelleRighe: vi.fn().mockResolvedValue(new Map()),
+      ordineDelWebhook: vi.fn().mockResolvedValue(null),
+    };
+
     const service = new ShopifySyncService(
       prisma as unknown as PrismaService,
       shopifyConnection as unknown as ShopifyConnectionService,
@@ -73,6 +88,8 @@ describe('ShopifySyncService', () => {
       onlineOrderLifecycle as unknown as OnlineOrderLifecycleService,
       inventoryReconciliation as unknown as ShopifyInventoryReconciliationService,
       inventoryPush as unknown as ShopifyInventoryPushService,
+      storico as unknown as ShopifyLinkHistoryService,
+      fulfillmentOrders as unknown as ShopifyFulfillmentOrdersService,
     );
 
     return {
@@ -83,6 +100,7 @@ describe('ShopifySyncService', () => {
       onlineOrderLifecycle,
       inventoryReconciliation,
       inventoryPush,
+      fulfillmentOrders,
     };
   }
 
@@ -92,6 +110,38 @@ describe('ShopifySyncService', () => {
     await service.handleWebhook('tenant-1', 'shop/redact', { id: 1 });
 
     expect(shopifyConnection.touchSync).not.toHaveBeenCalled();
+  });
+
+  it('fulfillment_orders/moved: si risale all’ordine e lo si REIMPORTA per la via di sempre', async () => {
+    const { service, fulfillmentOrders, shopifyConnection } = createService();
+    const ordine = { id: 10, line_items: [] };
+    fulfillmentOrders.ordineDelWebhook.mockResolvedValue(ordine);
+    const applica = vi.spyOn(service, 'applyOrderFromShopify').mockResolvedValue('updated');
+
+    await service.handleWebhook('tenant-1', 'fulfillment_orders/moved', {
+      moved_fulfillment_order: { id: 'gid://shopify/FulfillmentOrder/2' },
+    });
+
+    expect(fulfillmentOrders.ordineDelWebhook).toHaveBeenCalledWith('tenant-1', {
+      moved_fulfillment_order: { id: 'gid://shopify/FulfillmentOrder/2' },
+    });
+    expect(applica).toHaveBeenCalledWith('tenant-1', ordine, 'continua');
+    expect(shopifyConnection.touchSync).toHaveBeenCalledWith('tenant-1');
+  });
+
+  it('fulfillment_orders/order_routing_complete senza un ordine risolvibile: registrato, niente applicato', async () => {
+    const { service, fulfillmentOrders, shopifyConnection } = createService();
+    fulfillmentOrders.ordineDelWebhook.mockResolvedValue(null);
+    const applica = vi.spyOn(service, 'applyOrderFromShopify');
+
+    await service.handleWebhook('tenant-1', 'fulfillment_orders/order_routing_complete', {});
+
+    expect(applica).not.toHaveBeenCalled();
+    expect(shopifyConnection.recordError).toHaveBeenCalledWith(
+      'tenant-1',
+      expect.stringContaining('fulfillment_orders'),
+      'fulfillment_order_senza_ordine',
+    );
   });
 
   it('handleWebhook importa prodotto e aggiorna lastSync', async () => {

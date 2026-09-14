@@ -19,6 +19,19 @@
     "experimentalDecorators": true,
     "importHelpers": true,
     "target": "ES2022",
+    /* La lib completa di ES2022 (quella implicita del target) più i TIPI di
+       `Intl` di ES2023: servono per `useGrouping: 'always'` in `formatMoney`
+       (il punto delle migliaia anche a quattro cifre, 13/09/2026). Solo tipi:
+       il runtime lo hanno tutti i browser che Angular 20 supporta. */
+    "lib": [
+      "ES2022",
+      "ES2023.Intl",
+      "DOM",
+      "WebWorker.ImportScripts",
+      "ScriptHost",
+      "DOM.Iterable",
+      "DOM.AsyncIterable"
+    ],
     "module": "preserve",
     "paths": {
       "@core/*": ["./src/app/core/*"],

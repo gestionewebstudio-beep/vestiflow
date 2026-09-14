@@ -49,6 +49,19 @@ describe('sales-order-labels.util', () => {
     });
   }
 
+  // ⭐ Un ordine annullato non è «da evadere» (collaudo del 13/09/2026, #1013).
+  it('un ordine annullato e non evaso dice «Non evaso», in neutro — non «Da evadere» in ambra', () => {
+    expect(fulfillmentStatusLabel(SalesOrderFulfillmentStatus.Unfulfilled, true)).toBe('Non evaso');
+    expect(fulfillmentStatusTone(SalesOrderFulfillmentStatus.Unfulfilled, true)).toBe('neutral');
+    // Non annullato: come prima.
+    expect(fulfillmentStatusLabel(SalesOrderFulfillmentStatus.Unfulfilled)).toBe('Da evadere');
+    expect(fulfillmentStatusTone(SalesOrderFulfillmentStatus.Unfulfilled)).toBe('warning');
+    // Annullato dopo un'evasione parziale: la merce è uscita, e lo si dice.
+    expect(fulfillmentStatusLabel(SalesOrderFulfillmentStatus.Partial, true)).toBe(
+      'Evasione parziale',
+    );
+  });
+
   for (const source of Object.values(SalesOrderSource)) {
     it(`copre SalesOrderSource.${source}`, () => {
       expect(sourceLabel(source)).toBeTruthy();

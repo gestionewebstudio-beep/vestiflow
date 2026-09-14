@@ -31,6 +31,8 @@ function createTxMock(movements: readonly unknown[] = []) {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
   };
 }
 
@@ -290,14 +292,12 @@ describe('syncTransferLineMovements — conversione movimenti legacy aggregati',
     };
     const tx = {
       stockMovement: {
-        findMany: vi
-          .fn()
-          .mockImplementation(({ where }: { where: Record<string, unknown> }) => {
-            if (where.sourceLineId === null) {
-              return Promise.resolve([legacyMovement]);
-            }
-            return Promise.resolve([]);
-          }),
+        findMany: vi.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+          if (where.sourceLineId === null) {
+            return Promise.resolve([legacyMovement]);
+          }
+          return Promise.resolve([]);
+        }),
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
@@ -308,6 +308,8 @@ describe('syncTransferLineMovements — conversione movimenti legacy aggregati',
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         findUnique: vi.fn(),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     };
 
     await syncTransferLineMovements(tx as never, {
@@ -326,7 +328,9 @@ describe('syncTransferLineMovements — conversione movimenti legacy aggregati',
       where: { id: { in: ['legacy-1'] } },
     });
     const legacyDeltas = tx.inventoryLevel.updateMany.mock.calls.slice(0, 2).map((call) => {
-      const [args] = call as [{ where: { locationId: string }; data: { onHand: { increment: number } } }];
+      const [args] = call as [
+        { where: { locationId: string }; data: { onHand: { increment: number } } },
+      ];
       return { locationId: args.where.locationId, delta: args.data.onHand.increment };
     });
     expect(legacyDeltas).toEqual([

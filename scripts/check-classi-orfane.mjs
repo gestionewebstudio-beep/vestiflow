@@ -371,14 +371,19 @@ const NOTE = new Set([
   'tenant-ops__inline',
   'tenant-ops__listino-label',
   'tenant-ops__value',
+  // `shopify-settings` è vestita da `list-page($block)`: blocco NUDO di un
+  // mixin, come `vat-codes` e `payment-options` (11/09/2026).
+  'shopify-settings',
   'uom-manager__icon-btn--default',
+  // `vat-codes` è vestita da `list-page($block)` e `list-page-fills-viewport`:
+  // blocco NUDO di un mixin, stessa causa e stesso rimedio di `supplier-form`.
+  'vat-codes',
   'variant-table',
   'variants-step-table',
   'variants-step__barcode',
   'variants-step__field--readonly',
   'variants-step__input--barcode',
   'variants-step__input--sku',
-  'vat-codes__group-title',
 ]);
 
 const rotte = [];

@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CorrispettiviService } from '../corrispettivi/corrispettivi.service';
@@ -63,7 +67,12 @@ function createPrismaMock(sedi: readonly { id: string; name: string }[] = [LOCAT
     // `StockMovement` e non muovere Giacenza, Impegnata né Disponibile. Stanno
     // qui come spie perché il difetto da fermare non è un calcolo sbagliato: è
     // qualcuno che un giorno «collega anche il magazzino».
-    stockMovement: { create: vi.fn(), createMany: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
+    stockMovement: {
+      create: vi.fn(),
+      createMany: vi.fn(),
+      updateMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     inventoryLevel: { update: vi.fn(), updateMany: vi.fn(), upsert: vi.fn(), create: vi.fn() },
     stockReservation: { create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
     document: { create: vi.fn(), update: vi.fn() },
@@ -202,7 +211,12 @@ describe('ManualReceiptsService — numero, testata, righe', () => {
     prisma.manualReceipt.findFirst.mockResolvedValue({ id: 'mr-1', locationId: LOCATION.id });
     prisma.manualReceipt.findUniqueOrThrow.mockResolvedValue(savedReceipt());
 
-    await createService(prisma).update(tenantId, 'mr-1', dto({ notes: 'corretta' }), testOwnerUser());
+    await createService(prisma).update(
+      tenantId,
+      'mr-1',
+      dto({ notes: 'corretta' }),
+      testOwnerUser(),
+    );
 
     expect(prisma.manualReceipt.create).not.toHaveBeenCalled();
     expect(prisma.manualReceipt.update).toHaveBeenCalledWith(
@@ -305,9 +319,9 @@ describe('ManualReceiptsService — numero, testata, righe', () => {
   it('un Codice IVA riservato agli acquisti non entra in un corrispettivo', async () => {
     const prisma = createPrismaMock();
     prisma.vatCode.findMany.mockResolvedValue([{ ...IVA_22, usageScope: 'purchase' }]);
-    await expect(
-      createService(prisma).create(tenantId, dto(), testOwnerUser()),
-    ).rejects.toThrow(/riservato agli acquisti/);
+    await expect(createService(prisma).create(tenantId, dto(), testOwnerUser())).rejects.toThrow(
+      /riservato agli acquisti/,
+    );
   });
 });
 

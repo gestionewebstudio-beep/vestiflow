@@ -81,6 +81,7 @@ describe('GlobalSearchComponent', () => {
 
   async function setup(options?: {
     readonly navSections?: readonly NavSection[];
+    readonly utente?: User;
     readonly customers?: readonly unknown[];
     readonly documents?: readonly unknown[];
     readonly suppliers?: readonly unknown[];
@@ -104,7 +105,7 @@ describe('GlobalSearchComponent', () => {
         // La ricerca globale decide DOVE porta un risultato in base a cio' che
         // questo utente puo' aprire: senza un utente manderebbe tutti
         // sull'anteprima, e la prova sull'apertura in modifica cadrebbe.
-        { provide: AuthService, useValue: { currentUser: () => UTENTE } },
+        { provide: AuthService, useValue: { currentUser: () => options?.utente ?? UTENTE } },
         { provide: ProductService, useValue: { getProducts } },
         { provide: CustomerService, useValue: { getCustomers } },
         { provide: DocumentService, useValue: { getDocuments } },
@@ -168,6 +169,48 @@ describe('GlobalSearchComponent', () => {
     // (il nome del fornitore compare anche nel sottotitolo dell'ordine).
     expect(screen.getByRole('option', { name: /FR-002/ })).toBeVisible();
     expect(screen.getByRole('option', { name: /OF-2026-0042/ })).toBeVisible();
+  });
+
+  /**
+   * ⭐ **Solo pagine ACCESSIBILI** (11/09/2026). Chi ha il solo permesso di un
+   * comando Shopify ha in nav una voce «Impostazioni» che porta a
+   * `/app/settings/shopify`: il confronto per prefisso proponeva anche Codici
+   * IVA e Pagamenti, che la rotta gli avrebbe rifiutato.
+   */
+  it('a chi ha solo un permesso Shopify propone la pagina Shopify, non Codici IVA e Pagamenti', async () => {
+    const { search } = await setup({
+      utente: {
+        role: UserRole.Manager,
+        tenantChannelProfile: 'shopify',
+        permissions: ['inventory.import_export'],
+      } as unknown as User,
+      navSections: [
+        {
+          id: 'manage',
+          items: [
+            {
+              label: 'Impostazioni',
+              icon: 'pi-cog',
+              route: '/app/settings/shopify',
+              activeRoutePrefix: '/app/settings',
+            },
+          ],
+        },
+      ],
+    });
+
+    await search('pag');
+    expect(screen.queryByRole('option', { name: /Pagamenti/ })).toBeNull();
+    await search('cod');
+    expect(screen.queryByRole('option', { name: /Codici IVA/ })).toBeNull();
+    await search('shop');
+    expect(screen.getByRole('option', { name: /Shopify/ })).toBeVisible();
+  });
+
+  it('il titolare vede anche Codici IVA e Pagamenti fra le pagine', async () => {
+    const { search } = await setup();
+    await search('pag');
+    expect(screen.getByRole('option', { name: /Pagamenti/ })).toBeVisible();
   });
 
   it('le fonti non raggiungibili dalla nav non vengono interrogate', async () => {

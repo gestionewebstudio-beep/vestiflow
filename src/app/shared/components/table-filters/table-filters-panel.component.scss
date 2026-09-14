@@ -1,0 +1,143 @@
+@use 'breakpoints' as bp;
+
+/*
+  ⭐ **L'host si dissolve**: su scrivania la riga dei filtri partecipa alla barra
+  di chi la ospita come un figlio diretto (il telaio la dispone accanto a
+  Ricerca e Periodo); sotto `lg` il foglio è `fixed` e l'host non conta.
+
+  ⚠️ Le custom property della barra densa arrivano per EREDITÀ anche attraverso
+  `display: contents`: il telaio le dichiara sull'host, la riga dentro le legge.
+*/
+:host {
+  display: contents;
+}
+
+/*
+  ⚠️ **Non deve cedere**: in una riga flessibile il default è `flex: 0 1 auto`,
+  cioè comprimibile — misurato il 29/08/2026 sul telaio, «Stato» e «Periodo»
+  impilati invece che affiancati.
+*/
+.table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/*
+  ⚠️ **Su scrivania, senza filtri di dominio, la riga NON esiste.** Fuori dal
+  telaio nessuno proietta niente e i filtri di colonna stanno nelle
+  intestazioni: resterebbe una scatola vuota che in una colonna con `gap`
+  costa comunque un passo. `:has(*)` guarda gli ELEMENTI, non i commenti che
+  Angular lascia per `@if` e `@for` — con `:empty` la scatola non sarebbe mai vuota.
+*/
+.table-filters:not(.table-filters--panel):not(:has(*)) {
+  display: none;
+}
+
+/*
+  ⭐ **Sotto `lg` la zona filtri diventa un PANNELLO**, e non è una seconda copia
+  dei controlli: è **lo stesso contenitore**, con un'altra veste.
+*/
+@include bp.media-down('lg') {
+  .table-filters__scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    padding: 0;
+    border: none;
+    background-color: var(--color-backdrop);
+    cursor: pointer;
+  }
+
+  /*
+    ⛔ **IL PANNELLO NON È UNA BARRA STRUMENTI** — corretto il 31/08/2026 sul
+    telaio: è una maschera da compilare col dito, e i campi restano al minimo
+    tappabile (`--control-h-tap`), non ai 32px dei pulsanti di barra. Le custom
+    property dense della barra arrivano per eredità: qui si sovrascrivono.
+  */
+  .table-filters--panel {
+    --btn-min-height: var(--control-h-tap);
+    --field-height: var(--control-h-tap);
+    --field-h: var(--control-h-tap);
+    --field-font-size: var(--text-sm);
+    --button-font-size: var(--text-sm);
+
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: calc(var(--z-modal) + 1);
+    display: none;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-4);
+    inline-size: min(92vw, 22rem);
+    padding: var(--space-4);
+    overflow-y: auto;
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-menu);
+  }
+
+  /*
+    ⚠️ `display: none` e non una traslazione fuori schermo: un pannello chiuso ma
+    presente resta raggiungibile col Tab e leggibile dallo screen reader, e chi
+    naviga da tastiera finisce dentro controlli che non vede.
+  */
+  .table-filters--open {
+    display: flex;
+  }
+
+  .table-filters__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block-end: var(--space-3);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .table-filters__title {
+    margin: 0;
+    font-size: var(--text-base);
+  }
+
+  /*
+    ⭐ **Una voce del pannello = una colonna filtrabile.** Etichetta sopra,
+    controllo sotto e a piena larghezza: sotto `lg` il nome della colonna non c'è
+    più in nessun'altra parte dello schermo.
+
+    ⚠️ **Case normale, non maiuscoletto** (`regole-stile-ui` §3).
+  */
+  .table-filters__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .table-filters__label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-field-label);
+  }
+
+  /* ⚠️ Il contenuto di una voce occupa la riga: la colonna qui è una sola. */
+  .table-filters__field app-column-filter {
+    --select-menu-width: 100%;
+    --select-menu-max-width: 100%;
+
+    display: block;
+    inline-size: 100%;
+  }
+
+  /* In fondo al pannello, spinto in basso: si legge dopo i filtri, non prima. */
+  .table-filters__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-block-start: auto;
+    padding-block-start: var(--space-3);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+}

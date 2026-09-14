@@ -47,52 +47,26 @@
     ⭐ Periodo resta in barra a ogni larghezza: è uno dei due che non entrano
     nelle colonne (`14` §0.2).
   -->
+  <!--
+    ⭐ Il selettore Periodo è quello condiviso, estratto dai Corrispettivi
+    (11/09/2026). Le voci restano quelle dei movimenti — «Tutti» compreso — e
+    i confini dei periodi li calcola `resolveMovementPeriodRange` come prima.
+    ⚠️ La modalità di visualizzazione resta della schermata: sui registri di
+    vendita la coppia Dal/Al è sempre visibile, sull’Arrivo merce compare solo
+    con «Personalizzato» — com’era.
+  -->
   <div period>
-    @if (isGoodsReceiptList()) {
-      <div class="doc-list__field">
-        <app-select-menu
-          chipLabel="Periodo"
-          [options]="periodOptions"
-          [value]="periodPreset()"
-          ariaLabel="Filtra per periodo"
-          placeholder="Tutto"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onPeriodPresetChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-    }
-
-    @if (!isGoodsReceiptList() || isCustomPeriod()) {
-      <div class="doc-list__field doc-list__field--date">
-        <label class="doc-list__label" for="doc-date-from">Dal</label>
-        <app-date-input
-          inputId="doc-date-from"
-          [value]="query().dateFrom ?? ''"
-          ariaLabel="Data inizio periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [max]="query().dateTo || undefined"
-          (valueChange)="onDateFromChange($event)"
-        />
-      </div>
-
-      <div class="doc-list__field doc-list__field--date">
-        <label class="doc-list__label" for="doc-date-to">Al</label>
-        <app-date-input
-          inputId="doc-date-to"
-          [value]="query().dateTo ?? ''"
-          ariaLabel="Data fine periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [min]="query().dateFrom || undefined"
-          (valueChange)="onDateToChange($event)"
-        />
-      </div>
-    }
+    <app-period-filter
+      idPrefix="doc-date"
+      [options]="periodOptions"
+      [value]="periodPreset()"
+      [dateFrom]="query().dateFrom ?? ''"
+      [dateTo]="query().dateTo ?? ''"
+      [datesAlways]="!isGoodsReceiptList()"
+      (valueChange)="onPeriodPresetChange($event)"
+      (dateFromChange)="onDateFromChange($event)"
+      (dateToChange)="onDateToChange($event)"
+    />
   </div>
 
   <div filters>

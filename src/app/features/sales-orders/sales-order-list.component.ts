@@ -36,7 +36,7 @@ import { vestiflowExportFilename } from '@core/export/background-blob-export-fil
 import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { ShopifyConnection } from '@core/models/shopify-connection.model';
+
 import { SalesOrderSource, type SalesOrder } from '@core/models/sales-order.model';
 import { customerDisplayName } from '@core/models/customer.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
@@ -44,7 +44,7 @@ import { CustomerService } from '@domain/customers/services/customer.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { PeriodFilterComponent } from '@shared/components/period-filter/period-filter.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
@@ -54,6 +54,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import {
   DEFAULT_MOVEMENT_PERIOD,
+  MOVEMENT_PERIOD_OPTIONS,
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
@@ -67,16 +68,7 @@ import { createListSelection } from '@shared/utils/list-selection';
 import { createSelectionMode } from '@shared/utils/selection-mode';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
-import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
-import {
-  canSyncShopifyCustomersOrOrders,
-  isShopifyConnected,
-} from '@domain/channels/shopify/models/shopify-page-sync.util';
-import {
-  formatShopifyOrdersSyncFeedback,
-  type ShopifySyncFeedback,
-} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import {
@@ -114,7 +106,6 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
-const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
 const EMPTY_META: PageMeta = {
   page: 1,
@@ -142,13 +133,12 @@ type SalesListState =
     ButtonComponent,
     ConfirmDialogComponent,
     DeleteConfirmComponent,
-    DateInputComponent,
+    PeriodFilterComponent,
     ErrorStateComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
     ReportCorrispettiviExportComponent,
     SalesOrderTableComponent,
-    ShopifySyncFeedbackComponent,
   ],
   templateUrl: './sales-order-list.component.html',
   styleUrl: './sales-order-list.component.scss',
@@ -161,12 +151,10 @@ export class SalesOrderListComponent {
   private readonly blobExport = inject(BackgroundBlobExportService);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly authService = inject(AuthService);
-  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly customerService = inject(CustomerService);
   private readonly operationalLocations = inject(OperationalLocationsService);
-
-  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 9;
 
@@ -289,23 +277,9 @@ export class SalesOrderListComponent {
   private readonly refreshTick = signal(0);
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
-  protected readonly shopifyOrdersLoading = signal(false);
+
   protected readonly exportingCorrispettivi = computed(() =>
     this.blobExport.isActive(SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID),
-  );
-  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
-  protected readonly shopifySyncError = signal<string | null>(null);
-
-  private readonly shopifyConnection = toSignal(
-    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
-    { initialValue: null as ShopifyConnection | null },
-  );
-
-  protected readonly showShopifyOrdersSync = computed(
-    () =>
-      this.isShopifyView() &&
-      isShopifyConnected(this.shopifyConnection()) &&
-      canSyncShopifyCustomersOrOrders(this.authService.currentUser()),
   );
 
   protected readonly canExportData = computed(
@@ -554,17 +528,8 @@ export class SalesOrderListComponent {
         }),
       );
     }
-    if (this.showShopifyOrdersSync()) {
-      diPagina.push({
-        id: 'shopify-sync',
-        label: 'Sincronizza',
-        icon: 'pi-sync',
-        requires: 'none',
-        busy: this.shopifyOrdersLoading(),
-        ariaLabel: 'Sincronizza le vendite da Shopify',
-        run: () => this.syncOrdersFromShopify(),
-      });
-    }
+    // ⛔ Qui c’era «Sincronizza» (ordini da Shopify): sta in Impostazioni → Shopify,
+    //    con lo stesso permesso (11/09/2026).
     const azioni: ListAction[] = [
       ...diPagina,
       /*
@@ -716,7 +681,24 @@ export class SalesOrderListComponent {
     //
     // ⛔ Una volta sola, alla creazione: riscriverlo a ogni giro cancellerebbe
     // la scelta «Tutti», che è l'unico caso in cui nessun periodo è applicato.
-    if (this.periodPreset() !== MovementPeriodPreset.All) {
+    //
+    // ⛔ **E solo se l'URL non porta già delle date: quel ramo le CANCELLAVA.**
+    // Con `placedFrom` o `placedTo` presenti il preset vale `Custom` proprio
+    // perché ci sono (vedi `periodPreset`), e `resolveMovementPeriodRange`
+    // risponde a `Custom` con gli estremi che le si passano — qui due stringhe
+    // vuote, cioè `{ from: undefined, to: undefined }`. Le due date finivano
+    // riscritte a `null` e tolte dall'indirizzo: a ogni F5 l'elenco ALTERNAVA
+    // fra «Ultimi 30 giorni» (URL senza date → il predefinito le scrive) e
+    // «Personalizzato» vuoto (URL con le date → questo ramo le cancellava).
+    // Segnalato dal proprietario sugli Ordini Shopify il 13/09/2026, misurato
+    // con Playwright a due F5 consecutivi. È la stessa correzione già fatta
+    // sull'elenco documenti il 04/09 (f5176a7e) e non propagata qui.
+    const periodoNellUrl = this.route.snapshot.queryParamMap;
+    if (
+      this.periodPreset() !== MovementPeriodPreset.All &&
+      !periodoNellUrl.get('placedFrom') &&
+      !periodoNellUrl.get('placedTo')
+    ) {
       const iniziale = resolveMovementPeriodRange(this.periodPreset(), '', '');
       this.updateParams({ placedFrom: iniziale.from ?? null, placedTo: iniziale.to ?? null }, true);
     }
@@ -812,18 +794,13 @@ export class SalesOrderListComponent {
     });
   }
 
-  /** Preset rapidi del periodo Dal/Al (stessi dell'Arrivo merce). */
-  protected readonly periodOptions: readonly SelectMenuOption[] = [
-    // «Tutti» resta scegliibile, non è più il predefinito (`14` §H14-bis).
-    { value: MovementPeriodPreset.All, label: 'Tutti' },
-    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
-    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
-    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
-    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
-    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
-    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
-    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
-  ];
+  /**
+   * Le voci del periodo sono quelle condivise dei movimenti (11/09/2026): qui
+   * c'era una copia locale SENZA «Oggi» e «Ieri», aggiunte all'elenco comune il
+   * 06/09 per la Cassa. Due voci in più, gli stessi confini di sempre; «Tutti»
+   * resta e non è il predefinito (`14` §H14-bis).
+   */
+  protected readonly periodOptions = MOVEMENT_PERIOD_OPTIONS;
 
   /**
    * Preset periodo selezionato (stato UI locale; le date effettive stanno
@@ -835,10 +812,6 @@ export class SalesOrderListComponent {
       this.route.snapshot.queryParamMap.get('placedTo')
       ? MovementPeriodPreset.Custom
       : DEFAULT_MOVEMENT_PERIOD,
-  );
-
-  protected readonly isCustomPeriod = computed(
-    () => this.periodPreset() === MovementPeriodPreset.Custom,
   );
 
   /** Cambio preset: calcola Dal/Al, oppure lascia i campi liberi se custom. */
@@ -882,31 +855,6 @@ export class SalesOrderListComponent {
     this.refreshTick.update((tick) => tick + 1);
   }
 
-  protected syncOrdersFromShopify(): void {
-    if (this.shopifyOrdersLoading()) {
-      return;
-    }
-
-    this.shopifyOrdersLoading.set(true);
-    this.clearShopifyFeedback();
-    this.shopifySyncError.set(null);
-
-    this.shopifyConnectionService
-      .syncOrders()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.shopifyOrdersLoading.set(false);
-          this.showShopifyFeedback(formatShopifyOrdersSyncFeedback(result));
-          this.reload();
-        },
-        error: (err: unknown) => {
-          this.shopifyOrdersLoading.set(false);
-          this.shopifySyncError.set(this.extractErrorMessage(err));
-        },
-      });
-  }
-
   protected exportCorrispettiviShopify(): void {
     if (this.exportingCorrispettivi()) {
       return;
@@ -928,10 +876,6 @@ export class SalesOrderListComponent {
       successMessage: 'Export corrispettivi Shopify completato: download avviato.',
       errorMessage: 'Export corrispettivi non riuscito. Riprova tra qualche istante.',
     });
-  }
-
-  protected dismissShopifyFeedback(): void {
-    this.clearShopifyFeedback();
   }
 
   protected openOrder(order: SalesOrder): void {
@@ -1222,30 +1166,6 @@ export class SalesOrderListComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
-  }
-
-  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
-    this.clearShopifyFeedback();
-    this.shopifyFeedback.set(feedback);
-    this.shopifyFeedbackTimer = setTimeout(() => {
-      this.shopifyFeedback.set(null);
-      this.shopifyFeedbackTimer = null;
-    }, SHOPIFY_FEEDBACK_DISMISS_MS);
-  }
-
-  private clearShopifyFeedback(): void {
-    if (this.shopifyFeedbackTimer) {
-      clearTimeout(this.shopifyFeedbackTimer);
-      this.shopifyFeedbackTimer = null;
-    }
-    this.shopifyFeedback.set(null);
-  }
-
-  private extractErrorMessage(err: unknown): string {
-    if (isAppError(err)) {
-      return err.message;
-    }
-    return 'Operazione non riuscita. Riprova.';
   }
 }
 

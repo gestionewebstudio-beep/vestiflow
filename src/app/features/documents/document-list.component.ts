@@ -55,7 +55,7 @@ import {
 } from '@domain/inventory/models/movement-period.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { PeriodFilterComponent } from '@shared/components/period-filter/period-filter.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
@@ -216,7 +216,7 @@ type DeleteResult =
     GroupByMenuComponent,
     ListPageComponent,
     DeleteConfirmComponent,
-    DateInputComponent,
+    PeriodFilterComponent,
     ErrorStateComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
@@ -468,20 +468,13 @@ export class DocumentListComponent {
     { initialValue: [] as readonly SelectMenuOption[] },
   );
 
-  /** Preset rapidi del periodo Dal/Al (allineati al registro movimenti). */
-  protected readonly periodOptions: readonly SelectMenuOption[] = [
-    // ⭐ «Tutti» resta scegliibile ma NON è più il predefinito (`14` §H14-bis):
-    // un riepilogo che si apre su tutta la storia del tenant chiede al database
-    // di leggerla prima ancora che l'operatore abbia guardato qualcosa.
-    { value: MovementPeriodPreset.All, label: 'Tutti' },
-    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
-    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
-    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
-    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
-    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
-    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
-    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
-  ];
+  /**
+   * Le voci del periodo sono quelle condivise dei movimenti (11/09/2026): qui
+   * c'era una copia locale SENZA «Oggi» e «Ieri», aggiunte all'elenco comune il
+   * 06/09 per la Cassa. Si allineano: due voci in più, gli stessi confini di
+   * sempre (`resolveMovementPeriodRange`). «Tutti» resta, e non è il predefinito.
+   */
+  protected readonly periodOptions = MOVEMENT_PERIOD_OPTIONS;
 
   /**
    * Preset periodo selezionato (stato UI locale): le date effettive restano

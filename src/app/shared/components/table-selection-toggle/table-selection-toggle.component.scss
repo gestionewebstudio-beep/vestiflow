@@ -1,0 +1,4 @@
+/* Come `app-button`: nel flusso della barra sta il pulsante, non l'involucro. */
+:host {
+  display: contents;
+}

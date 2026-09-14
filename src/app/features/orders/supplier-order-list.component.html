@@ -24,26 +24,18 @@
   (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
+  <!--
+    ⭐ Il selettore Periodo è quello condiviso, estratto dai Corrispettivi
+    (11/09/2026), con le voci di questo elenco: senza «Personalizzato», come
+    prima. Il segnaposto NON nomina un preset: ad azzerare pensa «Tutti».
+  -->
   <div period>
-    <div class="po-list__field">
-      <!-- Il segnaposto NON nomina un preset: qui c'era «Ultimi 30 giorni»,
-         che e' gia' una scelta vera dell'elenco, e la voce vuota la
-         ripeteva con l'effetto OPPOSTO — azzerare il filtro invece di
-         applicarlo. Ad azzerare pensa «Tutti», che ha un nome suo. Stessa
-         forma del filtro periodo dei Movimenti di magazzino. -->
-      <app-select-menu
-        chipLabel="Periodo"
-        [options]="periodOptions"
-        [value]="periodPreset()"
-        ariaLabel="Filtra per periodo"
-        placeholder="Periodo"
-        [includeEmptyOption]="false"
-        [compact]="true"
-        [fullWidth]="true"
-        [labelOnly]="true"
-        (valueChange)="onPeriodPresetChange($event)"
-      />
-    </div>
+    <app-period-filter
+      idPrefix="po-date"
+      [options]="periodOptions"
+      [value]="periodPreset()"
+      (valueChange)="onPeriodPresetChange($event)"
+    />
   </div>
 
   <div filters>

@@ -192,13 +192,19 @@
   }
 
   <!-- Integrazione Shopify: pannello autonomo, come quello TikTok sopra. -->
-  @if (showShopifyPanel()) {
+  <!-- ⭐ Shopify ha una pagina propria (11/09/2026): connessione, configurazione,
+       comandi generali di sincronizzazione e i loro esiti stanno lì, in un posto
+       solo. La card la vede chi può eseguire almeno un comando. -->
+  @if (showShopifyCard()) {
     <section class="settings__panel" aria-labelledby="settings-shopify">
-      <app-shopify-integration-panel
-        [locationSetupStatus]="locationSetupStatus()"
-        [mustChooseLocations]="mustChooseLocations()"
-        (locationsChanged)="onShopifyLocationsChanged()"
-      />
+      <h2 id="settings-shopify" class="settings__panel-title">Shopify</h2>
+      <p class="settings__panel-hint">
+        Connessione al negozio, sedi collegate, sincronizzazione di catalogo, giacenze, clienti e
+        ordini, con gli esiti delle operazioni.
+      </p>
+      <a class="settings__panel-cta" routerLink="/app/settings/shopify">
+        <app-button variant="secondary">Apri Shopify</app-button>
+      </a>
     </section>
   }
 

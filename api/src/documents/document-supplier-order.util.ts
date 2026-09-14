@@ -155,9 +155,7 @@ export async function syncSupplierOrderConclusion(
     },
   });
   const nextStatus =
-    activeLinkedDocuments > 0
-      ? SupplierOrderStatus.concluded
-      : SupplierOrderStatus.confirmed;
+    activeLinkedDocuments > 0 ? SupplierOrderStatus.concluded : SupplierOrderStatus.confirmed;
   if (nextStatus !== order.status) {
     await tx.supplierOrder.update({
       where: { id: supplierOrderId },

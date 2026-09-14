@@ -194,6 +194,18 @@
               <p>{{ line }}</p>
             }
           </div>
+          <!-- ⭐ Il raccordo economico del canale: valore originario, rettifiche, totale
+               aggiornato; quantità ordinate · annullate · spedite (13/09/2026, #1014). -->
+          @if (channelRettifiche().length > 0 || channelQuantita().some((r) => r.shipped > 0)) {
+            <app-channel-order-rettifiche
+              class="co-form__rettifiche"
+              [originalTotal]="channelTotals().total"
+              [refundTotal]="channelTotals().refunds"
+              [updatedTotal]="channelTotals().updatedTotal"
+              [refunds]="channelRettifiche()"
+              [lines]="channelQuantita()"
+            />
+          }
         } @else {
           <div class="doc-form__unlock-banner" role="status">
             <p>Ordine in sola lettura.</p>

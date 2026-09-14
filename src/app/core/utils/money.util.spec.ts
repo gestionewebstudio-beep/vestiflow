@@ -58,10 +58,19 @@ describe('formatMoney', () => {
     const reference = new Intl.NumberFormat('it-IT', {
       style: 'currency',
       currency: 'EUR',
+      useGrouping: 'always',
     }).format(1234.5);
     expect(label).toBe(reference);
     expect(label).toContain('€');
-    expect(label).toContain('234,50');
+    expect(label).toContain('1.234,50');
+  });
+
+  // ⭐ Il punto delle migliaia anche a QUATTRO cifre (proprietario, 13/09/2026):
+  //    `it-IT` da solo scrive «2249,85 €» e raggruppa solo da cinque cifre in su.
+  it('mette il punto delle migliaia anche sotto le cinque cifre', () => {
+    expect(formatMoney({ amountMinor: 224985, currencyCode: 'EUR' })).toContain('2.249,85');
+    expect(formatMoney({ amountMinor: 74995, currencyCode: 'EUR' })).toContain('749,95');
+    expect(formatMoney({ amountMinor: 2249985, currencyCode: 'EUR' })).toContain('22.499,85');
   });
 
   // Punto di uscita (§sei decimali): ogni schermata che mostra denaro passa da

@@ -1,0 +1,184 @@
+@let elenco = problemi();
+
+<!-- Il titolo («Problemi aperti», conteggio, «letti alle») lo dà la sezione che ospita il componente. -->
+<div class="problemi">
+  @if (elenco.length === 0) {
+    <p class="problemi__vuoto">Nessun problema aperto: la sincronizzazione lavora.</p>
+  } @else {
+    <!--
+      ⭐ Prima le CAUSE: una card per causa, con TRE righe fisse — che cosa (col
+         conteggio e i primi nomi), l'effetto, l'azione con DOVE si fa (`docs/29`
+         §2.3). È qui che «75 righe» diventano «1 causa, 75 articoli», e la frase
+         lunga dell'azione sta una volta sola: in tabella c'è la forma breve.
+      ⛔ Nessun comando si esegue da qui: il rimando porta al posto in cui si fa.
+    -->
+    <dl class="problemi__gruppi">
+      @for (gruppo of gruppi(); track gruppo.causa) {
+        @let forma = formaDi(gruppo.azione);
+        <!--
+          Causa, numero, effetto e azione: i nomi degli elementi stanno nell'elenco
+          sotto, non troncati nell'intestazione (proprietario, 13/09/2026). Il tono
+          distingue «da fare» (ambra) da «da valutare» (neutro): un'esclusione voluta
+          non deve sembrare un guasto.
+        -->
+        <div
+          class="problemi__gruppo"
+          [class.problemi__gruppo--valutare]="tono(gruppo.azione) === 'valutare'"
+        >
+          <dt class="problemi__gruppo-causa">
+            <span class="problemi__gruppo-conteggio tabular-nums">{{ gruppo.conteggio }}</span>
+            {{ gruppo.etichetta }}
+          </dt>
+          <dd class="problemi__gruppo-riga">
+            <span class="problemi__gruppo-etichetta">Effetto</span>
+            <span class="problemi__gruppo-conseguenza">{{ gruppo.conseguenza }}</span>
+          </dd>
+          <dd class="problemi__gruppo-riga">
+            <span class="problemi__gruppo-etichetta">Azione</span>
+            <span class="problemi__gruppo-azione">
+              <span [class]="'problemi__dove problemi__dove--' + forma.dove">
+                {{ dove(forma.dove) }}
+              </span>
+              @switch (forma.dove) {
+                @case ('pagina') {
+                  {{ gruppo.azione.etichetta }}
+                  <button
+                    type="button"
+                    class="problemi__rimando"
+                    [disabled]="busy()"
+                    (click)="azione.emit(gruppo.azione)"
+                  >
+                    {{ forma.breve }} ›
+                  </button>
+                }
+                @case ('vestiflow') {
+                  {{ gruppo.azione.etichetta }}: dall'elenco qui sotto, elemento per elemento
+                }
+                @default {
+                  {{ gruppo.azione.etichetta }}
+                }
+              }
+            </span>
+          </dd>
+        </div>
+      }
+    </dl>
+
+    <!--
+      Poi l'ELENCO, sul motore comune: ricerca, colonne, filtri, esportazione. Con un
+      titolo suo e un filo sopra: cause ed elenco sono due blocchi, e si devono vedere
+      (proprietario, 13/09/2026: «una leggera divisione ottica in più, qualche spazio»).
+    -->
+    <h4 class="problemi__elenco-titolo">
+      Tutti i problemi, uno per riga
+      <span class="problemi__elenco-meta">{{ elenco.length }} in tutto</span>
+    </h4>
+    <div class="problemi__strumenti">
+      <div class="problemi__ricerca">
+        <i class="pi pi-search problemi__ricerca-icona" aria-hidden="true"></i>
+        <input
+          class="problemi__ricerca-campo"
+          type="search"
+          placeholder="Cerca fra i problemi…"
+          aria-label="Cerca fra i problemi"
+          [value]="ricerca()"
+          (input)="onRicerca($event)"
+        />
+      </div>
+      <app-table-column-picker [viewId]="vista" />
+      <app-table-filters-button [viewId]="vista" [(open)]="filtriAperti" />
+      <app-button variant="ghost" [disabled]="filtrate().length === 0" (click)="esporta()">
+        Esporta CSV
+      </app-button>
+    </div>
+    <app-table-filters-panel [viewId]="vista" [(open)]="filtriAperti" />
+
+    <app-data-table
+      class="problemi__elenco"
+      caption="Problemi aperti della sincronizzazione Shopify"
+      [columns]="colonne()"
+      [viewId]="vista"
+      [sections]="sezioni()"
+      [rowId]="rigaId"
+      [cellText]="testo"
+      [sortable]="true"
+      [sort]="ordine()"
+      (sortChange)="ordine.set($event)"
+    >
+      <!-- L'elemento è un collegamento, quando ha una pagina: ordine o articolo. -->
+      <ng-template appCell="elemento" let-riga>
+        @if (percorso(riga.apri); as via) {
+          <a class="problemi__link" [routerLink]="via">{{ riga.nome }}</a>
+        } @else {
+          {{ riga.nome }}
+        }
+      </ng-template>
+      <ng-template appCell="causa" let-riga>
+        <span class="problemi__causa">{{ testo(riga, 'causa') }}</span>
+      </ng-template>
+      <!--
+        L'azione in forma BREVE: un rimando se si fa in questa pagina, un
+        collegamento se si fa in un'altra pagina di VestiFlow, il testo se si fa
+        su Shopify o non c'è niente da fare. La frase intera resta nel `title`.
+      -->
+      <ng-template appCell="azione" let-riga>
+        @let formaRiga = formaDi(riga.azione);
+        @switch (formaRiga.dove) {
+          @case ('pagina') {
+            <button
+              type="button"
+              class="problemi__azione"
+              [title]="riga.azione.etichetta"
+              [disabled]="busy()"
+              (click)="azione.emit(riga.azione)"
+            >
+              {{ formaRiga.breve }} ›
+            </button>
+          }
+          @case ('vestiflow') {
+            @if (percorso(riga.azione); as via) {
+              <a class="problemi__link" [routerLink]="via" [title]="riga.azione.etichetta">
+                {{ formaRiga.breve }} ›
+              </a>
+            } @else {
+              <span [title]="riga.azione.etichetta">{{ formaRiga.breve }}</span>
+            }
+          }
+          @default {
+            <span [title]="riga.azione.etichetta">{{ formaRiga.breve }}</span>
+          }
+        }
+      </ng-template>
+
+      <!--
+        ⭐ Sul telefono la card è COMPATTA: chi è (nome, variante, sede) e la causa.
+           Effetto e azione sono gli stessi per ogni riga della causa e stanno scritti
+           una volta nel gruppo in cima: ripeterli 75 volte faceva card da 150px
+           (proprietario, 13/09/2026: «da mobile diventa impossibile la gestione con
+           card enormi»). Le celle vere restano nell'albero accessibile.
+      -->
+      <ng-template appRowCard let-riga>
+        <div class="list-card__head">
+          <span class="list-card__ident">
+            <span class="list-card__what">
+              @if (percorso(riga.apri); as via) {
+                <a class="problemi__link" [routerLink]="via">{{ riga.nome }}</a>
+              } @else {
+                {{ riga.nome }}
+              }
+            </span>
+          </span>
+          @if (riga.sede) {
+            <span class="list-card__anchor">{{ riga.sede }}</span>
+          }
+        </div>
+        <div class="list-card__words">
+          @if (riga.dettaglio) {
+            <span>{{ riga.dettaglio }}</span>
+          }
+          <span class="problemi__causa">{{ testo(riga, 'causa') }}</span>
+        </div>
+      </ng-template>
+    </app-data-table>
+  }
+</div>

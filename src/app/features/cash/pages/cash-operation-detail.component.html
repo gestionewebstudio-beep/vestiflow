@@ -82,14 +82,33 @@
     <!-- ── Movimenti ────────────────────────────────────────────────────── -->
     @if (o.stockMovements.length > 0) {
       <app-form-section title="Movimenti di magazzino" [flat]="true">
-        <ul class="op__movements">
-          @for (m of o.stockMovements; track m.id) {
-            <li>
-              {{ m.type }} · {{ m.sku ?? '—' }} · {{ m.quantity }} pezzi ·
-              {{ m.createdAt | date: 'dd/MM/yyyy HH:mm' }}
-            </li>
-          }
-        </ul>
+        <!-- ⭐ Sul motore comune (`docs/26` A19): lo stesso elenco del Dettaglio vendita online. -->
+        <app-data-table
+          caption="Movimenti di magazzino"
+          [columns]="colonneMovimenti"
+          [sections]="sezioniMovimenti()"
+          [rowId]="rigaMovimentoId"
+          [cellText]="testoMovimento"
+          [sortable]="true"
+          [sort]="ordineMovimenti()"
+          (sortChange)="ordineMovimenti.set($event)"
+        >
+          <ng-template appRowCard let-m>
+            <div class="list-card__head">
+              <span class="list-card__ident">
+                <span class="list-card__when">{{ testoMovimento(m, 'createdAt') }}</span>
+                <span class="list-card__what">{{ m.type }}</span>
+              </span>
+            </div>
+            <div class="list-card__words">
+              <span class="tabular-nums">{{ m.sku ?? '—' }}</span>
+              <span>{{ m.createdByName }}</span>
+            </div>
+            <div class="list-card__figures">
+              <span class="list-card__total tabular-nums">Qtà {{ m.quantity }}</span>
+            </div>
+          </ng-template>
+        </app-data-table>
       </app-form-section>
     }
 

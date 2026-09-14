@@ -29,8 +29,27 @@ import {
 } from '@core/constants/tenant-location-license.constants';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableSection,
+  DataTableSort,
+  DataTableTotals,
+} from '@shared/components/data-table/data-table.model';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableFiltersButtonComponent } from '@shared/components/table-filters/table-filters-button.component';
+import { TableFiltersPanelComponent } from '@shared/components/table-filters/table-filters-panel.component';
+import { TableSelectionToggleComponent } from '@shared/components/table-selection-toggle/table-selection-toggle.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import type { ListAction } from '@shared/models/list-selection.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 
 import { AdminTenantProfileFieldsComponent } from '../../components/admin-tenant-profile-fields/admin-tenant-profile-fields.component';
 import type { ProvisionedTenant, TenantSummary } from '../../models/admin-tenant.model';
@@ -39,6 +58,11 @@ import {
   profilePayloadFromForm,
 } from '../../models/admin-tenant-profile.form';
 import { TENANT_ROLE_OPTIONS, tenantRoleLabel } from '../../models/admin-tenant-role.util';
+import {
+  ADMIN_TENANTS_COLUMN_DEFS,
+  ADMIN_TENANTS_COLUMN_PRESETS,
+  ADMIN_TENANTS_VIEW,
+} from '../../models/admin-tenants-table-columns.config';
 import { AdminTenantsService } from '../../services/admin-tenants.service';
 
 /**
@@ -55,6 +79,13 @@ import { AdminTenantsService } from '../../services/admin-tenants.service';
     SelectMenuComponent,
     TableSkeletonComponent,
     AdminTenantProfileFieldsComponent,
+    DataTableComponent,
+    DataTableRowCardDirective,
+    ListActionsBarComponent,
+    TableColumnPickerComponent,
+    TableFiltersButtonComponent,
+    TableFiltersPanelComponent,
+    TableSelectionToggleComponent,
   ],
   templateUrl: './create-client.component.html',
   styleUrl: './create-client.component.scss',
@@ -106,6 +137,109 @@ export class CreateClientComponent {
   protected readonly submitError = signal<string | null>(null);
   protected readonly supportSessionLoadingId = signal<string | null>(null);
   protected readonly supportSessionError = signal<string | null>(null);
+
+  // ── L’elenco delle aziende, sul MOTORE comune (`docs/26` A14) ────────────
+  private readonly preferenzeColonne = inject(TableColumnPreferenceService);
+  protected readonly vista = ADMIN_TENANTS_VIEW;
+  // ⛔ Assegnate nel costruttore, dopo `registerView`.
+  protected readonly colonne: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+  protected readonly ordine = signal<readonly DataTableSort[]>([]);
+  protected readonly filtriAperti = signal(false);
+  protected readonly rowId = (tenant: TenantSummary): string => tenant.id;
+  protected readonly rowLabel = (tenant: TenantSummary): string =>
+    `Modifica cliente ${tenant.name}`;
+  protected readonly selectionLabel = (tenant: TenantSummary): string => `Seleziona ${tenant.name}`;
+
+  protected readonly testoCella = (tenant: TenantSummary, colonna: string): string => {
+    switch (colonna) {
+      case 'name':
+        return tenant.name;
+      case 'profile':
+        return tenantChannelProfileLabel(tenant.channelProfile);
+      case 'vatNumber':
+        return tenant.vatNumber ?? '—';
+      case 'owner':
+        return tenant.ownerDisplayName ?? '—';
+      case 'email':
+        return tenant.ownerEmail ?? '—';
+      case 'createdAt':
+        return formatDateTime(tenant.createdAt);
+      default:
+        return '';
+    }
+  };
+  // La data si ordina e si filtra sul valore ISO, non sul testo formattato.
+  private readonly dataDi = (tenant: TenantSummary, colonna: string): string | null =>
+    colonna === 'createdAt' ? tenant.createdAt : null;
+
+  private readonly righeFiltrate = createColumnFilters<TenantSummary>({
+    viewId: () => ADMIN_TENANTS_VIEW,
+    righe: () => this.tenants(),
+    cellText: this.testoCella,
+    dataDi: this.dataDi,
+  });
+  private readonly righeOrdinate = computed(() =>
+    ordinaPerColonne(this.righeFiltrate(), this.ordine(), {
+      cellText: this.testoCella,
+      dataDi: this.dataDi,
+    }),
+  );
+  protected readonly sezioni = computed<readonly DataTableSection<TenantSummary>[]>(() => [
+    { id: 'aziende', rows: this.righeOrdinate() },
+  ]);
+
+  /**
+   * ⭐ **«Apri gestionale» sta nella barra, sulla selezione** — come ogni comando
+   * per riga degli elenchi. Era un pulsante per riga; stessi permessi (la
+   * pagina è già riservata all’amministrazione), stesso gestore, e la barra
+   * dice da sé che va scelta un’azienda.
+   */
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
+  protected readonly listActions = computed<readonly ListAction[]>(() => [
+    {
+      id: 'support-session',
+      label: 'Apri gestionale',
+      icon: 'pi-sign-in',
+      variant: 'secondary',
+      requires: 'one',
+      ariaLabel: 'Apri il gestionale dell’azienda selezionata',
+      busy: this.supportSessionLoadingId() !== null,
+      run: (target) => {
+        if (target.scope === 'selection' && target.ids[0]) {
+          const tenant = this.tenants().find((t) => t.id === target.ids[0]);
+          if (tenant) {
+            this.openSupportSession(tenant);
+          }
+        }
+      },
+    },
+  ]);
+
+  /** «N voci»: la riga totali non sparisce mai, anche senza niente da sommare. */
+  protected readonly totali = computed<DataTableTotals>(() =>
+    totaliDiElenco(this.righeOrdinate(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.colonne(),
+      campi: {},
+    }),
+  );
+
+  protected toggleSelection(id: string, selected: boolean): void {
+    this.selection.toggle(id, selected);
+  }
+  protected toggleSelectAll(selected: boolean): void {
+    this.selection.setAll(
+      this.righeFiltrate().map((t) => t.id),
+      selected,
+    );
+  }
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
   protected readonly created = signal<ProvisionedTenant | null>(null);
   protected readonly passwordVisible = signal(false);
   protected readonly passwordMinLength = PASSWORD_MIN_LENGTH;
@@ -147,6 +281,13 @@ export class CreateClientComponent {
   });
 
   constructor() {
+    this.preferenzeColonne.registerView(
+      ADMIN_TENANTS_VIEW,
+      ADMIN_TENANTS_COLUMN_DEFS,
+      ADMIN_TENANTS_COLUMN_PRESETS,
+    );
+    this.colonne = this.preferenzeColonne.visibleColumns(ADMIN_TENANTS_VIEW);
+
     this.loadTenants();
   }
 
@@ -206,8 +347,7 @@ export class CreateClientComponent {
     void this.router.navigate(['/app/admin/clients', tenant.id]);
   }
 
-  protected openSupportSession(tenant: TenantSummary, event: Event): void {
-    event.stopPropagation();
+  protected openSupportSession(tenant: TenantSummary): void {
     if (this.supportSessionLoadingId()) {
       return;
     }

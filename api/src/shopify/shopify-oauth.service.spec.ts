@@ -15,10 +15,12 @@ import type { ShopifyLocationSyncService } from './shopify-location-sync.service
 import { ShopifyOAuthService } from './shopify-oauth.service';
 
 describe('ShopifyOAuthService', () => {
-  function createService(overrides: {
-    cryptoConfigured?: boolean;
-    tenantProfile?: TenantChannelProfile;
-  } = {}) {
+  function createService(
+    overrides: {
+      cryptoConfigured?: boolean;
+      tenantProfile?: TenantChannelProfile;
+    } = {},
+  ) {
     const { cryptoConfigured = true, tenantProfile = TenantChannelProfile.shopify } = overrides;
 
     const prisma = {
@@ -86,6 +88,26 @@ describe('ShopifyOAuthService', () => {
       clearSetupStatus: vi.fn().mockResolvedValue(undefined),
     };
 
+    // ⚠️ L'identita' del negozio si legge in GraphQL e si registra a parte
+    //    (§8.5.8 fase 2): entrambe sono finte qui, ma NON silenziose — una
+    //    lettura che restituisse `undefined` renderebbe verdi prove che non
+    //    hanno acquisito niente.
+    const shopifyGraphql = {
+      getShopIdentity: vi.fn().mockResolvedValue({
+        shopGid: 'gid://shopify/Shop/9930001',
+        myshopifyDomain: 'test-shop.myshopify.com',
+      }),
+    };
+    const shopIdentity = {
+      registra: vi
+        .fn()
+        .mockResolvedValue({
+          tipo: 'registrata',
+          shopId: 'shop-1',
+          shopGid: 'gid://shopify/Shop/9930001',
+        }),
+    };
+
     const service = new ShopifyOAuthService(
       prisma as unknown as PrismaService,
       shopifyConfig as unknown as ShopifyConfigService,
@@ -93,9 +115,20 @@ describe('ShopifyOAuthService', () => {
       shopifyAdmin as unknown as ShopifyAdminClient,
       shopifyConnection as unknown as ShopifyConnectionService,
       {} as ShopifyLocationSyncService,
+      shopifyGraphql as never,
+      shopIdentity as never,
     );
 
-    return { service, prisma, shopifyConfig, shopifyCrypto, shopifyAdmin, shopifyConnection };
+    return {
+      service,
+      prisma,
+      shopifyConfig,
+      shopifyCrypto,
+      shopifyAdmin,
+      shopifyConnection,
+      shopifyGraphql,
+      shopIdentity,
+    };
   }
 
   // ⚠ GUARDIA — registro difetti 1.7.
@@ -137,8 +170,9 @@ describe('ShopifyOAuthService', () => {
       (shopifyAdmin as unknown as { registerWebhooks: unknown }).registerWebhooks = vi
         .fn()
         .mockResolvedValue({ registered: ['orders/cancelled'], skipped: [], failed: [] });
-      (shopifyConnection as unknown as { recordWebhooksActivated: unknown })
-        .recordWebhooksActivated = vi.fn();
+      (
+        shopifyConnection as unknown as { recordWebhooksActivated: unknown }
+      ).recordWebhooksActivated = vi.fn();
       (shopifyConnection as unknown as { healStaleErrorStatus: unknown }).healStaleErrorStatus =
         vi.fn();
 

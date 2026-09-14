@@ -104,10 +104,14 @@ describe('persistDocumentLinesByIdTx', () => {
     const tx = createTxMock();
 
     await expect(
-      run(tx, ['line-1'], [
-        { id: 'line-1', quantity: 1 },
-        { id: 'line-1', quantity: 5 },
-      ]),
+      run(
+        tx,
+        ['line-1'],
+        [
+          { id: 'line-1', quantity: 1 },
+          { id: 'line-1', quantity: 5 },
+        ],
+      ),
     ).rejects.toThrow(/due volte/);
   });
 

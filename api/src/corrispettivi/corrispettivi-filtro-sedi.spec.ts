@@ -46,7 +46,10 @@ function creaPrisma() {
     });
 
   const prisma = {
-    location: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null) },
+    location: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     salesOrder: { count: registra('salesOrder', 0), findMany: registra('salesOrder', []) },
     salesOrderRefund: {
       count: registra('salesOrderRefund', 0),
@@ -122,7 +125,10 @@ describe('⛔ il Registro non si restringe da sé: guardia contro lo scope per s
     */
     for (const sorgente of Object.keys(whereRicevuti)) {
       for (const where of whereRicevuti[sorgente]!) {
-        expect(sedeDelWhere(where), `${sorgente} ha una restrizione di sede non chiesta`).toBeUndefined();
+        expect(
+          sedeDelWhere(where),
+          `${sorgente} ha una restrizione di sede non chiesta`,
+        ).toBeUndefined();
       }
     }
   });

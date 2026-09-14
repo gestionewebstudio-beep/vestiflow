@@ -8,6 +8,12 @@ export const SHOPIFY_WEBHOOK_TOPICS = [
   'customers/update',
   'products/create',
   'products/update',
+  // ⭐ La SEDE degli ordini online (13/09/2026): Shopify la assegna nel
+  //    fulfillment order, anche dopo la creazione, e può spostarla fino alla
+  //    spedizione. I due eventi reimportano l'ordine: gli impegni nascono o si
+  //    spostano. Ambito di sola lettura `read_merchant_managed_fulfillment_orders`.
+  'fulfillment_orders/order_routing_complete',
+  'fulfillment_orders/moved',
 ] as const;
 
 export type ShopifyWebhookTopic = (typeof SHOPIFY_WEBHOOK_TOPICS)[number];
@@ -62,7 +68,7 @@ export function normalizeObservedTopics(topics: readonly string[]): readonly str
  * I topic attesi che non risultano fra quelli osservati sul negozio.
  *
  * Va chiamata SOLO quando un'osservazione esiste davvero. Su una connessione mai
- * verificata l'elenco osservato e' vuoto, e qui uscirebbero «mancano tutti e otto»:
+ * verificata l'elenco osservato e' vuoto, e qui uscirebbero «mancano tutti e dieci»:
  * sarebbe ignoranza travestita da diagnosi. Chi legge deve prima guardare
  * `webhookTopicsKnown`.
  *

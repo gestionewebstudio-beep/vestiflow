@@ -376,7 +376,84 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 3. Clicca **Connetti Shopify** e accetta i permessi sulla pagina Shopify.
 4. Al ritorno lo stato deve essere **Connesso**.
 
+### La prima connessione si fa insieme: che cosa serve da te
+
+Se il negozio Shopify e VestiFlow non sono mai stati collegati, dopo «Connetti Shopify» compare
+la sezione **Prima connessione**: articoli, sedi e quantità si portano da una parte all'altra
+**una volta sola**, e da quel momento VestiFlow governa le quantità. I passi — direzione di
+partenza, collegamento di ogni sede, anteprima, trasferimento, attivazione — li preparano e li
+eseguono **gli operatori VestiFlow con te**, non da soli.
+
+**La finestra operativa.** La partenza si fa in un momento concordato, e in quel momento **sulle
+sedi coinvolte non devono avvenire**:
+
+| Da non fare, finché l'attivazione non è confermata                                   | Perché                                                |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| vendite al banco o online                                                            | cambierebbero le quantità mentre vengono copiate      |
+| evasioni di ordini Shopify                                                           | idem, e l'ordine risulterebbe contato due volte o mai |
+| resi e reintegri                                                                     | idem                                                  |
+| carichi, scarichi, trasferimenti, rettifiche — in VestiFlow **o nell'admin Shopify** | idem                                                  |
+
+> **VestiFlow non spegne il negozio e non può verificare che tu ti sia fermato.** La finestra è
+> un tuo impegno: se durante la partenza succede un movimento, l'esito lo dice dove può, e per
+> il resto la quantità va **contata** e corretta con «Allinea giacenze» dopo l'attivazione.
+
+**Gli ordini.** Non si importa lo storico. Gli ordini **ancora aperti** su Shopify vengono
+mostrati prima della conferma e, all'attivazione, diventano **impegni** in VestiFlow (la
+giacenza non cambia finché non li evadi). Restano a te da sistemare:
+
+- gli ordini di una **sede non collegata** a VestiFlow: nessun impegno, e li trovi segnalati in
+  **Vendite** («da verificare»);
+- gli ordini **evasi in parte** prima della partenza: nessun impegno, segnalati allo stesso modo.
+
+**Prima di attivare** leggi il riquadro «casi esclusi», se compare: sono gli articoli, le
+quantità e gli ordini che l'attivazione **non** sistema — ognuno con il motivo. Si attiva lo
+stesso, ma quei casi restano tuoi da risolvere (dalla scheda articolo, da «Allinea giacenze»,
+da Vendite). Se il riquadro non c'è, nessun caso è rimasto fuori.
+
+**Dopo l'attivazione** gli ordini nuovi arrivano da soli e, quando li evadi su Shopify, la
+quantità scende in VestiFlow nella sede di spedizione. Il pulsante **Allinea giacenze** serve da
+quel momento in poi: non ripete la prima connessione.
+
+**I resi.** Quando su Shopify fai un reso con reintegro, VestiFlow carica la merce **nella sede
+che Shopify indica per quel reso** (può essere diversa da quella di spedizione), una volta sola. Se
+quella location non è collegata a una sede VestiFlow, **non carica da nessuna parte** — non sceglie
+una sede al posto tuo — e l'ordine compare in Vendite come «Da verificare» con il motivo: collega la
+location in Impostazioni → Shopify e premi «Importa ordini». Un rimborso **senza** reintegro non
+muove le quantità.
+
+**Se togli un pezzo da un ordine non ancora spedito** (su Shopify: rimborso con «annulla», senza
+reintegro), l'impegno di magazzino scende subito di quel pezzo; l'ordine in VestiFlow resta come
+ordinato e il rimborso compare come rettifica. Alla spedizione esce solo quello che è partito davvero.
+Se togli tutti i pezzi, l'impegno si libera del tutto.
+
+**Se spedisci un ordine in più volte o da più sedi**, ogni spedizione scarica subito la sede da
+cui è partita, per la quantità partita — anche se l'ordine non è ancora completo; quello che resta
+da spedire resta impegnato. Una stessa riga può uscire in due tempi o da due sedi: ogni uscita è un
+movimento suo. La Vendita online nasce una sola, quando l'ordine è tutto spedito. Se Shopify
+rimanda lo stesso avviso due volte, non esce niente due volte.
+
+**Se una riga dell'ordine riguarda un articolo il cui collegamento con Shopify è stato chiuso**,
+VestiFlow non lo impegna e non lo scarica per conto suo (nemmeno riconoscendolo dallo SKU): l'ordine
+compare «Da verificare» con il motivo, le altre righe procedono, e se quella riga viene spedita la
+giacenza va sistemata a mano. Ricollegare l'articolo è un'azione esplicita, non un automatismo.
+
+**Cataloghi imperfetti.** Se un articolo Shopify ha un barcode già usato da un'altra variante, entra
+lo stesso ma **senza quel barcode**, e in elenco lo vedi come «Non allineato» con il motivo, che nomina
+chi ha quel barcode: decidi tu a chi spetta. Lo stesso vale per gli SKU doppi o mancanti, che
+entrano con un suffisso e vengono segnalati. Niente viene inventato né scartato in silenzio.
+
+**Se disconnetti e ricolleghi lo stesso negozio**, le sedi che avevi collegato tornano da sole
+(il collegamento non era mai stato chiuso); quelle che avevi **lasciato fuori** restano fuori. Le
+scelte si rivedono in **Impostazioni → Shopify → Location del negozio e sede VestiFlow**, anche
+senza rifare la prima connessione. ⚠️ Scegliere «Lascia fuori» su una sede collegata la
+scollega davvero: gli ordini di quella location non avranno più una sede finché non la ricolleghi.
+
 ### Dopo la connessione — tre passi importanti
+
+> Questa tabella descrive i pulsanti delle connessioni fatte **prima del 12/09/2026** o di un
+> negozio già collegato in passato. Per una connessione nuova, i passi li fa il percorso
+> «Prima connessione» qui sopra.
 
 | Azione                              | Dove         | Perché                                                     |
 | ----------------------------------- | ------------ | ---------------------------------------------------------- |
@@ -414,9 +491,19 @@ Per collegare un **dominio Shopify diverso** (es. da `negozio-a.myshopify.com` a
 
 1. **Impostazioni → Integrazione Shopify → Cambia negozio**
 2. Leggi l’**anteprima** (conteggio prodotti, clienti, ordini, location collegati a Shopify)
-3. Scegli se **rimuovere i dati importati da Shopify** prima del cambio (consigliato per evitare mix tra due negozi)
+3. Scegli se **rimuovere i dati importati da Shopify** prima del cambio — vedi il riquadro qui sotto prima di decidere
 4. Conferma digitando il **dominio attuale** del negozio
 5. Al termine: riconnetti il **nuovo** negozio con **Connetti Shopify**
+
+> **La rimozione dei dati NON è consigliata.** Qui c’era scritto «consigliato per
+> evitare mix tra due negozi»: quel consiglio è superato. Rimuovere i dati è
+> **irreversibile** e cancella prodotti, clienti, ordini di vendita e sedi già
+> importati; il mix fra due negozi si evita in altro modo. Rimuovili solo se hai
+> davvero bisogno di ripartire da zero sul canale online.
+>
+> **Cosa fare invece:** cambia negozio **senza** rimuovere i dati. I prodotti
+> restano in VestiFlow e conservano la loro storia; quelli che erano pubblicati
+> sul vecchio negozio non risultano più collegati e vanno ripubblicati sul nuovo.
 
 **Disconnetti e rimuovi dati** (senza cambiare subito negozio):
 
@@ -428,6 +515,46 @@ Per collegare un **dominio Shopify diverso** (es. da `negozio-a.myshopify.com` a
 > **Attenzione:** la rimozione dati è **irreversibile** in VestiFlow. I prodotti su Shopify Admin **non** vengono cancellati automaticamente; VestiFlow elimina solo la copia locale e i collegamenti sync.
 
 **Disconnetti Shopify** (semplice): scollega l’app e mantiene prodotti, clienti e ordini già importati in sola lettura locale. Utile per una pausa temporanea, non per cambiare negozio.
+
+### Se il collegamento viene rifiutato
+
+> **Stato: implementato, non ancora rilasciato.** Vale da quando questa versione
+> sarà installata; oggi, sulla versione in uso, il rifiuto non compare.
+
+| Messaggio                                     | Perché                                                                                                  | Cosa fare                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Il negozio è già collegato a un’altra azienda | Lo stesso negozio Shopify non può essere collegato a due aziende VestiFlow                              | Scollegalo dall’altra azienda, oppure collega un negozio diverso                        |
+| Sei già connesso a un altro negozio           | La connessione punta a un negozio diverso da quello che stai collegando                                 | Usa **Cambia negozio**, che è la procedura prevista                                     |
+| Identità del negozio non disponibile          | VestiFlow non è riuscito a leggere da Shopify l’identificativo del negozio                              | **Il collegamento non viene creato.** Riprova più tardi                                 |
+| Collegamento in conflitto, riprova            | Due collegamenti sono partiti nello stesso momento — di solito due schede aperte, o due persone insieme | **Riprova**: il primo è andato a buon fine, il secondo no. Nessun dato è rimasto a metà |
+| Il canale non è abilitato per questa azienda  | L’azienda è configurata come **Solo gestionale**: Shopify non è previsto per lei                        | Chiedi all’assistenza VestiFlow di abilitare il profilo Shopify, poi ricollega          |
+
+⚠️ **Un rifiuto non lascia niente a metà**: se il collegamento viene rifiutato, nessuna
+credenziale viene salvata e la connessione precedente resta **esattamente com’era**.
+
+⭐ **Vale anche a metà strada.** Il collegamento salva identità del negozio, credenziali e
+connessione **in un colpo solo**: se qualcosa cade dopo il primo salvataggio, non resta
+nessuna riga a metà. Un tentativo fallito non «prenota» il negozio, e chi ha diritto a
+collegarlo può farlo subito dopo.
+
+⚠️ **Se invece compare un errore generico, e non uno dei messaggi qui sopra**, si tratta di un
+guasto tecnico — non di un rifiuto. È voluto che si veda: un problema di sistema non viene
+mascherato da uno dei rifiuti sopra, perché ti manderebbe a cercare la causa nel posto
+sbagliato. Riprova, e se si ripete segnalalo all'assistenza: **nulla è stato collegato e nulla
+è stato modificato.**
+
+⛔ **Un negozio nuovo non si collega senza identità verificata.** Qui c’era scritto che, se
+l’identificativo non si leggeva, «il negozio resta collegato»: era sbagliato, ed è stato
+corretto. Senza identità certa VestiFlow non saprebbe distinguere un negozio da un altro — e
+non potrebbe accorgersi che quel negozio è già di qualcun altro.
+
+⚠️ **Chi è già collegato non è toccato**: le connessioni esistenti continuano a funzionare
+come prima, anche se non hanno l’identificativo. Il controllo vale per i collegamenti **nuovi**.
+
+⚠️ **Se una azienda viene eliminata definitivamente da VestiFlow**, il suo negozio Shopify
+torna collegabile a un’altra azienda, ma **solo con una nuova autorizzazione esplicita**: non
+vengono trasferiti automaticamente dati, credenziali o collegamenti. Una semplice
+disconnessione **non** libera il negozio.
 
 ### Durante un'operazione di sync
 
@@ -1444,7 +1571,7 @@ Se vedi _«Modifica consentita una sola volta…»_, seleziona le nuove sedi e s
 
 ### Devo cambiare negozio Shopify (altro dominio)
 
-Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**. Segui la procedura guidata e, se indicato, rimuovi i dati importati prima di collegare il nuovo shop.
+Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**. Segui la procedura guidata e **non rimuovere i dati importati**, salvo tu voglia davvero ripartire da zero sul canale online: la rimozione è irreversibile. Vedi «Cambiare negozio Shopify o rimuovere i dati importati».
 
 ### Ho eliminato un prodotto ma resta su Shopify (o viceversa)
 

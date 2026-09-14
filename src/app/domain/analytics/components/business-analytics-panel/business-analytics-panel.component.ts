@@ -19,8 +19,19 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { formatMoney } from '@core/utils/money.util';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type {
+  DataTableSection,
+  DataTableSort,
+  DataTableTotals,
+} from '@shared/components/data-table/data-table.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { colonna } from '@shared/table-columns/column-catalog';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
@@ -65,6 +76,8 @@ type PanelState =
     SegmentedComponent,
     DateInputComponent,
     BusinessAnalyticsChartsComponent,
+    DataTableComponent,
+    DataTableRowCardDirective,
   ],
   templateUrl: './business-analytics-panel.component.html',
   styleUrl: './business-analytics-panel.component.scss',
@@ -295,6 +308,144 @@ export class BusinessAnalyticsPanelComponent {
       ...row,
       revenueLabel: formatMoney(moneyMinor(row.revenueMinor, data.currencyCode)),
     }));
+  });
+
+  // ── Le due tabelle, sul MOTORE comune (`docs/26` A12) ────────────────────
+  // Erano due `<table>` a mano con la stessa griglia. Senza vista di colonne né
+  // filtri: un riepilogo per canale e i primi dieci prodotti non si filtrano.
+  // ⭐ I canali hanno la riga totali (la somma dei canali È il fatturato del
+  //    periodo, e deve tornare col dato in alto); i top prodotti no — la somma
+  //    dei primi dieci non è un numero che dica qualcosa.
+  protected readonly ordineCanali = signal<readonly DataTableSort[]>([]);
+  protected readonly ordineTop = signal<readonly DataTableSort[]>([]);
+
+  protected readonly colonneCanali: readonly ResolvedTableColumn[] = [
+    { id: 'channel', label: 'Canale', defaultVisible: true, cardTitle: true, pinned: false },
+    {
+      id: 'unitsSold',
+      label: 'Pezzi',
+      numeric: true,
+      defaultVisible: true,
+      defaultWidthPx: 100,
+      pinned: false,
+    },
+    {
+      id: 'revenue',
+      label: 'Fatturato',
+      numeric: true,
+      defaultVisible: true,
+      defaultWidthPx: 140,
+      pinned: false,
+    },
+  ];
+  protected readonly colonneTop: readonly ResolvedTableColumn[] = [
+    {
+      ...colonna('sku', { display: 'code', defaultVisible: true, defaultWidthPx: 150 }),
+      pinned: false,
+    },
+    { id: 'product', label: 'Prodotto', defaultVisible: true, cardTitle: true, pinned: false },
+    {
+      id: 'unitsSold',
+      label: 'Pezzi',
+      numeric: true,
+      defaultVisible: true,
+      defaultWidthPx: 100,
+      pinned: false,
+    },
+    {
+      id: 'revenue',
+      label: 'Fatturato',
+      numeric: true,
+      defaultVisible: true,
+      defaultWidthPx: 140,
+      pinned: false,
+    },
+  ];
+
+  protected readonly rigaCanaleId = (row: { readonly channel: string }): string => row.channel;
+  // L'id di riga è la variante: due prodotti senza SKU avevano lo stesso id (13/09/2026).
+  protected readonly rigaTopId = (row: { readonly variantId: string }): string => row.variantId;
+
+  protected readonly testoCanale = (
+    row: { readonly label: string; readonly unitsSold: number; readonly revenueLabel: string },
+    colonna: string,
+  ): string => {
+    switch (colonna) {
+      case 'channel':
+        return row.label;
+      case 'unitsSold':
+        return String(row.unitsSold);
+      case 'revenue':
+        return row.revenueLabel;
+      default:
+        return '';
+    }
+  };
+  protected readonly testoTop = (
+    row: {
+      readonly sku: string;
+      readonly title: string;
+      readonly unitsSold: number;
+      readonly revenueLabel: string;
+    },
+    colonna: string,
+  ): string => {
+    switch (colonna) {
+      case 'sku':
+        return row.sku;
+      case 'product':
+        return row.title;
+      case 'unitsSold':
+        return String(row.unitsSold);
+      case 'revenue':
+        return row.revenueLabel;
+      default:
+        return '';
+    }
+  };
+  // ⚠️ Pezzi e fatturato si ordinano sul VALORE, non sul testo formattato.
+  private readonly numeroDi = (
+    row: { readonly unitsSold: number; readonly revenueMinor: number },
+    colonna: string,
+  ): number | null =>
+    colonna === 'unitsSold' ? row.unitsSold : colonna === 'revenue' ? row.revenueMinor : null;
+
+  protected readonly sezioniCanali = computed(
+    (): readonly DataTableSection<ReturnType<typeof this.channelRows>[number]>[] => [
+      {
+        id: 'canali',
+        rows: ordinaPerColonne(this.channelRows(), this.ordineCanali(), {
+          cellText: this.testoCanale,
+          numeroDi: this.numeroDi,
+        }),
+      },
+    ],
+  );
+  protected readonly sezioniTop = computed(
+    (): readonly DataTableSection<ReturnType<typeof this.topProductRows>[number]>[] => [
+      {
+        id: 'top',
+        rows: ordinaPerColonne(this.topProductRows(), this.ordineTop(), {
+          cellText: this.testoTop,
+          numeroDi: this.numeroDi,
+        }),
+      },
+    ],
+  );
+  protected readonly totaliCanali = computed<DataTableTotals>(() => {
+    const valuta = this.summary()?.currencyCode ?? 'EUR';
+    return totaliDiElenco(this.channelRows(), {
+      rowId: this.rigaCanaleId,
+      selectedIds: new Set<string>(),
+      columns: this.colonneCanali,
+      campi: {
+        unitsSold: { valore: (r) => r.unitsSold, formato: String },
+        revenue: {
+          valore: (r) => r.revenueMinor,
+          formato: (n) => formatMoney(moneyMinor(n, valuta)),
+        },
+      },
+    });
   });
 
   protected readonly unitsSoldLabel = computed(() => String(this.summary()?.sales.unitsSold ?? 0));

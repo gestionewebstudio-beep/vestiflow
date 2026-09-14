@@ -10,6 +10,7 @@ import {
   type RequiredTenantPermissionsMode,
 } from '@core/permissions/tenant-permissions.util';
 import {
+  hasAllTenantPermissionGroups,
   hasAnyTenantPermission,
   hasTenantPermission,
 } from '@core/permissions/user-permissions.util';
@@ -38,14 +39,8 @@ export const tenantPermissionGuard: CanActivateFn = (route) => {
   // arrivava a una schermata vuota che poi falliva ogni chiamata.
   const groups = (route.data[REQUIRED_TENANT_PERMISSION_GROUPS_KEY] ??
     []) as readonly (readonly TenantPermissionKey[])[];
-  if (groups.length > 0) {
-    // Un gruppo vuoto è un errore di programmazione: nega, non apre.
-    const satisfied = groups.every(
-      (group) => group.length > 0 && hasAnyTenantPermission(user, group),
-    );
-    if (!satisfied) {
-      return router.createUrlTree(['/app/dashboard']);
-    }
+  if (groups.length > 0 && !hasAllTenantPermissionGroups(user, groups)) {
+    return router.createUrlTree(['/app/dashboard']);
   }
 
   const required = normalizeRequiredPermissions(

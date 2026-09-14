@@ -1,39 +1,33 @@
-import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+
+import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { assertUploadImageMimeAndMagicBytes } from '../common/upload/image-optimize.util';
+import { ALLOWED_MIME, ImageArchiveService, MAX_IMAGE_BYTES } from '../media/image-archive.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 import type { ProductImage } from '@prisma/client';
 
-import { SupabaseService } from '../auth/supabase.service';
-import {
-  assertUploadImageMimeAndMagicBytes,
-  optimizeUploadedImageToWebp,
-  PRODUCT_IMAGE_MAX_EDGE_PX,
-  PRODUCT_IMAGE_WEBP_QUALITY,
-} from '../common/upload/image-optimize.util';
-import { PrismaService } from '../prisma/prisma.service';
-import { ChannelSyncFacade } from '../channels/channel-sync.facade';
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
+/**
+ * Le immagini di prodotto dal punto di vista del CATALOGO: chi le carica, chi
+ * le toglie, e il canale da avvisare.
+ *
+ * ⭐ **Scaricare, ottimizzare e conservare NON stanno più qui**: sono
+ *    dell'archivio (`media/image-archive.service.ts`), che usa anche la
+ *    sincronizzazione Shopify. Qui resta ciò che è del catalogo — la validazione
+ *    del file caricato, i permessi sul prodotto, e l'avviso al canale.
+ *
+ * ⚠️ **L'avviso al canale è la differenza fra i due mondi.** Qui a muovere
+ *    un'immagine è l'operatore, quindi Shopify va aggiornato; nella
+ *    sincronizzazione l'immagine ARRIVA da Shopify, e rimandargliela sarebbe
+ *    un'eco.
+ */
 @Injectable()
 export class ProductMediaService {
-  private readonly bucket: string;
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly supabase: SupabaseService,
-    private readonly config: ConfigService,
+    private readonly archivio: ImageArchiveService,
     private readonly channelSync: ChannelSyncFacade,
-  ) {
-    this.bucket = this.config.get<string>('SUPABASE_PRODUCT_MEDIA_BUCKET') ?? 'product-media';
-  }
+  ) {}
 
   async uploadImage(
     tenantId: string,
@@ -43,45 +37,7 @@ export class ProductMediaService {
     await this.assertProduct(tenantId, productId);
     this.assertValidFile(file);
 
-    const client = this.supabase.getStorageClient();
-    if (!client) {
-      throw new ServiceUnavailableException(
-        'Storage immagini non configurato (Supabase). Crea il bucket product-media nel progetto Supabase.',
-      );
-    }
-
-    const optimized = await optimizeUploadedImageToWebp(file.buffer, {
-      maxEdgePx: PRODUCT_IMAGE_MAX_EDGE_PX,
-      quality: PRODUCT_IMAGE_WEBP_QUALITY,
-    });
-
-    const storagePath = `${tenantId}/${productId}/${randomUUID()}.${optimized.extension}`;
-
-    const { error: uploadError } = await client.storage
-      .from(this.bucket)
-      .upload(storagePath, optimized.buffer, {
-        contentType: optimized.contentType,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      throw new InternalServerErrorException(
-        `Caricamento immagine non riuscito: ${uploadError.message.slice(0, 200)}`,
-      );
-    }
-
-    const publicUrl = this.publicObjectUrl(storagePath);
-    const sortOrder = await this.nextSortOrder(productId);
-
-    const image = await this.prisma.productImage.create({
-      data: {
-        tenantId,
-        productId,
-        url: publicUrl,
-        storagePath,
-        sortOrder,
-      },
-    });
+    const image = await this.archivio.archiviaBuffer(tenantId, productId, file.buffer);
 
     this.channelSync.enqueueProductPush(tenantId, productId);
     return image;
@@ -97,13 +53,7 @@ export class ProductMediaService {
       throw new NotFoundException('Immagine non trovata');
     }
 
-    if (image.storagePath) {
-      const client = this.supabase.getStorageClient();
-      if (client) {
-        await client.storage.from(this.bucket).remove([image.storagePath]);
-      }
-    }
-
+    await this.archivio.rimuoviDalBucket(image.storagePath);
     await this.prisma.productImage.delete({ where: { id: imageId } });
     this.channelSync.enqueueProductPush(tenantId, productId);
   }
@@ -126,22 +76,5 @@ export class ProductMediaService {
       throw new BadRequestException('Immagine troppo grande (max 5 MB)');
     }
     assertUploadImageMimeAndMagicBytes(file.buffer, file.mimetype, ALLOWED_MIME);
-  }
-
-  private publicObjectUrl(storagePath: string): string {
-    const base = this.config.get<string>('SUPABASE_URL')?.replace(/\/$/, '');
-    if (!base) {
-      throw new ServiceUnavailableException('SUPABASE_URL non configurato');
-    }
-    return `${base}/storage/v1/object/public/${this.bucket}/${storagePath}`;
-  }
-
-  private async nextSortOrder(productId: string): Promise<number> {
-    const last = await this.prisma.productImage.findFirst({
-      where: { productId },
-      orderBy: { sortOrder: 'desc' },
-      select: { sortOrder: true },
-    });
-    return (last?.sortOrder ?? -1) + 1;
   }
 }

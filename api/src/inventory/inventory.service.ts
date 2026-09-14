@@ -579,16 +579,23 @@ export class InventoryService {
           }
           quantity = Math.abs(delta);
           direction = delta > 0 ? AdjustmentDirection.increase : AdjustmentDirection.decrease;
-          await applyInventoryDelta(tx, tenantId, line.variantId, dto.locationId, delta);
+          await applyInventoryDelta(tx, tenantId, line.variantId, dto.locationId, delta, 'locale');
         } else {
           if (!line.quantity) {
             throw new UnprocessableEntityException('Quantità mancante su una riga.');
           }
           quantity = line.quantity;
           const delta = dto.type === StockMovementType.load ? quantity : -quantity;
-          await applyInventoryDelta(tx, tenantId, line.variantId, dto.locationId, delta);
+          await applyInventoryDelta(tx, tenantId, line.variantId, dto.locationId, delta, 'locale');
           if (dto.type === StockMovementType.transfer && dto.targetLocationId) {
-            await applyInventoryDelta(tx, tenantId, line.variantId, dto.targetLocationId, quantity);
+            await applyInventoryDelta(
+              tx,
+              tenantId,
+              line.variantId,
+              dto.targetLocationId,
+              quantity,
+              'locale',
+            );
           }
         }
 
@@ -677,7 +684,7 @@ export class InventoryService {
     locationId: string,
     delta: number,
   ): Promise<void> {
-    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta);
+    await applyInventoryDelta(tx, tenantId, variantId, locationId, delta, 'locale');
   }
 
   private async assertLocationExists(

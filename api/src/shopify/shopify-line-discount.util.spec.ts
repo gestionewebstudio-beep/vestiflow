@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  mapShopifyLineDiscountMinor,
-  shopifyLineTotalMinor,
-} from './shopify-line-discount.util';
+import { mapShopifyLineDiscountMinor, shopifyLineTotalMinor } from './shopify-line-discount.util';
 
 describe('mapShopifyLineDiscountMinor', () => {
-  it('sconto a IMPORTO sull\'ordine: total_discount è ZERO, l\'importo sta nelle allocazioni', () => {
+  it("sconto a IMPORTO sull'ordine: total_discount è ZERO, l'importo sta nelle allocazioni", () => {
     // ⚠️ Payload vero di #1010, letto il 15/08/2026. Sconto di 12,00 € inserito
     // come importo sull'ordine intero (`fixed_amount`, `allocation_method:
     // across`): Shopify lo ripartisce da sé sulle righe — non c'è niente da
@@ -47,7 +44,7 @@ describe('mapShopifyLineDiscountMinor', () => {
 });
 
 describe('shopifyLineTotalMinor', () => {
-  it('il caso misurato: la riga deve fare il subtotale dell\'ordine', () => {
+  it("il caso misurato: la riga deve fare il subtotale dell'ordine", () => {
     // #1010, letto il 15/08/2026: maglietta 25,00, sconto allocato 12,00,
     // `subtotal_price` 13,00. Prima si scriveva 25,00 e la riga non faceva il
     // totale. L'imposta che Shopify dichiara sulla riga — 2,34 al 22% — è

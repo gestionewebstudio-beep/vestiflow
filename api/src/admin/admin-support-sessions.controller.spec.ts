@@ -41,9 +41,9 @@ describe('AdminSupportSessionsController', () => {
     };
     supportSessions.startSession.mockResolvedValue(session);
 
-    await expect(
-      tenantsController.startSupportSession(request, 'tenant-client'),
-    ).resolves.toEqual(session);
+    await expect(tenantsController.startSupportSession(request, 'tenant-client')).resolves.toEqual(
+      session,
+    );
 
     expect(supportSessions.startSession).toHaveBeenCalledWith(
       'op-1',
