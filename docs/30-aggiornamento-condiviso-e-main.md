@@ -14,16 +14,16 @@ cancellano né si riconfigurano implicitamente**.
 
 ## 0. Che cosa vale oggi — la tabella decide, il resto argomenta
 
-| Decisione / fatto                                                                                                                                                                                                                                     | Dove |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| Le migration di `develop` non applicate al condiviso sono **23**, non nove: **tutte** quelle del ramo, dalla `20260907000000` alla `20260913220000`. Applicate 159, ultima il 06/09 alle 18:59Z; nessuna estranea                                     | §1   |
-| Per le tabelle che l'API pubblicata conosce le 23 sono **additive**: l'API di `main` funziona sullo schema nuovo — letto nei file SQL **e misurato sulla copia** (§8.3)                                                                               | §2   |
-| Il solo backfill di questo rilascio è `backfill:storico-shopify` (fasi 3-4 di `docs/24` §8.5.8); viene **dopo** la fase 2, che passa dal callback OAuth del **codice nuovo** — quindi dopo il deploy                                                  | §3   |
-| **Fase 2 con la via A** — deciso il 14/09/2026: Disconnetti → Connetti sul tenant del proprietario e ricollegamento a mano delle **cinque sedi** con la corrispondenza rilevata (§1). Il pulsante «Rinnova autorizzazione» **non si aggiunge adesso** | §3.2 |
-| Backup del condiviso **fatto** (14/09, 08:58Z) con una **passphrase nuova**, custodita nel Gestore credenziali di Windows; quella precedente resta in `api/.env` per i backup vecchi. Ripristino **provato** sul 5433: copia identica                 | §4   |
-| Sulla copia: **23 migration in 3,4 s**, API vecchia compatibile in lettura e scrittura, API nuova funzionante, **backfill 55/71/5 e seconda passata +0**                                                                                              | §8   |
-| Railway: `api/Dockerfile` esegue `npx prisma migrate deploy && node dist/main.js` al boot, healthcheck `/api/v1/health`. Applicando le migration **prima** del merge in `main`, il boot non trova nulla da applicare. Oggi pubblica il codice vecchio | §5   |
-| Sequenza definitiva in **una finestra**: backup fresco → migration sul condiviso → merge `main` → controlli → Disconnetti/Connetti + 5 sedi → backfill → verifica                                                                                     | §6   |
+| Decisione / fatto                                                                                                                                                                                                                                                                                                                                       | Dove |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| Le migration di `develop` non applicate al condiviso sono **23**, non nove: **tutte** quelle del ramo, dalla `20260907000000` alla `20260913220000`. Applicate 159, ultima il 06/09 alle 18:59Z; nessuna estranea                                                                                                                                       | §1   |
+| Per le tabelle che l'API pubblicata conosce le 23 sono **additive**: l'API di `main` funziona sullo schema nuovo — letto nei file SQL **e misurato sulla copia** (§8.3)                                                                                                                                                                                 | §2   |
+| Il solo backfill di questo rilascio è `backfill:storico-shopify` (fasi 3-4 di `docs/24` §8.5.8); viene **dopo** la fase 2, che passa dal callback OAuth del **codice nuovo** — quindi dopo il deploy                                                                                                                                                    | §3   |
+| **Fase 2 con la via A** — deciso il 14/09/2026: Disconnetti → Connetti sul tenant del proprietario e ricollegamento a mano delle **cinque sedi** con la corrispondenza rilevata (§1). Il pulsante «Rinnova autorizzazione» **non si aggiunge adesso**                                                                                                   | §3.2 |
+| Backup del condiviso **fatto** (14/09, 08:58Z) con una **passphrase nuova**, ora in `api/.env` e nel GitHub Secret; quella esposta vive **solo** nel Gestore credenziali per gli archivi precedenti. Ripristino **provato** sul 5433: copia identica. Backup settimanale riparato (secret `BACKUP_DATABASE_URL`) e verificato con un ripristino isolato | §4   |
+| Sulla copia: **23 migration in 3,4 s**, API vecchia compatibile in lettura e scrittura, API nuova funzionante, **backfill 55/71/5 e seconda passata +0**                                                                                                                                                                                                | §8   |
+| Railway: `api/Dockerfile` esegue `npx prisma migrate deploy && node dist/main.js` al boot, healthcheck `/api/v1/health`. Applicando le migration **prima** del merge in `main`, il boot non trova nulla da applicare. Oggi pubblica il codice vecchio                                                                                                   | §5   |
+| Sequenza definitiva in **una finestra**: backup fresco → migration sul condiviso → merge `main` → controlli → Disconnetti/Connetti + 5 sedi → backfill → verifica                                                                                                                                                                                       | §6   |
 
 ## 1. Misurato sul condiviso, in sola lettura (14/09/2026, 08:23Z)
 
@@ -156,9 +156,34 @@ sono ripetibili (`regole-gestionale`, «effetto non applicato ripetibile»). Il 
 | ripristino di prova     | `docker compose -f docker-compose.test.yml down -v && up -d --wait` dal progetto che possiede il container (volume nuovo, ruoli `anon`/`authenticated` dall'init), nessuna connessione e nessuna suite in corso; `npm run backup:restore -- --backup-dir … --direct-url <5433> --confirm`: riuscito, 3 errori ignorati tutti di `supabase_vault` (noti)                                                                                    |
 | verifica del ripristino | origine ↔ copia: **77 tabelle, 159 migration, 3.569 righe, conteggi per tabella identici**, 76 tabelle con RLS, 0 trigger applicativi — uguali su entrambe (`conteggi-origine-copia.json`)                                                                                                                                                                                                                                                 |
 
-⚠️ La passphrase esposta il 12/09 (`docs/28` §0) resta in `api/.env` solo per decifrare i backup
-precedenti; da oggi ogni backup del rilascio usa la nuova. Il workflow settimanale `db-backup.yml`
-continua a usare il GitHub Secret, che non è stato toccato.
+### 4.1 La passphrase — stato al 14/09, 11:45
+
+| Dove                                                           | Stato                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api/.env` della copia principale                              | ✅ **nuova** (riga sostituita in posto, fine riga conservate, impronta verificata); la copia `.bak` fatta prima è stata eliminata perché non ignorata da Git                                                                                       |
+| GitHub Secret `BACKUP_ENCRYPTION_PASSPHRASE` (`db-backup.yml`) | ✅ **nuova** (impostato per pipe con `gh secret set`, mai stampata)                                                                                                                                                                                |
+| vecchia (esposta il 12/09)                                     | custodita **solo** nel Gestore credenziali di Windows come `VestiFlow/backup-passphrase/fino-al-2026-09-14 (vecchia, esposta)`: serve a decifrare gli archivi precedenti — gli artifact CI fino al 14/09 e ogni dump fatto prima — e a nient'altro |
+| `api/.env` del collega                                         | ⏸ **da aggiornare da lui** se fa backup in locale: gli va comunicata la nuova (non dalla chat). Nessun file suo è stato toccato                                                                                                                    |
+
+### 4.2 Il backup ordinario (`db-backup.yml`) — era rotto, ora verificato
+
+⛔ **Il run settimanale del 13/09 era FALLITO** («Bersaglio del database non indicato»): il workflow
+esporta `BACKUP_DATABASE_URL` dal secret omonimo, che **non esisteva**, quindi arriva **vuota**; in
+`run-backup.mjs` il ripiego è `process.env.BACKUP_DATABASE_URL ?? process.env.DIRECT_URL`, e `??`
+non ripiega su una stringa vuota. Regressione del commit `3ba4d96e` (07/09); il run del 06/09 era
+verde. Il workflow gira sul ramo predefinito `main` (`969c19e8`), quindi con quello script.
+
+**Chiuso il 14/09 senza toccare lo script** (scelta del proprietario: il ripiego resta com'è):
+
+| Passo                               | Esito                                                                                                                                                                                                                                                                              |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| secret `BACKUP_DATABASE_URL`        | ✅ impostato con la destinazione in modalità sessione (porta 5432) già verificata da `migrate status`; `DIRECT_URL` (03/07) lasciato com'era                                                                                                                                       |
+| prova manuale (`workflow_dispatch`) | run `34829388391` su `main` `969c19e8`: **success** in 1m29s — «Bersaglio indicato da: ambiente del processo», database cifrato, storage 10 file (product-media 8, user-avatars 2), artifact `vestiflow-backup-34829388391` 953 KB, scade il 14/10                                 |
+| ripristino isolato                  | artifact scaricato con `gh run download`, decifrato con la **passphrase nuova**, `pg_restore` in un database creato apposta (`vestiflow_verifica_backup` sul 5433, poi eliminato): **77 tabelle, 159 migration, 3.569 righe, conteggi identici** all'origine letta in sola lettura |
+
+⏸ **Residuo dichiarato**: il `??` di `run-backup.mjs` resta; con il secret impostato non morde più, ma
+un secret vuoto lo farebbe tornare. Da correggere (`||`, con prova) in un lavoro dichiarato
+(`DA-FARE` §10g).
 
 ## 5. Il deploy Railway, e l'API pubblicata mentre lo schema cambia
 
@@ -176,10 +201,30 @@ continua a usare il GitHub Secret, che non è stato toccato.
 gira il **codice vecchio** (la rotta `setup` esiste solo da `develop`). ⭐ È la **sonda di
 versione** dei controlli dopo l'avvio: a deploy avvenuto `setup` deve rispondere **401**.
 
-**Dal cruscotto** (non leggibile da qui: né CLI né token Railway/Firebase; l'URL del frontend non è
-nel repository): Source → branch `main` e Auto Deploy; Variables → `DIRECT_URL` presente (nome);
-Firebase App Hosting → rollout automatico da `main` e URL del frontend. Sono le sole letture che
-mancano davvero (§7).
+**Letto dai cruscotti il 14/09 (CLI Railway e Firebase, accesso confermato dal proprietario nel
+browser; solo letture, nessun valore stampato):**
+
+| Railway             | Misurato                                                                                                                                                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| progetto / servizio | `vestiflow-backend` · ambiente `production` · servizio **`vestiflow`** (piano hobby, 1 replica, europe-west4) · dominio `vestiflow-production.up.railway.app` = `environment.prod.ts`                                                                              |
+| sorgente            | repo `gestionewebstudio-beep/vestiflow`, **branch `main`**, root directory `api`, config `/api/railway.toml`, builder Dockerfile, nessun `preDeployCommand`/`startCommand` (vale il `CMD` del Dockerfile)                                                          |
+| commit pubblicato   | deployment `06da95c0…` **SUCCESS**, commit **`969c19e8`** («Merge pull request #8»), creato il **07/09 alle 17:30:55Z: lo stesso secondo del merge**                                                                                                               |
+| automatismo         | deploy automatico al push su `main`, **senza attendere la CI** (la CI di `main` è partita un secondo dopo). Il deployment precedente (`9b59a14b`, 06/09) ha applicato al boot le 12 migration di allora: `migrate deploy` + `DIRECT_URL` su Railway funzionano già |
+| variabili (25 nomi) | **`DIRECT_URL` presente**: stesso host del pooler, **porta 5432** — la stessa forma del file di rilascio; `DATABASE_URL` 6543 con `pgbouncer`; `SHOPIFY_APP_URL` = dominio Railway; nessuna `BACKUP_*`                                                             |
+| URL del frontend    | da `FRONTEND_URL`/`CORS_ORIGINS`: **`https://vestiflow--gestione-web-studio.europe-west4.hosted.app`**                                                                                                                                                             |
+
+| Firebase App Hosting | Misurato                                                                                                                                                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| progetto / backend   | `gestione-web-studio` · backend **`vestiflow`** (europe-west4, runtime nodejs22, Cloud Run `vestiflow`), URL sopra, risponde 200                                                                                                                                                                             |
+| sorgente             | repository collegato `gestionewebstudio-beep-vestiflow` (connessione GitHub di App Hosting), root directory `/`; variabili di build: `VESTIFLOW_API_BASE_URL`, `VESTIFLOW_SUPABASE_URL`, `VESTIFLOW_SUPABASE_ANON_KEY` (chiave pubblicabile), `VESTIFLOW_ENABLE_SHOPIFY`, `VESTIFLOW_ENABLE_BARCODE_SCANNER` |
+| bundle pubblicato    | `main-JRPGAZJX.js`; dentro, `apiBaseUrl` = `https://vestiflow-production.up.railway.app/api/v1` ✓                                                                                                                                                                                                            |
+| rollout              | `updateTime` del backend **07/09 17:34:18Z**, 3 minuti dopo il merge della PR #8: rollout automatico da `main`, per evidenza. ⚠️ La CLI non espone né la politica di rollout né l'elenco dei rollout: **ramo collegato e ultimo commit vanno letti nel cruscotto** (App Hosting → vestiflow → Rollouts)      |
+
+⭐ **Il commit distribuito, dopo il rilascio**: per l'API `railway deployment list` (campo
+`commitHash`); per il frontend il cruscotto App Hosting, più una verifica pubblica: il nome del
+bundle `main-*.js` in `index.html` deve coincidere con quello della build di produzione locale
+del commit unito (oggi `develop` produce `main-F3D2XJ45.js` e il pubblicato è `main-JRPGAZJX.js`:
+diverso, com'è giusto prima del rilascio). La sonda `setup` → 401 resta una verifica in più.
 
 **Che cosa succede al merge in `main`:**
 
@@ -202,32 +247,35 @@ mancano davvero (§7).
 
 ## 6. La sequenza definitiva — una finestra sola
 
-Prerequisiti già soddisfatti il 14/09: file di rilascio (§4), passphrase custodita, backup e
-ripristino provati, prova generale sulla copia (§8), sonda di versione (§5). Mancano le letture
-del cruscotto (§7) e il via.
+Prerequisiti già soddisfatti il 14/09: file di rilascio (§4), passphrase nuova ovunque (§4.1),
+backup ordinario riparato e verificato (§4.2), backup e ripristino del rilascio provati, prova
+generale sulla copia (§8), letture Railway e Firebase (§5), sonda di versione. Mancano la lettura
+del cruscotto App Hosting sul ramo/rollout (§7) e il via.
 
-| #   | Passo                                                                                                                                                                                         | Chi      | Verifica                                                                                                                                                                                                                                                                                   |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0   | letture del cruscotto Railway/Firebase e URL del frontend (§7); via alla finestra                                                                                                             | titolare | branch `main`, auto deploy, `DIRECT_URL` presente; rollout App Hosting da `main`                                                                                                                                                                                                           |
-| 1   | backup fresco del condiviso, se quello del 14/09 ha più di 24 ore (stesso comando di §4)                                                                                                      | Claude   | `manifest.json` nuovo; dump presente                                                                                                                                                                                                                                                       |
-| 2   | **23 migration sul condiviso**: `node scripts/prisma-deploy-prova-condivisa.mjs --env-file .env.rilascio.local --backup ../backups/<cartella> --conferma aws-0-eu-west-1.pooler.supabase.com` | Claude   | `status` mostra 23 pendenti prima; deploy verde (sulla copia: 3,4 s); censimento §1 riletto: 182 applicate, 90 tabelle, 17 trigger, `refund_total_minor` riempito; API vecchia: `health` 200 ed elenco ordini leggibile                                                                    |
-| 3   | merge `develop` → `main` (merge commit, cronologia conservata; da fuori le copie locali)                                                                                                      | Claude   | CI e RLS verdi su `main`; Railway: log con «No pending migrations», healthcheck passato; sonda: `/api/v1/shopify/setup` → **401**; App Hosting: rollout concluso                                                                                                                           |
-| 4   | controlli dopo l'avvio                                                                                                                                                                        | entrambi | `health` 200; `migrate status` 0 pendenti (sola lettura); login, Ordini (colonne Rettifiche e Tot. aggiornato), Prodotti, Impostazioni → Shopify «Connessione» e «Situazione attuale»; log Railway senza 500 né «column does not exist»; sottoscrizioni webhook come in `backups/webhook/` |
-| 5   | **fase 2, via A** sul tenant del titolare: «Disconnetti Shopify» → «Connetti Shopify» (OAuth del titolare) → Sedi: **cinque «collega»** dalla tabella di §1                                   | titolare | `shopify_connections.shop_id` valorizzato (lettura); 5 coppie con periodo attivo; sottoscrizioni webhook ri-registrate verso Railway (`webhook:sottoscrizioni`)                                                                                                                            |
-| 6   | **backfill** del tenant: `backfill-storico-shopify.mjs --env-file=.env.rilascio.local --tenant=<uuid>` (prova) → `--apply` → `--apply` di nuovo                                               | Claude   | prova: «da convertire: 55 prodotti, 71 varianti, 0 sedi» (le sedi le hanno scritte le scelte); apply: 55/71, **+0 alla seconda**, «ogni id in cache ha un periodo attivo», riga `backfill_storico` nel registro                                                                            |
-| 7   | chiusura: censimento §1 riletto, `DA-FARE` §10g e `RIPRESA` aggiornati con le misure della finestra                                                                                           | Claude   | documenti allineati                                                                                                                                                                                                                                                                        |
-| 8   | il tenant del collega: passi 5-6 quando lo decide lui (125/222/3), senza toccarlo prima                                                                                                       | collega  | come sopra                                                                                                                                                                                                                                                                                 |
+| #   | Passo                                                                                                                                                                                         | Chi      | Verifica                                                                                                                                                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | lettura nel cruscotto App Hosting del ramo collegato e del rollout automatico (§7); via alla finestra                                                                                         | titolare | Railway già letto: branch `main`, auto deploy senza attesa CI, `DIRECT_URL` presente, commit `969c19e8`                                                                                                                                                                                                 |
+| 1   | backup fresco del condiviso, se quello del 14/09 ha più di 24 ore (stesso comando di §4)                                                                                                      | Claude   | `manifest.json` nuovo; dump presente                                                                                                                                                                                                                                                                    |
+| 2   | **23 migration sul condiviso**: `node scripts/prisma-deploy-prova-condivisa.mjs --env-file .env.rilascio.local --backup ../backups/<cartella> --conferma aws-0-eu-west-1.pooler.supabase.com` | Claude   | `status` mostra 23 pendenti prima; deploy verde (sulla copia: 3,4 s); censimento §1 riletto: 182 applicate, 90 tabelle, 17 trigger, `refund_total_minor` riempito; API vecchia: `health` 200 ed elenco ordini leggibile                                                                                 |
+| 3   | merge `develop` → `main` (merge commit, cronologia conservata; da fuori le copie locali)                                                                                                      | Claude   | CI e RLS verdi su `main`; Railway: `deployment list` con il **commit del merge** in SUCCESS, log con «No pending migrations», healthcheck passato; sonda `/api/v1/shopify/setup` → **401**; App Hosting: rollout concluso, commit nel cruscotto, bundle `main-*.js` uguale alla build locale del commit |
+| 4   | controlli dopo l'avvio                                                                                                                                                                        | entrambi | `health` 200; `migrate status` 0 pendenti (sola lettura); login, Ordini (colonne Rettifiche e Tot. aggiornato), Prodotti, Impostazioni → Shopify «Connessione» e «Situazione attuale»; log Railway senza 500 né «column does not exist»; sottoscrizioni webhook come in `backups/webhook/`              |
+| 5   | **fase 2, via A** sul tenant del titolare: «Disconnetti Shopify» → «Connetti Shopify» (OAuth del titolare) → Sedi: **cinque «collega»** dalla tabella di §1                                   | titolare | `shopify_connections.shop_id` valorizzato (lettura); 5 coppie con periodo attivo; sottoscrizioni webhook ri-registrate verso Railway (`webhook:sottoscrizioni`)                                                                                                                                         |
+| 6   | **backfill** del tenant: `backfill-storico-shopify.mjs --env-file=.env.rilascio.local --tenant=<uuid>` (prova) → `--apply` → `--apply` di nuovo                                               | Claude   | prova: «da convertire: 55 prodotti, 71 varianti, 0 sedi» (le sedi le hanno scritte le scelte); apply: 55/71, **+0 alla seconda**, «ogni id in cache ha un periodo attivo», riga `backfill_storico` nel registro                                                                                         |
+| 7   | chiusura: censimento §1 riletto, `DA-FARE` §10g e `RIPRESA` aggiornati con le misure della finestra                                                                                           | Claude   | documenti allineati                                                                                                                                                                                                                                                                                     |
+| 8   | il tenant del collega: passi 5-6 quando lo decide lui (125/222/3), senza toccarlo prima                                                                                                       | collega  | come sopra                                                                                                                                                                                                                                                                                              |
 
 ⛔ **Non c'è dentro**: fase 5 di §8.5.8, prova 7 sul negozio vero, rotazione del token Shopify,
 cambi di ramo nella copia di lavoro del titolare.
 
 ## 7. Aperto — ciò che manca davvero
 
-- **Le letture del cruscotto**: Railway (Source → branch e Auto Deploy; Variables → `DIRECT_URL`
-  presente, solo il nome) e Firebase App Hosting (rollout automatico da `main`, URL del frontend).
-  In alternativa un accesso di sola lettura da qui: `railway login` / `firebase login` dal browser,
-  come fatto per `gh` — poi le leggo io senza stampare valori.
-- L'ora della finestra: il backup del 14/09 vale fino alle 08:58Z del 15/09; dopo, si rifà.
+- **App Hosting, dal cruscotto** (la CLI non lo espone): ramo collegato al backend `vestiflow` e
+  politica di rollout automatico; l'ultimo rollout e il suo commit. È una lettura del proprietario.
+- L'ora della finestra: il backup del rilascio del 14/09 vale fino alle 08:58Z del 15/09; dopo, si rifà.
+- Gli accessi CLI di Railway e Firebase restano attivi fino alla fine delle verifiche del rilascio:
+  se conservarli o toglierli (`railway logout`, `firebase logout`) si decide alla fine. I token sono
+  in `%USERPROFILE%\\.railway\\config.json` e in `~/.config/configstore/firebase-tools.json`, in chiaro.
+- Al collega: la passphrase nuova dei backup, se ne fa in locale (§4.1).
 
 ## 8. La prova sulla copia — eseguita il 14/09/2026, 10:40–11:10
 
