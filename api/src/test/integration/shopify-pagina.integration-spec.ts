@@ -24,7 +24,7 @@ import { creaClientIntegrazione } from './prisma';
  *  2. un commesso col SOLO `inventory.import_export` (senza «Sezione
  *     Impostazioni») raggiunge la pagina dal browser, vede il solo comando che
  *     il permesso concede, lo esegue e l'API risponde con un rifiuto motivato —
- *     non un 500 — che compare in «Stato ed esiti»; la radice delle
+ *     non un 500 — che compare nella sezione delle operazioni; la radice delle
  *     Impostazioni resta chiusa, e la connessione non viene mai chiesta.
  */
 describe('Impostazioni → Shopify: browser → API → PostgreSQL isolato', () => {
@@ -102,24 +102,37 @@ describe('Impostazioni → Shopify: browser → API → PostgreSQL isolato', () 
         .getByRole('link', { name: 'Impostazioni', exact: true });
       await browserExpect(voce).toHaveAttribute('href', '/app/settings/shopify');
       await voce.click();
-      await browserExpect(page).toHaveURL(/\/app\/settings\/shopify$/);
-      await browserExpect(page.getByRole('heading', { name: 'Sincronizzazione' })).toBeVisible();
+      // ⭐ Dal 13/09/2026 la pagina è a schede (`docs/29` §5): la rotta porta il nome
+      //    della scheda scelta dallo stato, e per chi ha il solo permesso sulle giacenze
+      //    è «Operazioni». Il comando si chiama «Allinea giacenze su Shopify» e chiama
+      //    `sync/inventory/align`; l'esito compare nella stessa sezione, perché chi non
+      //    gestisce Shopify non ha le schede dello stato.
+      await browserExpect(page).toHaveURL(/\/app\/settings\/shopify(\/[a-z-]+)?$/);
       await browserExpect(
-        page.getByRole('button', { name: 'Riallinea le giacenze su Shopify' }),
+        page.getByRole('heading', { name: 'Shopify', exact: true }),
+      ).toBeVisible();
+      await browserExpect(
+        page.getByRole('button', { name: 'Allinea giacenze su Shopify' }),
       ).toBeVisible();
       await browserExpect(page.getByRole('button', { name: 'Importa catalogo' })).toHaveCount(0);
       await browserExpect(page.getByRole('heading', { name: 'Configurazione' })).toHaveCount(0);
 
-      // Il comando parte davvero: l'API rifiuta con un motivo (nessun negozio
-      // collegato), non con un 500, e il motivo compare in «Stato ed esiti».
-      await page.getByRole('button', { name: 'Riallinea le giacenze su Shopify' }).click();
-      const esiti = page.getByRole('region', { name: 'Stato ed esiti' });
-      await browserExpect(esiti.getByRole('alert').or(esiti.getByRole('status'))).toBeVisible();
+      // Il comando parte davvero e l'esito compare nella sezione delle operazioni, non
+      // un 500. ⚠️ Senza un negozio collegato «Allinea» oggi CONCLUDE il controllo con
+      // zero coppie esaminate (201, «Controllo completato — 0 esaminati»), non rifiuta con
+      // «nessun negozio collegato» come faceva il comando precedente (4xx): misurato il
+      // 14/09/2026 in questa prova; se debba invece fermarsi con un motivo è una decisione
+      // registrata in `DA-FARE` §10g, non un'attesa da forzare qui.
+      await page.getByRole('button', { name: 'Allinea giacenze su Shopify' }).click();
+      const esiti = page.getByRole('region', { name: /Operazioni avviate manualmente/ });
+      await browserExpect(
+        esiti.getByRole('alert').or(esiti.getByRole('status')).first(),
+      ).toBeVisible();
+      await browserExpect(esiti.getByText(/Controllo completato/)).toBeVisible();
       await page.screenshot({ path: resolve(artifacts, 'commesso-giacenze.png'), fullPage: true });
 
-      const sync = server.requests.filter((r) => r.path === '/api/v1/shopify/sync/inventory');
+      const sync = server.requests.filter((r) => r.path === '/api/v1/shopify/sync/inventory/align');
       expect(sync.length, JSON.stringify(server.requests)).toBeGreaterThanOrEqual(1);
-      expect(sync[0]!.status).toBeGreaterThanOrEqual(400);
       expect(sync[0]!.status).toBeLessThan(500);
       // La connessione — che a un commesso l'API negherebbe — non viene chiesta.
       expect(server.requests.some((r) => r.path === '/api/v1/shopify/connection')).toBe(false);

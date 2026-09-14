@@ -108,8 +108,15 @@ jobs:
       - name: Test frontend components (ATL)
         run: npm run test:components
 
-      - name: Test API with coverage
-        run: npm run test:coverage --prefix api
+      # ⭐ Qui i soli test UNITARI dell'API, senza gate di copertura: la copertura
+      #    dell'API si giudica su unita' + integrazione insieme, nel job che ha
+      #    PostgreSQL (`cassa-integration`, `test:coverage:completa`). Misurato il
+      #    14/09/2026 (PR #9): con la sola unitaria i servizi della sincronizzazione
+      #    Shopify — dimostrati dai percorsi su database vero — risultavano scoperti
+      #    (64,5 % di righe contro 78 % con l'integrazione). Stessi sorgenti, stesse
+      #    soglie; un test rosso qui ferma comunque il job.
+      - name: Test API (unita')
+        run: npm test --prefix api
 
       # ⛔ **Le guardie hanno bisogno di essere falsificate, non solo eseguite.**
       #    `npm run lint` esegue `check:bersaglio-condiviso` e dice se OGGI il
@@ -173,8 +180,12 @@ jobs:
         run: psql "$DATABASE_URL_TEST" -f docker/test-db-init/01-ruoli-supabase.sql
       - name: Installazione e aggiornamento con dati rappresentativi
         run: npm --prefix api run test:migration:cassa
-      - name: Integrazione API e database
-        run: npm run test:integration
+      # ⭐ Integrazione API + database, e con essa la COPERTURA dell'API: unita' e
+      #    integrazione unite in una misura sola sugli stessi sorgenti, con le soglie di
+      #    `api/vitest.config.ts` (`api/scripts/copertura-completa.mjs`: fallisce se una
+      #    delle due corse manca o non ha eseguito test).
+      - name: Integrazione API e database, copertura unita' + integrazione
+        run: npm run test:coverage:completa --prefix api
       - name: Browser desktop e mobile con API e database reali
         run: npm run test:cassa:real
       - name: Regressioni browser isolate dei componenti condivisi

@@ -46,7 +46,8 @@
     "typecheck:test": "tsc --noEmit -p tsconfig.spec.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:completa": "node scripts/copertura-completa.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

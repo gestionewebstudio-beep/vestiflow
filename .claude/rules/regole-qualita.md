@@ -405,6 +405,22 @@ describe('formatPrice', () => {
 | `test:components` | i soli test di componente, senza copertura                       |
 | `test:everything` | i tre sopra più l'API — è quello che gira al push                |
 
+⭐ **La copertura dell'API si giudica su UNITÀ + INTEGRAZIONE insieme** _(14/09/2026)_:
+`npm run test:coverage:completa --prefix api` (`api/scripts/copertura-completa.mjs`) esegue
+le due suite salvando un blob ciascuna, esige che entrambe abbiano eseguito test verdi, e
+unisce i rapporti (`vitest --merge-reports`) sugli stessi sorgenti e con le stesse soglie di
+`api/vitest.config.ts` (67/59/69/67). In CI gira nel job con PostgreSQL; il job senza
+database esegue i soli test unitari.
+
+⛔ **Qui il gate misurava la sola unitaria, e misurava ciò che NON copriva questo codice**:
+i servizi della sincronizzazione Shopify (prima connessione, trasferimento, recupero,
+backfill dello storico, ciclo di vita dell'ordine) sono dimostrati dai percorsi su database
+vero, non da prove con Prisma finto. Misurato nella CI della PR #9: 64,5 % di righe con la
+sola unitaria, **78,4 %** con l'integrazione (rami 69,0, funzioni 79,2). ⚠️ Nessuna
+esclusione aggiunta, nessuna soglia toccata; il costo è ~8,5 minuti (unità 33 s, integrazione
+~8 min, unione 10 s). Le soglie vanno rilette alla misura nuova con un lavoro dichiarato,
+non ritoccate qui.
+
 La soglia di copertura si applica a service, util, pipe e validator, non ai
 componenti: quelli sono coperti da test di comportamento, dove un numero di
 righe eseguite dice poco. Misurarla sull'unione dei due mondi darebbe un 55%
