@@ -6,8 +6,14 @@ import { creaDataset, IDS } from './fixture';
 export async function creaDatasetCassa(prisma: PrismaClient) {
   await creaDataset(prisma);
   await prisma.user.update({ where: { id: IDS.utenteA1 }, data: { role: 'owner' } });
+  // ⭐ Solo l'id: questa fixture semina anche schemi FERMI a una migration precedente
+  //    (prova delle migration, «prima della correttiva RLS»), dove le colonne che il
+  //    client conosce da migration successive (`products.shopify_product_type`, 11/09)
+  //    non esistono ancora. L'INSERT scrive le sole colonne nominate; è il ritorno
+  //    dell'intera riga che le chiederebbe tutte.
   const product = await prisma.product.create({
     data: { tenantId: IDS.tenantA, name: 'Articolo Cassa TEST', articleCode: 'CASSA-TEST' },
+    select: { id: true },
   });
   const variant = await prisma.productVariant.create({
     data: {

@@ -57,6 +57,13 @@ export class ShopifyWebhookService {
     // farebbe dire «arrivano eventi» a una connessione che li sta buttando tutti.
     if (isExpectedShopifyWebhookTopic(topic)) {
       await this.shopifyConnection.recordWebhookEventReceived(tenantId);
+      // ⭐ Una riga per notifica accolta, come `Shopify ← LETTURA/SCRITTURA` per le
+      //    chiamate uscenti: nel collaudo è ciò che dice se un webhook è arrivato
+      //    PRIMA di un recupero manuale (prova 4, 13/09/2026) — il totale finale
+      //    giusto da solo non lo dimostra. Nessun dato personale: topic, nome e id.
+      this.logger.log(
+        `Shopify → notifica ${topic} accolta (${String(data['name'] ?? data['id'] ?? '?')}, ${tenantId})`,
+      );
     }
 
     try {

@@ -105,6 +105,11 @@ import {
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { CustomerFormFieldsComponent } from '@domain/customers/components/customer-form-fields/customer-form-fields.component';
+import { ChannelOrderRettificheComponent } from '@domain/sales-orders/components/channel-order-rettifiche/channel-order-rettifiche.component';
+import {
+  quantitaDelleRighe,
+  rettificheDi,
+} from '@domain/sales-orders/models/sales-order-rettifiche.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import {
   createCustomerFormGroup,
@@ -360,6 +365,7 @@ interface AvailabilityIssue {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    ChannelOrderRettificheComponent,
     DocumentLineCardComponent,
     DocumentListinoSelectComponent,
     DocumentLineCardBodyComponent,
@@ -1164,6 +1170,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const tax = order?.tax?.amountMinor ?? 0;
     const total = order?.total?.amountMinor ?? 0;
 
+    // ⭐ Somma delle rettifiche e totale aggiornato sono di TESTATA (la somma
+    //    scritta coi rimborsi, la differenza generata dal database): si leggono.
+    //    Il valore originario resta (proprietario, 13/09/2026, #1014).
+    const refunds = order?.refundTotal?.amountMinor ?? 0;
+    const updatedTotal = order?.updatedTotal?.amountMinor ?? total;
+
     return {
       // Il subtotale del canale è già al netto dello sconto: il pieno delle
       // righe — quello che la tabella mostra — si riottiene sommandolo.
@@ -1173,7 +1185,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       taxable: money(total - tax),
       tax: money(tax),
       total: money(total),
+      refunds: money(refunds),
+      updatedTotal: money(updatedTotal),
     };
+  });
+
+  /** Le rettifiche e le quantità per riga, nella forma del blocco condiviso. */
+  protected readonly channelRettifiche = computed(() => {
+    const order = this.loadedOrder();
+    return order ? rettificheDi(order) : [];
+  });
+  protected readonly channelQuantita = computed(() => {
+    const order = this.loadedOrder();
+    return order ? quantitaDelleRighe(order.lines) : [];
   });
 
   /**
@@ -2368,7 +2392,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           : []),
         { key: 'taxable', label: 'Imponibile', value: t.taxable },
         { key: 'tax', label: 'IVA inclusa', value: t.tax },
-        { key: 'total', label: 'Totale ordine', value: t.total, kind: 'total' as const },
+        // Con rettifiche del canale il totale ordine resta il VALORE ORIGINARIO e la
+        // risposta è il totale aggiornato; senza, il totale ordine è la risposta.
+        ...(t.refunds.amountMinor !== 0
+          ? [
+              { key: 'total', label: 'Totale ordine (originario)', value: t.total },
+              { key: 'refunds', label: 'Rettifiche del canale', value: t.refunds, negative: true },
+              {
+                key: 'updatedTotal',
+                label: 'Totale aggiornato',
+                value: t.updatedTotal,
+                kind: 'total' as const,
+              },
+            ]
+          : [{ key: 'total', label: 'Totale ordine', value: t.total, kind: 'total' as const }]),
       ];
     }
 

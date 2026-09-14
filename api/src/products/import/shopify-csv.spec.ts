@@ -52,7 +52,10 @@ describe('isImportProductReady', () => {
   it('false se almeno un issue error', () => {
     expect(
       isImportProductReady({
-        issues: [{ level: 'warning', message: 'ok' }, { level: 'error', message: 'bad' }],
+        issues: [
+          { level: 'warning', message: 'ok' },
+          { level: 'error', message: 'bad' },
+        ],
       } as unknown as Parameters<typeof isImportProductReady>[0]),
     ).toBe(false);
   });

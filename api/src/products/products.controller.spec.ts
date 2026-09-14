@@ -55,9 +55,10 @@ describe('ProductsController', () => {
   it('checkSku delega al service', async () => {
     products.checkSkuAvailability.mockResolvedValue({ sku: 'SKU-1', available: true });
 
-    await expect(
-      controller.checkSku(tenantId, { sku: 'SKU-1' }),
-    ).resolves.toEqual({ sku: 'SKU-1', available: true });
+    await expect(controller.checkSku(tenantId, { sku: 'SKU-1' })).resolves.toEqual({
+      sku: 'SKU-1',
+      available: true,
+    });
   });
 
   it('checkBarcode delega al service', async () => {
@@ -66,9 +67,10 @@ describe('ProductsController', () => {
       available: true,
     });
 
-    await expect(
-      controller.checkBarcode(tenantId, { barcode: '8001234567890' }),
-    ).resolves.toEqual({ barcode: '8001234567890', available: true });
+    await expect(controller.checkBarcode(tenantId, { barcode: '8001234567890' })).resolves.toEqual({
+      barcode: '8001234567890',
+      available: true,
+    });
   });
 
   it('generateSku delega a SkuGeneratorService.previewSku e ritorna solo lo SKU', async () => {
@@ -101,7 +103,12 @@ describe('ProductsController', () => {
       originalname: 'products.csv',
       mimetype: 'text/csv',
     } as Express.Multer.File;
-    productsImport.importCsv.mockResolvedValue({ imported: 1, skipped: 0, failed: 0, products: [] });
+    productsImport.importCsv.mockResolvedValue({
+      imported: 1,
+      skipped: 0,
+      failed: 0,
+      products: [],
+    });
 
     const importer = { id: 'user-1', role: 'owner' } as never;
     await controller.importProducts(tenantId, importer, file, { handles: ['handle-a'] });
@@ -123,7 +130,6 @@ describe('ProductsController', () => {
       id: 'prod-1',
       name: 'Giacca',
     });
-
   });
 
   it('create delega al service', async () => {
@@ -176,9 +182,9 @@ describe('ProductsController', () => {
   it('findVariantByCode delega al service', async () => {
     products.findVariantByCode.mockResolvedValue({ sku: 'SKU-1' });
 
-    await expect(
-      controller.findVariantByCode(tenantId, { code: 'SKU-1' }),
-    ).resolves.toEqual({ sku: 'SKU-1' });
+    await expect(controller.findVariantByCode(tenantId, { code: 'SKU-1' })).resolves.toEqual({
+      sku: 'SKU-1',
+    });
   });
 
   it('update delega al service', async () => {

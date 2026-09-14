@@ -94,11 +94,11 @@
         <tbody>
           @for (riga of v.lines; track riga.lineId) {
             <tr>
-              <td>{{ riga.description }}</td>
-              <td class="reso__num">{{ riga.quantitySold }}</td>
-              <td class="reso__num">{{ riga.quantityReturned }}</td>
-              <td class="reso__num">{{ riga.quantityReturnable }}</td>
-              <td class="reso__num">
+              <td data-label="Articolo">{{ riga.description }}</td>
+              <td class="reso__num" data-label="Venduti">{{ riga.quantitySold }}</td>
+              <td class="reso__num" data-label="Già resi">{{ riga.quantityReturned }}</td>
+              <td class="reso__num" data-label="Rendibili">{{ riga.quantityReturnable }}</td>
+              <td class="reso__num" data-label="Rendi">
                 <label class="sr-only" [for]="'rendi-' + riga.lineId">
                   Quantità da rendere di {{ riga.description }}
                 </label>

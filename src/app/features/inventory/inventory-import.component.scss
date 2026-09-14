@@ -1,7 +1,15 @@
-@use 'responsive-table' as rt;
+@use 'list-page' as lp;
+
+/*
+  ⭐ **La pagina si adatta alla finestra: cede solo la TABELLA** (`regole-stile-ui`
+  §6), come Movimenti e Ordini fornitore. Senza questa catena il motore non ha
+  altezza, la regione di scorrimento è alta quanto due righe e il pannello del
+  filtro ne resta ritagliato — misurato sull’import prodotti l’11/09/2026
+  (`docs/26` §5.1). Sotto `lg` il mixin smonta tutto: card, e scorre la pagina.
+*/
+@include lp.list-page-fills-viewport('inventory-import', 'app-data-table');
 
 :host {
-  display: block;
   inline-size: 100%;
 }
 
@@ -99,17 +107,25 @@
   justify-content: space-between;
 }
 
-.inventory-import__table-scroll {
-  overflow-x: auto;
-}
+// ⛔ Qui c’erano un contenitore di scorrimento, i due mixin della tabella e
+//    due classi per l’allineamento numerico: la veste di una `<table>` a
+//    mano. Le due tabelle sono sul motore comune (`docs/26` A2), e il motore
+//    porta con sé scorrimento, grammatica e allineamento per tipo di colonna.
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('inventory-import__table');
-@include rt.data-table-mobile-cards('inventory-import__table');
-
-.inventory-import__col--numeric,
-.inventory-import__numeric {
-  text-align: end;
+// Colonne e Filtri sopra ogni tabella: la barra densa di `regole-stile-ui`,
+// configurata dal CONTENITORE — mai dal singolo controllo dentro. Gli stessi
+// sei token del telaio (`.list-page__tools`).
+.inventory-import__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+  --btn-min-height: var(--control-h-button);
+  --field-height: var(--control-h-button);
+  --field-h: var(--control-h-button);
+  --field-font-size: var(--text-xs);
+  --field-gap: var(--space-1);
+  --button-font-size: var(--text-xs);
 }
 
 .inventory-import__done {

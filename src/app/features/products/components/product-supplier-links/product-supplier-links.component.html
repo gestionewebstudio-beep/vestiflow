@@ -7,28 +7,35 @@
     description="Associa codici fornitore e fornitore preferenziale dalle anagrafiche fornitori o dagli ordini."
   />
 } @else {
-  <div class="product-supplier-links__wrap">
-    <table class="product-supplier-links__table">
-      <thead>
-        <tr>
-          <th scope="col">Fornitore</th>
-          <th scope="col">SKU</th>
-          <th scope="col">Codice fornitore</th>
-          <th scope="col">Preferenziale</th>
-          <th scope="col">Ultimo prezzo</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (link of links(); track link.id) {
-          <tr>
-            <td>{{ link.supplier.name }}</td>
-            <td>{{ link.variant.sku }}</td>
-            <td>{{ link.supplierSku ?? '—' }}</td>
-            <td>{{ link.isPreferred ? 'Sì' : 'No' }}</td>
-            <td class="product-supplier-links__num">{{ formatPrice(link) }}</td>
-          </tr>
+  <!-- ⭐ Sul motore comune (`docs/26` A15): un piccolo elenco di consultazione nella scheda. -->
+  <app-data-table
+    caption="Fornitori dell’articolo"
+    [columns]="colonne"
+    [sections]="sezioni()"
+    [rowId]="rowId"
+    [cellText]="testoCella"
+    [sortable]="true"
+    [sort]="ordine()"
+    (sortChange)="ordine.set($event)"
+  >
+    <ng-template appRowCard let-link>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          <span class="list-card__what">{{ link.supplier.name }}</span>
+        </span>
+        @if (link.isPreferred) {
+          <span class="list-card__anchor">Preferenziale</span>
         }
-      </tbody>
-    </table>
-  </div>
+      </div>
+      <div class="list-card__words">
+        <span class="tabular-nums">{{ link.variant.sku }}</span>
+        @if (link.supplierSku) {
+          <span class="tabular-nums">Cod. fornitore {{ link.supplierSku }}</span>
+        }
+      </div>
+      <div class="list-card__figures">
+        <span class="list-card__total tabular-nums">{{ formatPrice(link) }}</span>
+      </div>
+    </ng-template>
+  </app-data-table>
 }

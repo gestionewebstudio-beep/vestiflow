@@ -2,7 +2,7 @@ import { ProductStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
 import { buildImportPreview } from './shopify-csv.mapper';
-import { parseShopifyProductCsv } from './shopify-csv.parse';
+import { parseCsvText, parseShopifyProductCsv } from './shopify-csv.parse';
 import {
   escapeCsvField,
   serializeProductsToShopifyCsv,
@@ -124,6 +124,7 @@ function makeRecord(input: {
   description?: string;
   brand?: string;
   category?: string;
+  shopifyProductType?: string;
   season?: string;
   tags?: string[];
   status?: ProductStatus;
@@ -149,6 +150,7 @@ function makeRecord(input: {
       description: input.description ?? null,
       brand: input.brand ?? null,
       category: input.category ?? null,
+      shopifyProductType: input.shopifyProductType ?? null,
       season: input.season ?? null,
       tags: input.tags ?? [],
       seoTitle: 'SEO title demo',
@@ -199,3 +201,106 @@ function makeRecord(input: {
     })),
   };
 }
+
+/**
+ * ⛔ **LA COLONNA `Type` È DI SHOPIFY, NON LA CATEGORIA DI MAGAZZINO.**
+ *
+ * Quel CSV è il formato di **esportazione di Shopify**, e quel file si ricarica
+ * in Shopify Admin: `Type` è letteralmente `product_type`. Fino all'11/09/2026
+ * l'export ci scriveva `product.category` e l'import la rileggeva da lì — la
+ * stessa confusione della sincronizzazione, in un secondo posto (`docs/24` §9.5,
+ * «non si mescola, in nessuna delle due direzioni»).
+ *
+ * ⭐ La colonna «Categoria» è nata con questa correzione, per la stessa ragione
+ *    per cui esiste «Codice articolo»: senza, il ritorno del file **perderebbe**
+ *    la classificazione di magazzino invece di mescolarla. Shopify ignora le
+ *    colonne che non conosce.
+ */
+describe('⛔ CSV Shopify: Type è del canale, Categoria è di VestiFlow', () => {
+  const ARTICOLO = {
+    name: 'Maglia Separata',
+    brand: 'Acme',
+    category: 'Abbigliamento donna',
+    shopifyProductType: 'Maglieria',
+    options: [{ name: 'Taglia', values: ['M'] }],
+    variants: [
+      {
+        sku: 'SEP-M',
+        optionValues: [{ name: 'Taglia', value: 'M' }],
+        sellingPriceMinor: 2990,
+      },
+    ],
+    images: [],
+  };
+
+  /** Le celle della riga dati, incolonnate sotto le rispettive intestazioni. */
+  function celle(csv: string): Record<string, string> {
+    const righe = csv.replace(/^\uFEFF/, '').split(/\r?\n/);
+    const intestazioni = parseCsvText(righe[0] ?? '')[0] ?? [];
+    const dati = parseCsvText(righe[1] ?? '')[0] ?? [];
+    return Object.fromEntries(intestazioni.map((nome, i) => [nome, dati[i] ?? '']));
+  }
+
+  it('⛔ in USCITA la categoria interna non finisce in Type', () => {
+    const riga = celle(serializeProductsToShopifyCsv([makeRecord(ARTICOLO)]));
+
+    expect(riga['Type']).toBe('Maglieria');
+    expect(riga['Categoria']).toBe('Abbigliamento donna');
+    // ⛔ È il difetto che questa prova rende impossibile da rifare: un file
+    //    esportato da VestiFlow e ricaricato in Shopify Admin scriveva la
+    //    classificazione di magazzino nel tipo prodotto della vetrina.
+    expect(riga['Type']).not.toBe('Abbigliamento donna');
+  });
+
+  it('⭐ tipo prodotto non ancora acquisito: Type resta vuoto, la Categoria no', () => {
+    // ⚠️ Vuoto NON significa «prendi la categoria»: la colonna nasce vuota per
+    //    tutti, e un ripiego qui reintrodurrebbe il mescolamento.
+    const riga = celle(
+      serializeProductsToShopifyCsv([makeRecord({ ...ARTICOLO, shopifyProductType: undefined })]),
+    );
+
+    expect(riga['Type']).toBe('');
+    expect(riga['Categoria']).toBe('Abbigliamento donna');
+  });
+
+  it('⛔ in ENTRATA un export Shopify AUTENTICO non scrive la categoria interna', () => {
+    // Un file uscito da Shopify ha `Type` e non ha «Categoria»: il tipo prodotto
+    // entra nel campo suo, la classificazione di magazzino resta all'operatore —
+    // esattamente come fa il webhook.
+    const csvShopify = [
+      'Handle,Title,Vendor,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Price',
+      'maglia,Maglia,Acme,Maglieria,,TRUE,Taglia,M,SKU-M,29.90',
+    ].join('\n');
+
+    const preview = buildImportPreview(parseShopifyProductCsv(csvShopify), new Set());
+
+    expect(preview.products[0]?.dto.shopifyProductType).toBe('Maglieria');
+    expect(preview.products[0]?.dto.category).toBeUndefined();
+  });
+
+  it('⭐ RITORNO DEL FILE: nessuno dei due si perde e nessuno dei due si scambia', () => {
+    const csv = serializeProductsToShopifyCsv([makeRecord(ARTICOLO)]);
+
+    const preview = buildImportPreview(parseShopifyProductCsv(csv.replace(/^\uFEFF/, '')), new Set());
+
+    const dto = preview.products[0]?.dto;
+    expect(dto?.category).toBe('Abbigliamento donna');
+    expect(dto?.shopifyProductType).toBe('Maglieria');
+  });
+
+  it('⛔ e il ritorno del file non SOVRASCRIVE: un articolo già a catalogo si salta', () => {
+    // ⭐ L'import massivo CREA soltanto: un handle o un nome già presenti sono
+    //    marcati `alreadyImported` e non producono nessuna scrittura. È la
+    //    ragione per cui il ritorno del file non può riscrivere la categoria
+    //    interna di un articolo esistente — e va tenuto fermo, non dedotto.
+    const csv = serializeProductsToShopifyCsv([makeRecord(ARTICOLO)]);
+    const righe = parseShopifyProductCsv(csv.replace(/^\uFEFF/, ''));
+
+    const preview = buildImportPreview(righe, new Set(), {
+      handles: new Set([righe[0]?.handle ?? '']),
+      names: new Set<string>(),
+    });
+
+    expect(preview.products[0]?.alreadyImported).toBe(true);
+  });
+});

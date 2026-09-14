@@ -14,6 +14,12 @@
       <p class="admin-users__alert" role="alert">{{ message }}</p>
     }
 
+    <!--
+      ⭐ **Una MASCHERA, non un elenco** (`docs/26` A13 — la gemella di Utenti,
+      D2): il titolare si modifica sul posto e ogni riga apre la diagnosi dei
+      permessi a tutta larghezza. Riusa la grammatica condivisa della tabella,
+      le card sotto `lg` con l’etichetta per cella e i controlli condivisi.
+    -->
     <div class="admin-users__table-wrap">
       <table class="admin-users__table">
         <thead>
@@ -28,7 +34,7 @@
         <tbody>
           @for (user of users(); track user.id) {
             <tr>
-              <td>
+              <td data-label="Nome" class="admin-users__cell-name">
                 {{ user.displayName }}
                 @if (!user.isActive) {
                   <span class="admin-users__all-locations">(disattivato)</span>
@@ -37,9 +43,9 @@
                   <app-inline-spinner />
                 }
               </td>
-              <td>{{ user.email }}</td>
+              <td data-label="Email">{{ user.email }}</td>
               @if (isOwnerRole(user.role)) {
-                <td class="admin-users__cell-select">
+                <td data-label="Ruolo" class="admin-users__cell-select">
                   <app-select-menu
                     [options]="roleOptions"
                     [value]="user.role"
@@ -50,7 +56,10 @@
                     (valueChange)="onOwnerRoleSelect(user, $event)"
                   />
                 </td>
-                <td class="admin-users__cell-select admin-users__cell-locations">
+                <td
+                  data-label="Sede operativa"
+                  class="admin-users__cell-select admin-users__cell-locations"
+                >
                   <span class="admin-users__all-locations">Tutte le sedi</span>
                   @if (locationOptions().length > 0) {
                     <app-select-menu
@@ -63,29 +72,28 @@
                     />
                   }
                 </td>
-                <td>
+                <td data-label="Permessi">
                   <span class="admin-users__all-locations">Accesso completo</span>
                 </td>
               } @else {
-                <td>{{ tenantRoleLabel(user.role) }}</td>
-                <td class="admin-users__cell-locations">
+                <td data-label="Ruolo">{{ tenantRoleLabel(user.role) }}</td>
+                <td data-label="Sede operativa" class="admin-users__cell-locations">
                   <span class="admin-users__all-locations">{{ assignedLocationsLabel(user) }}</span>
                 </td>
-                <td>
-                  <button
-                    type="button"
-                    class="admin-users__permissions-toggle"
-                    [attr.aria-expanded]="permissionsExpanded(user.id)"
+                <td data-label="Permessi" class="admin-users__cell-permissions">
+                  <app-button
+                    variant="ghost"
+                    [ariaExpanded]="permissionsExpanded(user.id)"
                     (click)="togglePermissionsPanel(user.id)"
                   >
                     {{ permissionsExpanded(user.id) ? 'Nascondi' : 'Vedi permessi' }}
-                  </button>
+                  </app-button>
                 </td>
               }
             </tr>
             @if (!isOwnerRole(user.role) && permissionsExpanded(user.id)) {
               <tr class="admin-users__permissions-row">
-                <td colspan="5">
+                <td colspan="5" data-label="">
                   @if (permissionGroupsFor(user).length === 0) {
                     <p class="admin-users__note" role="note">Nessun permesso attivo.</p>
                   } @else {

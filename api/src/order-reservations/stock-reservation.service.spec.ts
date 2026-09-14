@@ -220,6 +220,8 @@ function createTx(esistenti: StockReservation[] = []) {
         },
       ),
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
   };
 
   return { tx, deltas, aggiornamenti, creazioni, eventi };

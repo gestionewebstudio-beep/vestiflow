@@ -396,6 +396,133 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       await expect(client.getRemoteQuantities(SHOP, TOKEN, 'gid://x')).resolves.toEqual([]);
     });
 
+    // ── lettura di UNA sede, per identificativo ────────────────────────────
+    describe('getRemoteLevelAtLocation', () => {
+      const ITEM = 'gid://shopify/InventoryItem/5';
+      const SEDE = 'gid://shopify/Location/77';
+
+      const livello = (quantities: unknown) =>
+        rispondi({ inventoryItem: { id: ITEM, inventoryLevel: { id: 'gid://l/1', quantities } } });
+
+      it('chiede la sede per IDENTIFICATIVO, non una pagina di sedi', async () => {
+        const fetchMock = mockFetch(livello([{ name: 'available', quantity: 7 }]));
+
+        await client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE);
+
+        const { query, variables } = corpo(fetchMock);
+        // ⭐ È questa la garanzia strutturale: chiedendo per id, l'ordine con
+        //    cui Shopify elenca le sedi smette di contare.
+        expect(query).toContain('inventoryLevel(locationId: $locationId)');
+        expect(query).not.toContain('inventoryLevels(first:');
+        expect(variables['locationId']).toBe(SEDE);
+        expect(variables['id']).toBe(ITEM);
+      });
+
+      /**
+       * ⛔ Misurato sul negozio vero il 13/09/2026: il push passava gli id
+       *    NUMERICI di articolo e location, e Shopify rispondeva «Variable $id
+       *    of type ID! was provided invalid value» — 75 coppie su 75 non
+       *    allineate, nessuna scrittura. Il simulatore non tipizza le variabili.
+       *    Il GID si forma al confine: un id numerico e un GID già formato
+       *    devono uscire uguali.
+       */
+      it('forma i GID al confine: id numerici e GID già formati mandano le stesse variabili', async () => {
+        const fetchMock = mockFetch(
+          livello([{ name: 'available', quantity: 7 }]),
+          livello([{ name: 'available', quantity: 7 }]),
+        );
+
+        await client.getRemoteLevelAtLocation(SHOP, TOKEN, '5', '77');
+        await client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE);
+
+        expect(corpo(fetchMock, 0).variables).toEqual({ id: ITEM, locationId: SEDE });
+        expect(corpo(fetchMock, 1).variables).toEqual({ id: ITEM, locationId: SEDE });
+      });
+
+      it('la sede FUORI dalla prima pagina si legge lo stesso — quella a pagine la perde', async () => {
+        // Il canale ha tre sedi e la nostra è la terza. Una pagina troncata ne
+        // riporta due: è esattamente ciò che `first: N` produce, e l'assenza di
+        // `pageInfo` rende la troncatura indistinguibile da «non stoccata».
+        mockFetch(
+          rispondi({
+            inventoryItem: {
+              id: ITEM,
+              inventoryLevels: {
+                nodes: [
+                  {
+                    location: { id: 'gid://shopify/Location/11' },
+                    quantities: [{ name: 'available', quantity: 1 }],
+                  },
+                  {
+                    location: { id: 'gid://shopify/Location/22' },
+                    quantities: [{ name: 'available', quantity: 2 }],
+                  },
+                ],
+              },
+            },
+          }),
+        );
+        const aPagine = await client.getRemoteQuantities(SHOP, TOKEN, ITEM);
+        expect(aPagine.some((q) => q.locationId === SEDE)).toBe(false);
+
+        // Per identificativo, la stessa sede si legge: la selezione la fa il server.
+        mockFetch(livello([{ name: 'available', quantity: 3 }]));
+        await expect(client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE)).resolves.toEqual({
+          found: true,
+          available: 3,
+        });
+      });
+
+      it('ZERO è un valore letto, non un assenza', async () => {
+        mockFetch(livello([{ name: 'available', quantity: 0 }]));
+        await expect(client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE)).resolves.toEqual({
+          found: true,
+          available: 0,
+        });
+      });
+
+      it('le tre assenze restano DISTINTE, e nessuna diventa zero', async () => {
+        mockFetch(rispondi({ inventoryItem: null }));
+        await expect(client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE)).resolves.toEqual({
+          found: false,
+          reason: 'articolo_assente',
+        });
+
+        mockFetch(rispondi({ inventoryItem: { id: ITEM, inventoryLevel: null } }));
+        await expect(client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE)).resolves.toEqual({
+          found: false,
+          reason: 'sede_non_stoccata',
+        });
+
+        mockFetch(livello([{ name: 'on_hand', quantity: 4 }]));
+        await expect(client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE)).resolves.toEqual({
+          found: false,
+          reason: 'quantita_assente',
+        });
+      });
+
+      it('la quantità NEGATIVA si conserva: nessun clamp in lettura', async () => {
+        mockFetch(livello([{ name: 'available', quantity: -3 }]));
+        await expect(client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE)).resolves.toEqual({
+          found: true,
+          available: -3,
+        });
+      });
+
+      it('la lettura non provoca NESSUNA scrittura remota', async () => {
+        const fetchMock = mockFetch(livello([{ name: 'available', quantity: 7 }]));
+
+        await client.getRemoteLevelAtLocation(SHOP, TOKEN, ITEM, SEDE);
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const { query } = corpo(fetchMock);
+        expect(query).toContain('query InventoryLevelAtLocation');
+        expect(query).not.toContain('mutation');
+        expect(query).not.toContain('inventorySetQuantities');
+        expect(query).not.toContain('inventoryAdjustQuantities');
+      });
+    });
+
     it('setInventoryQuantities: assoluta, con confronto, riferimento e chiave', async () => {
       const fetchMock = mockFetch(rispondi({ inventorySetQuantities: { userErrors: [] } }));
 
@@ -426,7 +553,11 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       const input = variables['input'] as Record<string, unknown>;
       // ⛔ In 2026-07 `InventorySetQuantitiesInput` NON dichiara
       //    `ignoreCompareQuantity`: mandarlo fa rifiutare l'intera mutation.
-      //    Il confronto non si disattiva con una bandiera — si omette il campo.
+      //
+      // ⛔ **E qui c'era «il confronto non si disattiva con una bandiera — si
+      //    omette il campo». È il contrario**, corretto il 09/09/2026:
+      //    `changeFromQuantity` è OBBLIGATORIO, a disattivare il confronto è un
+      //    `null` esplicito, e ometterlo è un errore dell'API.
       expect(input).not.toHaveProperty('ignoreCompareQuantity');
       expect(input['referenceDocumentUri']).toBe('vestiflow://push/var-1');
       expect(input['quantities']).toEqual([
@@ -466,7 +597,19 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       expect(corpo(fetchMock, 0).variables).toEqual(corpo(fetchMock, 1).variables);
     });
 
-    it('conflitto di concorrenza: lo userErrors arriva a chi ha scritto', async () => {
+    it('conflitto di concorrenza: lo userErrors si RESTITUISCE, non si solleva', async () => {
+      // ⛔ **Qui questa prova si aspettava un sollevamento**, perché il metodo
+      //    passava da `throwOnUserErrors` come tutte le altre mutation.
+      //
+      // ⭐ **Corretto il 09/09/2026: un `userError` di confronto non è un
+      //    guasto.** Il canale ha risposto — ha letto l'operazione, ha
+      //    confrontato e ha detto no — quindi la scrittura NON è avvenuta, e si
+      //    sa. Un'eccezione lo renderebbe indistinguibile da una rete caduta,
+      //    dove l'esito è ignoto: e i due hanno rimedi opposti — il primo non
+      //    si risolve ritentando, il secondo sì.
+      //
+      // ⚠️ **Le altre mutation continuano a sollevare**, ed è giusto: lì un
+      //    `userError` è un guasto di configurazione, non un esito da separare.
       mockFetch(
         rispondi({
           inventorySetQuantities: {
@@ -483,21 +626,129 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
         }),
       );
 
-      await expect(
-        client.setInventoryQuantities(SHOP, TOKEN, {
-          reason: 'correction',
-          referenceDocumentUri: 'vestiflow://push/var-1',
-          idempotencyKey: 'k',
-          quantities: [
-            {
-              inventoryItemId: 'gid://i',
-              locationId: 'gid://l',
-              quantity: 1,
-              changeFromQuantity: 0,
-            },
-          ],
+      const errori = await client.setInventoryQuantities(SHOP, TOKEN, {
+        reason: 'correction',
+        referenceDocumentUri: 'vestiflow://push/var-1',
+        idempotencyKey: 'k',
+        quantities: [
+          {
+            inventoryItemId: 'gid://i',
+            locationId: 'gid://l',
+            quantity: 1,
+            changeFromQuantity: 0,
+          },
+        ],
+      });
+
+      expect(errori).toHaveLength(1);
+      expect(errori[0]!.message).toMatch(/no longer matches the persisted quantity/);
+    });
+
+    it('chiede il CODICE, oltre a field e message', async () => {
+      // ⛔ **Senza `code` non si può classificare**, e senza classificazione
+      //    ogni `userError` diventa lo stesso esito: un rifiuto definitivo.
+      //    `IDEMPOTENCY_CONCURRENT_REQUEST` — che significa «l'operazione è
+      //    ancora in corso» — finirebbe trattato come una divergenza, e il
+      //    tentativo verrebbe chiuso mentre la scrittura va a segno.
+      const fetchMock = mockFetch(rispondi({ inventorySetQuantities: { userErrors: [] } }));
+
+      await client.setInventoryQuantities(SHOP, TOKEN, {
+        reason: 'correction',
+        referenceDocumentUri: 'vestiflow://push/var-1',
+        idempotencyKey: 'k',
+        quantities: [
+          { inventoryItemId: 'gid://i', locationId: 'gid://l', quantity: 1, changeFromQuantity: 0 },
+        ],
+      });
+
+      expect(corpo(fetchMock).query).toMatch(/userErrors\s*\{[^}]*\bcode\b/);
+    });
+
+    it('il CODICE arriva al chiamante', async () => {
+      mockFetch(
+        rispondi({
+          inventorySetQuantities: {
+            userErrors: [
+              { field: null, message: 'in corso', code: 'IDEMPOTENCY_CONCURRENT_REQUEST' },
+            ],
+          },
         }),
-      ).rejects.toThrow(/no longer matches the persisted quantity/);
+      );
+
+      const errori = await client.setInventoryQuantities(SHOP, TOKEN, {
+        reason: 'correction',
+        referenceDocumentUri: 'vestiflow://push/var-1',
+        idempotencyKey: 'k',
+        quantities: [
+          { inventoryItemId: 'gid://i', locationId: 'gid://l', quantity: 1, changeFromQuantity: 0 },
+        ],
+      });
+
+      expect(errori).toEqual([
+        { field: null, message: 'in corso', code: 'IDEMPOTENCY_CONCURRENT_REQUEST' },
+      ]);
+    });
+
+    describe('⛔ una risposta MANCANTE non è un successo', () => {
+      // ⛔ **Il difetto**: `data.inventorySetQuantities?.userErrors ?? []`
+      //    trasformava una mutation assente in un elenco vuoto — cioè nella
+      //    firma della riuscita. Il chiamante avanzava il valore confermato e
+      //    chiudeva il tentativo per una risposta che non c'era.
+      //
+      // ⭐ **Un payload mancante è un esito IGNOTO**, e l'unico modo di dirlo a
+      //    chi legge un elenco di `userErrors` è sollevare: il push lo cattura,
+      //    risponde `shopify_error` e **conserva** il tentativo.
+      it.each([
+        ['il payload della mutation è null', { inventorySetQuantities: null }],
+        ['il payload manca del tutto', {}],
+        ['userErrors manca', { inventorySetQuantities: {} }],
+        ['userErrors non è un elenco', { inventorySetQuantities: { userErrors: 'boh' } }],
+      ])('%s → solleva, non restituisce vuoto', async (_nome, data) => {
+        mockFetch(rispondi(data));
+
+        await expect(
+          client.setInventoryQuantities(SHOP, TOKEN, {
+            reason: 'correction',
+            referenceDocumentUri: 'vestiflow://push/var-1',
+            idempotencyKey: 'k',
+            quantities: [
+              {
+                inventoryItemId: 'gid://i',
+                locationId: 'gid://l',
+                quantity: 1,
+                changeFromQuantity: 0,
+              },
+            ],
+          }),
+        ).rejects.toThrow(/risposta|inventorySetQuantities/i);
+      });
+    });
+
+    it('scrittura applicata: l elenco degli userErrors è VUOTO', async () => {
+      // ⭐ **La controprova.** Senza, la prova sopra passerebbe anche se il
+      //    metodo restituisse sempre l'elenco degli errori grezzi — o sempre
+      //    qualcosa di non vuoto: «vuoto significa applicata» è metà del
+      //    contratto, e va fissato come l'altra metà.
+      mockFetch(rispondi({ inventorySetQuantities: { userErrors: [] } }));
+
+      const errori = await client.setInventoryQuantities(SHOP, TOKEN, {
+        reason: 'correction',
+        referenceDocumentUri: 'vestiflow://push/var-1',
+        idempotencyKey: 'k',
+        quantities: [
+          {
+            inventoryItemId: 'gid://i',
+            locationId: 'gid://l',
+            quantity: 1,
+            // ⭐ `null` ESPLICITO: l'API lo ammette e disattiva il confronto.
+            //    Che questo percorso non lo usi è una politica di VestiFlow, e
+            //    la fa rispettare il servizio (prova `C3` di integrazione).
+            changeFromQuantity: null,
+          },
+        ],
+      });
+
+      expect(errori).toEqual([]);
     });
   });
 
@@ -562,6 +813,163 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       // qui si cerca la chiamata, cioè il nome seguito da una parentesi.
       expect(sorgente).not.toMatch(/\bproductDelete\s*\(/);
       expect(sorgente).not.toMatch(/\bproductVariantsBulkDelete\s*\(/);
+    });
+  });
+
+  // ── I fulfillment order: la sede degli ordini online (13/09/2026) ───────────
+
+  describe("fulfillment order — sola lettura, e l'ambito mancante è un ESITO", () => {
+    it("legge i fulfillment order dell'ordine col GID formato al confine, e li traduce", async () => {
+      const fetchMock = mockFetch(
+        rispondi({
+          order: {
+            id: 'gid://shopify/Order/10',
+            fulfillmentOrders: {
+              nodes: [
+                {
+                  id: 'gid://shopify/FulfillmentOrder/1',
+                  status: 'OPEN',
+                  assignedLocation: { location: { id: 'gid://shopify/Location/5' } },
+                  lineItems: {
+                    nodes: [
+                      {
+                        id: 'gid://shopify/FulfillmentOrderLineItem/1',
+                        remainingQuantity: 2,
+                        totalQuantity: 3,
+                        lineItem: { id: 'gid://shopify/LineItem/11' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  id: 'gid://shopify/FulfillmentOrder/2',
+                  status: 'CLOSED',
+                  assignedLocation: { location: null },
+                  lineItems: { nodes: [] },
+                },
+              ],
+            },
+          },
+        }),
+      );
+
+      const esito = await client.getFulfillmentOrders(SHOP, TOKEN, '10');
+
+      expect(corpo(fetchMock).variables).toEqual({ id: 'gid://shopify/Order/10' });
+      expect(corpo(fetchMock).query).toContain('fulfillmentOrders(first: 50)');
+      expect(corpo(fetchMock).query).toContain('assignedLocation { location { id } }');
+      expect(corpo(fetchMock).query).toContain('pageInfo { hasNextPage }');
+      expect(esito).toEqual({
+        ok: true,
+        completa: true,
+        fulfillmentOrders: [
+          {
+            id: 'gid://shopify/FulfillmentOrder/1',
+            status: 'OPEN',
+            assignedLocationGid: 'gid://shopify/Location/5',
+            righe: [
+              { lineItemGid: 'gid://shopify/LineItem/11', remainingQuantity: 2, totalQuantity: 3 },
+            ],
+          },
+          {
+            id: 'gid://shopify/FulfillmentOrder/2',
+            status: 'CLOSED',
+            assignedLocationGid: null,
+            righe: [],
+          },
+        ],
+      });
+    });
+
+    it('una pagina oltre la prima (fulfillment order o righe): letta, ma NON completa', async () => {
+      // ⛔ Una lettura troncata classifica le righe viste ma non autorizza a
+      //    RILASCIARE un impegno (13/09/2026): la completezza viaggia con l'esito.
+      const conAltraPagina = (dove: 'fulfillmentOrders' | 'lineItems') =>
+        rispondi({
+          order: {
+            id: 'gid://shopify/Order/10',
+            fulfillmentOrders: {
+              pageInfo: { hasNextPage: dove === 'fulfillmentOrders' },
+              nodes: [
+                {
+                  id: 'gid://shopify/FulfillmentOrder/1',
+                  status: 'OPEN',
+                  assignedLocation: { location: { id: 'gid://shopify/Location/5' } },
+                  lineItems: {
+                    pageInfo: { hasNextPage: dove === 'lineItems' },
+                    nodes: [],
+                  },
+                },
+              ],
+            },
+          },
+        });
+      mockFetch(conAltraPagina('fulfillmentOrders'));
+      expect(await client.getFulfillmentOrders(SHOP, TOKEN, '10')).toMatchObject({
+        ok: true,
+        completa: false,
+      });
+      mockFetch(conAltraPagina('lineItems'));
+      expect(await client.getFulfillmentOrders(SHOP, TOKEN, '10')).toMatchObject({
+        ok: true,
+        completa: false,
+      });
+    });
+
+    it("ACCESS_DENIED → permesso_mancante, senza lanciare: l'import deve proseguire", async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          errors: [
+            {
+              message:
+                'Access denied for fulfillmentOrders field. Required access: `read_merchant_managed_fulfillment_orders` access scope.',
+              extensions: { code: 'ACCESS_DENIED' },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+      const esito = await client.getFulfillmentOrders(SHOP, TOKEN, 'gid://shopify/Order/10');
+
+      expect(esito).toMatchObject({ ok: false, motivo: 'permesso_mancante' });
+      expect((esito as { dettaglio: string }).dettaglio).toContain(
+        'read_merchant_managed_fulfillment_orders',
+      );
+    });
+
+    it('un altro errore → lettura_fallita col testo, non permesso_mancante', async () => {
+      mockFetch({
+        ok: false,
+        status: 500,
+        headers: new Headers(),
+        text: async () => 'guasto',
+      } as unknown as Response);
+
+      const esito = await client.getFulfillmentOrders(SHOP, TOKEN, '10');
+
+      expect(esito).toMatchObject({ ok: false, motivo: 'lettura_fallita' });
+      expect((esito as { dettaglio: string }).dettaglio).toContain('500');
+    });
+
+    it("dal fulfillment order all'ordine: l'id REST (legacyResourceId), o null", async () => {
+      const fetchMock = mockFetch(
+        rispondi({
+          fulfillmentOrder: {
+            id: 'gid://shopify/FulfillmentOrder/7',
+            order: { id: 'gid://shopify/Order/10', legacyResourceId: '10' },
+          },
+        }),
+        rispondi({ fulfillmentOrder: null }),
+      );
+
+      expect(await client.getOrderIdOfFulfillmentOrder(SHOP, TOKEN, '7')).toBe('10');
+      expect(corpo(fetchMock).variables).toEqual({ id: 'gid://shopify/FulfillmentOrder/7' });
+      expect(
+        await client.getOrderIdOfFulfillmentOrder(SHOP, TOKEN, 'gid://shopify/FulfillmentOrder/8'),
+      ).toBeNull();
     });
   });
 });

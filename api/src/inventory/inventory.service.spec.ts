@@ -24,6 +24,8 @@ describe('InventoryService', () => {
         count: vi.fn(),
         fields: { minThreshold: 'minThreshold' },
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: {
         findMany: vi.fn(),
         count: vi.fn(),
@@ -353,12 +355,16 @@ describe('InventoryService', () => {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 5, onHand: 5 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
       },
     };
     const prisma = {
-      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
@@ -407,12 +413,16 @@ describe('InventoryService', () => {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 10, onHand: 10 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
       },
     };
     const prisma = {
-      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
@@ -507,10 +517,14 @@ describe('InventoryService', () => {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 1, onHand: 1 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: { create: vi.fn().mockResolvedValue(movement) },
     };
     const prisma = {
-      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
@@ -563,12 +577,16 @@ describe('InventoryService', () => {
           .mockResolvedValueOnce({ id: 'lvl-dst', available: 2, onHand: 2 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
       },
     };
     const prisma = {
-      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
     const service = new InventoryService(
@@ -618,12 +636,16 @@ describe('InventoryService', () => {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1', available: 5, onHand: 5 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: {
         create: vi.fn().mockResolvedValue(movement),
       },
     };
     const prisma = {
-      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const service = new InventoryService(
       prisma as unknown as PrismaService,
@@ -670,6 +692,8 @@ describe('InventoryService', () => {
         upsert: vi.fn().mockResolvedValue({ id: 'lvl-1' }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       stockMovement: {
         create: vi.fn().mockResolvedValue({ id: 'mov-1' }),
       },

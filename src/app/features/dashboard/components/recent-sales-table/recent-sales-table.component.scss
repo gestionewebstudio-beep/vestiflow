@@ -1,49 +1,6 @@
-@use 'responsive-table' as rt;
-
 :host {
   display: block;
 }
 
-.recent-sales__wrapper {
-  inline-size: 100%;
-}
-
-@include rt.stack-table('recent-sales');
-
-.recent-sales {
-  table-layout: fixed;
-}
-
-.recent-sales__col--order {
-  inline-size: 10%;
-}
-
-.recent-sales__col--customer {
-  inline-size: 30%;
-}
-
-.recent-sales__col--status {
-  inline-size: 22%;
-}
-
-.recent-sales__col--numeric {
-  inline-size: 19%;
-}
-
-.recent-sales__row {
-  cursor: pointer;
-  transition: background-color var(--transition-fast) var(--ease-standard);
-}
-
-.recent-sales__row:hover {
-  background-color: var(--color-surface-hover);
-}
-
-.recent-sales__row:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.recent-sales__number {
-  font-weight: var(--font-weight-medium);
-}
+// ⛔ Qui c’erano il mixin `stack-table`, le larghezze di colonna a mano, il
+//    puntatore e il fuoco della riga: la tabella è sul motore comune (`docs/26` A9).

@@ -11,7 +11,22 @@ export interface ShopifyCsvRow {
   readonly title: string;
   readonly bodyHtml: string;
   readonly vendor: string;
+  /**
+   * Colonna `Type` di Shopify: è il **tipo prodotto del canale**, e arriva in
+   * `shopifyProductType` (docs/24 §9.5).
+   *
+   * ⛔ Fino all’11/09/2026 finiva nella categoria VestiFlow: la classificazione
+   *    di magazzino e quella di vetrina erano lo stesso campo, e caricare un
+   *    export Shopify riscriveva la prima con la seconda.
+   */
   readonly type: string;
+  /**
+   * Categoria VestiFlow (colonna opzionale, NON Shopify): esiste perché il
+   * round-trip export→import non perda la classificazione di magazzino, ora
+   * che non viaggia più dentro `Type`. Stessa ragione della colonna
+   * «Codice articolo».
+   */
+  readonly category: string;
   readonly tags: string;
   readonly published: string;
   readonly option1Name: string;
@@ -45,6 +60,12 @@ const HEADER_ALIASES: Record<string, keyof Omit<ShopifyCsvRow, 'rowNumber'>> = {
   'body (html)': 'bodyHtml',
   vendor: 'vendor',
   type: 'type',
+  // ⛔ Solo «categoria», MAI «category» nudo: l’export Shopify ha una colonna
+  //    `Product Category` (la tassonomia) e alcuni fogli la abbreviano in
+  //    `Category`. Agganciarla qui rimetterebbe un dato del canale dentro la
+  //    categoria interna — cioè il mescolamento, da un’altra porta.
+  categoria: 'category',
+  'categoria vestiflow': 'category',
   tags: 'tags',
   published: 'published',
   'option1 name': 'option1Name',
@@ -143,6 +164,7 @@ function emptyRow(): Omit<ShopifyCsvRow, 'rowNumber'> {
     bodyHtml: '',
     vendor: '',
     type: '',
+    category: '',
     tags: '',
     published: '',
     option1Name: '',

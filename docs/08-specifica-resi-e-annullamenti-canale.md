@@ -37,12 +37,13 @@ Ne discendono tre conseguenze, e vanno tenute insieme:
 
 _Tutti misurati il 14/08/2026 su ordini veri._
 
-| Gesto                                                | Merce             | Corrispettivo            | Segnalazione                      | Verdetto                       |
-| ---------------------------------------------------- | ----------------- | ------------------------ | --------------------------------- | ------------------------------ |
-| **Annullamento post-evasione**                       | —                 | —                        | —                                 | **non esiste su Shopify** (§1) |
-| **Annullamento pre-evasione** con ricarica (`#1007`) | niente da fare ✅ | non esiste ✅            | —                                 | **corretto** (§3)              |
-| **Rimborso** su ordine pagato (`#1005`)              | rientra ✅        | → `refunded` ✅          | sì, ma con **due messaggi falsi** | difetto minore (`01` §2.15)    |
-| **Reso** su ordine in sospeso (`#1006`)              | rientra ✅        | **resta `to_verify`** ❌ | **nessuna** ❌                    | **il buco** (§4)               |
+| Gesto                                                                                | Merce                 | Corrispettivo                                                             | Segnalazione                      | Verdetto                             |
+| ------------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------------------------- | --------------------------------- | ------------------------------------ |
+| **Annullamento post-evasione**                                                       | —                     | —                                                                         | —                                 | **non esiste su Shopify** (§1)       |
+| **Annullamento pre-evasione** con ricarica (`#1007`)                                 | niente da fare ✅     | non esiste ✅                                                             | —                                 | **corretto** (§3)                    |
+| **Rimborso** su ordine pagato (`#1005`)                                              | rientra ✅            | → `refunded` ✅                                                           | sì, ma con **due messaggi falsi** | difetto minore (`01` §2.15)          |
+| **Reso** su ordine in sospeso (`#1006`)                                              | rientra ✅            | **resta `to_verify`** ❌                                                  | **nessuna** ❌                    | **il buco** (§4)                     |
+| **Annullamento PARZIALE pre-evasione, poi evasione del resto** (`#1014`, 13/09/2026) | esce solo il resto ✅ | vendita al valore ORDINATO + **rettifica** alla data dell'annullamento ✅ | —                                 | **corretto dal 13/09/2026** (§3-bis) |
 
 **Il caso peggiore è il più ordinario.** Più il flusso somiglia a quello di tutti i giorni — contrassegno, pacco rifiutato — meno traccia lascia.
 
@@ -59,6 +60,81 @@ VestiFlow: scrive `cancelledAt`, porta l'impegno a `released`, emette `online_or
 **Non serve alcun intervento.** L'unica cosa che mancava era la verifica, e ora c'è.
 
 **Stato: misurato 14/08, nessuna azione.**
+
+### §3-bis · Annullamento parziale prima della spedizione, e l'ordine si evade lo stesso — 13/09/2026
+
+_Misurato sul negozio vero, ordine `#1014`: 3 pezzi ordinati (2.249,85 €), 1 annullato con
+rimborso `restock_type: cancel` (749,95 €) prima della spedizione, 2 spediti in due evasioni._
+
+⛔ **Qui il Registro sbagliava, e in silenzio.** La regola di §3 — «`cancel` significa annulla
+l'impegno, non merce rientrata, e si scarta» — era stata scritta per l'annullamento
+**totale**, dove la vendita non esiste. Applicata anche al parziale, escludeva il rimborso
+`cancellation` dalle rettifiche: la Vendita online entrava a **2.249,85** (3 pezzi, com'è
+ordinata) e il Registro contava 2.249,85 invece di **1.499,90** — 749,95 € incassati due volte,
+senza una riga rossa.
+
+⭐ **La regola, decisa dal proprietario il 13/09/2026** («Confermo i punti 1 e 2, mantenendo
+valore originario e rettifica separata, senza cambiare le regole delle date»):
+
+|                             |                                                                                                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **valore originario**       | la Vendita online resta **come ordinata** (3 × 749,95): nessuna riscrittura dello storico                                                                                              |
+| **rettifica**               | il rimborso `cancellation` di un ordine **ammesso al Registro** (evaso: `fulfilledAt` non nullo) è una rettifica come le altre, alla **sua** data — non alla data della vendita        |
+| **annullamento dichiarato** | il `cancellation` di un ordine **mai evaso** resta fuori dalle rettifiche e si conta a parte nel riepilogo («Annullamenti», nessun effetto): #1013                                     |
+| **periodi diversi**         | vendita e rettifica restano ognuna nel proprio periodo; la rettifica non dipende dalla presenza della vendita nel periodo scelto                                                       |
+| **annullati**               | dalle **righe rimborsate del canale** (`sales_order_refund_lines`, `restock_type = cancel`), **mai** «ordinati − spediti»: durante un'evasione parziale il residuo è ancora da spedire |
+| **la sede**                 | quella della Vendita online (l'uscita): sede unica delle spedizioni, altrimenti vuota — ⛔ mai la prima fra più sedi                                                                   |
+
+**Dove sta.** `buildCorrispettiviRefundWhere` ammette `cancellation` solo con
+`order.fulfilledAt` non nullo; `buildCorrispettiviAnnullamentiDichiaratiWhere` conta gli
+altri. Le schermate mostrano **valore originario · rettifiche · totale aggiornato** e per riga
+**ordinati · annullati · spediti** (Ordini Shopify, Ordine di canale, Vendita online,
+export CSV/PDF dell'elenco). ⭐ La **testata** dell'ordine porta la somma delle rettifiche
+(`refund_total_minor`, scritta coi rimborsi) e il totale aggiornato **generato dal database**
+(`current_total_minor`): così l'elenco, paginato sul server, le ordina come «Totale».
+
+**Verificato**: percorso 9 di integrazione (Registro, riepilogo, export, periodi diversi,
+annullamento totale senza vendita, evasione parziale senza annullamento, webhook ripetuti),
+`collaudo-economia-ordine` e `collaudo-testata-rettifiche` sul negozio vero.
+
+### Il Cruscotto riusa le stesse rettifiche — 13/09/2026, sera
+
+⛔ Leggeva `onlineSale.lines` come ordinate e non conosceva i rimborsi: il giorno di #1012 e
+#1014 diceva **2 vendite · 4 pezzi · 2.849,85 €**; e il reso online lo «invertiva al prezzo
+della riga originale» — una stima, e un secondo sistema. Ora (`BusinessAnalyticsService`,
+`addOnlineRefundsToAggregate`) le rettifiche **ammesse dal Registro** (`rettificaAmmessaWhere`,
+la stessa funzione) entrano nell'aggregato **alla loro data**, con l'importo del rimborso e i
+pezzi delle sue righe; il movimento di rientro porta **solo il costo**. Misurato sul negozio:
+**2 vendite · 3 pezzi netti · 2.099,90 € di valore netto delle vendite** (non «incassato»: le
+transazioni non sono state verificate).
+
+**I pezzi netti** (proprietario): _«no_restock indica assenza di reintegro, non dimostra da solo
+che la quantità economica resti invariata; distinguere rimborso di una quantità di articolo e
+rimborso del solo importo; non confondere pezzi venduti netti con uscite fisiche»_.
+
+| Rimborso                                                | Pezzi netti | Valore   | Costo (movimenti)                         |
+| ------------------------------------------------------- | ----------- | -------- | ----------------------------------------- |
+| riga con quantità, `cancel` (mai uscito)                | −q          | −importo | nessuno: non c'è movimento                |
+| riga con quantità, `return` (uscito e rientrato)        | −q          | −importo | il movimento di reso lo toglie, una volta |
+| riga con quantità, `no_restock` (uscito, non rientrato) | −q          | −importo | resta: il pezzo è fuori                   |
+| solo importo (spedizione, rettifica)                    | 0           | −importo | —                                         |
+
+I pezzi netti sono una grandezza **economica** (il cliente non li paga più), le uscite fisiche
+un'altra (i movimenti). Il costo non si ricalcola mai: è quello congelato sui movimenti, e un
+costo d'acquisto cambiato dopo non rivaluta niente. Percorso 18 di integrazione: reso con
+reintegro, rimborso senza, solo importo, evento ripetuto, rettifica nel periodo successivo,
+costo congelato — falsificato sui pezzi.
+
+⭐ **Top prodotti: l'identità è la VARIANTE** _(13/09/2026, sera)_. Aggregava per SKU e le
+righe delle varianti importate **senza SKU** portano «—»: sul negozio #1012 e #1014 finivano in
+una riga sola. Ora la chiave è `variantId` — l'identità già disponibile su movimenti, righe di
+Vendita online e righe rimborsate (via la riga d'ordine) — e SKU e titolo restano descrittivi,
+anche vuoti: da soli non garantiscono l'identità (proprietario). ⛔ Nessun ripiego su SKU o
+titolo: una riga **senza variante** (possibile solo senza movimenti, dopo un'eliminazione
+definitiva) conta nei totali e non entra nella classifica. Due varianti nel cestino con lo
+stesso nome restano due righe: l'id sopravvive (percorso 18, «Gemella»). ⚠️ Trovato nello
+stesso giro: la riga d'ordine e di Vendita di un articolo Shopify senza SKU porta «—» come
+fotografia dello SKU mentre la variante ha `SHOPIFY-<id>` — descrittivo, in `DA-FARE`.
 
 ## §4 · Il buco: il reso di un ordine non incassato
 
@@ -175,7 +251,7 @@ Su tutte e sei la somma della scomposizione fa esattamente il totale. Gli import
 
 Tre difetti chiusi insieme, perché separarli avrebbe lasciato il totale falso a metà strada (`01` §2.16):
 
-1. il periodo si misura sulla **data di evasione**, e un ordine mai spedito non entra;
+1. il periodo si misura sulla **data di evasione**, e un ordine mai spedito non entra; ⚠️ con **più spedizioni** dello stesso ordine quale evasione faccia data (prima o ultima) non è scritto qui né altrove: oggi è la prima, ed è una decisione aperta (`DA-FARE` §30.8, «La DATA di evasione con più spedizioni»);
 2. le rettifiche si sottraggono **alla loro data**, saltando gli annullamenti;
 3. l'imponibile non toglie più lo sconto due volte.
 
@@ -195,7 +271,7 @@ corrispettivo   95,00 =  50 + 0 + 0 + 45
 
 **Il periodo si sceglie per calendario** (fatto il 14/08): mese, trimestre o anno precisi, con i selettori che compaiono solo per il periodo che li richiede. Ogni preset resta soltanto un modo di scrivere un intervallo — la traduzione avviene in un punto unico (`resolveReportDateRange`), così «2° trimestre 2026» e le date scritte a mano non possono divergere. È coperto da test, incluso il confronto fra le due strade.
 
-⚠️ **Limite noto sulla data fiscale, misurato e non aggirato.** Il registro usa la data di evasione, che è la regola **ordinaria** per le cessioni di beni mobili. Non è la regola completa: l'art. 6 anticipa il momento di effettuazione se il corrispettivo è pagato prima della consegna, il che su un ordine incassato con carta accade quasi sempre. **VestiFlow non può derivarlo oggi**: nessuna data di incasso è persistita, le transazioni del canale non si importano. Manca il dato, non la logica — e finché manca, la formulazione da usare è «per il flusso supportato oggi il registro usa la data di evasione», non «la data di evasione è la data fiscale».
+⚠️ **Limite noto sulla data fiscale, misurato e non aggirato.** Il registro usa la data di evasione, che è la regola **ordinaria** per le cessioni di beni mobili. Non è la regola completa: l'art. 6 anticipa il momento di effettuazione se il corrispettivo è pagato prima della consegna, il che su un ordine incassato con carta accade quasi sempre. **VestiFlow non può derivarlo oggi**: nessuna data di incasso è persistita, le transazioni del canale non si importano. Manca il dato, non la logica — e finché manca, la formulazione da usare è «per il flusso supportato oggi il registro usa la data di evasione», non «la data di evasione è la data fiscale». ⭐ **Il 12/09/2026 il proprietario ha proposto la regola completa** — corrispettivo alla data del pagamento per l'ordine pagato prima della spedizione, eccezioni visibili, periodo non completo finché restano — e la verifica di ciò che manca è in `docs/10` §22, da validare col commercialista.
 
 #### ✅ Anche il file per il commercialista si riconcilia — fatto il 14/08
 

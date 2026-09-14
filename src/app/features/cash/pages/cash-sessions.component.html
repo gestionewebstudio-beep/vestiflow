@@ -30,33 +30,18 @@
       ⛔ **Senza periodo predefinito**: una sessione aperta ieri e ancora aperta
       non deve sparire dall'elenco. Lo strumento c'è, il valore iniziale no.
     -->
-    <app-select-menu
-      chipLabel="Periodo"
+    <!-- Il selettore condiviso (11/09/2026), con le date sempre visibili come nelle Operazioni. -->
+    <app-period-filter
+      idPrefix="sess"
       [options]="periodOptions"
       [value]="periodo()"
-      ariaLabel="Filtra per periodo"
-      placeholder="Tutto"
-      [compact]="true"
-      [fitContent]="true"
+      [dateFrom]="da()"
+      [dateTo]="a()"
+      [datesAlways]="true"
       (valueChange)="cambiaPeriodo($event ?? '')"
+      (dateFromChange)="cambiaData('da', $event)"
+      (dateToChange)="cambiaData('a', $event)"
     />
-    <!-- Le due date restano una COPPIA: vedi il registro operazioni. -->
-    <div class="sess__dates">
-      <app-date-input
-        inputId="sess-da"
-        ariaLabel="Dal"
-        [value]="da()"
-        [compact]="true"
-        (valueChange)="cambiaData('da', $event)"
-      />
-      <app-date-input
-        inputId="sess-a"
-        ariaLabel="Al"
-        [value]="a()"
-        [compact]="true"
-        (valueChange)="cambiaData('a', $event)"
-      />
-    </div>
   </div>
 
   <div filters>

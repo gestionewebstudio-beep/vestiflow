@@ -40,7 +40,7 @@ import type {
   DataTableSection,
   DataTableSort,
 } from '@shared/components/data-table/data-table.model';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { PeriodFilterComponent } from '@shared/components/period-filter/period-filter.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { NavTabsComponent } from '@shared/components/nav-tabs/nav-tabs.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -107,7 +107,7 @@ const IN_ATTESA: StatoRegistro = { pagina: null, caricamento: true, errore: null
     DataTableCellDirective,
     DataTableComponent,
     DataTableRowCardDirective,
-    DateInputComponent,
+    PeriodFilterComponent,
     ListPageComponent,
     NavTabsComponent,
     SelectMenuComponent,

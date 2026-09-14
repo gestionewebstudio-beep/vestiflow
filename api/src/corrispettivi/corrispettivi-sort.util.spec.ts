@@ -88,10 +88,9 @@ describe('ordine canonico — secondo livello: l’istante reale', () => {
     // E invertendo gli istanti si inverte l'esito: nessuna gerarchia fra tipi.
     const resoPrima = canale('refund:y', '2026-08-14T08:00:00.000Z');
     const venditaDopo = canale('sale:y', '2026-08-14T11:00:00.000Z');
-    expect([resoPrima, venditaDopo].sort(compareCorrispettiviRowsDesc).map((r) => r.rowId)).toEqual([
-      'sale:y',
-      'refund:y',
-    ]);
+    expect([resoPrima, venditaDopo].sort(compareCorrispettiviRowsDesc).map((r) => r.rowId)).toEqual(
+      ['sale:y', 'refund:y'],
+    );
   });
 });
 
@@ -132,9 +131,12 @@ describe('ordine canonico — terzo livello: stabilità', () => {
       const mescolate = [...righe.slice(taglio), ...righe.slice(0, taglio)];
       expect(mescolate.sort(compareCorrispettiviRowsDesc).map((r) => r.rowId)).toEqual(atteso);
     }
-    expect([...righe].reverse().sort(compareCorrispettiviRowsDesc).map((r) => r.rowId)).toEqual(
-      atteso,
-    );
+    expect(
+      [...righe]
+        .reverse()
+        .sort(compareCorrispettiviRowsDesc)
+        .map((r) => r.rowId),
+    ).toEqual(atteso);
   });
 });
 

@@ -82,6 +82,12 @@ export interface CreateProductDto {
   readonly shopifySyncEnabled?: boolean;
   /** «Nome Shopify»: vuoto = si inizializza alla prima sincronizzazione. */
   readonly shopifyTitle?: string | null;
+  /**
+   * «Tipo prodotto Shopify»: campo del canale, bidirezionale (docs/24 §9.5).
+   * Non è la categoria interna e non si deriva da lei. Vuoto = non ancora
+   * acquisito: verso Shopify la chiave non parte, quindi non cancella niente.
+   */
+  readonly shopifyProductType?: string | null;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
@@ -130,6 +136,12 @@ export interface UpdateProductDto {
   readonly shopifySyncEnabled?: boolean;
   /** «Nome Shopify»: vuoto = si inizializza alla prima sincronizzazione. */
   readonly shopifyTitle?: string | null;
+  /**
+   * «Tipo prodotto Shopify»: campo del canale, bidirezionale (docs/24 §9.5).
+   * Non è la categoria interna e non si deriva da lei. Vuoto = non ancora
+   * acquisito: verso Shopify la chiave non parte, quindi non cancella niente.
+   */
+  readonly shopifyProductType?: string | null;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;

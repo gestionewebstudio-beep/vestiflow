@@ -55,6 +55,22 @@ export const TableViewId = {
   // selettore Colonne, senza larghezze regolabili e senza vista a card.
   CashOperations: 'cash_operations',
   CashSessions: 'cash_sessions',
+  // ⭐ I due rapporti dell’import prodotti da CSV — anteprima ed esito — entrati
+  //    nel motore l’11/09/2026 (`docs/26` A1). Erano due tabelle scritte a mano,
+  //    senza ordinamento né filtri, e sul telefono col ripiego generico.
+  ProductImportPreview: 'products_import_preview',
+  ProductImportResult: 'products_import_result',
+  // E i due gemelli dell’import giacenze (`docs/26` A2), stesso giorno.
+  InventoryImportPreview: 'inventory_import_preview',
+  InventoryImportResult: 'inventory_import_result',
+  // Le coppie non allineate del controllo «Allinea giacenze» (`docs/26` A3).
+  ShopifyAllineaNonAllineate: 'shopify_allinea_non_allineate',
+  // I problemi aperti della sincronizzazione Shopify, con causa e azione (13/09/2026).
+  ShopifyProblemi: 'shopify_problemi',
+  // I Codici IVA raggruppati per Natura (`docs/26` A6), sezioni comprimibili.
+  VatCodes: 'vat_codes',
+  // Le aziende registrate, amministrazione piattaforma (`docs/26` A14).
+  AdminTenants: 'admin_tenants',
 } as const;
 export type TableViewId = (typeof TableViewId)[keyof typeof TableViewId];
 

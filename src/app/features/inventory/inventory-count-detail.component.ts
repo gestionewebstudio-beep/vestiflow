@@ -40,7 +40,8 @@ import type {
 } from '@shared/components/data-table/data-table.model';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { createColumnFilters } from '@shared/table-columns/column-filters';
-import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
+import { TableFiltersButtonComponent } from '@shared/components/table-filters/table-filters-button.component';
+import { TableFiltersPanelComponent } from '@shared/components/table-filters/table-filters-panel.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
@@ -87,6 +88,8 @@ interface ScanFeedback {
     DataTableComponent,
     DataTableCellDirective,
     TableColumnPickerComponent,
+    TableFiltersButtonComponent,
+    TableFiltersPanelComponent,
   ],
   templateUrl: './inventory-count-detail.component.html',
   styleUrl: './inventory-count-detail.component.scss',
@@ -100,23 +103,15 @@ export class InventoryCountDetailComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly authService = inject(AuthService);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
-  private readonly filterStore = inject(ColumnFilterStore);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /**
-   * ⭐ **«Filtri» accende i controlli nelle intestazioni**, ed è lo stesso
-   * comando che su ogni elenco porta il telaio `app-list-page` — che questa
-   * pagina non usa, perché è un dettaglio e non un elenco.
-   *
-   * ⚠️ **Spegnere AZZERA** (`regole-stile-ui`, «I filtri di un elenco stanno
-   * nelle sue colonne»): lo fa lo store, non questo componente. Un filtro attivo
-   * il cui controllo non si vede è il difetto che quella regola evita.
+   * ⭐ **«Filtri» e il suo pannello sono i pezzi condivisi del telaio**
+   * (`docs/26` D1) — che questa pagina non usa, perché è un dettaglio e non
+   * un elenco. Su scrivania accende i controlli nelle intestazioni e spegnendo
+   * azzera; sotto `lg` apre il pannello laterale con una voce per colonna.
    */
-  protected readonly filtriAccesi = this.filterStore.acceso(INVENTORY_COUNT_LINES_VIEW);
-
-  protected commutaFiltri(): void {
-    this.filterStore.commuta(INVENTORY_COUNT_LINES_VIEW);
-  }
+  protected readonly filtriAperti = signal(false);
 
   protected readonly closeHint = computed(() =>
     inventoryCountCloseHint(this.authService.currentUser()?.tenantChannelProfile),

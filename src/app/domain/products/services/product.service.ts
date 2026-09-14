@@ -411,15 +411,25 @@ export class ProductService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * ⭐ **26.2 · l'esito arriva in una parola, e non si deduce più da `pushed`.**
+   *    `outcome` distingue avvio, completamento, aggiornamento parziale,
+   *    rifiuto e fallimento; `detail` porta il motivo per esteso — quali
+   *    varianti sono rimaste fuori, o quale regola ha rifiutato.
+   */
   syncProductToShopify(productId: EntityId): Observable<{
     readonly pushed: boolean;
+    readonly outcome?: string;
     readonly reason?: string;
+    readonly detail?: string;
     readonly followUpInBackground?: boolean;
   }> {
     return this.http
       .post<{
         pushed: boolean;
+        outcome?: string;
         reason?: string;
+        detail?: string;
         followUpInBackground?: boolean;
       }>(this.url(`/products/${productId}/sync-shopify`), {})
       .pipe(timeout(SHOPIFY_SYNC_HTTP_TIMEOUT_MS));

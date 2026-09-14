@@ -271,7 +271,7 @@ canale li conosce davvero.
 
 ### 2.4 Nulla può accorgersi di un cambio di impostazione
 
-- **Nessun webhook.** `api/src/shopify/shopify-webhook-topics.ts` registra 8 topic
+- **Nessun webhook.** `api/src/shopify/shopify-webhook-topics.ts` registra 10 topic (dal 13/09/2026; erano 8)
   (giacenze, ordini, clienti, prodotti). Non c'è `shop/update`. E un cambio di quella
   spunta non modifica alcun prodotto, quindi non fa scattare `products/update`.
 - **Nessuno scheduler.** Ricerca di `Cron`, `@Interval`, `setInterval`,
@@ -583,11 +583,13 @@ con `app-inline-banner`, già importato e già usato in quel file.
 > interrompe la lettura a ogni apertura di Impostazioni è sbagliato: **usare il tono
 > informativo**, non chiudibile (è una condizione, non l'esito di un'azione).
 >
-> Non usare `app-shopify-sync-feedback`: è un secondo componente per la stessa cosa,
-> che le regole vietano, e sopravvive come debito.
+> `app-shopify-sync-feedback` era un secondo componente per la stessa cosa, che le regole
+> vietano: **rimosso l’11/09/2026**, quando gli esiti delle sincronizzazioni sono passati
+> tutti dal banner condiviso di Impostazioni → Shopify.
 
-**Limite noto, accettato:** l'intero pannello è visibile solo a chi ha accesso pieno al
-tenant (`tenant-permissions.util.ts:73-75`). Chi ha solo la gestione catalogo — cioè chi
+**Limite noto, accettato** _(rivisto l’11/09/2026: la pagina Impostazioni → Shopify si apre
+anche a chi ha il permesso di un comando di sincronizzazione, ma la connessione — e quindi
+questo avviso — resta visibile solo a chi la gestisce)_: chi ha solo la gestione catalogo — cioè chi
 digita i prezzi — non lo vedrà. È stato deciso di non aggiungere una nota nella scheda
 articolo: il selettore Netti/Ivati già dice in che modalità si sta scrivendo.
 

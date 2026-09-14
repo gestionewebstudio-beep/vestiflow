@@ -1,52 +1,6 @@
-@use 'breakpoints' as bp;
-@use 'responsive-table' as rt;
-
 :host {
   display: block;
 }
 
-.low-stock__wrapper {
-  inline-size: 100%;
-}
-
-@include rt.stack-table('low-stock');
-
-.low-stock {
-  table-layout: fixed;
-}
-
-.low-stock__col--variant {
-  inline-size: 42%;
-}
-
-.low-stock__col--location {
-  inline-size: 22%;
-}
-
-.low-stock__col--numeric {
-  inline-size: 18%;
-}
-
-.low-stock__title {
-  display: block;
-  font-weight: var(--font-weight-medium);
-}
-
-.low-stock__sku {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  display: block;
-  color: var(--color-text-muted);
-}
-
-@include bp.media-down('lg') {
-  .low-stock__row td[data-label='Variante'] {
-    align-items: start;
-
-    .low-stock__title,
-    .low-stock__sku {
-      grid-column: 2;
-      text-align: end;
-    }
-  }
-}
+// ⛔ Qui c’erano il mixin `stack-table`, le larghezze di colonna a mano e la
+//    veste della cella «Variante». La tabella è sul motore comune (`docs/26` A8).

@@ -49,7 +49,7 @@ test.describe('Permessi titolare/admin tenant (E2E_USER_*)', () => {
     });
 
     test('integrazione Shopify: solo titolare gestisce connessione', async ({ page }) => {
-      await page.goto('/app/settings');
+      await page.goto('/app/settings/shopify');
       const panel = shopifySettingsPanel(page);
       if (!(await panel.isVisible())) {
         test.skip(true, 'Tenant non Shopify — pannello integrazione assente.');
@@ -96,7 +96,7 @@ test.describe('Permessi titolare/admin tenant (E2E_USER_*)', () => {
         timeout: 30_000,
       });
 
-      const syncBtn = page.getByRole('button', { name: 'Riallinea le giacenze su Shopify' });
+      const syncBtn = page.getByRole('button', { name: 'Allinea giacenze su Shopify' });
       const csvExport = page.getByRole('button', { name: 'Esporta CSV' });
 
       const hasSync = await syncBtn.isVisible();

@@ -62,17 +62,17 @@ describe('assertSupplierOrderLinkable — la sede dell’ordine agganciato', () 
   it('⛔ stesso tenant, ordine di sede fuori ambito: RIFIUTATO', async () => {
     const { db } = reader(confermato(SEDE_ALTRUI));
 
-    await expect(assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso())).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso()),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('⛔ tenant diverso: 404, come prima', async () => {
     const { db } = reader(null);
 
-    await expect(assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso())).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso()),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('✅ il titolare aggancia ordini di qualunque sede', async () => {
@@ -110,9 +110,9 @@ describe('assertSupplierOrderLinkable — la sede dell’ordine agganciato', () 
       destinationLocationId: SEDE_ALTRUI,
     });
 
-    await expect(assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso())).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso()),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('lo stato resta verificato: un ordine concluso della PROPRIA sede è rifiutato', async () => {
@@ -121,9 +121,9 @@ describe('assertSupplierOrderLinkable — la sede dell’ordine agganciato', () 
       destinationLocationId: SEDE_MIA,
     });
 
-    await expect(assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso())).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso()),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   // ⚠️ Comportamento PRESERVATO: un ordine senza sede non ha nulla da
@@ -187,5 +187,4 @@ describe('assertSupplierOrderLinkable — la sede dell’ordine agganciato', () 
     ).resolves.toBeUndefined();
     expect(count).toHaveBeenCalled();
   });
-
 });

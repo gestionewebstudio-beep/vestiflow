@@ -1,0 +1,21 @@
+-- PlatformAuditOperation: la ripubblicazione rifiutata (26.7).
+--
+-- ⭐ PERCHE'. Il push di un articolo SENZA colonna-cache prende il ramo di
+--    creazione e pubblica un prodotto nuovo su Shopify. Se pero' quell'articolo
+--    su questo negozio ha gia' una storia — un'identita' con periodo chiuso, o
+--    eliminata definitivamente — pubblicarlo da zero significa fabbricare un
+--    secondo prodotto remoto per la stessa anagrafica, come effetto collaterale
+--    di «Sincronizza». La ripubblicazione e' un comando ESPLICITO che crea
+--    identificativi nuovi (docs/24 §11.9); il riaggancio di un collegamento
+--    chiuso e' un altro comando ancora (§8.5.2). Il push non e' ne' l'uno ne'
+--    l'altro, quindi rifiuta — e il rifiuto va tracciato, non lasciato in un
+--    `logger.warn` che il riavvio perde (docs/DA-FARE §10.3).
+--
+-- ⚠️ NON e' `riaggancio_rifiutato`, e la differenza non e' formale: li' un GID
+--    remoto c'era e lo si e' rifiutato; qui non c'e', e la riga non puo'
+--    portarlo. Confonderli renderebbe impossibile distinguere «non ho
+--    aggiornato» da «non ho creato».
+--
+-- ⛔ NON applicata al database CONDIVISO.
+
+ALTER TYPE "PlatformAuditOperation" ADD VALUE IF NOT EXISTS 'ripubblicazione_rifiutata';

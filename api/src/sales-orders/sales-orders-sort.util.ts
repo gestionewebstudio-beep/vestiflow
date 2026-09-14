@@ -31,6 +31,8 @@ export type SalesOrderSortField =
   | 'placedAt'
   | 'customerName'
   | 'total'
+  | 'refundTotal'
+  | 'updatedTotal'
   | 'source'
   | 'financialStatus'
   | 'fulfillmentStatus';
@@ -52,6 +54,11 @@ const ORDER_BY: Record<
   placedAt: (direction) => [{ placedAt: direction }],
   customerName: (direction) => [{ customerName: direction }],
   total: (direction) => [{ totalMinor: direction }],
+  // ⭐ Le rettifiche e il totale aggiornato sono colonne di testata (la somma
+  //    scritta coi rimborsi, la differenza generata dal database): si ordinano
+  //    come «Totale» (proprietario, 13/09/2026: «Non ha ordinamento»).
+  refundTotal: (direction) => [{ refundTotalMinor: direction }],
+  updatedTotal: (direction) => [{ currentTotalMinor: direction }],
   source: (direction) => [{ source: direction }],
   financialStatus: (direction) => [{ financialStatus: direction }],
   fulfillmentStatus: (direction) => [{ fulfillmentStatus: direction }],

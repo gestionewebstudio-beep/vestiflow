@@ -284,32 +284,16 @@
 
 // ── Righe ──────────────────────────────────────────────────────────────────
 
-.cassa__lines {
-  inline-size: 100%;
-  border-collapse: collapse;
+// ⭐ Il carrello è una MASCHERA (`docs/26` A18): la quantità si compila sulla
+//    riga. Veste come le righe documento, con il mixin condiviso — qui c’era
+//    la stessa intestazione scritta a mano del Reso al banco.
+@include rt.data-table-desktop('cassa__lines');
 
-  th {
-    padding: 0 var(--table-list-pad-inline);
-    block-size: var(--table-head-h);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    text-align: start;
-    color: var(--color-table-header-fg);
-    background: var(--color-table-header-bg);
-    border-block-end: var(--border-width) solid var(--color-table-header-rule);
-  }
-
-  td {
-    padding: var(--space-4) var(--table-list-pad-inline);
-    font-size: var(--text-xs);
-    color: var(--color-text);
-    border-block-end: var(--border-width) solid var(--color-border-cell);
-  }
-}
-
-.cassa__num {
+// ⚠️ Nominati per intero: `tbody td` della grammatica, con i tre attributi di
+//    incapsulamento, pesa (4,2) e batteva anche `.cassa__lines .cassa__num`
+//    (4,0) — l’allineamento a destra si perdeva in silenzio.
+.cassa__lines th.cassa__num,
+.cassa__lines tbody td.cassa__num {
   text-align: end;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

@@ -204,11 +204,15 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     await expect(
-      service.create(tenantId, {
-        supplierId: 'sup-1',
-        supplierReference: 'ORD-FORN-77',
-        lines: [{ variantId: 'var-1', orderedQuantity: 5, enteredUnitCostMinor: 1000 }],
-      }, testOwnerUser()),
+      service.create(
+        tenantId,
+        {
+          supplierId: 'sup-1',
+          supplierReference: 'ORD-FORN-77',
+          lines: [{ variantId: 'var-1', orderedQuantity: 5, enteredUnitCostMinor: 1000 }],
+        },
+        testOwnerUser(),
+      ),
     ).resolves.toMatchObject({
       id: 'po-new',
       reference: 'OF-0007',
@@ -253,18 +257,22 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     // 10 pz × 10,00 € netti − 10% sconto = 90,00 imponibile; IVA 22% = 19,80.
-    await service.create(tenantId, {
-      supplierId: 'sup-1',
-      lines: [
-        {
-          variantId: 'var-1',
-          orderedQuantity: 10,
-          enteredUnitCostMinor: 1000,
-          discountPercent: 10,
-          vatCodeId: 'vat-22',
-        },
-      ],
-    }, testOwnerUser());
+    await service.create(
+      tenantId,
+      {
+        supplierId: 'sup-1',
+        lines: [
+          {
+            variantId: 'var-1',
+            orderedQuantity: 10,
+            enteredUnitCostMinor: 1000,
+            discountPercent: 10,
+            vatCodeId: 'vat-22',
+          },
+        ],
+      },
+      testOwnerUser(),
+    );
 
     expect(prisma.supplierOrder.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -311,10 +319,14 @@ describe('SupplierOrdersService', () => {
       ordineConVariante(prisma);
       const service = createService(prisma);
 
-      await service.create(tenantId, {
-        supplierId: 'sup-1',
-        lines: [{ variantId: 'var-1', orderedQuantity: 1, enteredUnitCostMinor: 1000 }],
-      }, testOwnerUser());
+      await service.create(
+        tenantId,
+        {
+          supplierId: 'sup-1',
+          lines: [{ variantId: 'var-1', orderedQuantity: 1, enteredUnitCostMinor: 1000 }],
+        },
+        testOwnerUser(),
+      );
 
       // Non 'kg': il documento non ha un'unità, e deve vedersi.
       expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
@@ -325,17 +337,21 @@ describe('SupplierOrdersService', () => {
       ordineConVariante(prisma);
       const service = createService(prisma);
 
-      await service.create(tenantId, {
-        supplierId: 'sup-1',
-        lines: [
-          {
-            variantId: 'var-1',
-            orderedQuantity: 1,
-            enteredUnitCostMinor: 1000,
-            unitOfMeasure: 'conf',
-          },
-        ],
-      }, testOwnerUser());
+      await service.create(
+        tenantId,
+        {
+          supplierId: 'sup-1',
+          lines: [
+            {
+              variantId: 'var-1',
+              orderedQuantity: 1,
+              enteredUnitCostMinor: 1000,
+              unitOfMeasure: 'conf',
+            },
+          ],
+        },
+        testOwnerUser(),
+      );
 
       expect(rigaSalvata(prisma)['unitOfMeasure']).toBe('conf');
     });
@@ -345,17 +361,21 @@ describe('SupplierOrdersService', () => {
       ordineConVariante(prisma);
       const service = createService(prisma);
 
-      await service.create(tenantId, {
-        supplierId: 'sup-1',
-        lines: [
-          {
-            variantId: 'var-1',
-            orderedQuantity: 1,
-            enteredUnitCostMinor: 1000,
-            unitOfMeasure: '   ',
-          },
-        ],
-      }, testOwnerUser());
+      await service.create(
+        tenantId,
+        {
+          supplierId: 'sup-1',
+          lines: [
+            {
+              variantId: 'var-1',
+              orderedQuantity: 1,
+              enteredUnitCostMinor: 1000,
+              unitOfMeasure: '   ',
+            },
+          ],
+        },
+        testOwnerUser(),
+      );
 
       expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
     });
@@ -409,18 +429,22 @@ describe('SupplierOrdersService', () => {
       );
       const service = createService(prisma);
 
-      await service.create(tenantId, {
-        supplierId: 'sup-1',
-        costEntryMode: PurchaseCostEntryMode.vat_included,
-        lines: [
-          {
-            variantId: 'var-1',
-            orderedQuantity: 1,
-            enteredUnitCostMinor: grossMinor,
-            vatCodeId: 'vat-22',
-          },
-        ],
-      }, testOwnerUser());
+      await service.create(
+        tenantId,
+        {
+          supplierId: 'sup-1',
+          costEntryMode: PurchaseCostEntryMode.vat_included,
+          lines: [
+            {
+              variantId: 'var-1',
+              orderedQuantity: 1,
+              enteredUnitCostMinor: grossMinor,
+              vatCodeId: 'vat-22',
+            },
+          ],
+        },
+        testOwnerUser(),
+      );
 
       const created = prisma.supplierOrder.create.mock.calls[0]![0] as {
         data: { lines: { create: readonly { unitCostMinor: unknown }[] } };
@@ -440,10 +464,14 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     await expect(
-      service.create(tenantId, {
-        supplierId: 'sup-1',
-        lines: [{ variantId: 'var-x', orderedQuantity: 1, enteredUnitCostMinor: 100 }],
-      }, testOwnerUser()),
+      service.create(
+        tenantId,
+        {
+          supplierId: 'sup-1',
+          lines: [{ variantId: 'var-x', orderedQuantity: 1, enteredUnitCostMinor: 100 }],
+        },
+        testOwnerUser(),
+      ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -469,17 +497,21 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     await expect(
-      service.create(tenantId, {
-        supplierId: 'sup-1',
-        lines: [
-          {
-            variantId: 'var-1',
-            orderedQuantity: 1,
-            enteredUnitCostMinor: 100,
-            vatCodeId: 'vat-sales',
-          },
-        ],
-      }, testOwnerUser()),
+      service.create(
+        tenantId,
+        {
+          supplierId: 'sup-1',
+          lines: [
+            {
+              variantId: 'var-1',
+              orderedQuantity: 1,
+              enteredUnitCostMinor: 100,
+              vatCodeId: 'vat-sales',
+            },
+          ],
+        },
+        testOwnerUser(),
+      ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -514,7 +546,9 @@ describe('SupplierOrdersService', () => {
     prisma.supplierOrder.findFirst.mockResolvedValue(null);
     const service = createService(prisma);
 
-    await expect(service.getById(tenantId, 'missing', testOwnerUser())).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getById(tenantId, 'missing', testOwnerUser())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('update sostituisce righe su ordine Confermato', async () => {
@@ -546,9 +580,14 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     await expect(
-      service.update(tenantId, 'po-1', {
-        lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
-      }, testOwnerUser()),
+      service.update(
+        tenantId,
+        'po-1',
+        {
+          lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
+        },
+        testOwnerUser(),
+      ),
     ).resolves.toMatchObject({ id: 'po-1' });
     // ⭐ Una riga SENZA `id` è una riga nuova: si crea. E siccome l'ordine non
     //    aveva righe, non c'è niente da eliminare — prima si cancellava
@@ -587,11 +626,16 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await service.update(tenantId, 'po-1', {
-      lines: [
-        { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
-      ],
-    }, testOwnerUser());
+    await service.update(
+      tenantId,
+      'po-1',
+      {
+        lines: [
+          { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
+        ],
+      },
+      testOwnerUser(),
+    );
 
     // La riga resta la stessa: `updateMany` sul suo id, e nessuna creazione.
     expect(prisma.supplierOrderLine.updateMany).toHaveBeenCalledWith(
@@ -643,12 +687,17 @@ describe('SupplierOrdersService', () => {
 
     // Campo ordinario + riga: entrambi passano, su un ordine Concluso.
     await expect(
-      service.update(tenantId, 'po-1', {
-        supplierReference: 'RIF-NUOVO',
-        lines: [
-          { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
-        ],
-      }, testOwnerUser()),
+      service.update(
+        tenantId,
+        'po-1',
+        {
+          supplierReference: 'RIF-NUOVO',
+          lines: [
+            { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
+          ],
+        },
+        testOwnerUser(),
+      ),
     ).resolves.toMatchObject({ id: 'po-1', status: SupplierOrderStatus.concluded });
 
     // ⛔ E lo stato non viene riscritto: `status` non entra nemmeno nei dati.
@@ -673,10 +722,15 @@ describe('SupplierOrdersService', () => {
     //    da un gate di modificabilità: da Concluso si esce annullando o
     //    eliminando l'Arrivo merce collegato (`17` §2.5).
     await expect(
-      service.update(tenantId, 'po-1', {
-        status: 'confirmed',
-        lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
-      }, testOwnerUser()),
+      service.update(
+        tenantId,
+        'po-1',
+        {
+          status: 'confirmed',
+          lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
+        },
+        testOwnerUser(),
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
     // Niente è stato scritto: il rifiuto precede la transazione.
     expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
@@ -714,7 +768,9 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.cancel(tenantId, 'po-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.cancel(tenantId, 'po-1', testOwnerUser())).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
   });
 
@@ -942,12 +998,10 @@ describe('SupplierOrdersService', () => {
       prisma.supplierOrder.findFirst.mockResolvedValue(ordineEsistente(SEDE_MIA));
       const service = createService(prisma);
 
-      const esito = await service
-        .update(tenantId, 'po-1', { lines: [] } as never, commesso())
-        .then(
-          () => null,
-          (e: unknown) => e,
-        );
+      const esito = await service.update(tenantId, 'po-1', { lines: [] } as never, commesso()).then(
+        () => null,
+        (e: unknown) => e,
+      );
 
       expect(esito).not.toBeInstanceOf(ForbiddenException);
     });

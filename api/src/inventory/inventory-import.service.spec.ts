@@ -15,16 +15,18 @@ UNKNOWN-SKU,Milano,5,
 
 describe('InventoryImportService', () => {
   const ownerUser = testOwnerUser();
-  function createService(options: {
-    variants?: Array<{
-      id: string;
-      sku: string;
-      optionValues: Record<string, string>;
-      product: { name: string };
-    }>;
-    locations?: Array<{ id: string; name: string }>;
-    levels?: Array<{ variantId: string; locationId: string; available: number }>;
-  } = {}) {
+  function createService(
+    options: {
+      variants?: Array<{
+        id: string;
+        sku: string;
+        optionValues: Record<string, string>;
+        product: { name: string };
+      }>;
+      locations?: Array<{ id: string; name: string }>;
+      levels?: Array<{ variantId: string; locationId: string; available: number }>;
+    } = {},
+  ) {
     const {
       variants = [
         {
@@ -94,9 +96,9 @@ describe('InventoryImportService', () => {
   it('previewCsv rifiuta CSV non valido', async () => {
     const { service } = createService();
 
-    await expect(service.previewCsv('tenant-1', 'SKU,Disponibile\nx,1\n', testOwnerUser())).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.previewCsv('tenant-1', 'SKU,Disponibile\nx,1\n', testOwnerUser()),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('importCsv applica righe pronte via inventory service', async () => {
@@ -148,9 +150,11 @@ describe('InventoryImportService', () => {
     it('✅ sede autorizzata: l’anteprima si calcola', async () => {
       const { service } = createService();
 
-      await expect(service.previewCsv('tenant-1', CSV_NAPOLI, soloNapoli())).resolves.toMatchObject({
-        summary: { total: 1 },
-      });
+      await expect(service.previewCsv('tenant-1', CSV_NAPOLI, soloNapoli())).resolves.toMatchObject(
+        {
+          summary: { total: 1 },
+        },
+      );
     });
 
     it('⛔ stessa tenant, sede fuori ambito: RIFIUTATA', async () => {
@@ -201,9 +205,9 @@ describe('InventoryImportService', () => {
         permissions: [TenantPermission.InventoryViewAllLocations],
       });
 
-      await expect(
-        service.previewCsv('tenant-1', CSV_MILANO, supervisore),
-      ).resolves.toMatchObject({ summary: { total: 1 } });
+      await expect(service.previewCsv('tenant-1', CSV_MILANO, supervisore)).resolves.toMatchObject({
+        summary: { total: 1 },
+      });
     });
 
     // ⚠️ Un nome che non corrisponde a nessuna sede non è un problema di

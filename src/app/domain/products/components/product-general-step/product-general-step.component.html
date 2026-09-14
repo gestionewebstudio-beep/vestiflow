@@ -245,6 +245,34 @@
           </div>
         }
 
+        <!-- ⭐ «Tipo prodotto Shopify» (`product_type`): il campo del CANALE, in
+             una colonna sua e bidirezionale (docs/24 §9.5). Sta qui, accanto agli
+             altri campi del canale, e NON accanto a Categoria: sono due dati
+             diversi, e fino all’11/09/2026 erano lo stesso — la classificazione
+             di magazzino finiva in vetrina e il tipo prodotto della vetrina
+             tornava dentro il magazzino. Solo dove il canale esiste. -->
+        @if (shopifyActive()) {
+          <div class="general-step__field">
+            <label class="general-step__label" for="product-shopify-product-type">
+              Tipo prodotto Shopify
+              <app-hover-tooltip
+                [inline]="true"
+                text="Il tipo prodotto usato su Shopify. Si sincronizza in entrambe le direzioni con Shopify ed è distinto dalla Categoria, che resta solo nel gestionale. Se lo lasci vuoto non viene ancora sincronizzato: Shopify conserva il tipo prodotto che ha già."
+              >
+                <i class="pi pi-info-circle general-step__info" aria-hidden="true"></i>
+              </app-hover-tooltip>
+            </label>
+            <input
+              id="product-shopify-product-type"
+              class="general-step__control"
+              type="text"
+              formControlName="shopifyProductType"
+              autocomplete="off"
+              placeholder="Non ancora acquisito"
+            />
+          </div>
+        }
+
         <div class="general-step__field">
           <span class="general-step__label" id="product-uom-label">U.M.</span>
           <!--
@@ -303,6 +331,7 @@
             [boxed]="true"
             [inColumnCycle]="false"
             [selectOnFocus]="true"
+            [disabled]="vatCodesUnavailable()"
             (valueChange)="onVatSelect($event)"
           />
         </div>
@@ -369,17 +398,18 @@
             <h2 id="product-pricing-title" class="general-step__pricing-title">
               Prezzi di vendita
             </h2>
-            @if (vatConversionAvailable()) {
-              <app-segmented
-                [options]="priceModeOptions"
-                [value]="priceModeValue()"
-                ariaLabel="Modalità dei prezzi in questa sezione"
-                (valueChange)="onPriceModeChange($event)"
-              />
-            } @else {
+            <!-- ⭐ Sempre visibile e selezionabile, anche senza Codice IVA (proprietario,
+                 11/09/2026): la presenza dell’aliquota non governa il controllo. Un
+                 importo ivato digitato senza aliquota resta in attesa (vedi i campi). -->
+            <app-segmented
+              [options]="priceModeOptions"
+              [value]="priceModeValue()"
+              ariaLabel="Modalità dei prezzi in questa sezione"
+              (valueChange)="onPriceModeChange($event)"
+            />
+            @if (aliquotaIgnotaInIvati()) {
               <p class="general-step__hint general-step__pricing-note">
-                Prezzi netti: senza un Codice IVA con aliquota (sull'articolo o predefinito
-                aziendale) non c'è nulla da scorporare.
+                Senza Codice IVA i prezzi salvati si leggono al netto.
               </p>
             }
           </header>
@@ -399,13 +429,26 @@
                 formControlName="sellingPrice"
                 [attr.aria-invalid]="showSellingPriceError()"
                 [attr.aria-describedby]="
-                  showSellingPriceError() ? 'product-selling-price-error' : null
+                  showSellingPriceError()
+                    ? 'product-selling-price-error'
+                    : isPending('sellingPrice')
+                      ? 'product-selling-price-pending'
+                      : null
                 "
               />
               @if (showSellingPriceError()) {
                 <p id="product-selling-price-error" class="general-step__error">
                   Inserisci un prezzo valido (non negativo).
                 </p>
+              } @else if (isPending('sellingPrice')) {
+                <p
+                  id="product-selling-price-pending"
+                  class="general-step__hint general-step__hint--warning"
+                >
+                  {{ pendingHint() }}
+                </p>
+              } @else if (isNettoSenzaAliquota('sellingPrice')) {
+                <p class="general-step__hint">{{ nettoHint }}</p>
               }
             </div>
 
@@ -439,7 +482,11 @@
                     showShopifyZeroWarning() ? 'product-shopify-price-warning' : null
                   "
                 />
-                @if (showShopifyZeroWarning()) {
+                @if (isPending('shopifyPrice')) {
+                  <p class="general-step__hint general-step__hint--warning">{{ pendingHint() }}</p>
+                } @else if (isNettoSenzaAliquota('shopifyPrice')) {
+                  <p class="general-step__hint">{{ nettoHint }}</p>
+                } @else if (showShopifyZeroWarning()) {
                   <p
                     id="product-shopify-price-warning"
                     class="general-step__hint general-step__hint--warning"
@@ -474,6 +521,11 @@
                 formControlName="compareAtPrice"
                 placeholder="—"
               />
+              @if (isPending('compareAtPrice')) {
+                <p class="general-step__hint general-step__hint--warning">{{ pendingHint() }}</p>
+              } @else if (isNettoSenzaAliquota('compareAtPrice')) {
+                <p class="general-step__hint">{{ nettoHint }}</p>
+              }
             </div>
           </div>
         </section>
@@ -510,6 +562,11 @@
                   [formControlName]="slot.field"
                   placeholder="—"
                 />
+                @if (isPending(slot.field)) {
+                  <p class="general-step__hint general-step__hint--warning">{{ pendingHint() }}</p>
+                } @else if (isNettoSenzaAliquota(slot.field)) {
+                  <p class="general-step__hint">{{ nettoHint }}</p>
+                }
               </div>
             }
           </div>

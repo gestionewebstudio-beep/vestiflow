@@ -29,6 +29,8 @@ function createTxMock(movements: readonly unknown[] = []) {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
   };
 }
 
@@ -70,9 +72,9 @@ function inventoryDeltas(tx: ReturnType<typeof createTxMock>) {
 
 describe('buildAdjustmentMovementReason', () => {
   it('con riferimento: "Rettifica RET-2026-0001: Conteggio"', () => {
-    expect(
-      buildAdjustmentMovementReason({ reference: 'RET-2026-0001', reason: 'Conteggio' }),
-    ).toBe('Rettifica RET-2026-0001: Conteggio');
+    expect(buildAdjustmentMovementReason({ reference: 'RET-2026-0001', reason: 'Conteggio' })).toBe(
+      'Rettifica RET-2026-0001: Conteggio',
+    );
   });
 
   it('senza riferimento: "Rettifica inventario: Conteggio"', () => {
@@ -294,14 +296,12 @@ describe('syncAdjustmentLineMovements — conversione movimenti legacy aggregati
     };
     const tx = {
       stockMovement: {
-        findMany: vi
-          .fn()
-          .mockImplementation(({ where }: { where: Record<string, unknown> }) => {
-            if (where.sourceLineId === null) {
-              return Promise.resolve([legacyMovement]);
-            }
-            return Promise.resolve([]);
-          }),
+        findMany: vi.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+          if (where.sourceLineId === null) {
+            return Promise.resolve([legacyMovement]);
+          }
+          return Promise.resolve([]);
+        }),
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
@@ -312,6 +312,8 @@ describe('syncAdjustmentLineMovements — conversione movimenti legacy aggregati
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         findUnique: vi.fn(),
       },
+      // La registrazione dell’origine scrive qui, nella stessa transazione.
+      shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     };
 
     await syncAdjustmentLineMovements(tx as never, {

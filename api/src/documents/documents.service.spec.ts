@@ -101,6 +101,8 @@ function createPrismaMock() {
     },
     vatCode: { findMany: vi.fn().mockResolvedValue([]) },
     inventoryLevel: { upsert: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn() },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     inventoryLot: { upsert: vi.fn() },
     inventorySerial: {
       create: vi.fn(),
@@ -3386,12 +3388,7 @@ describe('DocumentsService', () => {
         preparaFattura([ddt('ddt-1', SEDE_MIA), ddt('ddt-2', SEDE_MIA)]);
 
         const esito = await esitoDi(
-          service.update(
-            tenantId,
-            'inv-1',
-            { linkedSalesDdtIds: ['ddt-1', 'ddt-2'] },
-            limitato(),
-          ),
+          service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1', 'ddt-2'] }, limitato()),
         );
 
         expect(esito).not.toBeInstanceOf(ForbiddenException);
@@ -3404,11 +3401,7 @@ describe('DocumentsService', () => {
        */
       it('⛔ un solo DDT fuori ambito fra tre: l’operazione INTERA è rifiutata', async () => {
         const { service } = createService(prisma);
-        preparaFattura([
-          ddt('ddt-1', SEDE_MIA),
-          ddt('ddt-2', SEDE_ALTRUI),
-          ddt('ddt-3', SEDE_MIA),
-        ]);
+        preparaFattura([ddt('ddt-1', SEDE_MIA), ddt('ddt-2', SEDE_ALTRUI), ddt('ddt-3', SEDE_MIA)]);
 
         await expect(
           service.update(
@@ -3425,12 +3418,7 @@ describe('DocumentsService', () => {
         preparaFattura([ddt('ddt-1', SEDE_MIA), ddt('ddt-2', SEDE_ALTRUI)]);
 
         await expect(
-          service.update(
-            tenantId,
-            'inv-1',
-            { linkedSalesDdtIds: ['ddt-1', 'ddt-2'] },
-            limitato(),
-          ),
+          service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1', 'ddt-2'] }, limitato()),
         ).rejects.toBeInstanceOf(ForbiddenException);
 
         expect(prisma.invoiceSalesDdtLink.createMany).not.toHaveBeenCalled();
@@ -3476,17 +3464,14 @@ describe('DocumentsService', () => {
       it.each([
         ['tipo sbagliato', { type: DocumentType.invoice }],
         ['annullato', { cancelledAt: new Date('2026-08-01') }],
-      ])(
-        '⛔ DDT fuori ambito e %s: risponde 403, non la condizione',
-        async (_caso, extra) => {
-          const { service } = createService(prisma);
-          preparaFattura([{ ...ddt('ddt-1', SEDE_ALTRUI), ...extra }]);
+      ])('⛔ DDT fuori ambito e %s: risponde 403, non la condizione', async (_caso, extra) => {
+        const { service } = createService(prisma);
+        preparaFattura([{ ...ddt('ddt-1', SEDE_ALTRUI), ...extra }]);
 
-          await expect(
-            service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1'] }, limitato()),
-          ).rejects.toBeInstanceOf(ForbiddenException);
-        },
-      );
+        await expect(
+          service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1'] }, limitato()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
 
       // ⚠️ Comportamento PRESERVATO: un DDT senza sede non ha nulla da
       // confrontare. Non è una decisione presa qui.
@@ -3762,7 +3747,13 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
     lineGrossTotalMinor: number;
   }[] {
     const data = prisma.document.create.mock.calls[0]![0]!.data as {
-      lines: { create: { lineTotalMinor: number; lineVatTotalMinor: number; lineGrossTotalMinor: number }[] };
+      lines: {
+        create: {
+          lineTotalMinor: number;
+          lineVatTotalMinor: number;
+          lineGrossTotalMinor: number;
+        }[];
+      };
     };
     return data.lines.create;
   }
@@ -3781,7 +3772,9 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
   }
 
   it('IVA ordinaria: 2 × 10,00 € al 22% persiste 4,40 € di imposta e 24,40 € di lordo', async () => {
-    await creaCon([{ description: 'Maglia', quantity: 2, unitPriceMinor: 1000, vatRatePercent: 22 }]);
+    await creaCon([
+      { description: 'Maglia', quantity: 2, unitPriceMinor: 1000, vatRatePercent: 22 },
+    ]);
 
     const [riga] = righeCreate();
     expect(riga!.lineTotalMinor).toBe(2000);
@@ -3830,7 +3823,9 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
   });
 
   it('IVA 0% valida: imposta zero PRODOTTA dal calcolo, e lordo pari all’imponibile', async () => {
-    await creaCon([{ description: 'Esente', quantity: 1, unitPriceMinor: 5000, vatRatePercent: 0 }]);
+    await creaCon([
+      { description: 'Esente', quantity: 1, unitPriceMinor: 5000, vatRatePercent: 0 },
+    ]);
 
     const [riga] = righeCreate();
     expect(riga!.lineVatTotalMinor).toBe(0);
@@ -3841,7 +3836,13 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
 
   it('sconto di riga: l’imposta segue l’imponibile scontato, non il prezzo pieno', async () => {
     await creaCon([
-      { description: 'Scontata', quantity: 1, unitPriceMinor: 10000, discountPercent: 10, vatRatePercent: 22 },
+      {
+        description: 'Scontata',
+        quantity: 1,
+        unitPriceMinor: 10000,
+        discountPercent: 10,
+        vatRatePercent: 22,
+      },
     ]);
 
     const [riga] = righeCreate();
@@ -3854,7 +3855,13 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
     // 3 × 33,33 € scontati del 7% = 92,9907 € esatti → imponibile persistito 9299.
     // Lordo  = round(9299,07 × 1,22) = 11345.  Imposta = 11345 − 9299 = 2046.
     await creaCon([
-      { description: 'Coda', quantity: 3, unitPriceMinor: 3333, discountPercent: 7, vatRatePercent: 22 },
+      {
+        description: 'Coda',
+        quantity: 3,
+        unitPriceMinor: 3333,
+        discountPercent: 7,
+        vatRatePercent: 22,
+      },
     ]);
 
     const [riga] = righeCreate();
@@ -3891,7 +3898,10 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
       });
       prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
 
-      await creaCon([{ description: 'Riga', quantity: 1, unitPriceMinor: 10000, vatRatePercent: 22 }], type);
+      await creaCon(
+        [{ description: 'Riga', quantity: 1, unitPriceMinor: 10000, vatRatePercent: 22 }],
+        type,
+      );
 
       const [riga] = righeCreate();
       expect(riga!.lineVatTotalMinor, `tipo ${type}`).toBe(2200);
@@ -3954,7 +3964,15 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
       const service = preparaDocumentoConUnaRiga();
 
       await service.update(tenantId, 'doc-q', {
-        lines: [{ id: 'line-1', description: 'Riga', quantity: 5, unitPriceMinor: 1000, vatRatePercent: 22 }],
+        lines: [
+          {
+            id: 'line-1',
+            description: 'Riga',
+            quantity: 5,
+            unitPriceMinor: 1000,
+            vatRatePercent: 22,
+          },
+        ],
       } as never);
 
       // 5 × 1000 = 5000 → imposta 1100, lordo 6100.
@@ -3988,7 +4006,15 @@ describe('totali determinati di riga (Tranche 0A.1)', () => {
       const service = preparaDocumentoConUnaRiga();
 
       await service.update(tenantId, 'doc-q', {
-        lines: [{ id: 'line-1', description: 'Riga', quantity: 1, unitPriceMinor: 1000, vatRatePercent: 22 }],
+        lines: [
+          {
+            id: 'line-1',
+            description: 'Riga',
+            quantity: 1,
+            unitPriceMinor: 1000,
+            vatRatePercent: 22,
+          },
+        ],
       } as never);
 
       // ⭐ È il caso che il difetto rendeva invisibile: prima l'update non

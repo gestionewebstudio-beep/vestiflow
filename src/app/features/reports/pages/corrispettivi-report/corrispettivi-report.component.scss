@@ -627,42 +627,11 @@
 }
 
 /*
-  ⭐ **Sotto `lg` il Periodo perde il prefisso e sta in riga con Colonne e
-  Filtri** — deciso dal proprietario il 30/08/2026: «possiamo togliere la
-  scritta periodo tanto si capisce leggendo il filtro, stringere la casella e
-  far diventare unica linea con gli altri tasti».
-
-  Il controllo era **già** nella stessa zona degli altri: andava a capo perché
-  «Periodo: Ultimi 30 giorni» è largo. Tolto il prefisso, la casella si stringe
-  di ~60px e la riga si chiude da sé — nessuna riorganizzazione del telaio.
-
-  ⚠️ **Lo decide la PAGINA, non il telaio**, e non è pigrizia: il telaio
-  spegnerebbe il prefisso anche ai controlli dentro il pannello filtri, dove è
-  l'unica cosa che dice di quale filtro si tratti.
+  ⭐ Il prefisso «Periodo:» non lo spegne più questa pagina: lo spegne
+  `app-period-filter`, per ogni schermata che lo include (11/09/2026). La
+  decisione del 30/08 («anche da desktop togliamo periodo») e la sua ragione
+  stanno nel foglio del componente.
 */
-/*
-  ⭐ **Il prefisso «Periodo:» via a OGNI larghezza** — deciso dal proprietario il
-  30/08/2026: «anche da desktop togliamo periodo».
-
-  ⛔ **Qui la regola stava dentro `media-down('lg')`**, quindi il prefisso c'era
-  sulla scrivania e spariva sul telefono: lo stesso controllo con due nomi a
-  seconda dello schermo.
-
-  ⚠️ **Non è una seconda dichiarazione: è la stessa, senza la media query.** Non
-  c'è duplicazione fra scrivania e telefono — c'è UNA regola che ora vale per
-  entrambi, ed è il motivo per cui il comportamento mobile resta identico a prima.
-
-  ⭐ **«Ultimi 30 giorni» si spiega da sé**, e questo è il criterio: il prefisso
-  serve dove il valore da solo non direbbe di che filtro si tratta. «Raggruppa:
-  Nessuno» lo tiene per quella ragione — «Nessuno» da solo non significa niente.
-
-  ⚠️ **Lo decide la PAGINA, non il telaio**: il telaio spegnerebbe il prefisso
-  anche ai controlli dentro il pannello filtri, dove è l'unica cosa che dice di
-  quale filtro si tratti.
-*/
-[period] {
-  --select-menu-chip-label-display: none;
-}
 
 /*
   ⭐ **Le voci della tendina seguono la densità della barra** — «troppo spazio»,
@@ -675,10 +644,12 @@
   ⚠️ **Sotto `md` non si tocca**: là `--field-height` sale a 44px da sé, e un
   elenco di scelte da toccare col dito è esattamente il caso in cui quel minimo
   serve. La densità è una scelta da scrivania.
+
+  ⭐ Per il Periodo lo dichiara `app-period-filter` (11/09/2026): qui resta la
+  sola riga dei filtri, che è di questa pagina.
 */
 @include bp.media-up('md') {
-  .corrispettivi__filters,
-  [period] {
+  .corrispettivi__filters {
     --select-menu-option-h: var(--control-h-button);
   }
 }

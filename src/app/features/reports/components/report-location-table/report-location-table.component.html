@@ -1,36 +1,37 @@
-<div class="report-table__wrapper">
-  <table class="report-table">
-    <thead>
-      <tr>
-        <th scope="col">Location</th>
-        <th scope="col" class="report-table__cell--numeric">Varianti tracciate</th>
-        <th scope="col" class="report-table__cell--numeric">Pezzi disponibili</th>
-        <th scope="col" class="report-table__cell--numeric">Sotto soglia</th>
-        <th scope="col" class="report-table__cell--numeric">Valore stock</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (row of rows(); track row.locationId) {
-        <tr class="report-table__row">
-          <td data-label="Location">{{ row.locationName }}</td>
-          <td class="report-table__cell--numeric tabular-nums" data-label="Varianti tracciate">
-            {{ row.trackedVariants }}
-          </td>
-          <td class="report-table__cell--numeric tabular-nums" data-label="Pezzi disponibili">
-            {{ row.availableUnits }}
-          </td>
-          <td
-            class="report-table__cell--numeric tabular-nums"
-            data-label="Sotto soglia"
-            [class.report-table__cell--warning]="row.lowStockCount > 0"
-          >
-            {{ row.lowStockCount }}
-          </td>
-          <td class="report-table__cell--numeric tabular-nums" data-label="Valore stock">
-            {{ formatMoney(row.stockValue) }}
-          </td>
-        </tr>
-      }
-    </tbody>
-  </table>
-</div>
+<app-data-table
+  caption="Giacenze per sede"
+  [columns]="colonne"
+  [sections]="sezioni()"
+  [rowId]="rowId"
+  [cellText]="testoCella"
+  [sortable]="true"
+  [sort]="ordine()"
+  (sortChange)="ordine.set($event)"
+  [totals]="totali()"
+>
+  <!-- Il sotto soglia si legge dal colore quando c'è, ma il numero resta. -->
+  <ng-template appCell="lowStockCount" let-row>
+    @if (row.lowStockCount > 0) {
+      <app-badge [flat]="true" tone="warning">
+        <span class="tabular-nums">{{ row.lowStockCount }}</span>
+      </app-badge>
+    } @else {
+      <span class="tabular-nums">{{ row.lowStockCount }}</span>
+    }
+  </ng-template>
+
+  <!-- La card: la sede in testa, i numeri coi nomi, il valore come cifra. -->
+  <ng-template appRowCard let-row>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ row.locationName }}</span>
+      </span>
+    </div>
+    <div class="list-card__figures">
+      <span class="tabular-nums">Varianti {{ row.trackedVariants }}</span>
+      <span class="tabular-nums">Pezzi {{ row.availableUnits }}</span>
+      <span class="tabular-nums">Sotto soglia {{ row.lowStockCount }}</span>
+      <span class="list-card__total tabular-nums">{{ formatMoney(row.stockValue) }}</span>
+    </div>
+  </ng-template>
+</app-data-table>

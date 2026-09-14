@@ -81,7 +81,9 @@ describe('ChannelSyncFacade', () => {
       const result = await t.facade.archiveProductOnSyncDisabled('tenant-1', 'prod-1');
 
       // `not_linked`, non `shopify_error`: chi chiama deve lasciare il flag spento.
-      expect(result).toEqual({ pushed: false, reason: 'not_linked' });
+      // ⭐ 26.2 · e `outcome: 'saltato'`, che dice la stessa cosa in una parola:
+      //    non è un fallimento, è una precondizione che non c'era.
+      expect(result).toEqual({ pushed: false, outcome: 'saltato', reason: 'not_linked' });
       expect(t.shopifyProductPush.archiveOnSyncDisabled).not.toHaveBeenCalled();
     });
   });
@@ -120,12 +122,10 @@ describe('ChannelSyncFacade', () => {
         );
 
         let risolta = false;
-        const attesa = t.facade
-          .archiveProductOnSyncDisabled('tenant-1', 'prod-1')
-          .then((esito) => {
-            risolta = true;
-            return esito;
-          });
+        const attesa = t.facade.archiveProductOnSyncDisabled('tenant-1', 'prod-1').then((esito) => {
+          risolta = true;
+          return esito;
+        });
 
         // ⛔ Un giro di macrotask, non due microtask: la facade legge prima il
         //    profilo del tenant, quindi anche il percorso fire-and-forget si
@@ -146,9 +146,10 @@ describe('ChannelSyncFacade', () => {
           reason: 'shopify_error',
         });
 
-        await expect(
-          t.facade.archiveProductOnSyncDisabled('tenant-1', 'prod-1'),
-        ).resolves.toEqual({ pushed: false, reason: 'shopify_error' });
+        await expect(t.facade.archiveProductOnSyncDisabled('tenant-1', 'prod-1')).resolves.toEqual({
+          pushed: false,
+          reason: 'shopify_error',
+        });
         expect(t.shopifyProductPush.archiveOnSyncDisabled).toHaveBeenCalledWith(
           'tenant-1',
           'prod-1',

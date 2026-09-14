@@ -16,6 +16,11 @@
  * confronto resta acceso e deve dire verde o rosso: un controllo che si spegne per non dare
  * falsi allarmi e non si riaccende mai e' peggio del falso allarme.
  */
+// ⭐ Il fatto «questo nome host è interno» è UNO, e lo dice un posto solo:
+//    la domanda qui è «Shopify potrebbe consegnare qui?», là è «possiamo
+//    scaricare da qui?» — due domande diverse sulla stessa risposta.
+import { isHostnamePrivato } from '../common/rete/indirizzo-remoto.util';
+
 export function isShopifyDeliverableAddress(address: string | null | undefined): boolean {
   if (!address) {
     return false;
@@ -32,36 +37,5 @@ export function isShopifyDeliverableAddress(address: string | null | undefined):
     return false;
   }
 
-  return !isPrivateHostname(url.hostname.toLowerCase());
-}
-
-function isPrivateHostname(hostname: string): boolean {
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname === '[::1]' ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.internal')
-  ) {
-    return true;
-  }
-
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname);
-  if (!ipv4) {
-    return false;
-  }
-
-  const first = Number(ipv4[1]);
-  const second = Number(ipv4[2]);
-
-  // 10/8, 192.168/16, 172.16/12, 169.254/16 (link-local), 127/8.
-  return (
-    first === 10 ||
-    first === 127 ||
-    (first === 192 && second === 168) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 169 && second === 254)
-  );
+  return !isHostnamePrivato(url.hostname);
 }

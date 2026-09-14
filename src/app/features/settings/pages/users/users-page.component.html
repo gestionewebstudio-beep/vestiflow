@@ -36,6 +36,17 @@
       <p class="settings-users__alert" role="alert">{{ message }}</p>
     }
 
+    <!--
+      ⭐ **Una MASCHERA, non un elenco** (`docs/26` D2): ogni riga si compila sul
+      posto — Attivo, Ruolo, Sedi, Permessi con la riga «Personalizza» che si
+      apre a tutta larghezza — e si salva da sé. Il motore degli elenchi non
+      ha righe espandibili né celle editabili, e non deve averle.
+
+      Riusa quello che è compatibile: la grammatica condivisa della tabella
+      (`data-table-desktop`, la stessa delle righe documento), il ripiego a
+      card sotto `lg` con l’etichetta di colonna per cella (`data-label`), i
+      controlli condivisi (`app-select-menu`, `app-button`, `app-inline-spinner`).
+    -->
     <div class="settings-users__table-wrap">
       <table class="settings-users__table">
         <thead>
@@ -52,9 +63,9 @@
         <tbody>
           @for (user of users(); track user.id) {
             <tr [class.settings-users__row--inactive]="!user.isActive">
-              <td>{{ user.displayName }}</td>
-              <td>{{ user.email }}</td>
-              <td>
+              <td data-label="Nome" class="settings-users__cell-name">{{ user.displayName }}</td>
+              <td data-label="Email">{{ user.email }}</td>
+              <td data-label="Attivo">
                 @if (canEditUser(user)) {
                   <label class="settings-users__check">
                     <input
@@ -73,6 +84,7 @@
                 <!-- Salvataggio in volo: le tendine non prendono comandi (`inert`),
                      così nessuna scelta resta a schermo senza essere salvata. -->
                 <td
+                  data-label="Ruolo"
                   class="settings-users__cell-select"
                   [class.settings-users__cell--busy]="rowSaving(user)"
                   [attr.inert]="rowSaving(user) ? '' : null"
@@ -88,6 +100,7 @@
                   />
                 </td>
                 <td
+                  data-label="Sede operativa"
                   class="settings-users__cell-select settings-users__cell-locations"
                   [class.settings-users__cell--busy]="rowSaving(user)"
                   [attr.inert]="rowSaving(user) ? '' : null"
@@ -125,15 +138,14 @@
                     />
                   }
                 </td>
-                <td>
-                  <button
-                    type="button"
-                    class="settings-users__permissions-toggle"
-                    [attr.aria-expanded]="permissionsExpanded(user.id)"
+                <td data-label="Permessi" class="settings-users__cell-permissions">
+                  <app-button
+                    variant="ghost"
+                    [ariaExpanded]="permissionsExpanded(user.id)"
                     (click)="togglePermissionsPanel(user.id)"
                   >
                     Personalizza
-                  </button>
+                  </app-button>
                   <!-- Finché il server non ha risposto l'operatore vede che la
                        riga è in salvataggio: nessuna spunta data ora andrebbe persa. -->
                   @if (rowSaving(user)) {
@@ -143,39 +155,33 @@
                     </span>
                   }
                 </td>
-                <td class="settings-users__cell-actions">
-                  <button
-                    type="button"
-                    class="settings-users__delete-btn"
-                    [attr.aria-label]="'Elimina utente ' + user.displayName"
-                    [attr.title]="'Elimina utente'"
+                <td data-label="Azioni" class="settings-users__cell-actions">
+                  <!-- Il pulsante condiviso, variante danger: era un `<button>` vestito a mano. -->
+                  <app-button
+                    variant="danger"
+                    [ariaLabel]="'Elimina utente ' + user.displayName"
                     [disabled]="rowDeletingId() !== null || rowSavingId() !== null"
-                    [attr.aria-busy]="rowDeletingId() === user.id ? true : null"
+                    [loading]="rowDeletingId() === user.id"
                     (click)="openDeleteDialog(user)"
                   >
-                    @if (rowDeletingId() === user.id) {
-                      <app-inline-spinner />
-                      <span class="sr-only">Eliminazione in corso</span>
-                    } @else {
-                      <i class="pi pi-trash" aria-hidden="true"></i>
-                    }
-                  </button>
+                    <i class="pi pi-trash" aria-hidden="true"></i>
+                  </app-button>
                 </td>
               } @else {
-                <td>{{ roleLabels[user.role] }}</td>
-                <td class="settings-users__cell-locations">
+                <td data-label="Ruolo">{{ roleLabels[user.role] }}</td>
+                <td data-label="Sede operativa" class="settings-users__cell-locations">
                   <span class="settings-users__muted">
                     {{ isOwnerRole(user.role) ? 'Tutte le sedi' : '—' }}
                   </span>
                 </td>
-                <td colspan="2">
+                <td data-label="Permessi" colspan="2">
                   <span class="settings-users__muted">{{ lockedRowHint(user) }}</span>
                 </td>
               }
             </tr>
             @if (canEditUser(user) && permissionsExpanded(user.id)) {
               <tr class="settings-users__permissions-row">
-                <td colspan="7">
+                <td colspan="7" data-label="">
                   <app-user-permissions-editor
                     [role]="user.role"
                     [permissions]="effectivePermissions(user)"

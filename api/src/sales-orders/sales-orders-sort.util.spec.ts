@@ -27,6 +27,19 @@ describe('parseSalesOrderSort', () => {
     ]);
   });
 
+  // ⭐ Le rettifiche e il totale aggiornato sono colonne di testata (13/09/2026):
+  //    la somma scritta coi rimborsi, la differenza generata dal database.
+  it('⭐ rettifiche e totale aggiornato si ordinano dalla testata', () => {
+    expect(parseSalesOrderSort('refundTotal:desc')).toEqual([
+      { refundTotalMinor: 'desc' },
+      { id: 'asc' },
+    ]);
+    expect(parseSalesOrderSort('updatedTotal:asc')).toEqual([
+      { currentTotalMinor: 'asc' },
+      { id: 'asc' },
+    ]);
+  });
+
   it('⛔ «Stato» no: non è un campo, lo compone il client da più dati', () => {
     expect(() => parseSalesOrderSort('state:asc')).toThrow(BadRequestException);
   });

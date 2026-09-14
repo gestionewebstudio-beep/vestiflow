@@ -10,28 +10,47 @@ export interface ShopifySyncFeedback {
   readonly tone: 'success' | 'warning';
 }
 
+/**
+ * ⭐ **I SALTATI non sono errori, e non sono nemmeno un successo.**
+ *
+ * Un prodotto saltato è un prodotto che una regola ha escluso: un collegamento
+ * chiuso, un'identità eliminata definitivamente, un identificativo che appartiene
+ * a un altro articolo. ⛔ Chiamarlo errore manderebbe l'operatore a cercare un
+ * guasto che non c'è; tacerlo — com'era fino al 09/09/2026 — gli fa credere che
+ * il catalogo sia allineato quando metà non è entrata.
+ */
+function skippedSuffix(skipped: number): string {
+  if (skipped <= 0) {
+    return '';
+  }
+  return skipped === 1
+    ? ' 1 prodotto è stato saltato per una regola di collegamento: non è un errore, ma non è entrato.'
+    : ` ${skipped} prodotti sono stati saltati per una regola di collegamento: non sono errori, ma non sono entrati.`;
+}
+
+/**
+ * L'esito dell'import catalogo, in cinque casi che non si confondono.
+ *
+ * ```text
+ *   vuoto              su Shopify non c'era niente da leggere
+ *   interamente fallito ha tentato e non è entrato niente
+ *   parziale            qualcosa è entrato, qualcosa è fallito
+ *   solo saltati        nessun errore, ma nessun prodotto entrato
+ *   riuscito            è entrato ciò che doveva entrare
+ * ```
+ *
+ * ⛔ **La fine del tentativo non è la conferma della sincronizzazione**: era
+ *    questo il difetto, e si vedeva quando ogni prodotto falliva.
+ */
 export function formatShopifyProductsSyncFeedback(
   result: ShopifySyncProductsDto,
 ): ShopifySyncFeedback {
   const failedCount = result.failed.length;
   const changedCount = result.imported + result.updated;
+  const skipped = result.skipped ?? 0;
+  const saltati = skippedSuffix(skipped);
 
-  if (failedCount > 0) {
-    const firstError = result.failed[0]?.message;
-    const errorHint = firstError ? ` Dettaglio: ${firstError}.` : '';
-    return {
-      tone: 'warning',
-      message: `Catalogo importato con ${failedCount} errori: ${result.imported} nuovi, ${result.updated} aggiornati.${errorHint}`,
-    };
-  }
-
-  if (result.remoteProductCount > 0 && changedCount === 0) {
-    return {
-      tone: 'warning',
-      message: `Shopify ha ${result.remoteProductCount} prodotti ma nessuna modifica in VestiFlow. Controlla i filtri o i log di sync.`,
-    };
-  }
-
+  // 1 · vuoto: si dice prima di tutto, perché spiega da solo ogni altro zero.
   if (result.remoteProductCount === 0) {
     return {
       tone: 'warning',
@@ -40,9 +59,46 @@ export function formatShopifyProductsSyncFeedback(
     };
   }
 
+  // 2 · interamente fallito: nessun prodotto entrato, e non per una regola.
+  if (failedCount > 0 && changedCount === 0 && skipped === 0) {
+    const firstError = result.failed[0]?.message;
+    const errorHint = firstError ? ` Dettaglio: ${firstError}.` : '';
+    return {
+      tone: 'warning',
+      message: `Import non riuscito: nessuno dei ${failedCount} prodotti è entrato in VestiFlow.${errorHint}`,
+    };
+  }
+
+  // 3 · parziale: qualcosa è entrato, qualcosa no.
+  if (failedCount > 0) {
+    const firstError = result.failed[0]?.message;
+    const errorHint = firstError ? ` Dettaglio: ${firstError}.` : '';
+    return {
+      tone: 'warning',
+      message: `Import parziale: ${result.imported} nuovi, ${result.updated} aggiornati, ${failedCount} falliti.${saltati}${errorHint}`,
+    };
+  }
+
+  // 4 · solo saltati: nessun errore, e nessun prodotto entrato.
+  if (changedCount === 0 && skipped > 0) {
+    return {
+      tone: 'warning',
+      message: `Nessun prodotto è entrato: ${skipped} su ${result.remoteProductCount} sono stati saltati per una regola di collegamento. Non sono errori.`,
+    };
+  }
+
+  // 5 · nessuna modifica e nessun saltato: il catalogo è già allineato, oppure
+  //     qualcosa non torna. ⚠️ Qui il messaggio resta prudente com'era.
+  if (changedCount === 0) {
+    return {
+      tone: 'warning',
+      message: `Shopify ha ${result.remoteProductCount} prodotti ma nessuna modifica in VestiFlow. Controlla i filtri o i log di sync.`,
+    };
+  }
+
   return {
-    tone: 'success',
-    message: `Catalogo sincronizzato: ${result.imported} nuovi, ${result.updated} aggiornati (${result.remoteProductCount} su Shopify).`,
+    tone: skipped > 0 ? 'warning' : 'success',
+    message: `Catalogo sincronizzato: ${result.imported} nuovi, ${result.updated} aggiornati (${result.remoteProductCount} su Shopify).${saltati}`,
   };
 }
 
@@ -56,8 +112,10 @@ export function formatShopifyProductsSyncFeedback(
  */
 function republishSuffix(result: ShopifySyncInventoryDto): string {
   const republished = result.republishedLevels ?? 0;
+  const refused = result.refusedLevels ?? 0;
+  const failed = result.failedLevels ?? 0;
   const remaining = result.pendingMismatches ?? 0;
-  if (republished === 0 && remaining === 0) {
+  if (republished === 0 && refused === 0 && failed === 0 && remaining === 0) {
     return '';
   }
   const fatte =
@@ -66,13 +124,31 @@ function republishSuffix(result: ShopifySyncInventoryDto): string {
       : republished > 1
         ? ` Ripubblicate su Shopify ${republished} giacenze disallineate.`
         : '';
+  // ⭐ **Il rifiuto ha un rimedio diverso dal fallimento**, e dirlo insieme
+  //    manderebbe l'operatore a ritentare una cosa che ritentare non risolve:
+  //    un collegamento chiuso resta chiuso finché non lo si riaggancia.
+  const rifiutate =
+    refused === 1
+      ? ' 1 non è stata inviata perché il collegamento con Shopify non è utilizzabile.'
+      : refused > 1
+        ? ` ${refused} non sono state inviate perché il collegamento con Shopify non è utilizzabile.`
+        : '';
+  const fallite =
+    failed === 1
+      ? ' 1 non è arrivata per un errore del canale.'
+      : failed > 1
+        ? ` ${failed} non sono arrivate per un errore del canale.`
+        : '';
   const restano =
     remaining === 1
-      ? ' 1 resta disallineata: riprova la sincronizzazione.'
+      ? ' 1 resta disallineata.'
       : remaining > 1
-        ? ` ${remaining} restano disallineate: riprova la sincronizzazione.`
+        ? ` ${remaining} restano disallineate.`
         : '';
-  return `${fatte}${restano}`;
+  // ⚠️ «Riprova» si propone solo se ritentare può servire: con soli rifiuti non
+  //    serve, ed è la differenza che questo blocco esiste per dire.
+  const consiglio = remaining > 0 && failed > 0 ? ' Riprova la sincronizzazione.' : '';
+  return `${fatte}${rifiutate}${fallite}${restano}${consiglio}`;
 }
 
 export function formatShopifyInventorySyncFeedback(

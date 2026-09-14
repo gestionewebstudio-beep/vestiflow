@@ -21,6 +21,10 @@ export const SHOPIFY_PRODUCT_EXPORT_HEADERS = [
   'Body (HTML)',
   'Vendor',
   'Type',
+  // Colonna NON Shopify, come «Codice articolo»: senza, il round-trip
+  // perderebbe la categoria di magazzino, che da oggi non viaggia più dentro
+  // `Type` (docs/24 §9.5). Shopify ignora le colonne che non conosce.
+  'Categoria',
   'Tags',
   'Published',
   'Option1 Name',
@@ -134,7 +138,11 @@ function buildProductRow(
     row.Title = product.name;
     row['Body (HTML)'] = toBodyHtml(product.description);
     row.Vendor = product.brand?.trim() ?? '';
-    row.Type = product.category?.trim() ?? '';
+    // ⛔ `Type` è il tipo prodotto del CANALE: qui c’era `product.category`, e
+    //    un file esportato da VestiFlow portava la classificazione di magazzino
+    //    nella colonna che Shopify legge come `product_type` (docs/24 §9.5).
+    row.Type = product.shopifyProductType?.trim() ?? '';
+    row.Categoria = product.category?.trim() ?? '';
     row.Tags = formatExportTags(product);
     row.Published = mapPublished(product.status);
     row['SEO Title'] = product.seoTitle?.trim() ?? '';

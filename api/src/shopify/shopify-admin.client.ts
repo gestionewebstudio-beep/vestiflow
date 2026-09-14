@@ -346,14 +346,77 @@ export class ShopifyAdminClient {
     shopDomain: string,
     accessToken: string,
   ): Promise<readonly Record<string, unknown>[]> {
+    return this.listOrdersPaged(shopDomain, accessToken, 'status=any', 0);
+  }
+
+  /**
+   * ⭐ Gli ordini ancora APERTI e non evasi (o evasi in parte): sono i soli che
+   *    la PRIMA CONNESSIONE acquisisce (`docs/27` §5-bis), come impegni. Niente
+   *    storico.
+   */
+  async listOpenUnfulfilledOrders(
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<readonly Record<string, unknown>[]> {
+    return this.listOrdersPaged(
+      shopDomain,
+      accessToken,
+      'status=open&fulfillment_status=unfulfilled',
+      0,
+    );
+  }
+
+  /**
+   * ⭐ Gli ordini nati DOPO un certo id: gli id Shopify crescono con la creazione,
+   *    quindi «da questo id in poi» è «da quel momento in poi» senza orologi. È il
+   *    recupero della sincronizzazione continua dopo un’interruzione.
+   */
+  async listOrdersSinceId(
+    shopDomain: string,
+    accessToken: string,
+    sinceId: string,
+  ): Promise<readonly Record<string, unknown>[]> {
+    return this.listOrdersPaged(shopDomain, accessToken, 'status=any', Number(sinceId));
+  }
+
+  /** L’ordine più recente del negozio, per fissare «da qui in poi» all’attivazione. */
+  async getLatestOrderId(shopDomain: string, accessToken: string): Promise<string | null> {
+    const page = await this.request<{ orders: Record<string, unknown>[] }>(
+      shopDomain,
+      accessToken,
+      `/orders.json?status=any&limit=1&order=id+desc&fields=id`,
+    );
+    const primo = page.orders?.[0];
+    return primo?.['id'] != null ? String(primo['id']) : null;
+  }
+
+  async getOrder(
+    shopDomain: string,
+    accessToken: string,
+    shopifyOrderId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const page = await this.request<{ order: Record<string, unknown> | null }>(
+      shopDomain,
+      accessToken,
+      `/orders/${shopifyOrderId}.json`,
+    );
+    return page.order ?? null;
+  }
+
+  private async listOrdersPaged(
+    shopDomain: string,
+    accessToken: string,
+    filtro: string,
+    daId: number,
+  ): Promise<readonly Record<string, unknown>[]> {
     const orders: Record<string, unknown>[] = [];
-    let sinceId = 0;
+    let sinceId = daId;
 
     for (;;) {
       const page = await this.request<{ orders: Record<string, unknown>[] }>(
         shopDomain,
         accessToken,
-        `/orders.json?status=any&limit=250&since_id=${sinceId}`,
+        `/orders.json?${filtro}&limit=250&since_id=${sinceId}`,
       );
       const batch = page.orders ?? [];
       if (batch.length === 0) {

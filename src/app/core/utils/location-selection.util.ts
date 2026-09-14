@@ -1,6 +1,5 @@
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { Location } from '@core/models/location.model';
-import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 
 /** Location attiva nel piano contrattuale del tenant. */
@@ -8,20 +7,18 @@ export function isLicensedOperationalLocation(location: Location): boolean {
   return location.isActive && location.licensedInVf;
 }
 
-/** Location collegata o sincronizzata con Shopify (sede operativa ecommerce). */
+/**
+ * Location COLLEGATA a Shopify (sede operativa ecommerce).
+ *
+ * ⭐ Lo dice l'id, che segue la coppia dello storico (`collega` lo scrive,
+ *    `scollega` lo toglie). ⛔ Non lo stato: `status` dice se i DATI della sede
+ *    sono stati letti da Shopify («Sincronizza location»), e una sede collegata
+ *    dal percorso di prima connessione ha l'id con lo stato ancora
+ *    `not_connected` — misurato sul collaudo il 13/09/2026, la Configurazione
+ *    diceva «Sedi non attivate» a una sede con coppia attiva.
+ */
 export function isShopifyManagedLocation(location: Location): boolean {
-  const shopify = location.shopify;
-  if (!shopify?.shopifyId) {
-    return false;
-  }
-
-  const status = shopify.status;
-  return (
-    status === ShopifySyncStatus.Synced ||
-    status === ShopifySyncStatus.Syncing ||
-    status === ShopifySyncStatus.OutOfSync ||
-    status === ShopifySyncStatus.Error
-  );
+  return Boolean(location.shopify?.shopifyId);
 }
 
 function isShopifyImportedLocationCode(code: string | null | undefined): boolean {

@@ -1,0 +1,28 @@
+<!-- ⭐ Sul motore comune (`docs/26` A26): le giacenze per variante, totali su tutte le sedi. -->
+<app-data-table
+  caption="Giacenze per variante"
+  [columns]="colonne"
+  [sections]="sezioni()"
+  [rowId]="rowId"
+  [cellText]="testoCella"
+  [sortable]="true"
+  [sort]="ordine()"
+  (sortChange)="ordine.set($event)"
+  [totals]="totali()"
+>
+  <ng-template appRowCard let-r>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ r.title }}</span>
+      </span>
+      @if (r.sku) {
+        <span class="list-card__anchor tabular-nums">{{ r.sku }}</span>
+      }
+    </div>
+    <div class="list-card__figures">
+      <span class="tabular-nums">Giac. {{ giacenza(r) }}</span>
+      <span class="tabular-nums">Imp. {{ impegnata(r) }}</span>
+      <span class="list-card__total tabular-nums">Disp. {{ disponibile(r) }}</span>
+    </div>
+  </ng-template>
+</app-data-table>

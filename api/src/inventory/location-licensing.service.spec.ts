@@ -171,11 +171,7 @@ describe('LocationLicensingService', () => {
   });
 
   it('trimLicensedLocationsToLimit disattiva le sedi in eccesso mantenendo le più vecchie', async () => {
-    const licensedRows = [
-      { id: 'loc-1' },
-      { id: 'loc-2' },
-      { id: 'loc-3' },
-    ];
+    const licensedRows = [{ id: 'loc-1' }, { id: 'loc-2' }, { id: 'loc-3' }];
     const prisma = {
       location: {
         findMany: vi.fn().mockResolvedValue(licensedRows),

@@ -42,7 +42,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { PeriodFilterComponent } from '@shared/components/period-filter/period-filter.component';
 
 import {
   CORRISPETTIVI_REGISTER_COLUMN_DEFS,
@@ -65,6 +65,7 @@ import {
   formatReportPeriodLabel,
   parseReportListQuery,
   periodNeedsYear,
+  REPORT_PERIOD_OPTIONS,
   ReportPeriodPreset,
   resolveReportDateRange,
 } from '@domain/reports/models/report-list-query.model';
@@ -108,7 +109,7 @@ type CorrispettiviState =
     ListActionsBarComponent,
     CorrispettiviOrdersTableComponent,
     CorrispettiviSummaryComponent,
-    DateInputComponent,
+    PeriodFilterComponent,
     InlineBannerComponent,
     SegmentedComponent,
     SelectMenuComponent,
@@ -363,79 +364,16 @@ export class CorrispettiviReportComponent {
   // Occupava un riquadro intero per un solo selettore, con titolo e sottotitolo,
   // in cima a una schermata che si consulta a colpo d'occhio. Il periodo È un
   // filtro: sta con gli altri.
-  protected readonly periodOptions: readonly SelectMenuOption[] = [
-    { value: ReportPeriodPreset.Today, label: 'Oggi' },
-    { value: ReportPeriodPreset.Yesterday, label: 'Ieri' },
-    { value: ReportPeriodPreset.SpecificDay, label: 'Giorno specifico…' },
-    { value: ReportPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
-    { value: ReportPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
-    { value: ReportPeriodPreset.ThisMonth, label: 'Mese corrente' },
-    { value: ReportPeriodPreset.LastMonth, label: 'Mese scorso' },
-    { value: ReportPeriodPreset.ThisYear, label: 'Anno corrente' },
-    { value: ReportPeriodPreset.CalendarMonth, label: 'Mese…' },
-    { value: ReportPeriodPreset.CalendarQuarter, label: 'Trimestre…' },
-    { value: ReportPeriodPreset.CalendarYear, label: 'Anno…' },
-    { value: ReportPeriodPreset.Custom, label: 'Personalizzato' },
-  ];
-
-  protected readonly monthOptions: readonly SelectMenuOption[] = [
-    'Gennaio',
-    'Febbraio',
-    'Marzo',
-    'Aprile',
-    'Maggio',
-    'Giugno',
-    'Luglio',
-    'Agosto',
-    'Settembre',
-    'Ottobre',
-    'Novembre',
-    'Dicembre',
-  ].map((label, index) => ({ value: String(index + 1), label }));
-
-  protected readonly quarterOptions: readonly SelectMenuOption[] = [
-    { value: '1', label: '1° trimestre' },
-    { value: '2', label: '2° trimestre' },
-    { value: '3', label: '3° trimestre' },
-    { value: '4', label: '4° trimestre' },
-  ];
-
-  /** Cinque anni indietro coprono la conservazione ordinaria. */
-  protected readonly yearOptions: readonly SelectMenuOption[] = Array.from(
-    { length: 6 },
-    (_unused, index) => {
-      const anno = new Date().getUTCFullYear() - index;
-      return { value: String(anno), label: String(anno) };
-    },
-  );
+  // ⭐ Voci e selettori a comparsa stanno nel modello dei report e nel
+  //    componente condiviso (11/09/2026): qui restano i gestori e i valori.
+  protected readonly periodOptions = REPORT_PERIOD_OPTIONS;
 
   /**
-   * I selettori aggiuntivi compaiono SOLO dove hanno senso: «mese corrente» non
-   * chiede l'anno, perché è il mese di adesso.
+   * La **giornata singola** ha un campo suo e non riusa quello «da»: sono due
+   * domande diverse — «da che giorno a che giorno» e «quale giorno» — e un campo
+   * che cambia significato a seconda del preset è il modo in cui si finisce per
+   * chiedere «dal 17» e ottenere «il 17 e basta», o viceversa.
    */
-  protected readonly showMonthPicker = computed(
-    () => this.displayPeriod() === ReportPeriodPreset.CalendarMonth,
-  );
-  protected readonly showQuarterPicker = computed(
-    () => this.displayPeriod() === ReportPeriodPreset.CalendarQuarter,
-  );
-  protected readonly showYearPicker = computed(() => periodNeedsYear(this.displayPeriod()));
-  protected readonly showCustomDates = computed(
-    () => this.displayPeriod() === ReportPeriodPreset.Custom,
-  );
-
-  /**
-   * Il selettore della **giornata singola**.
-   *
-   * Ha un campo suo e non riusa quello «da»: sono due domande diverse — «da che
-   * giorno a che giorno» e «quale giorno» — e un campo che cambia significato a
-   * seconda del preset è il modo in cui si finisce per chiedere «dal 17» e
-   * ottenere «il 17 e basta», o viceversa.
-   */
-  protected readonly showSingleDate = computed(
-    () => this.displayPeriod() === ReportPeriodPreset.SpecificDay,
-  );
-
   protected readonly singleDateDraft = computed(() =>
     this.displayPeriod() === ReportPeriodPreset.SpecificDay
       ? (this.query().dateFrom ?? todayIsoDate())

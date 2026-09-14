@@ -232,9 +232,9 @@ describe('Corrispettivo manuale — la riga vuota', () => {
    * il solo Codice IVA la farebbe sembrare compilata.
    */
   it('vuota è: nessuna descrizione E nessun importo', () => {
-    expect(
-      isEmptyManualReceiptLine({ description: '', amountMinor: 0, vatCodeId: 'vat-22' }),
-    ).toBe(true);
+    expect(isEmptyManualReceiptLine({ description: '', amountMinor: 0, vatCodeId: 'vat-22' })).toBe(
+      true,
+    );
     expect(
       isEmptyManualReceiptLine({ description: '   ', amountMinor: 0, vatCodeId: 'vat-22' }),
     ).toBe(true);

@@ -29,35 +29,8 @@
   line-height: var(--leading-normal);
 }
 
-.inventory-levels__reservations {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.inventory-levels__reservation {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--space-1) var(--space-3);
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-}
-
-.inventory-levels__reservation-qty {
-  text-align: end;
-  font-weight: var(--font-weight-semibold);
-}
-
-.inventory-levels__reservation-location {
-  grid-column: 1 / -1;
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
+// ⭐ Gli ordini che impegnano la quantità sono `app-stock-reservations-table`,
+//    sul motore comune (`docs/26` A20): qui c’era un `<ul>` di card a mano.
 
 /*
   ⭐ **Le mancavano esattamente DUE contratti**, non un wrapper.
@@ -74,7 +47,6 @@
   peggiore. Cambia solo chi le dà l’altezza.
 */
 @include lp.list-page-fills-viewport('inventory-levels', 'app-inventory-level-table');
-
 
 /* ── telaio ─────────────────────────────────────────────────────────────
   ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.
@@ -95,7 +67,6 @@ app-inventory-level-table {
   flex: 1;
   min-block-size: 0;
 }
-
 
 /*
   ⚠️ **I gruppi proiettati non sono scatole: sono contenuto.**

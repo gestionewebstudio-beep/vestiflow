@@ -1,0 +1,22 @@
+<!--
+  ⭐ **Sotto `lg` resta la sola ICONA** — proprietario, 30/08/2026: «da mobile
+  possiamo mettere solo il simbolo dei filtri e recuperiamo spazio».
+
+  ⚠️ **Il conteggio dei filtri attivi NON sparisce**: è l'unica cosa che dice
+  che un filtro c'è. Il nome resta nell'`aria-label`: sparisce alla vista, non a
+  chi legge con uno screen reader.
+-->
+<app-button
+  variant="secondary"
+  [ariaPressed]="filtersOn()"
+  [ariaLabel]="compatto() ? 'Filtri' : undefined"
+  (click)="toggle()"
+>
+  <i class="pi pi-filter" aria-hidden="true"></i>
+  @if (!compatto()) {
+    Filtri
+  }
+  @if (conteggio() > 0) {
+    <span>&nbsp;({{ conteggio() }})</span>
+  }
+</app-button>

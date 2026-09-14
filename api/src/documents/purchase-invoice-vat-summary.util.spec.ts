@@ -19,7 +19,6 @@ describe('receiptVatBreakdown', () => {
     ]);
   });
 
-
   /**
    * ⭐ **Il raggruppamento è per CODICE IVA, non per aliquota.**
    *

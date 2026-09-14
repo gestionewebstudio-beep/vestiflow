@@ -63,6 +63,7 @@ L'interfaccia deve privilegiare:
 
 - Lo SKU univoco è una **regola interna** (validata in form, bloccata in UI).
 - Shopify NON garantisce SKU univoci né presenti: in import/sync da Shopify, SKU duplicati o vuoti NON devono rompere il sync. Vanno importati e **segnalati come anomalie** da risolvere, non rifiutati.
+- ⭐ **Vale anche per il barcode, e nella stessa forma** _(12/09/2026, difetto 26.1)_: un barcode già di un'altra variante del tenant non si può assegnare due volte (blocco di integrità), quindi la variante **entra senza barcode** e il prodotto lo **dichiara** (`shopifySyncStatus = out_of_sync`, `shopifyLastError` nomina chi lo ha). ⛔ Nessun barcode inventato (sarebbe un EAN falso), nessuna fusione con la variante che lo possiede, nessuno scarto silenzioso. Gli SKU con suffisso (`<sku>-<id>`, `SHOPIFY-<id>`) si segnalano allo stesso modo. Il push non cancella il barcode remoto: la chiave si omette quando il locale è nullo (`shopify-import-codici.util`).
 
 ## Stock per location (non per negozio)
 
@@ -323,6 +324,7 @@ modifica — cioè quando i documenti sbagliati esistono già.
 - La conversione netto↔ivato ha **due forme**, e vanno tenute distinte: `*Exact` per il valore da memorizzare, `*Minor` (arrotondata) per il valore da mostrare.
 - Shopify espone i prezzi come **stringhe decimali** (es. `"29.90"`): la conversione stringa ↔ unità minori avviene in un'unica funzione di mapping testata, mai sparsa nel codice.
 - La formattazione display usa `Intl.NumberFormat` centralizzato, mai concatenazione manuale.
+- ⭐ **Il punto delle migliaia c'è SEMPRE, anche a quattro cifre** _(proprietario, 13/09/2026: «mettere punto alle migliaia per una lettura migliore degli importi»)_: i dati CLDR di `it-IT` raggruppano solo da cinque cifre in su e scrivono «2249,85 €». `formatMoney` (frontend) e `formatMinorAmount` (stampe API) usano `useGrouping: 'always'`. ⚠️ Vale per ciò che si **legge**: il campo di digitazione (`money-input`) resta senza punti e il CSV per Excel resta un numero decimale.
 
 ### La colonna è una, i comportamenti sono tanti _(deciso 16/08/2026)_
 
@@ -401,6 +403,17 @@ segno del tipo, non ricalcolando l’IVA della fattura.
 `IVA 22% · IVA 10% · IVA 4%` si ottengono **sommando gli importi IVA finali delle righe**
 di quel codice. ⛔ **Mai** prendere l’imponibile totale e rifare `imponibile × aliquota`:
 è lo stesso errore di arrotondamento, un piano più in alto.
+
+#### ⭐ Le rettifiche di un ordine di canale: la testata le SOMMA, il database genera il totale aggiornato _(13/09/2026)_
+
+Un ordine Shopify porta il **valore originario** (`totalMinor`, mai riscritto) e le
+**rettifiche** del canale (`sales_order_refunds`, ciascuna alla sua data: `docs/08`
+§3-bis). La testata somma le proprie rettifiche — `refundTotalMinor`, scritta dove si
+scrivono i rimborsi — come somma le righe; il **totale aggiornato** è una colonna
+**generata** dal database (`currentTotalMinor = totalMinor − refundTotalMinor`): una
+fonte sola, che nessun servizio e nessuna schermata ricalcola. ⛔ Non è una scorciatoia:
+l'elenco è paginato sul server e una colonna si ordina solo se il database la sa
+ordinare — «Rettifiche» e «Tot. aggiornato» si ordinano come «Totale».
 
 #### Dove pesca un elenco
 
@@ -527,6 +540,42 @@ costo veniva ricordata dentro `user_document_price_mode_preferences` — la tabe
 — tradotta da un ponte costo↔prezzo. Reggeva solo perché i tipi delle due famiglie non si
 sovrappongono: il primo tipo buono per entrambe l’avrebbe rotta in silenzio.
 
+#### ⭐ La SCHEDA articolo ricorda come l’operatore DIGITA — deciso dal proprietario l’11/09/2026
+
+> **Nella scheda articolo la modalità Netti/Ivati è una preferenza dell’operatore: si ricorda
+> e si ripropone anche sui nuovi articoli. È sempre visibile e selezionabile, anche senza
+> Codice IVA sull’articolo o predefinito aziendale.**
+
+⚠️ **Non riapre la riga della tabella qui sopra.** Quella memoria decideva come si LEGGE il
+listino nell’anagrafica-vista, e due colleghi devono leggerlo allo stesso modo; questa ricorda
+come si COMPILA la scheda — cioè dove si crea qualcosa, che è la stessa ragione per cui la
+memoria resta sui documenti di vendita. ⚠️ **È ricordata per operatore SU QUEL BROWSER**
+(`ProductPriceModeMemoryService`, `localStorage`, come la sede attiva), **non sincronizzata
+fra dispositivi**: sul telefono o su un altro PC si riparte dalla convenzione aziendale, che
+resta la proposta iniziale. Nessuna colonna nuova.
+
+| Con «Ivati» e l’aliquota…                         | Il prezzo digitato                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **nota** (codice sull’articolo o predefinito)     | si scorpora ESATTO, come sempre                                                                                                                                                                                                                                                                                                       |
+| **nota e pari a ZERO** (esente, N4, …)            | è già il netto: netto e ivato coincidono per definizione. ⛔ Non è «codice mancante»                                                                                                                                                                                                                                                  |
+| **IGNOTA** (nessun codice, o codici non caricati) | resta **in attesa** nella compilazione (`pendingGrossPrices` del draft), con accanto «Scegli il Codice IVA per salvare il prezzo». ⛔ Non si salva come netto, non si trasmette, non diventa zero                                                                                                                                     |
+| **IGNOTA**, e il prezzo era GIÀ salvato           | si mostra al netto — non c’è nulla con cui convertirlo — e **ogni campo lo dichiara** («Importo netto salvato: senza Codice IVA non si converte»): un netto sotto «Ivati» non passa mai per ivato. Nel caso misto, netti salvati e ivati in attesa convivono ognuno col suo cartellino, e alla scelta dell’IVA ognuno conserva il suo |
+| poi si sceglie il Codice IVA                      | **l’ivato resta fermo** e nasce il netto: 100 e poi 22% → 100 ivati, 81,967213 netti — non 122                                                                                                                                                                                                                                        |
+| poi si passa ai Netti                             | l’importo in attesa diventa il netto così com’è: è l’operatore a dichiararlo                                                                                                                                                                                                                                                          |
+
+⛔ **Qui c’era l’identità in silenzio**: `toNet` con aliquota zero o assente restituiva il
+digitato, e «100 ivati» diventava «100 netti» senza dirlo — visibile solo quando poi arrivava
+un 22% e il campo si ridisegnava a 122. ⚠️ **Nessuna nuova colonna per prezzi incompleti**: gli
+importi in attesa stanno nel draft della scheda e bloccano «Salva»; in modalità Netti il
+prezzo è già determinato e l’assenza dell’IVA non chiede niente.
+
+⚠️ **Un errore di caricamento non è una configurazione.** Se Codici IVA o impostazioni
+aziendali non arrivano, la scheda lo DICE (banner con «Riprova», Codice IVA non modificabile)
+invece di mostrare «nessun listino / nessuna aliquota» — misurato l’11/09/2026 con l’API
+spenta: quattro stati diversi, una sola schermata, quella legittima. La forma è
+`conEsito()` (`core/utils/esito-caricamento.util`), mai `catchError(() => of([]))` su un
+riferimento che governa una sezione.
+
 ---
 
 **Prima di aggiungere una colonna di denaro**, la domanda è una sola: _questo valore può essere il risultato di uno scorporo?_ Se sì, è `Decimal(16,6)`. Non «è già intero adesso»: **potrà** non esserlo il giorno in cui quella maschera avrà il netto/ivato, e a quel punto la migration costa quanto le righe di codice che leggono quella colonna.
@@ -537,7 +586,7 @@ sovrappongono: il primo tipo buono per entrambe l’avrebbe rotta in silenzio.
 
 Con Shopify connesso, **ogni entità ha un owner di sync** dichiarato. È la decisione che condiziona tutto: quali form esistono, cosa è editabile, come si risolvono i conflitti.
 
-⭐ **La direzione PER CAMPO è la matrice canonica di `docs/24` §9.2, e vive solo lì.** La tabella qui sotto è a livello di **entità**: dice chi possiede un'entità, non la direzione di ogni suo campo. Dove le due sembrano divergere — un prodotto è «condiviso», ma la sua descrizione va solo VestiFlow→Shopify, di immagini se ne sincronizza una sola, SEO e metafield non configurati sono solo Shopify — **vince §9.2**. Qui non si ricopia la matrice: si rimanda.
+⭐ **La direzione PER CAMPO è la matrice canonica di `docs/24` §9.2, e vive solo lì.** La tabella qui sotto è a livello di **entità**: dice chi possiede un'entità, non la direzione di ogni suo campo. Dove le due sembrano divergere — un prodotto è «condiviso», ma `Product.name` è solo VestiFlow, la categoria interna non esce mai, e SEO e metafield non configurati sono solo Shopify — **vince §9.2**. Qui non si ricopia la matrice: si rimanda.
 
 | Entità                                      | Owner                          | Conseguenza UI                                                                                                                                                                            |
 | ------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -581,6 +630,8 @@ Regole:
 ## Sync, webhook ed eventual consistency
 
 - Il sync reale è **webhook-driven** (ordini, inventory level update): i dati possono arrivare in ritardo, doppi o fuori ordine. Il backend DEVE essere idempotente; il frontend DEVE convivere con dati potenzialmente stale.
+- ⭐ **Fuori ordine si decide con l'orologio di Shopify, per lo stesso ordine** _(13/09/2026, percorso 20)_: l'ordine di canale conserva l'ultimo `updated_at` Shopify applicato (`SalesOrder.shopifyUpdatedAt`) e un payload **più vecchio** non scrive niente — stati, righe, totali, rimborsi; **uguale** si applica (le riletture dopo `fulfillment_orders/moved` portano lo stesso `updated_at`, e una ripetizione è idempotente). Il confronto avviene sulla riga bloccata (`FOR UPDATE`), così due notifiche insieme non si scavalcano. ⛔ Qui il magazzino reggeva («evaso o annullato, niente si riapre») ma la testata tornava «non evaso» e «da pagare»: i due stati si scrivevano dal payload, sempre. Non è un orologio locale sulle giacenze: sono due aggiornamenti dello stesso ordine, datati dal canale.
+- ⭐ **Un effetto NON applicato per una condizione che può cambiare resta RIPETIBILE** _(percorso 23)_: il reso non applicato (sede di rientro non collegata) e la spedizione con una riga `senza_sede` non registrano l'evento come applicato, così lo stesso webhook — stessa chiave — o un recupero li applica quando la location viene collegata. ⛔ `senza_variante` (collegamento chiuso) e `senza_impegno` (storico) non sono attese: sono decisioni, e restano registrati.
 - La UI espone sempre "ultimo sync" dove rilevante e uno stato sync per risorsa.
 - L'Admin API Shopify è **rate-limited**: le operazioni bulk passano da una coda lato backend, mai da N chiamate parallele richieste dal frontend.
 - Gli ID Shopify sono identificativi pubblici (formato GraphQL `gid://shopify/...` o numerico REST): si salvano come stringhe opache, non si parsano.

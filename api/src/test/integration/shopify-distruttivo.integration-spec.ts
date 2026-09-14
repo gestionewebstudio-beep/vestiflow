@@ -387,13 +387,25 @@ describe('Collaudo distruttivo Shopify (database reale)', () => {
       { id: 9002, name: 'Sede Shopify vuota', active: true },
       { id: 9004, name: 'Sede cavia', active: true },
     ] as never);
-    await sincronizzaSedi.syncFromShopify(P.tenant, DOMINIO_PROVA, 'token');
+    const esito = await sincronizzaSedi.syncFromShopify(P.tenant, DOMINIO_PROVA, 'token');
 
     const dopo = await fotografa(prisma);
     attendiIntatti(prima, dopo, TUTTO_CIO_CHE_RESTA);
-    // Le sedi si sono ricollegate per nome, non duplicate.
+    // Nessuna sede duplicata: le location si RIPORTANO, non si creano.
     expect(dopo.sedi).toBe(prima.sedi);
-    expect(dopo.sediCollegate).toBe(3);
+    /*
+      ⛔ **Qui c’era «le sedi si sono ricollegate per nome» (3 collegate).**
+         B7 (`docs/24` §1.13, `DA-FARE` §12: «non esiste un collegamento
+         automatico per nome, punto — né dopo una chiusura») l’ha tolto:
+         la disconnessione azzera la colonna-cache (scenario 1) e il sync
+         riconosce solo per id, quindi dopo la riconnessione le tre location
+         tornano NON collegate e nominate, e a ricollegarle è una persona
+         (collega / crea / lascia). Non si perde niente: le sedi restano.
+    */
+    expect(dopo.sediCollegate).toBe(0);
+    expect(esito.unlinked.map((l) => l.shopifyLocationId).sort()).toEqual(
+      ['9001', '9002', '9004'],
+    );
   });
 
   it('scenario 10 · riconnessione a un negozio DIVERSO non cancella le sedi vecchie', async () => {

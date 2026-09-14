@@ -35,8 +35,7 @@ export async function reconcileDocumentStockAdjustment(
   const deltas: Array<{ sku: string; delta: number }> = [];
 
   const contextChanged =
-    params.oldLocationId !== params.newLocationId ||
-    params.oldDirection !== params.newDirection;
+    params.oldLocationId !== params.newLocationId || params.oldDirection !== params.newDirection;
 
   if (contextChanged) {
     for (const entry of oldMap.values()) {
@@ -127,9 +126,7 @@ export async function reverseDocumentStockAdjustment(
     readonly actor: StockMovementActor;
   },
 ): Promise<StockReconcileResult> {
-  const reason = params.reference
-    ? `Annullamento ${params.reference}`
-    : 'Annullamento documento';
+  const reason = params.reference ? `Annullamento ${params.reference}` : 'Annullamento documento';
   const map = aggregateStockLines(params.lines);
   const deltas: Array<{ sku: string; delta: number }> = [];
 

@@ -26,11 +26,7 @@ import { formatDocumentReference } from './document-totals.util';
  * compare — il massimo sarebbe **sempre 0**, ogni registrazione nascerebbe col
  * numero 1, e a fermarle sarebbe il vincolo unico, dopo il lavoro.
  */
-export type DocumentNumberSource =
-  | 'document'
-  | 'supplier_order'
-  | 'sales_order'
-  | 'manual_receipt';
+export type DocumentNumberSource = 'document' | 'supplier_order' | 'sales_order' | 'manual_receipt';
 
 /** Tabella che possiede il numero del tipo: ordini a parte, il resto documenti. */
 export function numberSourceForType(type: DocumentType): DocumentNumberSource {
@@ -213,7 +209,8 @@ async function primoNumeroLibero(input: NextNumberInput, m: number): Promise<num
             ...documentNumberingTypes(input.type),
           ]}::"DocumentType"[])`
         : Prisma.empty;
-    const manuali = source === 'sales_order' ? Prisma.sql`AND ${a}.source = 'manual'` : Prisma.empty;
+    const manuali =
+      source === 'sales_order' ? Prisma.sql`AND ${a}.source = 'manual'` : Prisma.empty;
     return Prisma.sql`${a}.tenant_id = ${tenantId}::uuid ${tipi} ${manuali} AND ${serie} AND ${a}.number IS NOT NULL`;
   };
 
@@ -575,6 +572,7 @@ export function resolveEditedDocumentNumbering(input: {
     numberChanged,
     changed,
     // Senza numero non c'è riferimento da comporre.
-    reference: changed && number !== null ? formatDocumentReference(input.prefix, series, number) : null,
+    reference:
+      changed && number !== null ? formatDocumentReference(input.prefix, series, number) : null,
   };
 }

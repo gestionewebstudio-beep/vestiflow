@@ -33,6 +33,8 @@ export interface ProductGeneralDraft {
   readonly supplierId: string;
   /** «Nome Shopify» ('' = non ancora inizializzato, o svuotato apposta). */
   readonly shopifyTitle: string;
+  /** «Tipo prodotto Shopify» ('' = non ancora acquisito). Non è la categoria. */
+  readonly shopifyProductType: string;
   readonly shopifyTaxonomyCategoryId: string;
   readonly shopifyTaxonomyCategoryFullName: string;
   readonly shopifyCategoryMetafields: readonly ShopifyCategoryMetafieldValue[];
@@ -77,6 +79,31 @@ export interface ProductGeneralDraft {
   readonly listino1Price: number | null;
   readonly listino2Price: number | null;
   readonly listino3Price: number | null;
+  /**
+   * ⭐ Importi IVATI digitati SENZA un’aliquota nota — deciso dal proprietario
+   * l’11/09/2026. Restano nella compilazione, non nel prodotto: il netto non
+   * si può calcolare finché non si sceglie un Codice IVA, e finché sono qui il
+   * salvataggio è bloccato. Quando l’aliquota arriva, l’importo ivato resta
+   * fermo e se ne ricava il netto (100 ivati al 22% restano 100, non 122).
+   *
+   * Assente (non `{}`) quando non c’è niente in attesa: il draft serializzato è
+   * il confronto di «modificato», e una chiave vuota lo sporcherebbe.
+   */
+  readonly pendingGrossPrices?: Readonly<Partial<Record<ProductPriceField, number>>>;
+}
+
+/** I sei valori commerciali di VENDITA che seguono il selettore Netti/Ivati. */
+export type ProductPriceField =
+  | 'sellingPrice'
+  | 'compareAtPrice'
+  | 'shopifyPrice'
+  | 'listino1Price'
+  | 'listino2Price'
+  | 'listino3Price';
+
+/** Vero quando almeno un prezzo aspetta l’aliquota: la scheda non si salva. */
+export function hasPendingGrossPrices(general: ProductGeneralDraft): boolean {
+  return Object.keys(general.pendingGrossPrices ?? {}).length > 0;
 }
 
 /**

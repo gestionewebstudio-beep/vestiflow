@@ -34,7 +34,13 @@ function txCon(documenti: readonly Registrato[]) {
     return [
       ...(precede ? [{ ...precede, data: new Date(precede.data), direzione: 'precede' }] : []),
       ...(segue ? [{ ...segue, data: new Date(segue.data), direzione: 'segue' }] : []),
-    ].map((r) => ({ id: r.id, number: r.number, data: r.data, reference: r.reference ?? null, direzione: r.direzione }));
+    ].map((r) => ({
+      id: r.id,
+      number: r.number,
+      data: r.data,
+      reference: r.reference ?? null,
+      direzione: r.direzione,
+    }));
   });
   return { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient;
 }
@@ -165,7 +171,9 @@ describe('findChronologyConflicts — cosa chiede al database', () => {
       return pezzi.reduce((testo, pezzo, i) => {
         const valore = valori[i];
         const frammento =
-          valore && typeof valore === 'object' && Array.isArray((valore as { strings?: unknown }).strings)
+          valore &&
+          typeof valore === 'object' &&
+          Array.isArray((valore as { strings?: unknown }).strings)
             ? (valore as { strings: string[] }).strings.join('?')
             : i < valori.length
               ? '?'

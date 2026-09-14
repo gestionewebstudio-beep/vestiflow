@@ -1,10 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
-import {
-  parseAndValidateTableViewState,
-  serializeTableViewState,
-} from './table-view-state.util';
+import { parseAndValidateTableViewState, serializeTableViewState } from './table-view-state.util';
 
 describe('table-view-state.util', () => {
   const validState = {

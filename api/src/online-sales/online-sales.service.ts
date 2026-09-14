@@ -5,6 +5,7 @@ import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { annullatePerRiga, speditePerRiga } from '../sales-orders/sales-order-rettifiche.util';
 import {
   fromPrismaSource,
   sourceDisplayLabel,
@@ -54,6 +55,20 @@ export interface OnlineSaleLineRow {
   readonly vatCodeId: string | null;
   /** Etichetta Codice IVA risolta (o solo aliquota se nessun codice ha fatto match). */
   readonly vatCodeLabel: string | null;
+  /** Pezzi ORDINATI (la riga com'è), ANNULLATI (righe `cancel` del canale), SPEDITI (spedizioni). */
+  readonly orderedQuantity: number;
+  readonly cancelledQuantity: number;
+  readonly shippedQuantity: number;
+}
+
+/** Una rettifica del canale sull'ordine della Vendita: alla sua data, col suo importo. */
+export interface OnlineSaleRettificaRow {
+  readonly id: string;
+  readonly kind: string;
+  readonly occurredAt: string;
+  readonly totalMinor: number;
+  readonly taxMinor: number;
+  readonly note: string | null;
 }
 
 export interface OnlineSaleMovementRow {
@@ -74,6 +89,13 @@ export interface OnlineSaleDetail extends OnlineSaleRow {
   readonly shippingMinor: number;
   readonly taxMinor: number;
   readonly lines: readonly OnlineSaleLineRow[];
+  /**
+   * ⭐ Valore ORIGINARIO (`totalMinor`, mai riscritto) · RETTIFICHE dell'ordine ·
+   *    TOTALE AGGIORNATO = differenza (proprietario, 13/09/2026, #1014).
+   */
+  readonly refunds: readonly OnlineSaleRettificaRow[];
+  readonly refundTotalMinor: number;
+  readonly updatedTotalMinor: number;
   readonly movements: readonly OnlineSaleMovementRow[];
   readonly linkedDocuments: readonly {
     readonly id: string;
@@ -88,10 +110,7 @@ export interface OnlineSaleDetail extends OnlineSaleRow {
 export class OnlineSalesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(
-    tenantId: string,
-    query: ListOnlineSalesQueryDto,
-  ): Promise<Paginated<OnlineSaleRow>> {
+  async list(tenantId: string, query: ListOnlineSalesQueryDto): Promise<Paginated<OnlineSaleRow>> {
     const where = this.buildWhere(tenantId, query);
     const [total, sales] = await this.prisma.$transaction([
       this.prisma.onlineSale.count({ where }),
@@ -126,11 +145,7 @@ export class OnlineSalesService {
    *
    * ⚠️ `user` NON è opzionale: un parametro saltabile è come non averlo.
    */
-  async getDetail(
-    tenantId: string,
-    id: string,
-    user: UserProfileDto,
-  ): Promise<OnlineSaleDetail> {
+  async getDetail(tenantId: string, id: string, user: UserProfileDto): Promise<OnlineSaleDetail> {
     const sale = await this.prisma.onlineSale.findFirst({
       where: { id, tenantId },
       include: {
@@ -138,6 +153,30 @@ export class OnlineSalesService {
         location: { select: { name: true } },
         documents: {
           select: { id: true, type: true, reference: true, status: true },
+        },
+        order: {
+          select: {
+            // La somma delle rettifiche è di TESTATA (scritta coi rimborsi): una fonte.
+            refundTotalMinor: true,
+            refunds: {
+              orderBy: { occurredAt: 'asc' },
+              select: {
+                id: true,
+                kind: true,
+                occurredAt: true,
+                totalMinor: true,
+                taxMinor: true,
+                note: true,
+                lines: { select: { salesOrderLineId: true, quantity: true, restockType: true } },
+              },
+            },
+            lines: {
+              select: {
+                id: true,
+                spedizioni: { select: { salesOrderLineId: true, quantity: true } },
+              },
+            },
+          },
         },
       },
     });
@@ -149,6 +188,9 @@ export class OnlineSalesService {
       sale.locationId,
       'Non sei autorizzato ad accedere a questa vendita.',
     );
+    // Dopo il controllo di sede, come tutto il resto: niente si legge per un rifiuto.
+    const annullate = annullatePerRiga(sale.order.refunds);
+    const spedite = speditePerRiga(sale.order.lines.flatMap((line) => line.spedizioni));
 
     const movements = await this.prisma.stockMovement.findMany({
       where: {
@@ -186,7 +228,21 @@ export class OnlineSalesService {
         locationId: line.locationId,
         vatCodeId: line.vatCodeId,
         vatCodeLabel: vatSnapshotDisplayLabel(line.vatSnapshot),
+        orderedQuantity: line.quantity,
+        cancelledQuantity: line.salesOrderLineId ? (annullate.get(line.salesOrderLineId) ?? 0) : 0,
+        shippedQuantity: line.salesOrderLineId ? (spedite.get(line.salesOrderLineId) ?? 0) : 0,
       })),
+      refunds: sale.order.refunds.map((refund) => ({
+        id: refund.id,
+        kind: refund.kind,
+        occurredAt: refund.occurredAt.toISOString(),
+        totalMinor: refund.totalMinor,
+        taxMinor: refund.taxMinor,
+        note: refund.note,
+      })),
+      refundTotalMinor: sale.order.refundTotalMinor,
+      // Il totale della VENDITA (la sua fotografia) meno le rettifiche dell'ordine.
+      updatedTotalMinor: sale.totalMinor - sale.order.refundTotalMinor,
       movements: movements.map((movement) => ({
         id: movement.id,
         type: movement.type,
@@ -266,9 +322,7 @@ export class OnlineSalesService {
       };
     }>,
   ): OnlineSaleRow {
-    const ddt = sale.documents.find(
-      (doc) => doc.type === DocumentType.sales_ddt && doc.reference,
-    );
+    const ddt = sale.documents.find((doc) => doc.type === DocumentType.sales_ddt && doc.reference);
     return {
       id: sale.id,
       reference: sale.reference,

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  persistedLineVariants,
-  variantLabelSnapshot,
-} from './document-line-variant-snapshot.util';
+import { persistedLineVariants, variantLabelSnapshot } from './document-line-variant-snapshot.util';
 
 /**
  * ⛔ **Il difetto che questi test vietano**, e non è teorico: è la forma in cui
@@ -131,8 +128,18 @@ describe('variantLabelSnapshot', () => {
 
   it('non restituisce mai null o undefined', () => {
     const esiti = [
-      variantLabelSnapshot({ lineId: null, variantId: null, optionValues: null, persisted: undefined }),
-      variantLabelSnapshot({ lineId: 'line-1', variantId: 'var-M', optionValues: undefined, persisted: persistite }),
+      variantLabelSnapshot({
+        lineId: null,
+        variantId: null,
+        optionValues: null,
+        persisted: undefined,
+      }),
+      variantLabelSnapshot({
+        lineId: 'line-1',
+        variantId: 'var-M',
+        optionValues: undefined,
+        persisted: persistite,
+      }),
     ];
 
     for (const esito of esiti) {

@@ -5,6 +5,51 @@ import { mapShopifyRefunds } from './shopify-refund.util';
 const FALLBACK = new Date('2026-08-14T10:00:00.000Z');
 
 describe('mapShopifyRefunds', () => {
+  /**
+   * ⭐ Le RIGHE rimborsate, per quantità: misurato su #1014 del collaudo reale
+   *    (13/09/2026) — 1 pezzo su 3 annullato prima della spedizione. Le annullate
+   *    si leggono da qui (`restock_type = 'cancel'`), non da «ordinate − spedite».
+   */
+  it('porta le righe rimborsate con quantità e restock_type: le annullate sono un dato del canale', () => {
+    const [row] = mapShopifyRefunds(
+      {
+        taxes_included: false,
+        refunds: [
+          {
+            id: 1052690383143,
+            processed_at: '2026-09-13T15:11:58+02:00',
+            note: 'test',
+            order_adjustments: [],
+            refund_line_items: [
+              {
+                line_item_id: 18178452848935,
+                quantity: 1,
+                subtotal: '749.95',
+                total_tax: '0.00',
+                restock_type: 'cancel',
+                line_item: { tax_lines: [] },
+              },
+              // Una riga senza id remoto non si può agganciare: si scarta, il denaro resta.
+              { quantity: 1, subtotal: '1.00', total_tax: '0.00', restock_type: 'cancel' },
+            ],
+          },
+        ],
+      },
+      FALLBACK,
+    );
+
+    expect(row?.kind).toBe('cancellation');
+    expect(row?.lines).toEqual([
+      {
+        externalLineId: '18178452848935',
+        quantity: 1,
+        restockType: 'cancel',
+        subtotalMinor: 74995,
+        taxMinor: 0,
+      },
+    ]);
+  });
+
   it('ordine senza rimborsi non produce righe', () => {
     expect(mapShopifyRefunds({}, FALLBACK)).toEqual([]);
     expect(mapShopifyRefunds({ refunds: [] }, FALLBACK)).toEqual([]);

@@ -84,74 +84,19 @@
       — Origine, Tipo, Sede, Stato. Il telaio non sa cosa siano: sa dove stanno e
       con che passo.
     -->
-    @if (compatto() && pannelloAperto()) {
-      <button
-        type="button"
-        class="list-page__scrim"
-        aria-label="Chiudi i filtri"
-        (click)="pannelloAperto.set(false)"
-      ></button>
-    }
-
-    <div
-      class="list-page__filters"
-      [class.list-page__filters--panel]="compatto()"
-      [class.list-page__filters--open]="compatto() && pannelloAperto()"
-      [attr.role]="compatto() ? 'dialog' : null"
-      [attr.aria-modal]="compatto() ? 'true' : null"
-      [attr.aria-label]="compatto() ? 'Filtri' : null"
-      tabindex="-1"
-      #pannelloFiltri
-      (keydown)="onFiltriKeydown($event)"
+    <!--
+      ⭐ **La zona filtri è un pezzo CONDIVISO** (`docs/26` D1, 11/09/2026): la
+      riga su scrivania e il foglio laterale sotto `lg` vivono in
+      `app-table-filters-panel`, che anche le tabelle fuori dal telaio ospitano.
+      I filtri di dominio proiettati qui passano dentro, una volta sola.
+    -->
+    <app-table-filters-panel
+      [viewId]="columnsViewId()"
+      [(open)]="pannelloAperto"
+      (filtersCleared)="filtersCleared.emit()"
     >
-      @if (compatto()) {
-        <div class="list-page__filters-head">
-          <h2 class="list-page__filters-title">Filtri</h2>
-          <app-button
-            variant="ghost"
-            ariaLabel="Chiudi i filtri"
-            (click)="pannelloAperto.set(false)"
-          >
-            <i class="pi pi-times" aria-hidden="true"></i>
-          </app-button>
-        </div>
-      }
-
       <ng-content select="[filters]" />
-
-      <!--
-        ⭐ **I filtri di COLONNA nel pannello compatto** (`14` §0.2).
-
-        Sotto `lg` le intestazioni non esistono, quindi il controllo che su
-        scrivania vive nella colonna diventa una voce di elenco. **È lo stesso
-        controllo con lo stesso stato**: la sorgente è una sola, lo store per
-        vista — se fossero due, l'uno mostrerebbe filtri che l'altro non ha.
-
-        ⚠️ **Sopra `lg` non si rende affatto**, e non è un `display: none`:
-        `colonneFiltrabili()` torna vuoto. Il contenuto proiettato si rende una
-        volta sola, e due vesti vive insieme sono il difetto che §9 chiama «la
-        stessa riga non esiste due volte».
-      -->
-      @for (colonna of colonneFiltrabili(); track colonna.id) {
-        <div class="list-page__filter-field">
-          <span class="list-page__filter-label">{{ colonna.label }}</span>
-          <app-column-filter
-            [kind]="formaFiltro(colonna)"
-            [columnLabel]="colonna.label"
-            [options]="opzioniFiltro(colonna.id)"
-            [value]="valoreFiltro(colonna.id)"
-            (changed)="onFiltroColonna(colonna.id, $event)"
-          />
-        </div>
-      }
-
-      @if (compatto()) {
-        <div class="list-page__filters-foot">
-          <app-button variant="ghost" (click)="azzeraFiltri()">Azzera filtri</app-button>
-          <app-button (click)="pannelloAperto.set(false)">Vedi risultati</app-button>
-        </div>
-      }
-    </div>
+    </app-table-filters-panel>
 
     <div class="list-page__view">
       <!--
@@ -179,15 +124,8 @@
         sono una di troppo. Lo decide `selectionToggleable`, che la pagina
         accende solo se l'elenco è davvero selezionabile.
       -->
-      @if (selectionToggleable() && compatto()) {
-        <app-button
-          variant="secondary"
-          [ariaPressed]="selectionMode()"
-          (click)="onToggleSelectionMode()"
-        >
-          <i class="pi pi-check-square" aria-hidden="true"></i>
-          Seleziona
-        </app-button>
+      @if (selectionToggleable()) {
+        <app-table-selection-toggle [(selectionMode)]="selectionMode" />
       }
 
       <ng-content select="[viewActions]" />
@@ -208,20 +146,12 @@
       @if (columnsViewId(); as vista) {
         <app-table-column-picker [viewId]="vista" [iconOnly]="compatto()" />
       }
-      <app-button
-        variant="secondary"
-        [ariaPressed]="filtersOn()"
-        [ariaLabel]="compatto() ? 'Filtri' : undefined"
-        (click)="toggleFiltri()"
-      >
-        <i class="pi pi-filter" aria-hidden="true"></i>
-        @if (!compatto()) {
-          Filtri
-        }
-        @if (conteggioFiltri() > 0) {
-          <span>&nbsp;({{ conteggioFiltri() }})</span>
-        }
-      </app-button>
+      <app-table-filters-button
+        [viewId]="columnsViewId()"
+        [activeFilterCount]="activeFilterCount()"
+        [(open)]="pannelloAperto"
+        (filtersCleared)="filtersCleared.emit()"
+      />
     </div>
   </div>
 }

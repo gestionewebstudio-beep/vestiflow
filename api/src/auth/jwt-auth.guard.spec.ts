@@ -191,8 +191,6 @@ describe('JwtAuthGuard', () => {
       switchToHttp: () => ({ getRequest: () => request }),
     };
 
-    await expect(guard.canActivate(ctx as never)).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(guard.canActivate(ctx as never)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });

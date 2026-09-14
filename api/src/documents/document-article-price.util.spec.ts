@@ -36,7 +36,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
   it('con la spunta spenta non scrive niente', async () => {
     const { tx, updateMany } = createTx();
 
-    await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], { updateArticlePrices: false });
+    await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], {
+      updateArticlePrices: false,
+    });
 
     expect(updateMany).not.toHaveBeenCalled();
   });
@@ -44,7 +46,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
   it('con la spunta accesa scrive il prezzo al pubblico sulla variante', async () => {
     const { tx, updateMany } = createTx();
 
-    await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], { updateArticlePrices: true });
+    await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], {
+      updateArticlePrices: true,
+    });
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: 'var-1', tenantId: 'tenant-1' },
@@ -55,12 +59,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
   it('una riga senza articolo non tocca niente', async () => {
     const { tx, updateMany } = createTx();
 
-    await applyArticlePriceUpdates(
-      tx,
-      'tenant-1',
-      [{ variantId: null, sellingPriceMinor: 2500 }],
-      { updateArticlePrices: true },
-    );
+    await applyArticlePriceUpdates(tx, 'tenant-1', [{ variantId: null, sellingPriceMinor: 2500 }], {
+      updateArticlePrices: true,
+    });
 
     expect(updateMany).not.toHaveBeenCalled();
   });
@@ -85,7 +86,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
     it('prezzo Shopify assente = non toccare, anche se il pubblico cambia', async () => {
       const { tx, updateMany } = createTx();
 
-      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], { updateArticlePrices: true });
+      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], {
+        updateArticlePrices: true,
+      });
 
       // Con Shopify attivo il prezzo canale ha vita propria: non lo si allinea
       // di nascosto al prezzo al pubblico.
@@ -97,7 +100,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
     it('il prezzo canale segue quello di vendita quando questo cambia', async () => {
       const { tx, updateMany } = createTx(1000, false);
 
-      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], { updateArticlePrices: true });
+      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2500 })], {
+        updateArticlePrices: true,
+      });
 
       expect(updateMany.mock.calls[0]![0].data).toEqual({
         sellingPriceMinor: 2500,
@@ -117,7 +122,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
       // Il confronto è ora alla precisione del contratto.
       const { tx, updateMany } = createTx(1000, false);
 
-      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 1000.4 })], { updateArticlePrices: true });
+      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 1000.4 })], {
+        updateArticlePrices: true,
+      });
 
       expect(updateMany.mock.calls[0]![0].data.shopifyPriceMinor).toBeCloseTo(1000.4, 4);
     });
@@ -128,12 +135,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
       // potuto vedere.
       const { tx, updateMany } = createTx(1000, false);
 
-      await applyArticlePriceUpdates(
-        tx,
-        'tenant-1',
-        [riga({ shopifyPriceMinor: 9999 })],
-        { updateArticlePrices: true },
-      );
+      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ shopifyPriceMinor: 9999 })], {
+        updateArticlePrices: true,
+      });
 
       expect(updateMany).not.toHaveBeenCalled();
     });
@@ -153,12 +157,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
     it('⭐ 2049,0000 → 2049,1803: cambiato, e la copia porta la coda', async () => {
       const { tx, updateMany } = createTx(2049, false);
 
-      await applyArticlePriceUpdates(
-        tx,
-        'tenant-1',
-        [riga({ sellingPriceMinor: 2049.1803 })],
-        { updateArticlePrices: true },
-      );
+      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2049.1803 })], {
+        updateArticlePrices: true,
+      });
 
       expect(updateMany.mock.calls[0]![0].data.shopifyPriceMinor).toBeCloseTo(2049.1803, 4);
       expect(updateMany.mock.calls[0]![0].data.sellingPriceMinor).toBeCloseTo(2049.1803, 4);
@@ -167,12 +168,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
     it('lo stesso valore non fa scattare la copia', async () => {
       const { tx, updateMany } = createTx(2049.1803, false);
 
-      await applyArticlePriceUpdates(
-        tx,
-        'tenant-1',
-        [riga({ sellingPriceMinor: 2049.1803 })],
-        { updateArticlePrices: true },
-      );
+      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2049.1803 })], {
+        updateArticlePrices: true,
+      });
 
       expect(updateMany.mock.calls[0]![0].data).not.toHaveProperty('shopifyPriceMinor');
     });
@@ -180,12 +178,9 @@ describe('prezzi di anagrafica da un Arrivo merce', () => {
     it('⭐ valori diversi oltre il quarto decimale, uguali per il contratto: nessuna copia', async () => {
       const { tx, updateMany } = createTx(2049.18032786, false);
 
-      await applyArticlePriceUpdates(
-        tx,
-        'tenant-1',
-        [riga({ sellingPriceMinor: 2049.18031111 })],
-        { updateArticlePrices: true },
-      );
+      await applyArticlePriceUpdates(tx, 'tenant-1', [riga({ sellingPriceMinor: 2049.18031111 })], {
+        updateArticlePrices: true,
+      });
 
       expect(updateMany.mock.calls[0]![0].data).not.toHaveProperty('shopifyPriceMinor');
     });

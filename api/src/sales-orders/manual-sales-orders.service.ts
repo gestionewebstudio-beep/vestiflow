@@ -886,6 +886,7 @@ export class ManualSalesOrdersService {
         orderNumber: true,
         channelMissingSince: true,
         onlineSale: { select: { id: true } },
+        shipments: { select: { id: true }, take: 1 },
       },
     });
     if (!order) {
@@ -909,6 +910,10 @@ export class ManualSalesOrdersService {
     }
     if (order.onlineSale) {
       throw new ConflictException('Ordine con Vendita online collegata: non è eliminabile.');
+    }
+    if (order.shipments.length > 0) {
+      // Una spedizione acquisita ha scaricato merce: l'ordine non sparisce.
+      throw new ConflictException('Ordine con spedizioni acquisite: non è eliminabile.');
     }
 
     const syncTargets = new Set<string>();

@@ -18,6 +18,7 @@ import { StoreSalesModule } from './store-sales/store-sales.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { TikTokModule } from './tiktok/tiktok.module';
 import { validateEnv } from './config/env.validation';
+import { PlatformAuditModule } from './common/audit/platform-audit.module';
 import { PlatformAdminModule } from './common/platform-admin/platform-admin.module';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -37,10 +38,17 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+      // ⭐ L'istanza dichiara QUALE file di ambiente legge. Di serie `.env`;
+      //    il collaudo reale Shopify (`docs/28`) parte con
+      //    `VESTIFLOW_ENV_FILE=.env.collaudo.local`, e i valori di sviluppo —
+      //    il database condiviso, la porta 3000 — non entrano nemmeno per
+      //    errore: ConfigModule carica un solo file, non un ripiego.
+      envFilePath: process.env['VESTIFLOW_ENV_FILE'] ?? '.env',
     }),
     // Rate limiting globale (anti brute-force / DoS). 300 req/min per IP:
     // sufficiente per un operatore di gestionale, blocca abusi automatizzati.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    PlatformAuditModule,
     PlatformAdminModule,
     PrismaModule,
     SupportSessionModule,

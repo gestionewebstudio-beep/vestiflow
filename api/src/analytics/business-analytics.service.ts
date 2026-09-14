@@ -19,7 +19,27 @@ import {
   type AggregatableMovement,
   type SalesAggregate,
 } from './movement-sales.util';
-import { onlineOriginalKey, type RevenueLineMaps } from './movement-sales-revenue.util';
+import type { RevenueLineMaps } from './movement-sales-revenue.util';
+import {
+  addOnlineRefundsToAggregate,
+  addOnlineSalesToAggregate,
+  channelOfSale,
+  type AggregatableOnlineRefund,
+  type AggregatableOnlineSale,
+} from './movement-sales.util';
+import { rettificaAmmessaWhere } from '../corrispettivi/corrispettivi-query.util';
+
+/** Le sedi del perimetro, dal filtro dei movimenti; `null` = nessun filtro. */
+function sediDelPerimetro(scope: Prisma.StockMovementWhereInput): ReadonlySet<string> | null {
+  const filtro = scope.locationId;
+  if (typeof filtro === 'string') {
+    return new Set([filtro]);
+  }
+  if (filtro && typeof filtro === 'object' && 'in' in filtro && Array.isArray(filtro.in)) {
+    return new Set(filtro.in as string[]);
+  }
+  return null;
+}
 import {
   enumeratePeriodDates,
   periodDateTimeRange,
@@ -29,13 +49,18 @@ import {
 
 /**
  * Movimenti che il report del gestionale conta come vendite (§②): vendita al
- * banco, vendita online, reso. `unload`/`adjustment`/`transfer` sono operazioni
- * di magazzino, non vendite, e restano fuori. Le vendite manuali (movimenti
- * `sale` a mano) oggi non esistono: includerle domani = aggiungere un tipo qui.
+ * banco e reso. `unload`/`adjustment`/`transfer` sono operazioni di magazzino,
+ * non vendite, e restano fuori. Le vendite manuali (movimenti `sale` a mano)
+ * oggi non esistono: includerle domani = aggiungere un tipo qui.
+ *
+ * ⭐ `online_sale` NON sta più qui (strada A, 12/09/2026): la Vendita online
+ *    entra per la SUA data, una volta, con i suoi totali di riga — non movimento
+ *    per movimento. Con una spedizione a cavallo di due mesi, un mese chiuso non
+ *    cambiava più e la stessa Vendita contava in due mesi: ora conta una volta,
+ *    nel periodo della Vendita. Il costo dei suoi movimenti la segue.
  */
 const SALE_REPORT_MOVEMENT_TYPES: StockMovementType[] = [
   StockMovementType.sale,
-  StockMovementType.online_sale,
   StockMovementType.return,
 ];
 
@@ -237,7 +262,142 @@ export class BusinessAnalyticsService {
 
     const maps = await this.loadRevenueLineMaps(tenantId, movements);
     const dailyDates = period ? enumeratePeriodDates(period.from, period.to) : undefined;
-    return aggregateSalesMovements(movements, maps, dailyDates);
+    const aggregate = aggregateSalesMovements(movements, maps, dailyDates);
+    const [vendite, rettifiche] = await Promise.all([
+      this.loadOnlineSales(tenantId, range, movementScope),
+      this.loadOnlineRefunds(tenantId, range, movementScope),
+    ]);
+    return addOnlineRefundsToAggregate(addOnlineSalesToAggregate(aggregate, vendite), rettifiche);
+  }
+
+  /**
+   * ⭐ Le RETTIFICHE del canale del periodo, per data del rimborso: le stesse
+   *    righe che il Registro sottrae (`rettificaAmmessaWhere`, `docs/08` §3-bis),
+   *    riusate così come sono persistite — importo dal rimborso, pezzi dalle sue
+   *    righe, SKU e prodotto dalla riga d'ordine collegata. Il perimetro di sede
+   *    è quello della Vendita online dell'ordine (l'uscita): senza sede, fuori,
+   *    come le righe di vendita senza sede.
+   */
+  private async loadOnlineRefunds(
+    tenantId: string,
+    range: { gte: Date; lte: Date },
+    movementScope: Prisma.StockMovementWhereInput,
+  ): Promise<AggregatableOnlineRefund[]> {
+    const sediAmmesse = sediDelPerimetro(movementScope);
+    const rimborsi = await this.prisma.salesOrderRefund.findMany({
+      where: { tenantId, occurredAt: range, ...rettificaAmmessaWhere() },
+      select: {
+        id: true,
+        occurredAt: true,
+        totalMinor: true,
+        order: { select: { source: true, onlineSale: { select: { locationId: true } } } },
+        lines: {
+          select: {
+            quantity: true,
+            subtotalMinor: true,
+            taxMinor: true,
+            // La riga d'ordine: SKU e titolo sono la fotografia di allora, come
+            // sulle righe della Vendita online.
+            line: { select: { variantId: true, sku: true, title: true } },
+          },
+        },
+      },
+    });
+    return rimborsi
+      .filter((rimborso) => {
+        const sede = rimborso.order.onlineSale?.locationId ?? null;
+        return sediAmmesse === null || (sede !== null && sediAmmesse.has(sede));
+      })
+      .map((rimborso) => ({
+        id: rimborso.id,
+        channel: channelOfSale(rimborso.order.source),
+        occurredAt: rimborso.occurredAt,
+        totalMinor: rimborso.totalMinor,
+        lines: rimborso.lines.map((line) => ({
+          variantId: line.line?.variantId ?? null,
+          sku: line.line?.sku ?? '',
+          productName: line.line?.title ?? line.line?.sku ?? '',
+          quantity: line.quantity,
+          amountMinor: line.subtotalMinor + line.taxMinor,
+        })),
+      }));
+  }
+
+  /**
+   * ⭐ Le Vendite online del periodo, per data della Vendita (strada A).
+   *    Il perimetro di sede vale riga per riga — la sede di uscita della riga,
+   *    poi quella di testata — come valeva sui movimenti; una riga senza sede
+   *    resta fuori, com'era (non aveva un movimento). Il costo è la somma dei
+   *    `totalCostMinor` congelati sui movimenti della Vendita nel perimetro,
+   *    qualunque sia la loro data: sono le STESSE righe del ricavo.
+   */
+  private async loadOnlineSales(
+    tenantId: string,
+    range: { gte: Date; lte: Date },
+    movementScope: Prisma.StockMovementWhereInput,
+  ): Promise<AggregatableOnlineSale[]> {
+    const sediAmmesse = sediDelPerimetro(movementScope);
+    const sales = await this.prisma.onlineSale.findMany({
+      where: { tenantId, fulfilledAt: range },
+      select: {
+        id: true,
+        channel: true,
+        fulfilledAt: true,
+        locationId: true,
+        lines: {
+          select: {
+            variantId: true,
+            sku: true,
+            quantity: true,
+            totalMinor: true,
+            locationId: true,
+            variant: { select: { product: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+    if (sales.length === 0) {
+      return [];
+    }
+    const costi = await this.prisma.stockMovement.groupBy({
+      by: ['sourceDocumentId'],
+      where: {
+        tenantId,
+        ...movementScope,
+        type: StockMovementType.online_sale,
+        sourceDocumentType: DocumentType.online_sale,
+        sourceDocumentId: { in: sales.map((sale) => sale.id) },
+      },
+      _sum: { totalCostMinor: true },
+    });
+    const costoPerVendita = new Map(
+      costi.map((riga) => [riga.sourceDocumentId as string, riga._sum.totalCostMinor ?? 0]),
+    );
+    return sales.flatMap((sale) => {
+      const lines = sale.lines
+        .filter((line) => {
+          const sede = line.locationId ?? sale.locationId;
+          return sede !== null && (sediAmmesse === null || sediAmmesse.has(sede));
+        })
+        .map((line) => ({
+          variantId: line.variantId,
+          sku: line.sku,
+          productName: line.variant?.product.name ?? line.sku,
+          quantity: line.quantity,
+          totalMinor: line.totalMinor,
+        }));
+      return lines.length === 0
+        ? []
+        : [
+            {
+              id: sale.id,
+              channel: channelOfSale(sale.channel),
+              fulfilledAt: sale.fulfilledAt,
+              costMinor: costoPerVendita.get(sale.id) ?? 0,
+              lines,
+            },
+          ];
+    });
   }
 
   /**
@@ -251,9 +411,10 @@ export class BusinessAnalyticsService {
   ): Promise<RevenueLineMaps> {
     const documentLineIds: string[] = [];
     const onlineSaleLineIds: string[] = [];
-    const onlineReturnSaleIds: string[] = [];
-    const onlineReturnVariantIds: string[] = [];
 
+    // Il reso online non ha riga e non porta ricavo da qui: la sua rettifica è il
+    // rimborso persistito (`loadOnlineRefunds`). Qui c'era la lettura del prezzo
+    // originale per stimarlo.
     for (const movement of movements) {
       if (movement.sourceLineId) {
         if (movement.sourceDocumentType === DocumentType.online_sale) {
@@ -261,20 +422,12 @@ export class BusinessAnalyticsService {
         } else {
           documentLineIds.push(movement.sourceLineId);
         }
-      } else if (
-        movement.type === StockMovementType.return &&
-        movement.sourceDocumentType === DocumentType.online_sale &&
-        movement.sourceDocumentId &&
-        movement.variantId
-      ) {
-        onlineReturnSaleIds.push(movement.sourceDocumentId);
-        onlineReturnVariantIds.push(movement.variantId);
       }
     }
 
     const uniq = (values: readonly string[]): string[] => [...new Set(values)];
 
-    const [documentLines, onlineSaleLines, originalOnlineLines] = await Promise.all([
+    const [documentLines, onlineSaleLines] = await Promise.all([
       documentLineIds.length > 0
         ? this.prisma.documentLine.findMany({
             where: { tenantId, id: { in: uniq(documentLineIds) } },
@@ -291,29 +444,11 @@ export class BusinessAnalyticsService {
             select: { id: true, totalMinor: true },
           })
         : Promise.resolve([]),
-      onlineReturnSaleIds.length > 0
-        ? this.prisma.onlineSaleLine.findMany({
-            where: {
-              tenantId,
-              onlineSaleId: { in: uniq(onlineReturnSaleIds) },
-              variantId: { in: uniq(onlineReturnVariantIds) },
-            },
-            select: { onlineSaleId: true, variantId: true, unitPriceMinor: true },
-          })
-        : Promise.resolve([]),
     ]);
 
     return {
       documentLineTotal: new Map(documentLines.map((line) => [line.id, line.lineGrossTotalMinor])),
       onlineSaleLineTotal: new Map(onlineSaleLines.map((line) => [line.id, line.totalMinor])),
-      onlineOriginalUnitPrice: new Map(
-        originalOnlineLines
-          .filter((line) => line.variantId != null)
-          .map((line) => [
-            onlineOriginalKey(line.onlineSaleId, line.variantId as string),
-            line.unitPriceMinor,
-          ]),
-      ),
     };
   }
 

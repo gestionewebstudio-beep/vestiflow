@@ -39,21 +39,17 @@
     filtro. Sono due domande diverse — quando è stato comprato, quando è partito
     — e su un canale online la distanza fra le due è il dato che si guarda.
   -->
+  <!--
+    ⭐ Il selettore Periodo è quello condiviso, estratto dai Corrispettivi
+    (11/09/2026), con le voci di questo elenco: senza «Personalizzato», come prima.
+  -->
   <div period>
-    <div class="os-list__field">
-      <app-select-menu
-        chipLabel="Periodo"
-        [options]="periodOptions"
-        [value]="periodPreset()"
-        ariaLabel="Filtra per periodo"
-        placeholder="Periodo"
-        [includeEmptyOption]="false"
-        [compact]="true"
-        [fullWidth]="true"
-        [labelOnly]="true"
-        (valueChange)="onPeriodPresetChange($event)"
-      />
-    </div>
+    <app-period-filter
+      idPrefix="os-date"
+      [options]="periodOptions"
+      [value]="periodPreset()"
+      (valueChange)="onPeriodPresetChange($event)"
+    />
   </div>
 
   <div filters>

@@ -39,7 +39,7 @@ import { vestiflowExportFilename } from '@core/export/background-blob-export-fil
 import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { ShopifyConnection } from '@core/models/shopify-connection.model';
+
 import type { Customer } from '@core/models/customer.model';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
@@ -47,16 +47,6 @@ import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
-import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
-import {
-  canSyncShopifyCustomersOrOrders,
-  isShopifyConnected,
-} from '@domain/channels/shopify/models/shopify-page-sync.util';
-import {
-  formatShopifyCustomersSyncFeedback,
-  type ShopifySyncFeedback,
-} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
-import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import { CustomerTableComponent } from './components/customer-table/customer-table.component';
 import {
@@ -71,7 +61,6 @@ import {
 } from './models/customer-table-columns.config';
 
 const SEARCH_DEBOUNCE_MS = 300;
-const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
 const EMPTY_META: PageMeta = {
   page: 1,
@@ -97,7 +86,7 @@ type CustomerListState =
     ListActionsBarComponent,
     ListPageComponent,
     CustomerTableComponent,
-    ShopifySyncFeedbackComponent,
+
     DeleteConfirmComponent,
   ],
   templateUrl: './customer-list.component.html',
@@ -110,14 +99,12 @@ export class CustomerListComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly blobExport = inject(BackgroundBlobExportService);
   private readonly authService = inject(AuthService);
-  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+
   private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
 
   protected readonly customerListView = CUSTOMER_LIST_VIEW;
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
-
-  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 5;
 
@@ -127,21 +114,8 @@ export class CustomerListComponent {
   private readonly refreshTick = signal(0);
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
-  protected readonly shopifyCustomersLoading = signal(false);
+
   protected readonly exporting = computed(() => this.blobExport.isActive(CUSTOMERS_CSV_EXPORT_ID));
-  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
-  protected readonly shopifySyncError = signal<string | null>(null);
-
-  private readonly shopifyConnection = toSignal(
-    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
-    { initialValue: null as ShopifyConnection | null },
-  );
-
-  protected readonly showShopifyCustomersSync = computed(
-    () =>
-      isShopifyConnected(this.shopifyConnection()) &&
-      canSyncShopifyCustomersOrOrders(this.authService.currentUser()),
-  );
 
   protected readonly canManage = computed(() => canManageCustomers(this.authService.currentUser()));
 
@@ -234,31 +208,6 @@ export class CustomerListComponent {
     this.refreshTick.update((tick) => tick + 1);
   }
 
-  protected syncCustomersFromShopify(): void {
-    if (this.shopifyCustomersLoading()) {
-      return;
-    }
-
-    this.shopifyCustomersLoading.set(true);
-    this.clearShopifyFeedback();
-    this.shopifySyncError.set(null);
-
-    this.shopifyConnectionService
-      .syncCustomers()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.shopifyCustomersLoading.set(false);
-          this.showShopifyFeedback(formatShopifyCustomersSyncFeedback(result));
-          this.reload();
-        },
-        error: (err: unknown) => {
-          this.shopifyCustomersLoading.set(false);
-          this.shopifySyncError.set(this.extractErrorMessage(err));
-        },
-      });
-  }
-
   protected exportCustomers(): void {
     if (this.exporting()) {
       return;
@@ -274,10 +223,6 @@ export class CustomerListComponent {
       successMessage: 'Export clienti completato: download avviato.',
       errorMessage: 'Export clienti non riuscito. Riprova tra qualche istante.',
     });
-  }
-
-  protected dismissShopifyFeedback(): void {
-    this.clearShopifyFeedback();
   }
 
   /**
@@ -503,16 +448,8 @@ export class CustomerListComponent {
       );
     }
 
-    if (this.showShopifyCustomersSync()) {
-      azioni.push({
-        id: 'shopify-sync',
-        label: 'Sincronizza da Shopify',
-        icon: 'pi-sync',
-        requires: 'none',
-        busy: this.shopifyCustomersLoading(),
-        run: () => this.syncCustomersFromShopify(),
-      });
-    }
+    // ⛔ Qui c’era «Sincronizza da Shopify»: sta in Impostazioni → Shopify, con lo
+    //    stesso permesso (11/09/2026).
 
     return azioni;
   });
@@ -544,29 +481,5 @@ export class CustomerListComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
-  }
-
-  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
-    this.clearShopifyFeedback();
-    this.shopifyFeedback.set(feedback);
-    this.shopifyFeedbackTimer = setTimeout(() => {
-      this.shopifyFeedback.set(null);
-      this.shopifyFeedbackTimer = null;
-    }, SHOPIFY_FEEDBACK_DISMISS_MS);
-  }
-
-  private clearShopifyFeedback(): void {
-    if (this.shopifyFeedbackTimer) {
-      clearTimeout(this.shopifyFeedbackTimer);
-      this.shopifyFeedbackTimer = null;
-    }
-    this.shopifyFeedback.set(null);
-  }
-
-  private extractErrorMessage(err: unknown): string {
-    if (isAppError(err)) {
-      return err.message;
-    }
-    return 'Operazione non riuscita. Riprova.';
   }
 }

@@ -408,6 +408,8 @@ function createFakePrisma(db: FakeDb): PrismaService {
         return Promise.resolve({ ...created });
       },
     },
+    // La registrazione dell’origine scrive qui, nella stessa transazione.
+    shopifyInventorySyncState: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     documentSequence: {
       upsert: ({
         where,
@@ -1204,7 +1206,6 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(db.movements[0]!.createdAt).toEqual(createdAtPrima);
   });
 
-
   // ── Numero e serie in MODIFICA: il contratto comune, non un'eccezione ─────
   //
   // ⛔ Il banco li congelava dopo la nascita (`if (!existing)`), e li rifiutava
@@ -1866,7 +1867,9 @@ describe('StoreSalesService (fase 3 §12)', () => {
   it('⭐ ma un numero DICHIARATO si scrive anche sul reso: stesso contratto comune', async () => {
     const db = createDb();
     const { service } = createService(db);
-    await reso(db, [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }]);
+    await reso(db, [
+      { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
+    ]);
     const doc = db.documents[0]!;
 
     const secondo = await service.createReturn(
@@ -3585,8 +3588,6 @@ describe('la spunta «Scarica giacenze» della Vendita', () => {
  * niente. Questi test esistono perché la prossima volta non sia così.
  */
 describe('la descrizione è il nome, la variante ha la sua colonna', () => {
-
-
   it('riga nuova: descrizione = solo il nome, etichetta = la variante', async () => {
     const db = createDb();
     const { service } = createService(db);

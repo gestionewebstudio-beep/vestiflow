@@ -105,50 +105,71 @@
       </app-button>
     </div>
 
-    <div class="inventory-import__table-scroll">
-      <table class="inventory-import__table">
-        <thead>
-          <tr>
-            <th scope="col">Variante</th>
-            <th scope="col">SKU</th>
-            <th scope="col">Location</th>
-            <th scope="col" class="inventory-import__col--numeric">Attuale</th>
-            <th scope="col" class="inventory-import__col--numeric">Nuovo</th>
-            <th scope="col" class="inventory-import__col--numeric">Delta</th>
-            <th scope="col">Stato</th>
-            <th scope="col">Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (item of data.rows; track item.key) {
-            <tr>
-              <td data-label="Variante">{{ item.variantTitle }}</td>
-              <td data-label="SKU">{{ item.sku }}</td>
-              <td data-label="Location">{{ item.locationName }}</td>
-              <td class="inventory-import__numeric tabular-nums" data-label="Attuale">
-                {{ item.currentAvailable ?? '—' }}
-              </td>
-              <td class="inventory-import__numeric tabular-nums" data-label="Nuovo">
-                {{ item.newAvailable ?? '—' }}
-              </td>
-              <td class="inventory-import__numeric tabular-nums" data-label="Delta">
-                @if (item.delta === null) {
-                  —
-                } @else if (item.delta > 0) {
-                  +{{ item.delta }}
-                } @else {
-                  {{ item.delta }}
-                }
-              </td>
-              <td data-label="Stato">
-                <app-badge [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
-              </td>
-              <td data-label="Note">{{ item.message ?? '—' }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <!--
+      ⭐ **Sul MOTORE comune** (`docs/26` A2), nella forma dell'import prodotti:
+      colonne dal catalogo, filtri e ordinamento condivisi, maniglie, card
+      progettata sotto `lg`. Era una `<table>` a mano che non aveva niente di
+      tutto questo.
+
+      ⭐ Con la riga totali: Attuale, Nuovo e Delta sono quantità, e la somma dei
+      delta dice di quanto l'import muove il magazzino.
+    -->
+    <div class="inventory-import__tools">
+      <app-table-column-picker [viewId]="vistaAnteprima" />
+      <app-table-filters-button [viewId]="vistaAnteprima" [(open)]="filtriAnteprimaAperti" />
     </div>
+    <app-table-filters-panel [viewId]="vistaAnteprima" [(open)]="filtriAnteprimaAperti" />
+
+    <app-data-table
+      caption="Anteprima delle giacenze nel file"
+      [columns]="colonneAnteprima()"
+      [viewId]="vistaAnteprima"
+      [sections]="sezioniAnteprima()"
+      [rowId]="rigaAnteprimaId"
+      [cellText]="testoAnteprima"
+      [sortable]="true"
+      [sort]="ordineAnteprima()"
+      (sortChange)="ordineAnteprima.set($event)"
+      [totals]="totaliAnteprima()"
+    >
+      <!-- L'unica cella che non è testo: lo stato è una pastiglia. -->
+      <ng-template appCell="status" let-item>
+        <app-badge [flat]="true" [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
+      </ng-template>
+
+      <!--
+        ⭐ **La card si progetta, non si impila** (`regole-stile-ui`): identità,
+        parole, numeri. Sulla card i numeri portano il proprio NOME: «12 → 15»
+        senza etichetta non dice quale sia l'attuale e quale il nuovo.
+      -->
+      <ng-template appRowCard let-item>
+        <div class="list-card__head">
+          <span class="list-card__ident">
+            <span class="list-card__what">{{ item.variantTitle }}</span>
+          </span>
+          <span class="list-card__anchor">
+            <app-badge [flat]="true" [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
+          </span>
+        </div>
+        <div class="list-card__words">
+          <span class="tabular-nums">{{ item.sku }}</span>
+          <span>{{ item.locationName }}</span>
+          @if (item.message) {
+            <span>{{ item.message }}</span>
+          }
+        </div>
+        <div class="list-card__figures">
+          <span class="tabular-nums">Attuale {{ testoAnteprima(item, 'currentAvailable') }}</span>
+          <span class="tabular-nums">Nuovo {{ testoAnteprima(item, 'newAvailable') }}</span>
+          <span
+            class="list-card__total tabular-nums"
+            [class.list-card__total--negative]="item.delta !== null && item.delta < 0"
+          >
+            Delta {{ testoAnteprima(item, 'delta') }}
+          </span>
+        </div>
+      </ng-template>
+    </app-data-table>
   }
 
   @if (phase() === 'done' && result(); as importResult) {
@@ -176,32 +197,48 @@
     </div>
 
     @if (importResult.rows.length > 0) {
-      <div class="inventory-import__table-scroll">
-        <table class="inventory-import__table">
-          <thead>
-            <tr>
-              <th scope="col">SKU</th>
-              <th scope="col">Location</th>
-              <th scope="col">Esito</th>
-              <th scope="col">Dettaglio</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of importResult.rows; track row.key) {
-              <tr>
-                <td data-label="SKU">{{ row.sku }}</td>
-                <td data-label="Location">{{ row.locationName }}</td>
-                <td data-label="Esito">
-                  <app-badge [tone]="resultStatusTone(row.status)">
-                    {{ resultStatusLabel(row.status) }}
-                  </app-badge>
-                </td>
-                <td data-label="Dettaglio">{{ row.message ?? '—' }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+      <div class="inventory-import__tools">
+        <app-table-column-picker [viewId]="vistaEsito" />
+        <app-table-filters-button [viewId]="vistaEsito" [(open)]="filtriEsitoAperti" />
       </div>
+      <app-table-filters-panel [viewId]="vistaEsito" [(open)]="filtriEsitoAperti" />
+
+      <app-data-table
+        caption="Esito dell’import, riga per riga"
+        [columns]="colonneEsito()"
+        [viewId]="vistaEsito"
+        [sections]="sezioniEsito()"
+        [rowId]="rigaEsitoId"
+        [cellText]="testoEsito"
+        [sortable]="true"
+        [sort]="ordineEsito()"
+        (sortChange)="ordineEsito.set($event)"
+      >
+        <ng-template appCell="status" let-row>
+          <app-badge [flat]="true" [tone]="resultStatusTone(row.status)">
+            {{ resultStatusLabel(row.status) }}
+          </app-badge>
+        </ng-template>
+
+        <ng-template appRowCard let-row>
+          <div class="list-card__head">
+            <span class="list-card__ident">
+              <span class="list-card__what tabular-nums">{{ row.sku }}</span>
+            </span>
+            <span class="list-card__anchor">
+              <app-badge [flat]="true" [tone]="resultStatusTone(row.status)">
+                {{ resultStatusLabel(row.status) }}
+              </app-badge>
+            </span>
+          </div>
+          <div class="list-card__words">
+            <span>{{ row.locationName }}</span>
+            @if (row.message) {
+              <span>{{ row.message }}</span>
+            }
+          </div>
+        </ng-template>
+      </app-data-table>
     }
 
     <div class="inventory-import__actions">

@@ -10,6 +10,7 @@ import {
 import type { Money } from '@core/models/money.model';
 import { formatDate } from '@core/utils/date.util';
 import { DEFAULT_CURRENCY, formatMoney, moneyToDecimalString } from '@core/utils/money.util';
+import { totaleAggiornato } from '@domain/sales-orders/models/sales-order-rettifiche.util';
 
 import {
   financialStatusLabel,
@@ -43,15 +44,34 @@ function orderStateLabel(order: SalesOrder): string {
 interface SalesOrderListTotals {
   readonly count: number;
   readonly total: Money;
+  /** Le rettifiche del canale, sommate; il totale aggiornato è la differenza. */
+  readonly refundTotal: Money;
+  readonly updatedTotal: Money;
+}
+
+/** Un importo col segno meno: le rettifiche entrano negative nei file, come nel Registro. */
+function negato(money: Money): Money {
+  return { amountMinor: -money.amountMinor, currencyCode: money.currencyCode };
 }
 
 function sumTotals(orders: readonly SalesOrder[]): SalesOrderListTotals {
   const currencyCode = orders[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
+  // Si SOMMANO valori di testata già determinati (totale, rettifiche, totale
+  // aggiornato): niente si ricalcola per differenza.
   let totalMinor = 0;
+  let refundMinor = 0;
+  let updatedMinor = 0;
   for (const order of orders) {
     totalMinor += order.total.amountMinor;
+    refundMinor += order.refundTotal?.amountMinor ?? 0;
+    updatedMinor += totaleAggiornato(order).amountMinor;
   }
-  return { count: orders.length, total: { amountMinor: totalMinor, currencyCode } };
+  return {
+    count: orders.length,
+    total: { amountMinor: totalMinor, currencyCode },
+    refundTotal: { amountMinor: refundMinor, currencyCode },
+    updatedTotal: { amountMinor: updatedMinor, currencyCode },
+  };
 }
 
 /** Decimale con virgola (Excel it-IT), senza simbolo valuta. */
@@ -74,6 +94,8 @@ const COLUMNS = [
   'Evasione',
   'Location',
   'Totale',
+  'Rettifiche',
+  'Totale aggiornato',
 ] as const;
 
 /** CSV degli ordini selezionati (BOM UTF-8 + separatore ';' per Excel it-IT). */
@@ -85,9 +107,14 @@ export function buildSalesOrderListCsv(orders: readonly SalesOrder[]): string {
     order.customerName,
     orderStateLabel(order),
     financialStatusLabel(order.financialStatus),
-    fulfillmentStatusLabel(order.fulfillmentStatus),
+    fulfillmentStatusLabel(order.fulfillmentStatus, !!order.cancelledAt),
     order.locationName ?? '',
     csvAmount(order.total),
+    // Col segno, come nel Registro: la colonna si somma.
+    csvAmount(
+      negato(order.refundTotal ?? { amountMinor: 0, currencyCode: order.total.currencyCode }),
+    ),
+    csvAmount(totaleAggiornato(order)),
   ]);
   const totals = sumTotals(orders);
   const totalsRow = [
@@ -100,6 +127,8 @@ export function buildSalesOrderListCsv(orders: readonly SalesOrder[]): string {
     '',
     '',
     csvAmount(totals.total),
+    csvAmount(negato(totals.refundTotal)),
+    csvAmount(totals.updatedTotal),
   ];
   const lines = [[...COLUMNS], ...rows, totalsRow].map((row) =>
     row.map((field) => csvField(field)).join(';'),
@@ -137,9 +166,14 @@ export function buildSalesOrderListPrintHtml(orders: readonly SalesOrder[]): str
         { text: order.customerName || '—' },
         { text: orderStateLabel(order) },
         { text: financialStatusLabel(order.financialStatus) },
-        { text: fulfillmentStatusLabel(order.fulfillmentStatus) },
+        { text: fulfillmentStatusLabel(order.fulfillmentStatus, !!order.cancelledAt) },
         { text: order.locationName ?? '—' },
         { text: formatMoney(order.total), numeric: true },
+        {
+          text: order.refundTotal?.amountMinor ? `− ${formatMoney(order.refundTotal)}` : '—',
+          numeric: true,
+        },
+        { text: formatMoney(totaleAggiornato(order)), numeric: true },
       ];
       const cellsHtml = cells
         .map((cell) => `<td${cell.numeric ? ' class="num"' : ''}>${escapeHtml(cell.text)}</td>`)
@@ -174,6 +208,7 @@ export function buildSalesOrderListPrintHtml(orders: readonly SalesOrder[]): str
 <tr>
   <th>Data</th><th>Numero</th><th>Origine</th><th>Cliente</th><th>Stato</th>
   <th>Pagamento</th><th>Evasione</th><th>Location</th><th class="num">Totale</th>
+  <th class="num">Rettifiche</th><th class="num">Totale aggiornato</th>
 </tr>
 </thead>
 <tbody>
@@ -183,6 +218,8 @@ ${bodyRows}
 <tr>
   <td colspan="8">Totale (${totals.count} ordini)</td>
   <td class="num">${escapeHtml(formatMoney(totals.total))}</td>
+  <td class="num">${escapeHtml(totals.refundTotal.amountMinor ? `− ${formatMoney(totals.refundTotal)}` : '—')}</td>
+  <td class="num">${escapeHtml(formatMoney(totals.updatedTotal))}</td>
 </tr>
 </tfoot>
 </table>

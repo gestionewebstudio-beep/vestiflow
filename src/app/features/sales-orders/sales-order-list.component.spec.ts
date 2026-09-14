@@ -38,9 +38,11 @@ const ORDINE = {
   lines: [],
 } as unknown as SalesOrder;
 
-async function renderList(ordini: readonly SalesOrder[] = [], sort?: string) {
+async function renderList(
+  ordini: readonly SalesOrder[] = [],
+  queryParams: Readonly<Record<string, string>> = {},
+) {
   const data = { listProfile: 'sales-orders' };
-  const queryParams = sort ? { sort } : {};
   return render(SalesOrderListComponent, {
     providers: [
       provideRouter([]),
@@ -103,6 +105,64 @@ describe('SalesOrderListComponent — una riga vera si renderizza', () => {
     await renderList([ORDINE]);
 
     expect(screen.getByRole('row', { name: /Apri ordine ORD-0042/i })).not.toBeNull();
+  });
+});
+
+/**
+ * ⛔ **Il costruttore CANCELLAVA le date che l'URL portava, e a ogni F5 l'elenco
+ *    cambiava faccia.**
+ *
+ * Con `placedFrom` o `placedTo` presenti il preset nasce `Custom`; il
+ * costruttore chiamava allora `resolveMovementPeriodRange(Custom, '', '')`, che
+ * a `Custom` risponde con gli estremi che le si passano — due stringhe vuote,
+ * cioè `{ from: undefined, to: undefined }` — e riscriveva entrambe a `null`.
+ * Alla ricarica successiva l'URL era senza date, il predefinito le riscriveva,
+ * e così via: «Ultimi 30 giorni» con 3 ordini, poi «Personalizzato» con 7, poi
+ * di nuovo 3. Segnalato dal proprietario il 13/09/2026 sugli Ordini Shopify.
+ *
+ * ⚠️ È la stessa guardia dell'elenco documenti (04/09/2026): il difetto vive
+ * nell'URL, quindi si misura sulla NAVIGAZIONE, non sulla query all'API.
+ *
+ * ⭐ Il quarto caso è il predefinito: se questo blocco provasse solo che «non si
+ * scrive niente», si soddisferebbe togliendo la scrittura anche quando serve.
+ */
+describe('SalesOrderListComponent — le date esplicite nell’URL non si cancellano', () => {
+  /** I `queryParams` di ogni navigazione che tocca il periodo. */
+  async function periodiScritti(
+    query: Readonly<Record<string, string>>,
+  ): Promise<readonly Record<string, unknown>[]> {
+    const scritture: Record<string, unknown>[] = [];
+    const spia = vi.spyOn(Router.prototype, 'navigate').mockImplementation((_comandi, extras) => {
+      const params = (extras?.queryParams ?? {}) as Record<string, unknown>;
+      if ('placedFrom' in params || 'placedTo' in params) scritture.push(params);
+      return Promise.resolve(true);
+    });
+    try {
+      await renderList([], query);
+    } finally {
+      spia.mockRestore();
+    }
+    return scritture;
+  }
+
+  it('⛔ con entrambe le date nell’URL non riscrive il periodo', async () => {
+    expect(await periodiScritti({ placedFrom: '2026-08-15', placedTo: '2026-09-13' })).toEqual([]);
+  });
+
+  it('⛔ vale con la sola data iniziale', async () => {
+    expect(await periodiScritti({ placedFrom: '2026-08-15' })).toEqual([]);
+  });
+
+  it('⛔ vale con la sola data finale', async () => {
+    expect(await periodiScritti({ placedTo: '2026-09-13' })).toEqual([]);
+  });
+
+  it('⭐ senza date l’URL riceve comunque il predefinito di 30 giorni', async () => {
+    const scritture = await periodiScritti({});
+
+    expect(scritture).toHaveLength(1);
+    expect(scritture[0]?.['placedFrom']).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(scritture[0]?.['placedTo']).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 

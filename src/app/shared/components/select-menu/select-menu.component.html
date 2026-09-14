@@ -78,6 +78,10 @@
     <ul
       class="select-menu__panel"
       role="listbox"
+      [style.inset-block-start.px]="fissoAlto()"
+      [style.inset-block-end.px]="fissoBasso()"
+      [style.inset-inline-start.px]="fissoSinistra()"
+      [style.inset-inline-end.px]="fissoDestra()"
       [attr.aria-label]="ariaLabel()"
       [attr.aria-multiselectable]="multiple() ? true : null"
     >

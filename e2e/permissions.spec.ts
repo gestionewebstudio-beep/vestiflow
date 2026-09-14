@@ -31,6 +31,11 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       await expect(profile).toBeVisible();
       await expect(profile.getByText(/Commesso/)).toBeVisible();
 
+      // ⭐ Il pannello sta in Impostazioni → Shopify (11/09/2026): il commesso ci
+      //    arriva solo con un permesso di sincronizzazione, e anche lì non gestisce
+      //    la connessione. Senza permesso la rotta rimanda alla dashboard.
+      await page.goto('/app/settings/shopify');
+      await expect(page).toHaveURL(/\/app\/(settings\/shopify|dashboard)/, { timeout: 30_000 });
       const shopifyPanel = shopifySettingsPanel(page);
       if (await shopifyPanel.isVisible()) {
         await expect(shopifyPanel.getByRole('button', { name: 'Connetti Shopify' })).toHaveCount(0);
@@ -124,7 +129,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
         timeout: 30_000,
       });
 
-      await expectButtonAbsent(page, 'Riallinea le giacenze su Shopify');
+      await expectButtonAbsent(page, 'Allinea giacenze su Shopify');
       await expectButtonAbsent(page, 'Esporta CSV');
       await expectButtonAbsent(page, 'Importa CSV');
     });
@@ -275,7 +280,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       });
 
       const syncVisible = await page
-        .getByRole('button', { name: 'Riallinea le giacenze su Shopify' })
+        .getByRole('button', { name: 'Allinea giacenze su Shopify' })
         .isVisible();
       const exportVisible = await page.getByRole('button', { name: 'Esporta CSV' }).isVisible();
       const importVisible = await page.getByRole('button', { name: 'Importa CSV' }).isVisible();

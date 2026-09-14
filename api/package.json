@@ -17,17 +17,27 @@
     "db:test:down": "docker compose -f ../docker-compose.test.yml down",
     "db:test:reset": "docker compose -f ../docker-compose.test.yml down -v && npm run db:test:up && npm run prisma:deploy:test",
     "prisma:deploy:test": "node scripts/prisma-deploy-test.mjs",
+    "db:collaudo:up": "docker compose -f ../docker-compose.collaudo.yml up -d --wait",
+    "db:collaudo:down": "docker compose -f ../docker-compose.collaudo.yml down",
+    "prisma:deploy:collaudo": "node scripts/prisma-deploy-collaudo.mjs",
+    "prisma:deploy:prova-condivisa": "node scripts/prisma-deploy-prova-condivisa.mjs",
+    "collaudo:prepara-tenant": "node scripts/collaudo-prepara-tenant.mjs",
+    "collaudo:isola-copia": "node scripts/collaudo-isola-copia.mjs",
+    "webhook:sottoscrizioni": "node scripts/webhook-sottoscrizioni.mjs",
+    "start:collaudo": "node scripts/start-collaudo.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:migration:cassa": "vitest run --config vitest.cassa-migrations.config.ts",
     "test:browser:cassa": "vitest run --config vitest.cassa-browser.config.ts",
     "test:shopify:contract": "vitest run --config vitest.contract.config.ts",
-    "test:migration": "vitest run --config vitest.integration.config.ts --exclude '**/node_modules/**' src/test/integration/stati-ordini-backfill.integration-spec.ts",
+    "test:migration": "vitest run --config vitest.stati-ordini-backfill.config.ts",
     "prisma:studio": "node scripts/con-conferma.mjs \"prisma studio\" -- npx prisma studio",
     "prisma:seed": "node scripts/con-conferma.mjs \"prisma db seed\" -- npx prisma db seed",
     "backfill:catalog-origin": "node scripts/backfill-catalog-origin.mjs",
     "backfill:catalog-origin:apply": "node scripts/backfill-catalog-origin.mjs --apply",
     "backfill:shopify-order-documents": "npm run build && node scripts/backfill-shopify-order-documents.mjs",
     "backfill:shopify-order-documents:apply": "npm run build && node scripts/backfill-shopify-order-documents.mjs --apply",
+    "backfill:storico-shopify": "npm run build && node scripts/backfill-storico-shopify.mjs",
+    "backfill:storico-shopify:apply": "npm run build && node scripts/backfill-storico-shopify.mjs --apply",
     "provision:e2e-users": "node scripts/provision-e2e-permission-users.mjs",
     "verify:pdf-export": "npm run build && node scripts/verify-pdf-export.mjs",
     "verify:pdf-all": "npm run build && node scripts/verify-pdf-all-types.mjs",
@@ -36,7 +46,8 @@
     "typecheck:test": "tsc --noEmit -p tsconfig.spec.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:completa": "node scripts/copertura-completa.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"
@@ -57,7 +68,7 @@
     "pdfkit": "^0.19.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "unzipper": "^0.12.5"
   },
   "devDependencies": {
@@ -79,7 +90,7 @@
     "vitest": "^4.0.8"
   },
   "overrides": {
-    "multer": "2.2.0",
+    "multer": "2.3.0",
     "deepmerge-ts": "^8.0.2"
   },
   "volta": {

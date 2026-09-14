@@ -38,7 +38,14 @@ export async function applyStockLoad(
   if (input.quantity <= 0) {
     return;
   }
-  await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, input.quantity);
+  await applyInventoryDelta(
+    tx,
+    input.tenantId,
+    input.variantId,
+    input.locationId,
+    input.quantity,
+    'locale',
+  );
 
   await tx.stockMovement.create({
     data: {
@@ -66,7 +73,14 @@ export async function applyStockUnload(
   if (input.quantity <= 0) {
     return;
   }
-  await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, -input.quantity);
+  await applyInventoryDelta(
+    tx,
+    input.tenantId,
+    input.variantId,
+    input.locationId,
+    -input.quantity,
+    'locale',
+  );
 
   await tx.stockMovement.create({
     data: {
@@ -94,7 +108,14 @@ export async function applyStockSale(
   if (input.quantity <= 0) {
     return;
   }
-  await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, -input.quantity);
+  await applyInventoryDelta(
+    tx,
+    input.tenantId,
+    input.variantId,
+    input.locationId,
+    -input.quantity,
+    'locale',
+  );
 
   await tx.stockMovement.create({
     data: {
@@ -130,13 +151,21 @@ export async function applyStockTransfer(
     throw new Error('Origine e destinazione devono essere location diverse.');
   }
 
-  await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, -input.quantity);
+  await applyInventoryDelta(
+    tx,
+    input.tenantId,
+    input.variantId,
+    input.locationId,
+    -input.quantity,
+    'locale',
+  );
   await applyInventoryDelta(
     tx,
     input.tenantId,
     input.variantId,
     input.targetLocationId,
     input.quantity,
+    'locale',
   );
 
   await tx.stockMovement.create({
@@ -171,7 +200,7 @@ export async function applyStockAdjustment(
     return;
   }
   const delta = input.direction === AdjustmentDirection.increase ? input.quantity : -input.quantity;
-  await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, delta);
+  await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, delta, 'locale');
 
   await tx.stockMovement.create({
     data: {

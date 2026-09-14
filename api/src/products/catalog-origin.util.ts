@@ -68,6 +68,17 @@ export function wasShopifyLinkedAtProductCreation(
 /**
  * Prodotto di origine VestiFlow: creato/pushato dal gestionale.
  * Import Shopify (linkKind imported) e legacy import restano di competenza Shopify.
+ *
+ * ⛔ **Risponde alla PROVENIENZA, e non autorizza né vieta scritture.** Fino
+ *    all’11/09/2026 da qui passava `shouldSkipShopifyCatalogImport`, che
+ *    faceva uscire l’import dopo il solo `shopifyTitle`: un prodotto nato in
+ *    VestiFlow non riceveva più nessun campo bidirezionale. Le direzioni si
+ *    decidono **per campo** (`docs/24` §9), e §9.12 è esplicita — «le regole
+ *    per campo NON guardano dove è nato l’articolo».
+ *
+ * ⚠️ Chi la chiama oggi decide solo `catalogOrigin` e `shopifyCatalogLinkKind`
+ *    (le due funzioni qui sotto): che cosa l’articolo È, non che cosa si può
+ *    scrivergli.
  */
 export function isVestiflowCatalogOwner(snapshot: CatalogOriginProductSnapshot): boolean {
   if (snapshot.catalogOrigin === CatalogOrigin.shopify) {
@@ -88,10 +99,6 @@ export function isVestiflowCatalogOwner(snapshot: CatalogOriginProductSnapshot):
   return !wasShopifyLinkedAtProductCreation(snapshot);
 }
 
-/** Blocca pull/webhook Shopify quando il catalogo è di competenza VestiFlow. */
-export function shouldSkipShopifyCatalogImport(snapshot: CatalogOriginProductSnapshot): boolean {
-  return isVestiflowCatalogOwner(snapshot);
-}
 
 export function resolveCatalogOriginForShopifyImport(
   snapshot: CatalogOriginProductSnapshot,

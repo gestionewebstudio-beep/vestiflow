@@ -81,6 +81,17 @@ export interface DataTableSection<T> {
   readonly header?: string;
   readonly rows: readonly T[];
   readonly footer?: DataTableSectionFooter;
+  /**
+   * ⭐ **La sezione si CHIUDE dal suo titolo** (`docs/26` D3, 11/09/2026): il
+   * titolo diventa un pulsante con la freccia, e chiusa non rende le righe —
+   * il piede, se c’è, resta: un subtotale di un gruppo chiuso è ancora un dato.
+   *
+   * ⚠️ **Nasce spento**: le tabelle raggruppate di oggi (documenti per giorno)
+   * non cambiano. Lo accende chi ha gruppi che si leggono uno alla volta — i
+   * Codici IVA per Natura. Lo stato aperto/chiuso vive nel motore, per id di
+   * sezione: la pagina non deve tenerlo.
+   */
+  readonly collapsible?: boolean;
 }
 
 /**

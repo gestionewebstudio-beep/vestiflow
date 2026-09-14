@@ -47,7 +47,7 @@ test.describe('Permessi granulari — solo catalog.import_export', () => {
       timeout: 30_000,
     });
 
-    await expectButtonAbsent(page, 'Riallinea le giacenze su Shopify');
+    await expectButtonAbsent(page, 'Allinea giacenze su Shopify');
     await expectButtonAbsent(page, 'Registra movimento');
 
     await page.goto('/app/inventory/movements/new');
@@ -74,12 +74,10 @@ test.describe('Permessi granulari — solo inventory.import_export', () => {
     });
 
     const shopifyTenant = await page
-      .getByRole('button', { name: 'Riallinea le giacenze su Shopify' })
+      .getByRole('button', { name: 'Allinea giacenze su Shopify' })
       .isVisible();
     if (shopifyTenant) {
-      await expect(
-        page.getByRole('button', { name: 'Riallinea le giacenze su Shopify' }),
-      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Allinea giacenze su Shopify' })).toBeVisible();
     }
 
     await expect(page.getByRole('button', { name: 'Esporta CSV' })).toBeVisible();

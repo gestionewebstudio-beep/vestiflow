@@ -46,6 +46,20 @@ export interface OnlineSaleLineRow {
   readonly locationId: EntityId | null;
   readonly vatCodeId: EntityId | null;
   readonly vatCodeLabel: string | null;
+  /** Ordinati (la riga), annullati (righe `cancel` del canale), spediti (spedizioni). */
+  readonly orderedQuantity: number;
+  readonly cancelledQuantity: number;
+  readonly shippedQuantity: number;
+}
+
+/** Una rettifica del canale sull'ordine della Vendita, alla sua data. */
+export interface OnlineSaleRettificaRow {
+  readonly id: EntityId;
+  readonly kind: string;
+  readonly occurredAt: IsoDateString;
+  readonly totalMinor: number;
+  readonly taxMinor: number;
+  readonly note: string | null;
 }
 
 export interface OnlineSaleMovementRow {
@@ -65,6 +79,10 @@ export interface OnlineSaleDetail extends OnlineSaleRow {
   readonly shippingMinor: number;
   readonly taxMinor: number;
   readonly lines: readonly OnlineSaleLineRow[];
+  /** Valore originario (`totalMinor`) · rettifiche · totale aggiornato (13/09/2026, #1014). */
+  readonly refunds: readonly OnlineSaleRettificaRow[];
+  readonly refundTotalMinor: number;
+  readonly updatedTotalMinor: number;
   readonly movements: readonly OnlineSaleMovementRow[];
   readonly linkedDocuments: readonly {
     readonly id: EntityId;

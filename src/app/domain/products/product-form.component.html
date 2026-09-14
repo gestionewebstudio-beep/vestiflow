@@ -38,6 +38,16 @@
     </ol>
 
     <div class="product-form__body">
+      <!-- ⛔ Un errore di caricamento NON si presenta come «nessuna aliquota / nessun
+           listino»: si dice, e si può ritentare (proprietario, 11/09/2026). -->
+      @if (riferimentiErrore(); as errore) {
+        <app-inline-banner
+          tone="error"
+          [message]="errore"
+          dismissLabel="Riprova"
+          (dismissed)="ricaricaRiferimenti()"
+        />
+      }
       @switch (activeTab()) {
         @case ('article') {
           <app-product-general-step
@@ -54,6 +64,7 @@
             [articleCodeTakenBy]="articleCodeTakenBy()"
             [listinoSlots]="listinoSlots()"
             [tenantDefaultVatCodeId]="tenantDefaultVatCodeId()"
+            [vatCodesUnavailable]="vatCodesUnavailable()"
             [pricesIncludeVat]="listinoPricesIncludeVat()"
             (pricesIncludeVatChange)="onPriceModeChange($event)"
             (valueChange)="onGeneralChange($event)"
@@ -153,36 +164,8 @@
                 description="Registra un carico per iniziare a movimentare l'articolo."
               />
             } @else {
-              <div class="product-form__stock-table-wrap">
-                <table class="product-form__stock-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Articolo</th>
-                      <th scope="col">SKU</th>
-                      <th scope="col" class="product-form__stock-num">Giacenza</th>
-                      <th scope="col" class="product-form__stock-num">Impegnato</th>
-                      <th scope="col" class="product-form__stock-num">Disponibile</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (row of stockRows(); track row.variantId) {
-                      <tr>
-                        <td>{{ row.title }}</td>
-                        <td class="tabular-nums">{{ row.sku || '—' }}</td>
-                        <td class="product-form__stock-num tabular-nums">
-                          {{ row.stockOnHand ?? 0 }}
-                        </td>
-                        <td class="product-form__stock-num tabular-nums">
-                          {{ stockCommitted(row) }}
-                        </td>
-                        <td class="product-form__stock-num tabular-nums">
-                          {{ row.stockAvailable ?? 0 }}
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
+              <!-- ⭐ Sul motore comune (`docs/26` A26): un elenco di consultazione nella scheda. -->
+              <app-product-stock-table [rows]="stockRows()" />
               <p class="product-form__tab-note">
                 <i class="pi pi-info-circle" aria-hidden="true"></i>
                 Totali su tutte le sedi. La giacenza per negozio è gestita nella sezione Magazzino.

@@ -339,6 +339,31 @@
 }
 
 /*
+  ⭐ **Il titolo di una sezione comprimibile è un PULSANTE** (`docs/26` D3), e
+  veste come il titolo: stesso corpo, stesso colore, la freccia davanti. A tutta
+  larghezza, perché il bersaglio è la fascia intera e non la parola.
+*/
+.data-table__section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.data-table__section-toggle-icon {
+  font-size: var(--text-3xs);
+}
+
+/*
   ⭐ **«Nessuna riga corrisponde ai filtri»**: una riga di SPIEGAZIONE, non un
   dato e non una struttura.
 
@@ -546,9 +571,19 @@
   block`) e un'altezza dichiarata qui diventerebbe **fissa** invece che minima —
   è il difetto misurato il 31/08/2026, con le fasce che uscivano dal riquadro.
   La riga di riempimento, lì, sarebbe per giunta una card vuota.
+
+  ⛔ **E SOLO CON I TOTALI — 11/09/2026.** Qui la regola stirava OGNI tabella,
+  mentre la riga di riempimento che assorbe l’avanzo esiste **solo con i
+  totali** (`@if (totals())` nel template). Una tabella senza totali dentro
+  una catena di altezze ricadeva quindi nel difetto del 30/08: l’avanzo si
+  distribuiva alle righe. Misurato in un browser vero sul rapporto
+  dell’import prodotti, che i totali non li ha per scelta: **una riga di dati
+  alta 245px** in una regione da 280. Senza `tfoot` non c’è niente da spingere
+  in fondo, e la card bianca la porta già la regione: la tabella resta alta
+  quanto le sue righe.
 */
 @include bp.media-up('lg') {
-  .data-table {
+  .data-table--con-totali {
     block-size: 100%;
   }
 

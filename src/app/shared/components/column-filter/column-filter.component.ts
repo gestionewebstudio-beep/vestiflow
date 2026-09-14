@@ -92,6 +92,8 @@ export class ColumnFilterComponent {
   readonly options = input<readonly string[]>([]);
 
   readonly value = input<ColumnFilterValue | null>(null);
+  /** Il pannello esce dal contenitore che ritaglia: lo chiede il motore tabella. */
+  readonly panelFixed = input<boolean>(false);
 
   /** `null` toglie il filtro da questa colonna. */
   readonly changed = output<ColumnFilterValue | null>();

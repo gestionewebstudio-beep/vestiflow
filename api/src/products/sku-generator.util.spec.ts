@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSkuBase, slugifySkuSegment, withCollisionSuffix, withProgressive } from './sku-generator.util';
+import {
+  buildSkuBase,
+  slugifySkuSegment,
+  withCollisionSuffix,
+  withProgressive,
+} from './sku-generator.util';
 
 describe('sku-generator.util', () => {
   describe('slugifySkuSegment', () => {
@@ -90,7 +95,10 @@ describe('sku-generator.util', () => {
 
   describe('normalizzazione caratteri speciali/accenti', () => {
     it('categoria e nome con accenti/apostrofi restano solo [A-Z0-9-]', () => {
-      const result = buildSkuBase({ productName: "Bombolette d'aria compressa", category: 'Officina' });
+      const result = buildSkuBase({
+        productName: "Bombolette d'aria compressa",
+        category: 'Officina',
+      });
       expect(result.base).toMatch(/^[A-Z0-9-]+$/);
     });
   });

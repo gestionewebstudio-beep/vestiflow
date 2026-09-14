@@ -38,6 +38,7 @@ export async function applyDocumentStockManualUnloads(
       entry.variantId,
       params.locationId,
       -entry.quantity,
+      'locale',
     );
     deltas.push({ sku: entry.sku, delta: -entry.quantity });
   }
@@ -73,6 +74,7 @@ export async function reconcileDocumentStockManualUnload(
         entry.variantId,
         params.oldLocationId,
         entry.quantity,
+        'locale',
       );
       deltas.push({ sku: entry.sku, delta: entry.quantity });
     }
@@ -83,6 +85,7 @@ export async function reconcileDocumentStockManualUnload(
         entry.variantId,
         params.newLocationId,
         -entry.quantity,
+        'locale',
       );
       deltas.push({ sku: entry.sku, delta: -entry.quantity });
     }
@@ -105,6 +108,7 @@ export async function reconcileDocumentStockManualUnload(
       variantId,
       params.newLocationId,
       -unloadDelta,
+      'locale',
     );
     deltas.push({ sku, delta: -unloadDelta });
   }

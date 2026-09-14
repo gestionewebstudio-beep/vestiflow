@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { fireEvent, render, screen } from '@testing-library/angular';
 import { of } from 'rxjs';
@@ -11,8 +12,43 @@ import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 import type { VatCode, VatNature } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
+import { VAT_CODES_COLUMN_DEFS } from '../../models/vat-codes-table-columns.config';
 import { VatCodesPageComponent } from './vat-codes-page.component';
+
+/**
+ * ⚠️ **Il servizio vero delle preferenze colonne tira dietro `APP_CONFIG` e
+ * l’API**, che con questa pagina non c’entrano. Basta un doppio che renda le
+ * colonne predefinite dell’elenco (`docs/26` A6) e non salvi nulla.
+ */
+const COLONNE_FINTE = {
+  provide: TableColumnPreferenceService,
+  useValue: {
+    registerView: () => undefined,
+    columnDefs: () => VAT_CODES_COLUMN_DEFS,
+    visibleColumns: () =>
+      signal(VAT_CODES_COLUMN_DEFS.map((c) => ({ ...c, pinned: false }))).asReadonly(),
+    visibleColumnIds: () => VAT_CODES_COLUMN_DEFS.map((c) => c.id),
+    state: () =>
+      signal({
+        presetId: 'default',
+        columnOrder: VAT_CODES_COLUMN_DEFS.map((c) => c.id),
+        hiddenColumnIds: [] as string[],
+        pinnedColumnIds: [] as string[],
+        columnWidths: {},
+      }).asReadonly(),
+    presetMap: () => ({}),
+    isColumnVisible: () => true,
+    moveColumn: () => undefined,
+    toggleColumn: () => undefined,
+    togglePin: () => undefined,
+    applyPreset: () => undefined,
+    resetToDefault: () => undefined,
+    columnWidth: (_v: unknown, _c: string, ripiego: number) => ripiego,
+    setColumnWidths: () => undefined,
+  },
+};
 
 /**
  * La pagina si apre con la sola sezione Impostazioni, ma creare, duplicare,
@@ -77,6 +113,7 @@ async function apri(permissions: readonly TenantPermissionKey[]): Promise<void> 
   await render(VatCodesPageComponent, {
     providers: [
       provideRouter([]),
+      COLONNE_FINTE,
       { provide: AuthService, useValue: { currentUser: () => utente(permissions) } },
       {
         provide: VatCodeService,
@@ -86,18 +123,26 @@ async function apri(permissions: readonly TenantPermissionKey[]): Promise<void> 
   });
 }
 
-/** Apre la scheda del Codice IVA cliccando la riga. */
+/**
+ * Apre la scheda del Codice IVA cliccando la riga.
+ *
+ * ⚠️ Il testo sta DUE volte nel DOM — riga di tabella e card, che sotto `lg`
+ *    la sostituisce e porta `aria-hidden` — quindi si clicca la RIGA, che è una.
+ */
 function apriScheda(): void {
-  fireEvent.click(screen.getByText('IVA 22% ordinaria'));
+  fireEvent.click(screen.getByRole('row', { name: 'Apri 22' }));
 }
+
+/** La descrizione compare in tabella e sulla card: si conta, non si pretende unica. */
+const descrizioneVisibile = () => screen.getAllByText('IVA 22% ordinaria').length > 0;
 
 describe('VatCodesPageComponent — comandi riservati a «Impostazioni azienda»', () => {
   it('con la sola sezione Impostazioni resta l’elenco, senza creazione né duplica', async () => {
     await apri([TenantPermission.SectionSettings]);
 
-    expect(screen.getByText('IVA 22% ordinaria')).toBeTruthy();
+    expect(descrizioneVisibile()).toBe(true);
     expect(screen.queryByRole('button', { name: 'Nuovo Codice IVA' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Duplica' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Duplica/ })).toBeNull();
   });
 
   it('la scheda si apre in sola lettura: niente Salva, e il motivo è scritto', async () => {
@@ -118,7 +163,8 @@ describe('VatCodesPageComponent — comandi riservati a «Impostazioni azienda»
     await apri([TenantPermission.SectionSettings, TenantPermission.SettingsCompany]);
 
     expect(screen.getByRole('button', { name: 'Nuovo Codice IVA' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Duplica' })).toBeTruthy();
+    // «Duplica» sta nella barra comandi, sulla selezione (`docs/26` A6).
+    expect(screen.getByRole('button', { name: 'Duplica il Codice IVA selezionato' })).toBeTruthy();
 
     apriScheda();
 
@@ -130,6 +176,7 @@ describe('VatCodesPageComponent — comandi riservati a «Impostazioni azienda»
     await render(VatCodesPageComponent, {
       providers: [
         provideRouter([]),
+        COLONNE_FINTE,
         {
           provide: AuthService,
           useValue: { currentUser: () => ({ ...utente([]), role: UserRole.Owner }) },

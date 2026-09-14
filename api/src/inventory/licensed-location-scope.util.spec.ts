@@ -93,7 +93,6 @@ describe('licensed-location-scope.util', () => {
     });
   });
 
-
   /*
     ⛔ **La sede CHIESTA restringe, non sostituisce.**
 

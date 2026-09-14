@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { shopifySettingsGuard } from '@core/guards/shopify-settings.guard';
 import { tenantOwnerGuard } from '@core/guards/tenant-owner.guard';
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
@@ -34,6 +35,34 @@ export const settingsRoutes: Routes = [
     loadComponent: () =>
       import('./pages/payment-options/payment-options-page.component').then(
         (m) => m.PaymentOptionsPageComponent,
+      ),
+  },
+  {
+    // ⭐ La sola sede dei comandi generali Shopify (11/09/2026). Guardia propria:
+    // la raggiunge chi ha il permesso di almeno un comando, senza
+    // `section.settings` — che apre il resto delle Impostazioni e qui non
+    // c'entra. Ogni comando tiene il proprio cancello sull'API.
+    //
+    // ⛔ Non è una seconda rotta con lo stesso componente: era così, e passare da
+    //    `shopify` a `shopify/:scheda` RICREAVA la pagina — il banner del ritorno
+    //    OAuth (`?shopify=setup`) nasceva nella prima istanza e moriva con lei
+    //    (misurato in `prima-connessione.spec`, 13/09/2026). Il segmento «auto»
+    //    dice al pannello «scegli tu la scheda per lo stato», e la sostituisce.
+    path: 'shopify',
+    pathMatch: 'full',
+    redirectTo: 'shopify/auto',
+  },
+  {
+    // ⭐ Le cinque SCHEDE della pagina Shopify (`docs/29` §3, deciso il 13/09/2026):
+    //    prima-connessione · sincronizzazione · operazioni · problemi · connessione.
+    //    Il segmento dice quale scheda è aperta, così le schede condivise
+    //    (`app-nav-tabs`) si evidenziano dalla rotta; «auto» è la predefinita.
+    path: 'shopify/:scheda',
+    title: 'Shopify',
+    canActivate: [shopifySettingsGuard],
+    loadComponent: () =>
+      import('./pages/shopify/shopify-settings-page.component').then(
+        (m) => m.ShopifySettingsPageComponent,
       ),
   },
   {

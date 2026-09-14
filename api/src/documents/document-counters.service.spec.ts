@@ -224,11 +224,7 @@ describe('DocumentCountersService', () => {
       // terzo della partizione, e i numeri già presi risulterebbero liberi.
       const where = prisma.document.findMany.mock.calls[0]![0]!.where;
       expect(where.type).toEqual({
-        in: [
-          DocumentType.invoice,
-          DocumentType.invoice_accompanying,
-          DocumentType.credit_note,
-        ],
+        in: [DocumentType.invoice, DocumentType.invoice_accompanying, DocumentType.credit_note],
       });
       expect(where.series).toBeNull();
     });

@@ -81,19 +81,7 @@
         <div class="po-detail__panel-head">
           <h2 id="po-linked" class="po-detail__panel-title">Arrivo merce collegato</h2>
         </div>
-        <ul class="po-detail__linked-list">
-          @for (linked of linkedDocuments(); track linked.id) {
-            <li class="po-detail__linked-item">
-              <a
-                class="po-detail__linked-link tabular-nums"
-                [routerLink]="['/app/documents', linked.id]"
-              >
-                <i class="pi pi-box" aria-hidden="true"></i>
-                {{ linkedDocumentLabel(linked) }}
-              </a>
-            </li>
-          }
-        </ul>
+        <app-detail-facts [facts]="fattiCollegati()" />
       </section>
     }
 

@@ -195,16 +195,9 @@
             registrata e le colonne non si potrebbero né spegnere né riaccendere.
           -->
           <app-table-column-picker [viewId]="lineColumnsView" />
-
-          <app-button
-            type="button"
-            variant="secondary"
-            [attr.aria-pressed]="filtriAccesi()"
-            (click)="commutaFiltri()"
-          >
-            Filtri
-          </app-button>
+          <app-table-filters-button [viewId]="lineColumnsView" [(open)]="filtriAperti" />
         </div>
+        <app-table-filters-panel [viewId]="lineColumnsView" [(open)]="filtriAperti" />
       </div>
 
       <!--
