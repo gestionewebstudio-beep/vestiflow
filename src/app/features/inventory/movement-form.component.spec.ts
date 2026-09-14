@@ -52,7 +52,10 @@ function operationalLocationsMock() {
 const SEARCH_WAIT = { timeout: 5000 };
 
 describe('MovementFormComponent', () => {
-  async function setup(queryParams: Record<string, string> = {}) {
+  async function setup(
+    queryParams: Record<string, string> = {},
+    controparti: { suppliers?: readonly object[]; customers?: readonly object[] } = {},
+  ) {
     const registerMovementBatch = vi.fn().mockReturnValue(of({ created: 1 }));
     await render(MovementFormComponent, {
       providers: [
@@ -87,12 +90,41 @@ describe('MovementFormComponent', () => {
           provide: InventoryService,
           useValue: { getLevelsByVariant: () => of(LEVELS), registerMovementBatch },
         },
-        { provide: SupplierService, useValue: { getSuppliers: () => of([]) } },
-        { provide: CustomerService, useValue: { getAllCustomers: () => of([]) } },
+        {
+          provide: SupplierService,
+          useValue: { getSuppliers: () => of(controparti.suppliers ?? []) },
+        },
+        {
+          provide: CustomerService,
+          useValue: { getAllCustomers: () => of(controparti.customers ?? []) },
+        },
       ],
     });
     return { registerMovementBatch };
   }
+
+  /**
+   * ⭐ Un uso reale del `select-menu` con dettaglio, fuori da Shopify: la
+   *    controparte del carico. ⛔ Fino al 14/09/2026 un lettore di schermo
+   *    annunciava «Rossi Srl, SKU Fornitore» — il prefisso era della prima voce
+   *    con dettaglio (le varianti). Ora «etichetta, dettaglio».
+   */
+  it('la controparte si annuncia «nome, Fornitore» / «nome, Cliente», senza «SKU»', async () => {
+    const user = userEvent.setup();
+    await setup(
+      { type: 'load' },
+      {
+        suppliers: [{ id: 'f1', name: 'Rossi Srl', isActive: true }],
+        customers: [{ id: 'c1', firstName: 'Anna', lastName: 'Bianchi', isActive: true }],
+      },
+    );
+
+    await user.click(screen.getAllByRole('button', { name: /Provenienza merce/ })[0]!);
+    const nomi = screen
+      .getAllByRole('option')
+      .map((voce) => voce.getAttribute('aria-label') ?? voce.textContent?.trim() ?? '');
+    expect(nomi).toEqual(['Nessuna controparte', 'Rossi Srl, Fornitore', 'Anna Bianchi, Cliente']);
+  });
 
   // ── L'etichetta del salvataggio dice l'operazione ─────────────────────────
   //

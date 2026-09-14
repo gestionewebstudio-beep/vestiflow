@@ -27,13 +27,19 @@ export function locationSetupStatusOf(
     (location) => location.isActive && location.licensedInVf && isShopifyManagedLocation(location),
   );
   if (synced.length === 0) {
+    // ⛔ Qui c'era «Sedi non attivate — Sincronizza le location da Shopify e
+    //    seleziona fino a N sedi operative»: il testo del flusso vecchio, in cui il
+    //    sync creava le sedi e l'operatore ne «selezionava» alcune. Dall'11/09 la
+    //    scelta è per location — collega, crea, lascia — e si fa nella tabella
+    //    «Sedi»; il testo dice quello (`docs/29` §6, 14/09/2026).
+    const piano =
+      limit === 1
+        ? 'Il piano prevede una sede operativa.'
+        : `Il piano prevede fino a ${limit} sedi operative.`;
     return {
       active: false,
-      label: 'Sedi non attivate',
-      detail:
-        limit === 1
-          ? 'Sincronizza le location da Shopify e seleziona la sede operativa inclusa nel piano.'
-          : `Sincronizza le location da Shopify e seleziona fino a ${limit} sedi operative.`,
+      label: 'Nessuna sede collegata',
+      detail: `Per ogni location del negozio scegli nella tabella: collega una sede, creane una nuova o lasciala fuori. ${piano}`,
     };
   }
 
@@ -47,13 +53,13 @@ export function locationSetupStatusOf(
 
   const countLabel =
     synced.length === 1
-      ? '1 location collegata a Shopify'
-      : `${synced.length} location collegate a Shopify`;
-  const timeLabel = lastSyncedAt ? ` · ${formatDateTime(lastSyncedAt)}` : '';
+      ? '1 sede collegata a una location del negozio'
+      : `${synced.length} sedi collegate a una location del negozio`;
+  const timeLabel = lastSyncedAt ? ` · ultima lettura ${formatDateTime(lastSyncedAt)}` : '';
 
   return {
     active: true,
-    label: 'Location collegate',
+    label: 'Sedi collegate',
     detail: `${countLabel}${timeLabel}`,
   };
 }

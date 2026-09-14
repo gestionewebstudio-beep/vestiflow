@@ -7,6 +7,18 @@
         <h1 id="settings-shopify" class="shopify-settings__title">Shopify</h1>
       </div>
     </div>
+    <!-- Lo stato del negozio: a destra quando ci sta, a capo quando no — mai troncato. -->
+    @if (connessione(); as conn) {
+      <p class="shopify-settings__stato">
+        <app-badge [flat]="true" [tone]="statoTone(conn.status)">
+          {{ statoLabel(conn.status) }}
+        </app-badge>
+        <span class="shopify-settings__dominio">{{ conn.shopDomain ?? '—' }}</span>
+        @if (conn.lastConnectedAt) {
+          <span class="shopify-settings__dal">dal {{ formatta(conn.lastConnectedAt) }}</span>
+        }
+      </p>
+    }
   </header>
 
   <!--

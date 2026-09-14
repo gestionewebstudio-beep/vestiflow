@@ -43,6 +43,12 @@
   overflow-wrap: anywhere;
 }
 
+// La nota sotto il valore: attenuata, un gradino sotto.
+.detail-facts__note {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 .detail-facts__link {
   display: inline-flex;
   align-items: center;

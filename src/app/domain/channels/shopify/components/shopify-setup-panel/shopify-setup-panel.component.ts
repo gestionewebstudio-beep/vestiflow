@@ -6,6 +6,9 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
+import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
+import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import type {
   DataTableSection,
   DataTableSort,
@@ -46,7 +49,9 @@ export type { ShopifySetupSedeScelta };
     NgTemplateOutlet,
     BadgeComponent,
     ButtonComponent,
+    HoverTooltipComponent,
     DataTableComponent,
+    DetailFactsComponent,
     DataTableRowCardDirective,
     InlineBannerComponent,
     ShopifyLocationChoicesComponent,
@@ -146,6 +151,109 @@ export class ShopifySetupPanelComponent {
   protected formatta(iso: string): string {
     return formatDateTime(iso);
   }
+
+  // ── Lo stepper (14/09/2026): ogni fase è fatta, corrente o futura ──
+  /** Lo stato di una fase rispetto a quella corrente; a percorso concluso sono tutte fatte. */
+  protected statoFase(n: 1 | 2 | 3): 'fatta' | 'corrente' | 'futura' {
+    if (this.attivato()) {
+      return 'fatta';
+    }
+    const corrente = { scelte: 1, sedi: 2, controllo: 3 }[this.fase()];
+    if (n < corrente) {
+      return 'fatta';
+    }
+    return n === corrente ? 'corrente' : 'futura';
+  }
+
+  /** «fase 2 di 3 · Sedi», per il titolo a percorso in corso. */
+  protected readonly etichettaFase = computed(() => {
+    const nomi = { scelte: 'Scelte iniziali', sedi: 'Sedi', controllo: 'Controllo e conferma' };
+    const corrente = { scelte: 1, sedi: 2, controllo: 3 }[this.fase()];
+    return `fase ${corrente} di 3 · ${nomi[this.fase()]}`;
+  });
+
+  /** La riga della fase 3: conferma, trasferimento e attivazione, con le date che ci sono. */
+  protected readonly cronologiaFase3 = computed(() => {
+    const s = this.setup();
+    const parti: string[] = [];
+    if (s.confirmedAt) {
+      parti.push(`confermata il ${formatDateTime(s.confirmedAt)}`);
+    }
+    const e = s.esito;
+    if (e?.interruzione) {
+      parti.push('trasferimento interrotto');
+    } else if (e?.finishedAt) {
+      parti.push(`trasferimento concluso il ${formatDateTime(e.finishedAt)}`);
+    } else if (this.inTrasferimento()) {
+      parti.push('trasferimento in corso');
+    }
+    if (s.activatedAt) {
+      parti.push(`attivata il ${formatDateTime(s.activatedAt)}`);
+    }
+    if (parti.length === 0) {
+      return s.anteprima
+        ? `anteprima calcolata il ${formatDateTime(s.anteprima.computedAt)}, da confermare`
+        : 'anteprima da calcolare';
+    }
+    const testo = parti.join(' · ');
+    return testo.charAt(0).toUpperCase() + testo.slice(1);
+  });
+
+  /**
+   * ⭐ I QUATTRO FATTI della prima connessione conclusa, in testa: direzione, catalogo,
+   *    sedi, ordini (proposta approvata il 14/09/2026). Sostituiscono la frase di
+   *    numeri che ripeteva quello che stava nelle fasi.
+   */
+  protected readonly riepilogoAttivato = computed((): readonly DetailFact[] => {
+    const s = this.setup();
+    const e = s.esito;
+    const a = s.anteprima;
+    const fatti: DetailFact[] = [
+      {
+        label: 'Direzione iniziale',
+        value: this.etichettaDirezione(s.direction),
+        note:
+          s.direction === 'shopify_to_vestiflow'
+            ? 'catalogo e quantità presi dal negozio'
+            : 'articoli pubblicati e quantità allineate a VestiFlow',
+      },
+    ];
+    if (e?.catalogo) {
+      const esclusi = e.esclusi.length;
+      fatti.push({
+        label: 'Catalogo',
+        value: `${e.catalogo.imported} articoli importati/pubblicati`,
+        note:
+          esclusi > 0
+            ? `${esclusi} ${esclusi === 1 ? 'escluso' : 'esclusi'}: ${e.esclusi
+                .map((x) => x.motivo)
+                .filter((m, i, arr) => arr.indexOf(m) === i)
+                .join(', ')}`
+            : e.catalogo.failed > 0
+              ? `${e.catalogo.failed} falliti`
+              : undefined,
+      });
+    }
+    if (a) {
+      fatti.push({
+        label: 'Sedi',
+        value: `${this.conteggioSedi(a.sedi.collegate.length, 'collegata', 'collegate')} · ${this.conteggioSedi(a.sedi.lasciate.length, 'lasciata fuori', 'lasciate fuori')}`,
+        note: 'le sedi di oggi in «Connessione e sedi»',
+      });
+    }
+    if (e?.attivazione) {
+      const o = e.attivazione.ordini;
+      fatti.push({
+        label: 'Ordini aperti',
+        value: `${o.acquisiti} acquisiti${o.senzaSede > 0 ? ` · ${o.senzaSede} senza sede` : ''}${o.falliti > 0 ? ` · ${o.falliti} falliti` : ''}`,
+        note:
+          o.senzaSede > 0
+            ? `nessun impegno per ${o.senzaSede === 1 ? 'quello' : 'quei ' + o.senzaSede} senza sede: da risolvere nei problemi`
+            : 'diventati impegni all’attivazione',
+      });
+    }
+    return fatti;
+  });
 
   /** Il codice diventa una frase: «sede_non_stoccata» non si legge. */
   protected etichettaNonDeterminabile(motivo: ShopifySetupNonDeterminabileDto['motivo']): string {

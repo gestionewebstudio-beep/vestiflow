@@ -2,6 +2,50 @@
   display: block;
   inline-size: 100%;
   max-inline-size: 100%;
+  // Impostati dal componente a bolla aperta, quando non sta né a destra né a
+  // sinistra del trigger (telefono): letti solo sotto `--scostata`.
+  --hover-tooltip-scostamento: 0px;
+  --hover-tooltip-larghezza: none;
+}
+
+/*
+  ⭐ Il pulsante «?» integrato: icona piccola in linea col testo, area premibile
+  da pulsante (`--btn-min-height`: 34 su scrivania, 44 sul telefono) tramite lo
+  pseudo-elemento, così il titolo non cresce. È un <button>: Tab e tocco lo
+  raggiungono, lo screen reader legge il nome e — via aria-describedby — la bolla.
+*/
+.hover-tooltip__icona {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  margin-inline-start: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: help;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: calc((var(--btn-min-height) - var(--space-4)) / -2);
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: var(--color-interactive);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--space-05);
+  }
 }
 
 // Modalità inline: icona/trigger in linea col testo (es. etichette campo).
@@ -91,17 +135,19 @@
   inset-inline-end: 0;
 }
 
-.hover-tooltip:hover .hover-tooltip__bubble,
-.hover-tooltip:focus-within .hover-tooltip__bubble {
+// Né di qua né di là del trigger: ancorata al margine della finestra, larga
+// quanto lo spazio che c'è (misura del componente, a bolla aperta).
+.hover-tooltip--scostata .hover-tooltip__bubble {
+  inset-inline-start: var(--hover-tooltip-scostamento);
+  inset-inline-end: auto;
+  max-inline-size: var(--hover-tooltip-larghezza);
+}
+
+// Si vede al passaggio del mouse e col fuoco (tastiera, tocco); Esc o un secondo
+// tocco la chiudono finché il fuoco non esce (`--chiusa`, dal componente).
+.hover-tooltip:not(.hover-tooltip--chiusa):hover .hover-tooltip__bubble,
+.hover-tooltip:not(.hover-tooltip--chiusa):focus-within .hover-tooltip__bubble {
   display: block;
   opacity: 1;
   visibility: visible;
-}
-
-@media (hover: none) {
-  .hover-tooltip:focus-within .hover-tooltip__bubble {
-    display: block;
-    opacity: 1;
-    visibility: visible;
-  }
 }

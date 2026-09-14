@@ -2,17 +2,23 @@
 // grammatica dei blocchi di sincronizzazione del pannello che la ospita
 // (`shopify-integration-panel`): titolo con filo di brand, blocchi bordati.
 
+@use 'breakpoints' as bp;
+
 .setup {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
+// La testa è il titolo di sezione della scheda: stesso filo tinto delle altre sezioni.
 .setup__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
+  padding-block-end: var(--space-1);
+  border-block-end: var(--border-width) solid
+    color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
 }
 
 // ⛔ Qui c'era la barretta verticale in --color-primary: respinta dal proprietario
@@ -20,20 +26,40 @@
 //    Il colore sta sul testo (`_anagrafica.scss`); la guardia è check:barrette-titolo.
 .setup__title {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--font-weight-bold);
   color: var(--color-primary);
 }
 
-.setup__intro,
 .setup__hint {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
-.setup__head-sep {
-  color: var(--color-text-subtle);
+// A destra del titolo: l'esito e il rimando ai problemi di oggi.
+.setup__head-dx {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+  font-size: var(--text-xs);
+}
+
+// Il titolo delle fasi: come un titolo di sezione, col filo tinto.
+.setup__fasi-titolo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding-block-end: var(--space-1);
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  border-block-end: var(--border-width) solid
+    color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
 }
 
 // La fotografia delle sedi di allora: location → scelta, una per riga.
@@ -77,29 +103,62 @@
 //    percorso concluso nessuna è corrente e diventavano grigie tutte e tre, col
 //    testo sopra a poco contrasto (proprietario, 13/09/2026: «lo sfondo grigio non
 //    mi piace, soprattutto sotto alle scritte»). Le divide il bordo, non la campitura.
-.setup__fase {
+// ⭐ Le tre fasi come STEPPER (proposta approvata il 14/09/2026): numero, titolo,
+//    corpo sulla stessa riga; la corrente col fondo tenue e i suoi controlli; le fatte
+//    con la spunta; le future col numero vuoto e il testo attenuato. ⛔ Niente più una
+//    card per fase: tre riquadri bordati con dentro paragrafi erano la scheda
+//    «ammassata» che il proprietario ha descritto.
+.setup__fasi {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
+.setup__fase {
+  display: grid;
+  // ⚠️ Sotto `lg` il numero sta IN LINEA col titolo e il corpo prende la riga intera:
+  //    una colonna per il numero costava 44px su 332 (misurato a 390 il 14/09/2026), e
+  //    dentro ci finivano tendine e card con tre livelli di rientro.
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-1);
+  border-block-end: var(--border-width) solid var(--color-border-cell);
+
+  @include bp.media-up('lg') {
+    grid-template-columns: var(--space-8) var(--field-w-lg) minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+    align-items: start;
+  }
+}
+
+.setup__fase:last-child {
+  border-block-end: 0;
+}
+
+// Sulla superficie della pagina la fase corrente è BIANCA: il fondo tenue, sul grigio
+// della pagina, non si distingueva (misurato il 14/09/2026, tolta la card).
 .setup__fase--corrente {
-  border-color: var(--color-focus);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
 .setup__fase-title {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-1);
   margin: 0;
-  font-size: var(--text-base);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
+}
+
+.setup__fase--futura .setup__fase-title {
+  color: var(--color-text-muted);
 }
 
 .setup__fase-numero {
@@ -109,16 +168,41 @@
   inline-size: var(--space-6);
   block-size: var(--space-6);
   border-radius: var(--radius-pill);
-  background-color: var(--color-primary);
+  background-color: var(--color-ok);
   color: var(--color-text-inverse);
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-bold);
 }
 
+.setup__fase--corrente .setup__fase-numero {
+  background-color: var(--color-primary);
+}
+
+.setup__fase--futura .setup__fase-numero {
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+// Il corpo della fase: la scelta o il risultato, poi i controlli o i dettagli.
+.setup__fase-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+
+  @include bp.media-down('lg') {
+    grid-column: 1 / -1;
+  }
+}
+
 .setup__fase-valore {
-  margin-inline-start: auto;
+  margin: 0;
   font-size: var(--text-sm);
-  font-weight: var(--font-weight-regular);
+  color: var(--color-text);
+}
+
+.setup__fase-futura {
   color: var(--color-text-muted);
 }
 
@@ -126,6 +210,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+
+  // Sul telefono le due direzioni si dividono la riga: impilate a 144px lasciavano
+  // metà larghezza vuota (misurato a 390 il 14/09/2026).
+  @include bp.media-down('md') {
+    --button-flex: 1 1 0;
+  }
 }
 
 .setup__direzioni,
@@ -194,6 +284,17 @@
 
 .setup__dettaglio {
   font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.setup__dettaglio-corpo {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
   color: var(--color-text);
 }
 

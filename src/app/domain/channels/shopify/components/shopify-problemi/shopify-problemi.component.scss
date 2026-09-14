@@ -2,6 +2,7 @@
 // sul motore sotto. Stessa grammatica del blocco «non allineate» del pannello
 // Impostazioni (barra densa configurata dal contenitore, riquadro che scorre).
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 // Le cause e l'elenco sono DUE blocchi, con aria fra loro (proprietario, 13/09/2026).
 .problemi {
@@ -18,91 +19,95 @@
   color: var(--color-text-muted);
 }
 
-// ── Le cause ─────────────────────────────────────────────────────────────────
+// ── Le cause: una TABELLA (14/09/2026), con la grammatica dei riepiloghi ─────────
+//    Il numero in colonna, la causa coi primi nomi, l'effetto, l'azione. Sotto lg le
+//    righe diventano card compatte: numero a sinistra, il resto in colonna.
 
-.problemi__gruppi {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
+.problemi__cause-scorri {
+  overflow-x: auto;
 }
 
-.problemi__gruppo {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  // La striscia di tipo di una card, smorzata al 55% come nel motore: accompagna, non grida.
-  border-inline-start: var(--border-width-accent) solid
-    color-mix(in srgb, var(--color-warning) 55%, transparent);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-surface);
+@include rt.summary-grammar('problemi__cause');
+@include rt.data-table-mobile-cards('problemi__cause');
+
+.problemi__cause {
+  inline-size: 100%;
+  border-collapse: collapse;
+
+  // Sulla superficie della pagina la tabella conserva la sua (bianca, bordata); sotto lg
+  // le card sono già bianche.
+  @include bp.media-up('lg') {
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+  }
+
+  // Causa, effetto e azione sono frasi: vanno a capo, non si tagliano.
+  tbody td {
+    white-space: normal;
+    vertical-align: top;
+  }
 }
 
-.problemi__gruppo-causa {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
+.problemi__cause-n {
+  inline-size: var(--space-12);
+  text-align: end;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-warning);
+}
+
+.problemi__causa-riga--valutare .problemi__cause-n {
+  color: var(--color-text-muted);
+}
+
+.problemi__cause-etichetta {
+  display: block;
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
-.problemi__gruppo-conteggio {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: var(--space-6);
-  block-size: var(--space-6);
-  padding-inline: var(--space-2);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-warning-subtle);
-  color: var(--color-warning);
+// I primi nomi di chi ha il problema: piccoli, sotto la causa, senza aprire l'elenco.
+.problemi__cause-esempi {
+  display: block;
   font-size: var(--text-2xs);
-  font-weight: var(--font-weight-bold);
-}
-
-// «Da valutare» (su Shopify, o nessuna azione): accento e conteggio neutri, non ambra.
-.problemi__gruppo--valutare {
-  border-inline-start-color: color-mix(in srgb, var(--color-border-strong) 70%, transparent);
-}
-
-.problemi__gruppo--valutare .problemi__gruppo-conteggio {
-  background-color: var(--color-surface-soft);
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
-// Le due righe fisse sotto la causa — Effetto, Azione — sulla STESSA griglia:
-// etichetta a sinistra, testo a destra (docs/29 §2.3).
-.problemi__gruppo-riga {
-  display: grid;
-  grid-template-columns: var(--field-w-xs) minmax(0, 1fr);
-  gap: var(--space-1) var(--space-3);
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-.problemi__gruppo-etichetta {
-  font-size: var(--text-3xs);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--color-field-label);
-}
-
-.problemi__gruppo-conseguenza {
-  min-inline-size: 0;
-}
-
-.problemi__gruppo-azione {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
+.problemi__cause-effetto {
   color: var(--color-text);
+}
+
+.problemi__cause-azione {
+  color: var(--color-text);
+}
+
+@include bp.media-down('lg') {
+  // La card: il numero a sinistra, a tutta altezza; la causa in grassetto.
+  .problemi__cause tbody tr.problemi__causa-riga {
+    display: grid;
+    grid-template-columns: var(--space-10) minmax(0, 1fr);
+    column-gap: var(--space-2);
+  }
+
+  .problemi__cause tbody td.problemi__cause-n {
+    grid-row: 1 / span 3;
+    display: block;
+    font-size: var(--text-lg);
+    text-align: end;
+  }
+
+  .problemi__cause tbody td.problemi__cause-n::before,
+  .problemi__cause tbody td.problemi__cause-causa::before,
+  .problemi__cause tbody td.problemi__cause-effetto::before {
+    content: none;
+  }
+
+  .problemi__cause tbody td.problemi__cause-causa,
+  .problemi__cause tbody td.problemi__cause-effetto,
+  .problemi__cause tbody td.problemi__cause-azione {
+    display: block;
+    text-align: start;
+  }
 }
 
 // DOVE si fa l'azione: le quattro forme, una pastiglia ciascuna.

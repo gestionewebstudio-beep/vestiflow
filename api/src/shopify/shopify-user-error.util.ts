@@ -23,7 +23,7 @@ const CODE_MESSAGES: Readonly<Record<string, string>> = {
   product_webhook_failed:
     'Un prodotto non è stato aggiornato correttamente da Shopify. Usa «Importa catalogo» o la sync manuale sul prodotto.',
   location_sync_failed:
-    'Le sedi Shopify non sono state sincronizzate. Premi «Sincronizza location» per riprovare.',
+    'Le location del negozio non sono state lette. Premi «Rileggi le location dal negozio» in Connessione e sedi per riprovare.',
   webhook_disable_partial:
     'Gli aggiornamenti automatici sono disattivati in VestiFlow, ma alcuni canali potrebbero restare su Shopify. Puoi ignorare l’avviso o riprovare.',
   catalog_import_blocked:

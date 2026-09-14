@@ -4,6 +4,9 @@
       <dt class="detail-facts__term">{{ fact.label }}</dt>
       <dd class="detail-facts__value" [class.tabular-nums]="fact.numeric">
         <span class="detail-facts__text">{{ fact.value }}</span>
+        @if (fact.note) {
+          <span class="detail-facts__note">{{ fact.note }}</span>
+        }
         @if (fact.href) {
           <a
             class="detail-facts__link"

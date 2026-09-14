@@ -52,4 +52,7 @@ export class InlineBannerComponent {
    */
   readonly dismissLabel = input<string>();
   readonly dismissed = output<void>();
+
+  // ⭐ I comandi che risolvono si proiettano con l'attributo `actions` (14/09/2026):
+  //    <app-button actions …>. Nessun input: è contenuto, e chi non lo dà non lo vede.
 }

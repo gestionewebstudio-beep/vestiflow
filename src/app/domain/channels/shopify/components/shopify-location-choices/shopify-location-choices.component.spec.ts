@@ -35,31 +35,47 @@ const SEDI: readonly ShopifySetupSedeVestiFlowDto[] = [
   { id: 'loc-2', name: 'Sede già presa', code: 'S2', shopifyLocationId: '22' },
 ];
 
-async function apri(modificabile = true, compatta = false) {
+async function apri(
+  modificabile = true,
+  compatta = false,
+  sedi: readonly ShopifySetupSedeVestiFlowDto[] = SEDI,
+) {
   const sedeScelta = vi.fn();
   await render(ShopifyLocationChoicesComponent, {
-    inputs: { locations: LOCATIONS, sedi: SEDI, modificabile },
+    inputs: { locations: LOCATIONS, sedi, modificabile },
     on: { sedeScelta },
     providers: [{ provide: ViewportService, useValue: { compact: signal(compatta) } }],
   });
   return sedeScelta;
 }
 
+/** Le voci del menu aperto, per nome accessibile (etichetta, e dettaglio se c'è). */
+function vociDelMenu(): string[] {
+  return screen
+    .getAllByRole('option')
+    .map((o) => o.getAttribute('aria-label') ?? o.textContent?.trim() ?? '');
+}
+
 describe('ShopifyLocationChoicesComponent — una scelta per location', () => {
-  it('offre lascia, crea e le sole sedi libere (o già sue); emette la scelta', async () => {
+  /**
+   * ⭐ L'ordine è quello in cui si decide (14/09/2026, `docs/29` §6): prima le
+   *    sedi a cui collegare, poi «Crea una nuova sede» — distinta, col suo
+   *    dettaglio —, poi «Lascia fuori». Solo le sedi libere, o già sue.
+   */
+  it('offre collega, crea e lascia in quest’ordine, con le sole sedi libere (o già sue); emette la scelta', async () => {
     const utente = userEvent.setup();
     const sedeScelta = await apri();
 
     await utente.click(
       screen.getByRole('button', { name: /Scelta per la location Negozio centro/ }),
     );
-    expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual([
+    expect(vociDelMenu()).toEqual([
       'Decidi…',
-      'Lascia fuori da VestiFlow',
-      'Crea la sede «Negozio centro»',
-      'Collega a «Sede 1»',
+      'Collega alla sede «Sede 1»',
+      'Crea una nuova sede «Negozio centro», nasce una sede VestiFlow nuova, collegata a questa location',
+      'Lascia fuori da VestiFlow, nessuna sede: non risulta da configurare',
     ]);
-    await utente.click(screen.getByRole('option', { name: 'Lascia fuori da VestiFlow' }));
+    await utente.click(screen.getByRole('option', { name: /^Lascia fuori da VestiFlow/ }));
     expect(sedeScelta).toHaveBeenCalledWith({
       shopifyLocationId: '11',
       scelta: { choice: 'lascia' },
@@ -67,11 +83,53 @@ describe('ShopifyLocationChoicesComponent — una scelta per location', () => {
 
     // La location già collegata propone la SUA sede, che altrove non si offre.
     await utente.click(screen.getByRole('button', { name: /Scelta per la location Deposito/ }));
-    expect(screen.getByRole('option', { name: 'Collega a «Sede già presa»' })).toBeInTheDocument();
-    await utente.click(screen.getByRole('option', { name: 'Collega a «Sede già presa»' }));
+    expect(
+      screen.getByRole('option', { name: 'Collega alla sede «Sede già presa»' }),
+    ).toBeInTheDocument();
+    await utente.click(screen.getByRole('option', { name: 'Collega alla sede «Sede già presa»' }));
     expect(sedeScelta).toHaveBeenLastCalledWith({
       shopifyLocationId: '22',
       scelta: { choice: 'collega', locationId: 'loc-2' },
+    });
+  });
+
+  /**
+   * ⭐ La sede con lo STESSO NOME della location è suggerita — prima fra le
+   *    «Collega», dichiarata — e «Crea» dice che ne nascerebbe una in più.
+   *    ⛔ Mai applicata da sola: senza una scelta il menu resta su «Decidi…»
+   *    e niente viene emesso (`docs/24` §8.11.1; precisazione del proprietario,
+   *    14/09/2026). Al collaudo del 14/09 «Crea la sede «Magazzino test 3»»
+   *    accanto a una sede già così chiamata era sembrato un errore.
+   */
+  it('la sede omonima è suggerita per prima e dichiarata; «Crea» è distinta; niente si applica da solo', async () => {
+    const utente = userEvent.setup();
+    const sedeScelta = await apri(true, false, [
+      { id: 'loc-1', name: 'Sede 1', code: 'S1', shopifyLocationId: null },
+      { id: 'loc-3', name: 'negozio CENTRO', code: 'S3', shopifyLocationId: null },
+    ]);
+
+    // Nessuna scelta proposta: il menu è su «Decidi…» e non è stato emesso niente.
+    expect(
+      screen.getByRole('button', { name: /Scelta per la location Negozio centro/ }),
+    ).toHaveTextContent('Decidi…');
+    expect(sedeScelta).not.toHaveBeenCalled();
+
+    await utente.click(
+      screen.getByRole('button', { name: /Scelta per la location Negozio centro/ }),
+    );
+    expect(vociDelMenu()).toEqual([
+      'Decidi…',
+      'Collega alla sede «negozio CENTRO», stesso nome della location: suggerita, non applicata',
+      'Collega alla sede «Sede 1»',
+      'Crea una nuova sede «Negozio centro», una sede in più, oltre a quella con lo stesso nome',
+      'Lascia fuori da VestiFlow, nessuna sede: non risulta da configurare',
+    ]);
+    expect(sedeScelta).not.toHaveBeenCalled();
+
+    await utente.click(screen.getByRole('option', { name: /^Collega alla sede «negozio CENTRO»/ }));
+    expect(sedeScelta).toHaveBeenCalledWith({
+      shopifyLocationId: '11',
+      scelta: { choice: 'collega', locationId: 'loc-3' },
     });
   });
 

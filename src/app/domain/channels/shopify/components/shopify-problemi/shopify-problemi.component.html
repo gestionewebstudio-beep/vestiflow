@@ -12,57 +12,72 @@
          lunga dell'azione sta una volta sola: in tabella c'è la forma breve.
       ⛔ Nessun comando si esegue da qui: il rimando porta al posto in cui si fa.
     -->
-    <dl class="problemi__gruppi">
-      @for (gruppo of gruppi(); track gruppo.causa) {
-        @let forma = formaDi(gruppo.azione);
-        <!--
-          Causa, numero, effetto e azione: i nomi degli elementi stanno nell'elenco
-          sotto, non troncati nell'intestazione (proprietario, 13/09/2026). Il tono
-          distingue «da fare» (ambra) da «da valutare» (neutro): un'esclusione voluta
-          non deve sembrare un guasto.
-        -->
-        <div
-          class="problemi__gruppo"
-          [class.problemi__gruppo--valutare]="tono(gruppo.azione) === 'valutare'"
-        >
-          <dt class="problemi__gruppo-causa">
-            <span class="problemi__gruppo-conteggio tabular-nums">{{ gruppo.conteggio }}</span>
-            {{ gruppo.etichetta }}
-          </dt>
-          <dd class="problemi__gruppo-riga">
-            <span class="problemi__gruppo-etichetta">Effetto</span>
-            <span class="problemi__gruppo-conseguenza">{{ gruppo.conseguenza }}</span>
-          </dd>
-          <dd class="problemi__gruppo-riga">
-            <span class="problemi__gruppo-etichetta">Azione</span>
-            <span class="problemi__gruppo-azione">
-              <span [class]="'problemi__dove problemi__dove--' + forma.dove">
-                {{ dove(forma.dove) }}
-              </span>
-              @switch (forma.dove) {
-                @case ('pagina') {
-                  {{ gruppo.azione.etichetta }}
-                  <button
-                    type="button"
-                    class="problemi__rimando"
-                    [disabled]="busy()"
-                    (click)="azione.emit(gruppo.azione)"
-                  >
-                    {{ forma.breve }} ›
-                  </button>
+    <!--
+      ⭐ Una TABELLA delle cause (proposta approvata il 14/09/2026, `docs/29` §7): una riga
+         per causa — quante, quale, l'effetto, l'azione con DOVE si fa — al posto di una
+         card per causa con tre righe. È qui che «75 righe» diventano «1 causa, 75 articoli»,
+         e la frase lunga dell'azione sta una volta sola: in elenco c'è la forma breve.
+      ⛔ Nessun comando si esegue da qui: il rimando porta al posto in cui si fa.
+      ⛔ Quando le notifiche mancano perché manca il PERMESSO, l'azione mostrata è la
+         nuova autorizzazione: registrarle non basta (proprietario, 14/09/2026).
+    -->
+    <div class="problemi__cause-scorri">
+      <table class="problemi__cause" aria-label="Le cause dei problemi aperti">
+        <thead>
+          <tr>
+            <th scope="col" class="problemi__cause-n">N.</th>
+            <th scope="col">Causa</th>
+            <th scope="col">Effetto</th>
+            <th scope="col">Azione</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (gruppo of gruppi(); track gruppo.causa) {
+            @let mostrata = azioneMostrata(gruppo);
+            <tr
+              class="problemi__causa-riga"
+              [class.problemi__causa-riga--valutare]="tono(mostrata.azione) === 'valutare'"
+            >
+              <td class="problemi__cause-n tabular-nums" data-label="N.">{{ gruppo.conteggio }}</td>
+              <td class="problemi__cause-causa" data-label="Causa">
+                <span class="problemi__cause-etichetta">{{ gruppo.etichetta }}</span>
+                @if (gruppo.esempi.length > 0) {
+                  <span class="problemi__cause-esempi">
+                    {{ gruppo.esempi.join(', ')
+                    }}{{ gruppo.conteggio > gruppo.esempi.length ? '…' : '' }}
+                  </span>
                 }
-                @case ('vestiflow') {
-                  {{ gruppo.azione.etichetta }}: dall'elenco qui sotto, elemento per elemento
+              </td>
+              <td class="problemi__cause-effetto" data-label="Effetto">{{ gruppo.conseguenza }}</td>
+              <td class="problemi__cause-azione" data-label="Azione">
+                <span [class]="'problemi__dove problemi__dove--' + mostrata.forma.dove">
+                  {{ dove(mostrata.forma.dove) }}
+                </span>
+                @switch (mostrata.forma.dove) {
+                  @case ('pagina') {
+                    {{ mostrata.etichetta }}
+                    <button
+                      type="button"
+                      class="problemi__rimando"
+                      [disabled]="busy()"
+                      (click)="azione.emit(mostrata.azione)"
+                    >
+                      {{ mostrata.forma.breve }} ›
+                    </button>
+                  }
+                  @case ('vestiflow') {
+                    {{ mostrata.etichetta }}: dall'elenco qui sotto, elemento per elemento
+                  }
+                  @default {
+                    {{ mostrata.etichetta }}
+                  }
                 }
-                @default {
-                  {{ gruppo.azione.etichetta }}
-                }
-              }
-            </span>
-          </dd>
-        </div>
-      }
-    </dl>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
 
     <!--
       Poi l'ELENCO, sul motore comune: ricerca, colonne, filtri, esportazione. Con un
@@ -168,13 +183,19 @@
               }
             </span>
           </span>
-          @if (riga.sede) {
-            <span class="list-card__anchor">{{ riga.sede }}</span>
-          }
         </div>
+        <!--
+          ⛔ La sede NON è l'ancora: l'ancora non si stringe (è per un numero corto), e una
+             sede dal nome lungo prendeva tutta la prima riga lasciando il nome dell'articolo
+             a 43px — la card non diceva più DI CHI parla (misurato sul telefono il
+             14/09/2026). La sede è una parola: sta nella fascia delle parole, come ovunque.
+        -->
         <div class="list-card__words">
           @if (riga.dettaglio) {
             <span>{{ riga.dettaglio }}</span>
+          }
+          @if (riga.sede) {
+            <span>{{ riga.sede }}</span>
           }
           <span class="problemi__causa">{{ testo(riga, 'causa') }}</span>
         </div>

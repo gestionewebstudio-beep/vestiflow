@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { render, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, Subject, TimeoutError, throwError } from 'rxjs';
@@ -65,8 +65,8 @@ const CONNECTED = {
 
 const LOCATION_SETUP = {
   active: true,
-  label: 'Location collegate',
-  detail: '2 location collegate a Shopify',
+  label: 'Sedi collegate',
+  detail: '2 sedi collegate a una location del negozio',
 } as const;
 
 describe('ShopifyIntegrationPanelComponent', () => {
@@ -91,7 +91,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
     vi.clearAllMocks();
     connectionService.getConnection.mockReturnValue(of(CONNECTED));
     connectionService.syncLocations.mockReturnValue(
-      of({ totalCount: 2, importedCount: 2, matchedCount: 0, autoLicensed: false }),
+      of({ totalCount: 2, importedCount: 0, matchedCount: 1, autoLicensed: false }),
     );
   });
 
@@ -170,9 +170,10 @@ describe('ShopifyIntegrationPanelComponent', () => {
         screen.getByRole('heading', { name: /Aggiornamenti automatici tra Shopify e VestiFlow/ }),
       ).toBeVisible();
       expect(screen.queryByRole('button', { name: /Importa catalogo/ })).toBeNull();
-      // La riga del negozio, sopra le schede: stato e dominio. Nessun titolo doppio
-      // «Integrazione Shopify»: il titolo di pagina è «Shopify», e basta.
-      expect(screen.getByText('demo.myshopify.com')).toBeVisible();
+      // Stato e dominio stanno nell'intestazione della PAGINA (14/09/2026), non nel
+      // pannello; qui le schede. Nessun titolo doppio «Integrazione Shopify».
+      expect(screen.getByRole('navigation', { name: 'Aree di Shopify' })).toBeVisible();
+      expect(screen.queryByText('demo.myshopify.com')).toBeNull();
       expect(screen.queryByRole('heading', { name: 'Integrazione Shopify' })).toBeNull();
     });
 
@@ -191,10 +192,14 @@ describe('ShopifyIntegrationPanelComponent', () => {
       expect(screen.getByRole('button', { name: /Importa clienti/ })).toBeVisible();
       expect(screen.getByRole('button', { name: /Importa ordini/ })).toBeVisible();
       // Ogni riga dice cosa fa e su quali dati; l'esito, se non c'è, lo dice.
-      expect(screen.getByText('Su tutto il catalogo del negozio.')).toBeVisible();
+      // ⭐ Quando serve e che cosa modifica, verificati contro docs/24 §9.2 (14/09/2026).
+      expect(screen.getByText(/su tutto il catalogo del negozio/)).toBeVisible();
+      expect(
+        screen.getByText(/Non tocca nome e categoria VestiFlow, prezzi di vendita e quantità/),
+      ).toBeVisible();
       expect(screen.getAllByText('Nessun esito disponibile').length).toBeGreaterThan(0);
       // Le altre schede non sono qui.
-      expect(screen.queryByRole('button', { name: /Sincronizza location/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Rileggi le location dal negozio/ })).toBeNull();
       expect(screen.queryByRole('button', { name: /Disconnetti Shopify/ })).toBeNull();
     });
 
@@ -203,10 +208,17 @@ describe('ShopifyIntegrationPanelComponent', () => {
 
       expect(await screen.findByRole('heading', { name: 'Negozio' })).toBeVisible();
       expect(screen.getByRole('heading', { name: /^Sedi/ })).toBeVisible();
-      expect(screen.getByRole('button', { name: /Sincronizza location/ })).toBeVisible();
+      // ⭐ Il comando sta a destra del titolo; il suo QUANDO nel «?», che cosa fa e non fa
+      //    resta visibile (14/09/2026).
+      expect(screen.getByRole('button', { name: /Rileggi le location dal negozio/ })).toBeVisible();
       expect(
-        screen.getByRole('heading', { name: 'Disconnessione e cambio negozio' }),
-      ).toBeVisible();
+        screen.getByRole('button', { name: 'Quando rileggere le location' }),
+      ).toHaveAccessibleDescription(/dopo aver aggiunto, rinominato o disattivato una location/i);
+      expect(screen.getByText(/non crea sedi e non cambia le scelte già fatte/)).toBeVisible();
+      expect(screen.queryByText('Prossimi passi')).toBeNull();
+      // ⭐ Quattro gruppi distinti (14/09/2026): negozio, permessi, sedi, operazioni sensibili.
+      expect(screen.getByRole('heading', { name: /Permessi su Shopify/ })).toBeVisible();
+      expect(screen.getByRole('heading', { name: /Operazioni sensibili/ })).toBeVisible();
       expect(screen.getByRole('button', { name: /Disconnetti Shopify/ })).toBeVisible();
       // ⛔ La purga è SPENTA finché l'API la rifiuta, col motivo accanto al pulsante
       //    (proprietario, 13/09/2026): un comando acceso e poi negato è un difetto.
@@ -318,9 +330,10 @@ describe('ShopifyIntegrationPanelComponent', () => {
       expect(connectionService.syncCustomers).toHaveBeenCalledTimes(1);
       const operazioni = screen.getByRole('region', { name: /Operazioni avviate manualmente/ });
       expect(await within(operazioni).findByRole('status')).toBeVisible();
-      // ⭐ E l'esito resta sulla SUA riga, con la data.
+      // ⭐ E l'esito resta sulla SUA riga, con lo stato e la data.
       const riga = screen.getByRole('listitem', { name: 'Importa clienti' });
-      expect(riga).toHaveTextContent(/—/);
+      expect(riga).toHaveTextContent('eseguita');
+      expect(riga).toHaveTextContent(/\d{2}\/\d{2}\/\d{4}/);
       expect(riga).not.toHaveTextContent('Nessun esito disponibile');
     });
 
@@ -345,7 +358,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
   it('mostra il negozio collegato leggendo la connessione una volta sola', async () => {
     await setup();
 
-    expect(await screen.findByText('demo.myshopify.com')).toBeVisible();
+    expect(await screen.findByRole('navigation', { name: 'Aree di Shopify' })).toBeVisible();
     // Store condiviso: la pagina e il pannello guardano la stessa lettura.
     expect(connectionService.getConnection).toHaveBeenCalledTimes(1);
   });
@@ -353,8 +366,8 @@ describe('ShopifyIntegrationPanelComponent', () => {
   it('lo stato delle location arriva dalla pagina: il pannello lo mostra e basta', async () => {
     await setup({ scheda: 'connessione' });
 
-    expect(await screen.findByText('Location collegate')).toBeVisible();
-    expect(screen.getByText('2 location collegate a Shopify')).toBeVisible();
+    expect(await screen.findByText('Sedi collegate')).toBeVisible();
+    expect(screen.getByText('2 sedi collegate a una location del negozio')).toBeVisible();
   });
 
   /**
@@ -371,25 +384,31 @@ describe('ShopifyIntegrationPanelComponent', () => {
   it('aprendo il pannello non parte nessuna sincronizzazione delle sedi', async () => {
     await setup();
 
-    await screen.findByText('demo.myshopify.com');
+    await screen.findByRole('navigation', { name: 'Aree di Shopify' });
     expect(connectionService.syncLocations).not.toHaveBeenCalled();
   });
 
-  it('dopo «Sincronizza location» avvisa chi ospita il pannello, che rilegge le sedi', async () => {
+  it('dopo «Rileggi le location dal negozio» avvisa chi ospita il pannello, che rilegge le sedi; l’esito dice cosa ha letto, non «importato»', async () => {
     const user = userEvent.setup();
     const { locationsChanged } = await setup({ scheda: 'connessione' });
 
-    await user.click(await screen.findByRole('button', { name: /Sincronizza location/i }));
+    await user.click(
+      await screen.findByRole('button', { name: /Rileggi le location dal negozio/i }),
+    );
 
     await waitFor(() => expect(locationsChanged).toHaveBeenCalled());
-    expect(screen.getByRole('status')).toHaveTextContent('2 location importate da Shopify');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Lette 2 location dal negozio: 1 è collegata a una sede. Per le altre la scelta — collega, crea o lascia fuori — è nella tabella «Sedi».',
+    );
   });
 
   it('con piano multi-sede il messaggio chiede di scegliere le sedi da attivare', async () => {
     const user = userEvent.setup();
     await setup({ mustChooseLocations: true, scheda: 'connessione' });
 
-    await user.click(await screen.findByRole('button', { name: /Sincronizza location/i }));
+    await user.click(
+      await screen.findByRole('button', { name: /Rileggi le location dal negozio/i }),
+    );
 
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent(
@@ -400,9 +419,17 @@ describe('ShopifyIntegrationPanelComponent', () => {
 
   // ── La verita' sullo stato dei webhook ──────────────────────────────────────────
   /** Le notifiche stanno in un approfondimento chiuso (docs/29 §3): si apre. */
+  /** I fatti delle notifiche sono una sezione sempre visibile (14/09/2026): basta attenderla. */
   async function apriNotifiche() {
-    const sommario = await screen.findByText('Notifiche dal negozio');
-    await userEvent.click(sommario);
+    await screen.findByRole('heading', { name: /Notifiche dal negozio/ });
+  }
+
+  /** I nomi tecnici e l'indirizzo stanno nel dettaglio richiudibile (14/09/2026): si apre. */
+  function apriDettagliTecnici(): void {
+    const dettaglio = screen
+      .getByText('Dettagli tecnici delle notifiche')
+      .closest('details') as HTMLDetailsElement;
+    dettaglio.open = true;
   }
 
   describe('stato delle notifiche', () => {
@@ -439,11 +466,16 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
       await apriNotifiche();
 
-      expect(await screen.findByText(/Manca una notifica su Shopify/i)).toBeVisible();
-      // Il nome sta in due posti apposta: nella banda, e nei fatti sempre visibili — che
-      // restano leggibili anche quando la banda parla di un altro problema.
-      expect(screen.getByText(/Non registrate: orders\/cancelled/i)).toBeVisible();
-      expect(screen.getByText('1 su 2 — manca orders/cancelled')).toBeVisible();
+      // ⭐ L'avviso dice la FUNZIONE in italiano (proprietario, 14/09/2026); il fatto conta;
+      //    il nome tecnico del topic sta nel dettaglio richiudibile.
+      expect(
+        await screen.findByText(
+          /Manca una notifica su Shopify: quella per gli annullamenti degli ordini/i,
+        ),
+      ).toBeVisible();
+      expect(screen.getByText('1 su 2 · 1 mancante')).toBeVisible();
+      apriDettagliTecnici();
+      expect(screen.getByText('orders/cancelled')).toBeVisible();
     });
 
     it('indirizzo diverso: dice che gli eventi vanno altrove', async () => {
@@ -462,7 +494,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
       await apriNotifiche();
 
-      expect(await screen.findByText(/Le notifiche non arrivano qui/i)).toBeVisible();
+      expect(await screen.findByText(/Le notifiche non arrivano a questo ambiente/i)).toBeVisible();
     });
 
     // ⚠ GUARDIA — nessuna informazione importante dietro una priorità.
@@ -486,13 +518,15 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
       await apriNotifiche();
 
-      // Nessuno dei due nasconde l'altro.
-      expect(await screen.findByText(/2 problemi sulle notifiche/i)).toBeVisible();
-      expect(screen.getByText(/gli eventi vengono consegnati altrove/i)).toBeVisible();
-      expect(screen.getByText(/Non registrate: orders\/cancelled/i)).toBeVisible();
+      // Nessuno dei due nasconde l'altro: un avviso solo, con entrambe le frasi.
+      const avviso = await screen.findByRole('alert');
+      expect(avviso).toHaveTextContent(/gli eventi vengono consegnati altrove/i);
+      expect(avviso).toHaveTextContent(/quella per gli annullamenti degli ordini/i);
 
-      // E il nome sta comunque nei fatti sempre visibili, che non competono con niente.
-      expect(screen.getByText(/1 su 2 — manca orders\/cancelled/i)).toBeVisible();
+      // E il conteggio sta nei fatti sempre visibili; il nome nel dettaglio tecnico.
+      expect(screen.getByText('1 su 2 · 1 mancante')).toBeVisible();
+      apriDettagliTecnici();
+      expect(screen.getByText('orders/cancelled')).toBeVisible();
     });
 
     it('il conteggio da solo non basta: la riga dei fatti nomina il mancante', async () => {
@@ -509,7 +543,11 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
       await apriNotifiche();
 
-      expect(await screen.findByText('7 su 8 — manca orders/cancelled')).toBeVisible();
+      expect(await screen.findByText('7 su 8 · 1 mancante')).toBeVisible();
+      // Il nome del mancante non è sparito: sta nel dettaglio tecnico, con la sua pastiglia.
+      apriDettagliTecnici();
+      expect(screen.getByText('orders/cancelled')).toBeVisible();
+      expect(screen.getByText('mancante')).toBeVisible();
     });
 
     it('da locale il confronto si spegne e lo dichiara, invece di tacere', async () => {
@@ -529,8 +567,9 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
       await apriNotifiche();
 
+      apriDettagliTecnici();
       expect(await screen.findByText(/confronto non possibile da questo ambiente/i)).toBeVisible();
-      expect(screen.queryByText(/Le notifiche non arrivano qui/i)).toBeNull();
+      expect(screen.queryByText(/Le notifiche non arrivano a questo ambiente/i)).toBeNull();
     });
 
     it('indirizzo non confrontabile: nessun allarme dato per ignoranza', async () => {
@@ -553,9 +592,10 @@ describe('ShopifyIntegrationPanelComponent', () => {
       // L'affermazione da verificare e' un'ASSENZA: nessun allarme. Cercare il testo
       // «Aggiornamenti automatici attivi» pescherebbe anche l'avviso sulle giacenze, che
       // parla d'altro — misurare la cosa accanto invece di quella giusta.
+      apriDettagliTecnici();
       expect(await screen.findByText('Indirizzo di consegna')).toBeVisible();
-      expect(screen.queryByText(/Le notifiche non arrivano qui/i)).toBeNull();
-      expect(screen.queryByText('Problema')).toBeNull();
+      expect(screen.queryByText(/Le notifiche non arrivano a questo ambiente/i)).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('la data dell ultimo evento e dichiarativa, senza verdetto', async () => {
@@ -616,7 +656,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
       await apriNotifiche();
 
-      expect(await screen.findByText(/manca orders\/cancelled/i)).toBeVisible();
+      expect(await screen.findByText(/quella per gli annullamenti degli ordini/i)).toBeVisible();
       expect(screen.queryByRole('button', { name: /Registra le notifiche mancanti/i })).toBeNull();
     });
 
@@ -760,7 +800,13 @@ describe('ShopifyIntegrationPanelComponent', () => {
 
     await user.click(await screen.findByRole('button', { name: /Importa catalogo/i }));
 
-    expect(await screen.findByText('Shopify non risponde.')).toBeVisible();
+    // In cima alla scheda come errore, e sulla riga come ultimo esito «non riuscita».
+    const errori = await screen.findAllByText('Shopify non risponde.');
+    expect(errori.length).toBeGreaterThan(0);
+    expect(errori[0]).toBeVisible();
+    expect(screen.getByRole('listitem', { name: 'Importa catalogo' })).toHaveTextContent(
+      'non riuscita',
+    );
   });
 
   /**
@@ -979,9 +1025,9 @@ describe('ShopifyIntegrationPanelComponent', () => {
       const { setupService } = await setup({}, TITOLARE, PERCORSO_IN_CORSO);
 
       expect(await screen.findByRole('heading', { name: 'Prima connessione' })).toBeVisible();
-      expect(screen.getByRole('heading', { name: /1 Scelte iniziali/ })).toBeVisible();
-      expect(screen.getByRole('heading', { name: /2 Sedi/ })).toBeVisible();
-      expect(screen.getByRole('heading', { name: /3 Controllo e conferma/ })).toBeVisible();
+      expect(screen.getByRole('heading', { name: /1 · Scelte iniziali/ })).toBeVisible();
+      expect(screen.getByRole('heading', { name: /2 · Sedi/ })).toBeVisible();
+      expect(screen.getByRole('heading', { name: /3 · Controllo e conferma/ })).toBeVisible();
       expect(screen.queryByRole('button', { name: /Importa catalogo/ })).toBeNull();
       // ⭐ Le fasi sono TRE, e la riga di stato lo dice così.
       expect(screen.getByText('fase 2 di 3 · Sedi')).toBeVisible();
@@ -1002,7 +1048,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
     it('con un percorso non attivato i rimedi per connessione e permessi restano raggiungibili', async () => {
       await setup({ scheda: 'connessione' }, TITOLARE, PERCORSO_IN_CORSO);
       expect(await screen.findByRole('heading', { name: 'Negozio' })).toBeVisible();
-      expect(screen.getByText('Accesso a Shopify')).toBeVisible();
+      expect(screen.getByRole('heading', { name: /Permessi su Shopify/ })).toBeVisible();
       expect(screen.getByRole('button', { name: /Disconnetti Shopify/ })).toBeVisible();
       // Le scelte sulle sedi stanno nella fase 2: qui si rimanda.
       expect(screen.getByText(/Le scelte sulle sedi si fanno nella fase 2/)).toBeVisible();
@@ -1226,7 +1272,11 @@ describe('ShopifyIntegrationPanelComponent', () => {
         locations: PERCORSO_IN_CORSO.locations,
         sediVestiFlow: PERCORSO_IN_CORSO.sediVestiFlow,
       };
-      const { setupService } = await setup({ scheda: 'connessione' }, TITOLARE, percorso);
+      const { setupService, locationsChanged } = await setup(
+        { scheda: 'connessione' },
+        TITOLARE,
+        percorso,
+      );
       const scegliSede = vi.fn().mockReturnValue(of(percorso));
       (setupService as { scegliSede?: unknown }).scegliSede = scegliSede;
 
@@ -1234,22 +1284,33 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await utente.click(
         await screen.findByRole('button', { name: /Scelta per la location Negozio centro/ }),
       );
-      await utente.click(screen.getByRole('option', { name: 'Collega a «Sede 1»' }));
+      await utente.click(screen.getByRole('option', { name: 'Collega alla sede «Sede 1»' }));
       expect(scegliSede).toHaveBeenCalledWith('11', { choice: 'collega', locationId: 'loc-1' });
+      // La scelta cambia le sedi della pagina: chi ospita il pannello le rilegge
+      // (lo stato «Sedi collegate» sopra la tabella viene da lì).
+      await waitFor(() => expect(locationsChanged).toHaveBeenCalled());
     });
 
     it('con il percorso in corso le scelte stanno nella fase 2, non nella sezione Sedi', async () => {
       await setup({}, TITOLARE, PERCORSO_IN_CORSO);
 
-      expect(await screen.findByRole('heading', { name: /2 Sedi/ })).toBeVisible();
+      expect(await screen.findByRole('heading', { name: /2 · Sedi/ })).toBeVisible();
       expect(screen.getAllByRole('button', { name: /Scelta per la location/ })).toHaveLength(1);
     });
 
-    it('con il percorso ATTIVATO si apre la sincronizzazione; le operazioni tornano; la prima connessione resta consultabile, non sbiadita', async () => {
+    it('con il percorso ATTIVATO e le sedi decise si apre la sincronizzazione; le operazioni tornano; la prima connessione resta consultabile, non sbiadita', async () => {
       const attivato: ShopifySetupDto = {
         ...PERCORSO_IN_CORSO,
         status: 'attivato',
         activatedAt: '2026-09-12T10:00:00.000Z',
+        locations: [
+          {
+            ...PERCORSO_IN_CORSO.locations[0]!,
+            choice: 'collega',
+            locationId: 'loc-1',
+            locationName: 'Sede 1',
+          },
+        ],
       };
       await setup({}, TITOLARE, attivato);
       expect(
@@ -1263,6 +1324,58 @@ describe('ShopifyIntegrationPanelComponent', () => {
       ).toBeVisible();
     });
 
+    /**
+     * ⭐ La scheda che si apre segue lo STATO (14/09/2026, `docs/29` §6): con una
+     *    location del negozio che attende una scelta — una aggiunta su Shopify
+     *    dopo l'attivazione, o le sedi da riscegliere dopo una riconnessione — si
+     *    apre «Connessione e sedi», con il conteggio. ⛔ Una location lasciata
+     *    fuori APPOSTA non conta come «da decidere» (precisazione del proprietario).
+     */
+    it('con una location che attende una scelta si apre Connessione e sedi, col conteggio; una lasciata fuori non è «da decidere»', async () => {
+      const attivato: ShopifySetupDto = {
+        ...PERCORSO_IN_CORSO,
+        status: 'attivato',
+        activatedAt: '2026-09-12T10:00:00.000Z',
+        locations: [
+          PERCORSO_IN_CORSO.locations[0]!,
+          {
+            shopifyLocationId: '33',
+            name: 'Deposito',
+            active: true,
+            choice: 'lascia',
+            locationId: null,
+            locationName: null,
+          },
+        ],
+      };
+      await setup({}, TITOLARE, attivato);
+      expect(await screen.findByRole('heading', { name: /^Sedi/ })).toBeVisible();
+      expect(screen.getByText('1 da decidere')).toBeVisible();
+      expect(screen.getByText('1 lasciata fuori')).toBeVisible();
+      // La spiegazione della «lasciata fuori» sta nel «?» accanto al badge (14/09/2026).
+      expect(
+        screen.getByRole('button', { name: 'Che cosa vuol dire lasciata fuori' }),
+      ).toHaveAccessibleDescription(/per scelta: non è da configurare/);
+      expect(
+        screen.queryByRole('heading', { name: /Aggiornamenti automatici tra Shopify e VestiFlow/ }),
+      ).toBeNull();
+    });
+
+    it('con la sola location lasciata fuori apposta si apre la sincronizzazione: niente da decidere', async () => {
+      const attivato: ShopifySetupDto = {
+        ...PERCORSO_IN_CORSO,
+        status: 'attivato',
+        activatedAt: '2026-09-12T10:00:00.000Z',
+        locations: [{ ...PERCORSO_IN_CORSO.locations[0]!, choice: 'lascia' }],
+      };
+      await setup({}, TITOLARE, attivato);
+      expect(
+        await screen.findByRole('heading', {
+          name: /Aggiornamenti automatici tra Shopify e VestiFlow/,
+        }),
+      ).toBeVisible();
+    });
+
     it('con il percorso ATTIVATO la scheda Prima connessione mostra le tre fasi com’erano, coi comandi spenti e il motivo', async () => {
       await setup({ scheda: 'prima-connessione' }, TITOLARE, {
         ...PERCORSO_IN_CORSO,
@@ -1270,24 +1383,27 @@ describe('ShopifyIntegrationPanelComponent', () => {
         activatedAt: '2026-09-12T10:00:00.000Z',
       });
       expect(await screen.findByText(/conclusa il/)).toBeVisible();
-      expect(screen.getByRole('heading', { name: /1 Scelte iniziali/ })).toBeVisible();
-      expect(screen.getByRole('heading', { name: /2 Sedi/ })).toBeVisible();
-      expect(screen.getByRole('heading', { name: /3 Controllo e conferma/ })).toBeVisible();
+      expect(screen.getByRole('heading', { name: /1 · Scelte iniziali/ })).toBeVisible();
+      expect(screen.getByRole('heading', { name: /2 · Sedi/ })).toBeVisible();
+      expect(screen.getByRole('heading', { name: /3 · Controllo e conferma/ })).toBeVisible();
       // ⭐ A percorso concluso la scelta si legge nel titolo: niente pulsanti di direzione,
       //    la spiegazione della SOLA direzione scelta sta in un dettaglio richiudibile
       //    (proprietario, 13/09/2026: «tenere visibili scelta, sedi ed esito»).
       expect(screen.queryByRole('button', { name: 'Shopify → VestiFlow' })).toBeNull();
-      expect(screen.getByRole('heading', { name: /1 Scelte iniziali/ })).toHaveTextContent(
-        'Shopify → VestiFlow',
-      );
+      // Lo stepper: la scelta sulla riga della fase, i quattro fatti in testa.
+      expect(screen.getAllByText('Shopify → VestiFlow').length).toBeGreaterThan(0);
+      expect(screen.getByText('Direzione iniziale')).toBeVisible();
       expect(screen.getByText(/Che cosa ha fatto «Shopify → VestiFlow»/)).toBeVisible();
       expect(screen.getByText(/Ha importato il catalogo del negozio/)).toBeInTheDocument();
       expect(screen.queryByText(/Pubblica gli articoli del gestionale/)).toBeNull();
-      expect(screen.getByRole('button', { name: 'Attiva la sincronizzazione' })).toBeDisabled();
-      expect(screen.getByText(/già attivata il/)).toBeVisible();
+      // ⛔ A percorso concluso NESSUN comando: niente «Attiva la sincronizzazione» spento
+      //    (proprietario, 14/09/2026: conclusa, non da rifare).
+      expect(screen.queryByRole('button', { name: 'Attiva la sincronizzazione' })).toBeNull();
       expect(screen.getByText(/non si cambia da qui/)).toBeInTheDocument();
       // Le sedi di allora si leggono qui; quelle di oggi nell'altra scheda.
-      expect(screen.getByText(/Le sedi di oggi si consultano e si cambiano/)).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Le fasi concluse' })).toHaveAccessibleDescription(
+        /le sedi di oggi si consultano e si cambiano/,
+      );
     });
 
     it('con il percorso ATTIVATO le scelte sulle sedi tornano in Connessione e sedi, una volta sola', async () => {
@@ -1298,6 +1414,270 @@ describe('ShopifyIntegrationPanelComponent', () => {
       });
       expect(await screen.findByRole('heading', { name: /^Sedi/ })).toBeVisible();
       expect(screen.getAllByRole('button', { name: /Scelta per la location/ })).toHaveLength(1);
+    });
+  });
+
+  /**
+   * ⭐ La leggibilità della pagina (14/09/2026, `docs/29` §6): il ritorno da
+   *    Shopify dice lo stato VERO e i quattro rifiuti dell'OAuth hanno un testo;
+   *    il comando che azzera gli errori dice che cosa fa davvero.
+   */
+  describe('ritorno da Shopify e comandi che dicono il vero', () => {
+    /** Il banner dell'esito OAuth, con il suo tono (la classe del banner condiviso). */
+    function bannerEsito(): { testo: string; tono: string } {
+      const banner = document.querySelector('.inline-banner');
+      const tono = [...(banner?.classList ?? [])]
+        .find((c) => c.startsWith('inline-banner--'))
+        ?.replace('inline-banner--', '');
+      return {
+        testo:
+          banner?.querySelector('.inline-banner__text')?.textContent?.replace(/\s+/g, ' ').trim() ??
+          '',
+        tono: tono ?? '',
+      };
+    }
+
+    async function ritorno(
+      query: string,
+      utente: object = TITOLARE,
+      percorso: ShopifySetupDto = PERCORSO_ASSENTE,
+      scheda: string | null = null,
+    ) {
+      const setupService = { stato: vi.fn().mockReturnValue(of(percorso)) };
+      const { fixture } = await render(ShopifyIntegrationPanelComponent, {
+        inputs: { locationSetupStatus: LOCATION_SETUP, scheda },
+        initialRoute: `/app/settings/shopify?${query}`,
+        providers: [
+          provideRouter([{ path: '**', children: [] }]),
+          COLONNE_FINTE,
+          { provide: ShopifyConnectionService, useValue: connectionService },
+          { provide: ShopifySetupService, useValue: setupService },
+          { provide: AuthService, useValue: { currentUser: () => utente } },
+        ],
+      });
+      return { router: fixture.debugElement.injector.get(Router) };
+    }
+
+    it('il negozio già di un’altra azienda: il testo lo dice col dominio, nulla è stato scritto, l’indirizzo si pulisce', async () => {
+      const { router } = await ritorno('shopify=shop_owned_elsewhere&shop=altro.myshopify.com');
+      await waitFor(() =>
+        expect(bannerEsito().testo).toBe(
+          'Collegamento rifiutato: il negozio altro.myshopify.com è già collegato a un’altra azienda e non può appartenere a due. Nulla è stato scritto.',
+        ),
+      );
+      expect(bannerEsito().tono).toBe('error');
+      await waitFor(() => expect(router.url).not.toMatch(/shopify=|shop=/));
+      expect(connectionService.getConnection).toHaveBeenCalled();
+    });
+
+    it('il canale non previsto dal profilo: errore, con dove si abilita', async () => {
+      await ritorno('shopify=channel_not_enabled&shop=demo.myshopify.com');
+      await waitFor(() => expect(bannerEsito().testo).toMatch(/non prevede il canale Shopify/));
+      expect(bannerEsito().testo).toMatch(/Nulla è stato scritto/);
+      expect(bannerEsito().tono).toBe('error');
+    });
+
+    it('identità del negozio non ricevuta e collegamento concorrente: avvisi da ritentare', async () => {
+      await ritorno('shopify=shop_identity_unavailable&shop=demo.myshopify.com');
+      await waitFor(() =>
+        expect(bannerEsito().testo).toMatch(
+          /Shopify non ha risposto sull’identità del negozio demo\.myshopify\.com/,
+        ),
+      );
+      expect(bannerEsito().testo).toMatch(/ripeti «Connetti Shopify»/);
+      expect(bannerEsito().tono).toBe('warning');
+    });
+
+    it('collegamento concorrente: avviso da ritentare', async () => {
+      await ritorno('shopify=connection_conflict');
+      await waitFor(() =>
+        expect(bannerEsito().testo).toMatch(
+          /un altro collegamento dello stesso negozio era in corso/,
+        ),
+      );
+      expect(bannerEsito().tono).toBe('warning');
+    });
+
+    it('collegato con gli aggiornamenti ATTIVI e una location da decidere: il banner dice questo, non «quando attivi»', async () => {
+      connectionService.getConnection.mockReturnValue(of({ ...CONNECTED, autoSyncEnabled: true }));
+      await ritorno('shopify=connected', TITOLARE, {
+        ...PERCORSO_ASSENTE,
+        locations: [
+          {
+            shopifyLocationId: '11',
+            name: 'Negozio centro',
+            active: true,
+            choice: null,
+            locationId: null,
+            locationName: null,
+          },
+        ],
+        sediVestiFlow: [{ id: 'loc-1', name: 'Sede 1', code: 'S1', shopifyLocationId: null }],
+      });
+      await waitFor(() =>
+        expect(bannerEsito().testo).toBe(
+          'Negozio collegato. Aggiornamenti automatici attivi. 1 location del negozio attende una scelta, nella tabella «Sedi».',
+        ),
+      );
+      expect(bannerEsito().tono).toBe('success');
+      expect(screen.queryByText(/quando attivi gli aggiornamenti automatici/)).toBeNull();
+    });
+
+    it('collegato con gli aggiornamenti SOSPESI: lo dice, e dice dove si riattivano', async () => {
+      await ritorno('shopify=connected');
+      await waitFor(() =>
+        expect(bannerEsito().testo).toBe(
+          'Negozio collegato. Aggiornamenti automatici sospesi: si riattivano in «Sincronizzazione automatica».',
+        ),
+      );
+    });
+
+    it('collegato con un avviso sulle notifiche: il testo dell’avviso e il rimando alla Sincronizzazione, dove sta la causa', async () => {
+      const user = userEvent.setup();
+      connectionService.getConnection.mockReturnValue(
+        of({
+          ...CONNECTED,
+          autoSyncEnabled: true,
+          lastError: {
+            message: 'Registrazione delle notifiche non riuscita',
+            code: 'webhook_registration_failed',
+            occurredAt: '2026-09-14T10:00:00.000Z',
+          },
+          webhookTopicsKnown: true,
+          webhookTopics: ['orders/create'],
+          webhookMissingTopics: ['orders/cancelled'],
+        }),
+      );
+      await ritorno('shopify=connected');
+      await waitFor(() =>
+        expect(bannerEsito().testo).toMatch(
+          /Con un avviso: Registrazione delle notifiche non riuscita/,
+        ),
+      );
+      expect(bannerEsito().tono).toBe('warning');
+      expect(screen.queryByText('Vedi problemi')).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Vedi le notifiche' }));
+      expect(
+        await screen.findByRole('heading', {
+          name: /Aggiornamenti automatici tra Shopify e VestiFlow/,
+        }),
+      ).toBeVisible();
+    });
+
+    it('collegato con un avviso che non riguarda le notifiche: il rimando va ai Problemi', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of({
+          ...CONNECTED,
+          autoSyncEnabled: true,
+          lastError: {
+            message: 'Permesso mancante',
+            code: 'scope_missing',
+            occurredAt: '2026-09-14T10:00:00.000Z',
+          },
+        }),
+      );
+      await ritorno('shopify=connected');
+      await waitFor(() => expect(bannerEsito().testo).toMatch(/Con un avviso: Permesso mancante/));
+      expect(screen.getByRole('button', { name: 'Vedi i problemi' })).toBeVisible();
+    });
+
+    /**
+     * ⛔ Qui il comando si chiamava «Ripristina connessione» e l'esito diceva
+     *    «Connessione Shopify ripristinata, N prodotti ripristinati». Verificato
+     *    sull'API: azzera gli errori salvati e rimette «da allineare» prodotti e
+     *    sedi in errore, che vengono ritentati; non corregge nessuna causa. Non è
+     *    «segna come letto» — cambia lo stato del prossimo invio — e il testo lo
+     *    dice prima e dopo (mandato del 14/09/2026).
+     */
+    it('«Azzera le segnalazioni di errore» dice i suoi effetti prima e dopo, senza «ripristinato»', async () => {
+      const user = userEvent.setup();
+      connectionService.getConnection.mockReturnValue(
+        of({
+          ...CONNECTED,
+          lastError: {
+            message: 'Permesso mancante',
+            code: 'scope_missing',
+            occurredAt: '2026-09-14T10:00:00.000Z',
+          },
+        }),
+      );
+      connectionService.clearErrors.mockReturnValue(
+        of({ cleared: true as const, productsReset: 2, locationsReset: 1 }),
+      );
+      await setup({ scheda: 'connessione' });
+
+      expect(screen.queryByRole('button', { name: /Ripristina connessione/ })).toBeNull();
+      const comando = await screen.findByRole('button', {
+        name: 'Azzera le segnalazioni di errore',
+      });
+      expect(
+        screen.getByText(/riporta «da allineare» i prodotti e le sedi in errore/),
+      ).toBeVisible();
+      expect(screen.getByText(/Non corregge la causa/)).toBeVisible();
+
+      await user.click(comando);
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(
+          'Segnalazioni di errore azzerate. 2 prodotti e 1 sede tornano «da allineare»: verranno ritentati al prossimo invio. Le cause non sono state corrette: se il problema c’è ancora, la segnalazione ricompare.',
+        ),
+      );
+      expect(screen.getByRole('status')).not.toHaveTextContent(/ripristinat/);
+    });
+
+    /**
+     * ⭐ Il mandato del 14/09/2026: il comando «non deve far apparire risolto un
+     *    problema ancora presente». Azzerate le segnalazioni, le notifiche mancanti
+     *    ci sono ancora — e il banner, che legge lo stato di ADESSO, continua a
+     *    dirlo con il rimando alla Sincronizzazione.
+     */
+    it('dopo «Azzera» un problema ancora presente resta scritto: il banner avvisa delle notifiche mancanti', async () => {
+      const user = userEvent.setup();
+      const conErrore = {
+        ...CONNECTED,
+        autoSyncEnabled: true,
+        lastError: {
+          message: 'Registrazione delle notifiche non riuscita.',
+          code: 'webhook_partial_registration',
+          occurredAt: '2026-09-14T10:00:00.000Z',
+        },
+        webhookTopicsKnown: true,
+        webhookTopics: ['orders/create'],
+        webhookMissingTopics: [
+          'fulfillment_orders/moved',
+          'fulfillment_orders/order_routing_complete',
+        ],
+      };
+      connectionService.getConnection.mockReturnValue(of(conErrore));
+      connectionService.clearErrors.mockImplementation(() => {
+        // L'API cancella l'errore salvato; le registrazioni mancanti restano quelle che sono.
+        const { lastError: _tolto, ...senzaErrore } = conErrore;
+        connectionService.getConnection.mockReturnValue(of(senzaErrore));
+        return of({ cleared: true as const, productsReset: 0, locationsReset: 0 });
+      });
+      // La scheda aperta la dà la pagina dalla rotta: qui si parte già da Connessione e sedi.
+      await ritorno('shopify=connected', TITOLARE, PERCORSO_ASSENTE, 'connessione');
+      await waitFor(() =>
+        expect(bannerEsito().testo).toBe(
+          'Negozio collegato. Aggiornamenti automatici attivi. Con un avviso: Registrazione delle notifiche non riuscita. Vedi le notifiche',
+        ),
+      );
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Azzera le segnalazioni di errore' }),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(
+          'Segnalazioni di errore azzerate. Le cause non sono state corrette: se il problema c’è ancora, la segnalazione ricompare.',
+        ),
+      );
+      // Il banner non dice «tutto a posto»: le due notifiche mancano ancora.
+      await waitFor(() =>
+        expect(bannerEsito().testo).toBe(
+          'Negozio collegato. Aggiornamenti automatici attivi. Con un avviso: 2 notifiche non registrate su Shopify. Vedi le notifiche',
+        ),
+      );
+      expect(bannerEsito().tono).toBe('warning');
+      expect(screen.getByRole('button', { name: 'Vedi le notifiche' })).toBeVisible();
     });
   });
 });

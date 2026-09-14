@@ -4,7 +4,13 @@ import { ActivatedRoute } from '@angular/router';
 import { catchError, combineLatest, map, of, switchMap } from 'rxjs';
 
 import type { Location } from '@core/models/location.model';
+import { formatDateTime } from '@core/utils/date.util';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
+import {
+  shopifyConnectionStatusLabel,
+  shopifyConnectionStatusTone,
+} from '@domain/channels/shopify/models/shopify-connection-labels.util';
 import { ShopifyConnectionStore } from '@domain/channels/shopify/state/shopify-connection.store';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
 import type { TenantCompany } from '@domain/tenant/models/tenant-company.model';
@@ -32,7 +38,7 @@ import {
 @Component({
   selector: 'app-shopify-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackButtonComponent, ShopifyIntegrationPanelComponent],
+  imports: [BackButtonComponent, BadgeComponent, ShopifyIntegrationPanelComponent],
   templateUrl: './shopify-settings-page.component.html',
   styleUrl: './shopify-settings-page.component.scss',
 })
@@ -52,6 +58,16 @@ export class ShopifySettingsPageComponent {
 
   /** Chi gestisce la connessione: lo stesso cancello dello store. */
   private readonly gestisce = this.connectionStore.available;
+
+  /**
+   * ⭐ Lo stato del negozio sta A DESTRA del titolo quando c'è spazio, sotto sul
+   *    telefono o con un dominio lungo (proprietario, 14/09/2026). Legge lo stesso
+   *    store che il pannello riempie: nessuna seconda lettura, nessuna seconda riga.
+   */
+  protected readonly connessione = this.connectionStore.connection;
+  protected readonly statoLabel = shopifyConnectionStatusLabel;
+  protected readonly statoTone = shopifyConnectionStatusTone;
+  protected readonly formatta = formatDateTime;
 
   private readonly sedi = toSignal(
     combineLatest([toObservable(this.tick), toObservable(this.gestisce)]).pipe(

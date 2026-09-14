@@ -19,6 +19,34 @@
   margin-block-end: 0;
 }
 
+// Lo stato del negozio nell'intestazione: il telaio mette titolo e stato sulla stessa
+// riga da `md`; qui la riga può ANDARE A CAPO (dominio lungo) invece di stringersi.
+.shopify-settings__header {
+  flex-wrap: wrap;
+}
+
+.shopify-settings__stato {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.shopify-settings__dominio {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.shopify-settings__dal {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 // ⛔ Qui c'era la card della pagina: le schede devono stare FUORI dal riquadro
 //    (proprietario, 13/09/2026, sul mock), quindi la card la disegna il pannello
 //    intorno alla sola scheda aperta. La zona resta un blocco senza veste.

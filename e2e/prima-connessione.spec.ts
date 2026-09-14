@@ -290,18 +290,19 @@ test('⭐ il percorso a schermo: scelte, sedi, controllo, conferma, casi irrisol
   const pannello = page.getByRole('region', { name: 'Prima connessione' });
   await expect(pannello).toBeVisible();
   await expect(page.getByText(/completa la prima connessione/)).toBeVisible();
-  await expect(page.getByRole('heading', { name: /1 Scelte iniziali/ })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /2 Sedi/ })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /3 Controllo e conferma/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /1 · Scelte iniziali/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /2 · Sedi/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /3 · Controllo e conferma/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Importa catalogo' })).toHaveCount(0);
-  // ⭐ La riga di stato dice la fase (di TRE); la scheda lo dice a parole.
-  await expect(page.getByText('fase 1 di 3 · Scelte iniziali')).toBeVisible();
+  // ⭐ La riga di stato dice la fase (di TRE); la scheda lo ripete nel suo badge.
+  await expect(page.getByText('fase 1 di 3 · Scelte iniziali').first()).toBeVisible();
+  await expect(pannello.getByText(/Da completare · fase 1 di 3/)).toBeVisible();
   const schede = page.getByRole('navigation', { name: 'Aree di Shopify' });
   await expect(schede.getByRole('link', { name: 'Prima connessione in corso' })).toBeVisible();
   // I rimedi per connessione e permessi restano raggiungibili, nella loro scheda.
   await schede.getByRole('link', { name: 'Connessione e sedi' }).click();
   await expect(page.getByRole('button', { name: 'Disconnetti Shopify' })).toBeVisible();
-  await expect(page.getByText('Accesso a Shopify')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Permessi su Shopify/ })).toBeVisible();
   await page.screenshot({ path: `${SCATTI}/00b-percorso-iniziale-connessione.png` });
   await schede.getByRole('link', { name: 'Prima connessione in corso' }).click();
   await page.screenshot({ path: `${SCATTI}/00-percorso-iniziale-pagina.png` });
@@ -313,7 +314,7 @@ test('⭐ il percorso a schermo: scelte, sedi, controllo, conferma, casi irrisol
   const vaiAlControllo = page.getByRole('button', { name: 'Vai al controllo' });
   await expect(vaiAlControllo).toBeDisabled();
   await page.getByRole('button', { name: /Scelta per la location Negozio centro/ }).click();
-  await page.getByRole('option', { name: 'Collega a «Sede 1»' }).click();
+  await page.getByRole('option', { name: 'Collega alla sede «Sede 1»' }).click();
   await page.getByRole('button', { name: /Scelta per la location Deposito/ }).click();
   await page.getByRole('option', { name: 'Lascia fuori da VestiFlow' }).click();
   await expect(vaiAlControllo).toBeEnabled();
@@ -360,7 +361,10 @@ test('⭐ il percorso a schermo: scelte, sedi, controllo, conferma, casi irrisol
 
   await schede.getByRole('link', { name: 'Problemi ed esiti 2' }).click();
   const situazione = page.getByRole('region', { name: /Problemi aperti/ });
-  await expect(situazione.locator('.problemi__gruppi').getByRole('term')).toHaveCount(2);
+  // ⭐ Le cause in una tabella (14/09/2026): una riga per causa, oltre l'intestazione.
+  await expect(
+    situazione.getByRole('table', { name: 'Le cause dei problemi aperti' }).getByRole('row'),
+  ).toHaveCount(3);
   await expect(situazione.getByRole('link', { name: '#5002' }).first()).toHaveAttribute(
     'href',
     '/app/sales/o-5002',
@@ -369,16 +373,20 @@ test('⭐ il percorso a schermo: scelte, sedi, controllo, conferma, casi irrisol
 
   await schede.getByRole('link', { name: 'Prima connessione conclusa' }).click();
   await expect(pannello.getByText(/conclusa il/)).toBeVisible();
-  // ⭐ A percorso concluso la scelta si legge nel titolo, senza pulsanti; la spiegazione
-  //    della sola direzione scelta è un dettaglio richiudibile (13/09/2026).
-  await expect(pannello.getByRole('heading', { name: /1 Scelte iniziali/ })).toContainText(
+  // ⭐ A percorso concluso la scelta si legge nella fase (stepper del 14/09/2026) e nei
+  //    fatti in testa, senza pulsanti; la spiegazione della sola direzione scelta è un
+  //    dettaglio richiudibile (13/09/2026).
+  await expect(pannello.getByRole('listitem', { name: /1 · Scelte iniziali/ })).toContainText(
     'Shopify → VestiFlow',
   );
+  await expect(pannello.getByText('Direzione iniziale')).toBeVisible();
   await expect(pannello.getByRole('button', { name: 'Shopify → VestiFlow' })).toHaveCount(0);
   await expect(pannello.getByText(/Che cosa ha fatto «Shopify → VestiFlow»/)).toBeVisible();
   await expect(pannello.getByText(/Pubblica gli articoli del gestionale/)).toHaveCount(0);
-  await expect(pannello.getByRole('button', { name: 'Attiva la sincronizzazione' })).toBeDisabled();
-  await expect(pannello.getByText(/già attivata il/)).toBeVisible();
+  // ⛔ Conclusa, NESSUN comando: un «Attiva» spento con «già attivata» la faceva sembrare
+  //    da rifare (proprietario, 14/09/2026).
+  await expect(pannello.getByRole('button', { name: 'Attiva la sincronizzazione' })).toHaveCount(0);
+  await expect(pannello.getByText(/già attivata il/)).toHaveCount(0);
   // Gli esclusi di allora non si ripetono come elenco.
   await expect(pannello.getByText(/casi sono rimasti esclusi/)).toHaveCount(0);
   await expect(pannello.locator('details.setup__storico')).toHaveCount(0);
@@ -397,11 +405,30 @@ test('sul telefono le tre fasi restano leggibili e la scelta si fa toccando', as
   await expect(page.getByText('demo.myshopify.com').first()).toBeVisible({ timeout: 45_000 });
 
   await page.getByRole('button', { name: 'Shopify → VestiFlow' }).click();
-  await page.getByRole('button', { name: /Scelta per la location Negozio centro/ }).click();
-  await page.getByRole('option', { name: 'Crea la sede «Negozio centro»' }).click();
+  const scelta = page.getByRole('button', { name: /Scelta per la location Negozio centro/ });
+  // Sul telefono la tendina si apre SOTTO il trigger e la pagina scorre: il trigger va al
+  // centro, così le voci stanno nella finestra e si può chiedere al browser chi le copre.
+  await scelta.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await scelta.click();
+  // ⛔ «Visibile» per Playwright non basta: una voce ritagliata dalla cella-card
+  //    (overflow hidden ereditato dal taglio a colonna) è nel DOM, ha una misura,
+  //    e un dito non la tocca. Misurato il 14/09/2026 nell'anteprima: pannello nel
+  //    DOM e schermata senza voci. La prova chiede al browser CHI sta sotto il
+  //    centro di ogni voce.
+  await expect(page.getByRole('option').first()).toBeVisible();
+  const vociColpite = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="option"]')].map((voce) => {
+      const r = voce.getBoundingClientRect();
+      const sotto = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return sotto !== null && voce.contains(sotto);
+    }),
+  );
+  expect(vociColpite.length).toBeGreaterThan(1);
+  expect(vociColpite.every(Boolean)).toBe(true);
+  await page.getByRole('option', { name: 'Crea una nuova sede «Negozio centro»' }).click();
   await expect(
     page.getByRole('button', { name: /Scelta per la location Negozio centro/ }),
-  ).toContainText(/Crea la sede/);
+  ).toContainText(/Crea una nuova sede/);
   // Nessuno scorrimento orizzontale: la pagina non deve sbordare.
   const larghezze = await page.evaluate(() => ({
     documento: document.documentElement.scrollWidth,
@@ -411,4 +438,98 @@ test('sul telefono le tre fasi restano leggibili e la scelta si fa toccando', as
   await page
     .getByRole('region', { name: 'Prima connessione' })
     .screenshot({ path: `${SCATTI}/06-telefono.png` });
+});
+
+/**
+ * Il pannello di una tendina aperta, misurato dal browser: dove sta, quanto è
+ * largo, e per ogni voce se è dentro lo schermo, se un dito la colpisce e se il
+ * suo testo è intero (`scrollWidth` entro `clientWidth`: niente «…», niente taglio).
+ */
+async function misuraTendina(page: Page) {
+  await expect(page.getByRole('option').first()).toBeVisible();
+  return page.evaluate(() => {
+    const host = document.querySelector<HTMLElement>('td.scelte__cella-scelta app-select-menu');
+    const pannello = host?.querySelector<HTMLElement>('.select-menu__panel');
+    if (!host || !pannello) {
+      return null;
+    }
+    const intero = (el: Element | null) => (el ? el.scrollWidth <= el.clientWidth + 1 : true);
+    const r = pannello.getBoundingClientRect();
+    return {
+      finestra: window.innerWidth,
+      stretto: host.classList.contains('select-menu-host--stretto'),
+      pannello: { left: r.left, right: r.right, width: r.width, testoIntero: intero(pannello) },
+      voci: [...pannello.querySelectorAll<HTMLElement>('[role="option"]')].map((voce) => {
+        const v = voce.getBoundingClientRect();
+        const sotto = document.elementFromPoint(v.left + v.width / 2, v.top + v.height / 2);
+        return {
+          nome: (voce.getAttribute('aria-label') ?? voce.textContent ?? '').trim(),
+          dentro: v.left >= 0 && v.right <= window.innerWidth,
+          colpita: sotto !== null && voce.contains(sotto),
+          etichettaIntera: intero(voce.querySelector('.select-menu__option-label')),
+          dettaglioIntero: intero(voce.querySelector('.select-menu__option-detail')),
+        };
+      }),
+    };
+  });
+}
+
+/**
+ * ⛔ Segnalato dal proprietario sull'anteprima del 14/09/2026, telefono 390×844:
+ *    il pannello della scelta misurava 352px da x=50 a x=402 — oltre lo schermo,
+ *    coi testi tagliati. Il ribaltamento non bastava: da nessuna delle due parti
+ *    c'era spazio. Ora il pannello si stringe allo spazio del confine e le voci
+ *    vanno a capo; sulla scrivania, dove ci sta, non cambia niente.
+ *
+ * ⚠️ Tre cose, non una: dentro lo schermo (contenimento), colpibile col dito
+ *    (visibilità), testo intero (leggibilità). Un pannello «dentro» con le voci
+ *    in «…» sarebbe verde per le prime due e illeggibile.
+ */
+test('⭐ la tendina della scelta sta nello schermo e si legge intera a 320, 360 e 390, come sulla scrivania', async ({
+  page,
+}) => {
+  await instradaPercorso(page);
+  await apriImpostazioni(page, [], '/app/settings/shopify');
+  await expect(page.getByText('demo.myshopify.com').first()).toBeVisible({ timeout: 45_000 });
+  // La direzione si sceglie una volta: il percorso finto resta in fase Sedi.
+  await page.getByRole('button', { name: 'Shopify → VestiFlow' }).click();
+  await expect(
+    page.getByRole('button', { name: /Scelta per la location Negozio centro/ }),
+  ).toBeVisible();
+
+  for (const larghezza of [320, 360, 390, 1280]) {
+    await page.setViewportSize({ width: larghezza, height: 844 });
+    await page.reload();
+    const trigger = page.getByRole('button', { name: /Scelta per la location Negozio centro/ });
+    await expect(trigger).toBeVisible({ timeout: 45_000 });
+    // ⚠️ Sulla scrivania il pannello è fisso e si chiude a uno scorrimento: lo
+    //    scorrimento con cui Playwright porta il trigger in vista arriva DOPO il
+    //    clic e lo chiuderebbe. Prima si porta in vista, poi si clicca.
+    //    E sul telefono il pannello è assoluto e si apre SOTTO: col trigger al bordo
+    //    inferiore le voci uscirebbero dalla finestra (la pagina scorre, la prova no).
+    await trigger.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await page.waitForTimeout(150);
+    await trigger.click();
+
+    const misura = await misuraTendina(page);
+    const dove = `a ${larghezza}px: ${JSON.stringify(misura)}`;
+    expect(misura, dove).not.toBeNull();
+    expect(misura!.voci.length, dove).toBeGreaterThan(1);
+    // Contenimento: il pannello e ogni voce dentro lo schermo.
+    expect(misura!.pannello.left, `esce a sinistra — ${dove}`).toBeGreaterThanOrEqual(0);
+    expect(misura!.pannello.right, `esce a destra — ${dove}`).toBeLessThanOrEqual(larghezza);
+    expect(misura!.pannello.testoIntero, `pannello che scorre di lato — ${dove}`).toBe(true);
+    for (const voce of misura!.voci) {
+      expect(voce.dentro, `«${voce.nome}» fuori dallo schermo — ${dove}`).toBe(true);
+      expect(voce.colpita, `«${voce.nome}» non colpibile — ${dove}`).toBe(true);
+      expect(voce.etichettaIntera, `etichetta tagliata «${voce.nome}» — ${dove}`).toBe(true);
+      expect(voce.dettaglioIntero, `dettaglio tagliato «${voce.nome}» — ${dove}`).toBe(true);
+    }
+    // Sulla scrivania il pannello non si stringe: ci sta com'è.
+    if (larghezza === 1280) {
+      expect(misura!.stretto, `stretto sulla scrivania — ${dove}`).toBe(false);
+    }
+    await page.screenshot({ path: `${SCATTI}/07-tendina-${larghezza}.png` });
+    await page.keyboard.press('Escape');
+  }
 });

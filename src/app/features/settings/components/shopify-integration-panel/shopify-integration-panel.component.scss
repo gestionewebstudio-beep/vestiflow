@@ -1,4 +1,5 @@
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 // Pannello «Integrazione Shopify» della schermata Impostazioni.
 //
@@ -25,59 +26,19 @@
 // diventassero un pattern vero, salgono a componente condiviso.
 // ⭐ La CARD contiene solo la scheda aperta: le schede e la riga del negozio stanno
 //    sopra, a livello di pagina (mock approvato dal proprietario, 13/09/2026).
+// ⛔ Qui c'era la card della scheda aperta (superficie, bordo, raggio, padding). Tolta il
+//    14/09/2026 (proprietario: «sezioni sulla superficie della pagina, separate da spazio e
+//    da una linea sottile sotto il titolo»). Lo spazio fra le sezioni lo danno i titoli.
 .shopify-integration__card {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--card-pad-sm) var(--card-pad-md);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-// La frase d'apertura di una scheda: a larghezza di lettura.
-.shopify-integration__intro {
-  max-inline-size: var(--content-narrow);
 }
 
 .shopify-integration__muted {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
-}
-
-.shopify-integration__facts {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.shopify-integration__fact {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-
-.shopify-integration__fact dt {
-  min-inline-size: calc(var(--space-16) * 2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.shopify-integration__fact dd {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text);
-}
-
-// La situazione attuale: un fatto fermo si legge dal colore dell'avviso.
-.shopify-integration__fact--fermo {
-  color: var(--color-warning);
-  font-weight: var(--font-weight-semibold);
-}
-
-.shopify-integration__fact--ok {
-  color: var(--color-ok);
 }
 
 .shopify-integration__banner-link {
@@ -126,65 +87,6 @@
 }
 
 // ── Shopify ──────────────────────────────────────────────────────────────────
-.shopify-integration__permissions {
-  margin-block-start: var(--space-2);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-raised, var(--color-surface));
-}
-
-.shopify-integration__permissions-summary {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  cursor: pointer;
-  list-style: none;
-
-  &::-webkit-details-marker {
-    display: none;
-  }
-
-  &::marker {
-    content: '';
-  }
-}
-
-.shopify-integration__permissions-summary-label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.shopify-integration__permissions-summary-trailing {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-inline-start: auto;
-}
-
-.shopify-integration__permissions-summary-meta {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.shopify-integration__permissions-summary-icon {
-  font-size: var(--text-base);
-  color: var(--color-text-muted);
-  transition: transform var(--transition-fast) ease;
-}
-
-.shopify-integration__permissions[open]
-  > .shopify-integration__permissions-summary
-  .shopify-integration__permissions-summary-icon {
-  transform: rotate(90deg);
-}
-
-.shopify-integration__permissions-table-wrap {
-  padding: 0 var(--space-4) var(--space-4);
-}
 
 .shopify-integration__permissions-table thead th:last-child {
   inline-size: 11.5rem;
@@ -277,24 +179,7 @@
 
 .shopify-integration__webhook-address {
   font-family: var(--font-mono);
-}
-
-.shopify-integration__setup-copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-inline-size: 0;
-}
-
-.shopify-integration__setup-label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text);
-}
-
-.shopify-integration__setup-detail {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .shopify-integration__setup-problems {
@@ -304,33 +189,6 @@
   margin: 0;
   padding-inline-start: var(--space-4);
   list-style: disc;
-}
-
-.shopify-integration__post-connect {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--status-success-border);
-  border-radius: var(--radius-md);
-  background-color: var(--status-success-bg);
-}
-
-.shopify-integration__post-connect-title,
-.shopify-integration__bulk-sync-title,
-.shopify-integration__shopify-management-title,
-.shopify-integration__shopify-locations-title {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.shopify-integration__post-connect-list {
-  margin: 0;
-  padding-inline-start: var(--space-5);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
 }
 
 // ── Le quattro sezioni (11/09/2026): prima connessione, configurazione,
@@ -346,6 +204,9 @@
 // ⛔ Qui c'era la barretta verticale in --color-primary: respinta dal proprietario
 //    (01/09/2026), rientrata seguendo una regola non aggiornata, tolta il 13/09/2026.
 //    Il colore sta sul TESTO, il filo sotto è tinto: la forma di `_anagrafica.scss`.
+// Il titolo di sezione: la forma delle anagrafiche (testo in --color-primary, filo tinto)
+// alla misura che la regola prescrive per un titolo di sezione (--text-md, §3); fra una
+// sezione e l'altra lo stacco lo dà il titolo, non una card.
 .shopify-integration__section-title {
   display: flex;
   flex-wrap: wrap;
@@ -353,11 +214,15 @@
   gap: var(--space-2);
   margin: 0;
   padding-block-end: var(--space-1);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--font-weight-bold);
   color: var(--color-primary);
   border-block-end: var(--border-width) solid
     color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
+
+  &:not(:first-child) {
+    margin-block-start: var(--space-6);
+  }
 }
 
 // Il rimando: un link in linea che porta a un'altra scheda o a un elemento.
@@ -391,12 +256,6 @@
 }
 
 // Il dominio è un identificativo: monospazio. I nomi delle sedi no.
-.shopify-integration__dominio {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-text);
-}
-
 .shopify-integration__secondario {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
@@ -424,11 +283,56 @@
   //    colonne rigide in un contenitore stretto la descrizione si riduceva a una parola
   //    per riga (misurato a 640px di finestra, 13/09/2026). Sotto `lg` le righe si impilano,
   //    come le tabelle diventano card.
-  @include bp.media-up('lg') {
+  // ⭐ Le colonne riempiono la larghezza (proposta approvata il 14/09/2026): il nome
+  //    quanto un campo, la descrizione tutto il resto, lo stato quanto un nome, il
+  //    comando quanto serve — così il pulsante sta sempre nello stesso posto.
+  // ⚠️ Lo stato vale un quarto della riga, come nella proposta (minimo un nome, 224px):
+  //    misurato a 1280 il 14/09/2026, col tetto a 352 lo stato — quasi sempre «Nessun
+  //    esito» — prendeva 352px e alla descrizione, che è il testo più lungo, ne restavano
+  //    232: dodici righe strette dove la proposta ne dava cinque. E col tetto a 224 era il
+  //    motivo di un blocco, in Sincronizzazione, ad andare su quattro righe.
+}
+
+// ⭐ CINQUE colonne, come una tabella (riferimento del proprietario, 14/09/2026). Le due
+//    liste hanno la stessa forma e colonne diverse nel mezzo: nei flussi lo stato è una
+//    parola e il dettaglio prende il resto; nelle operazioni «Modifica» è il testo lungo e
+//    l'esito vale un quarto della riga (mai oltre un indirizzo: a 1800px il 25 % lo stirava
+//    e allontanava il comando, prova «scrivania AMPIA»).
+@include bp.media-up('lg') {
+  .shopify-integration__righe--flussi {
     grid-template-columns:
-      minmax(var(--field-w-md), var(--field-w-lg)) minmax(0, var(--content-narrow))
-      minmax(var(--field-w-md), var(--field-w-lg)) auto;
-    justify-content: start;
+      minmax(var(--field-w-md), 19%) auto minmax(var(--field-w-sm), 12%) minmax(0, 1fr)
+      auto;
+  }
+
+  .shopify-integration__righe--operazioni {
+    grid-template-columns:
+      minmax(var(--field-w-md), 19%) auto minmax(0, 1fr)
+      minmax(var(--field-w-lg), min(25%, var(--field-w-xl))) auto;
+  }
+}
+
+// L'intestazione delle colonne: la stessa riga di titoli delle tabelle, senza tabella.
+// L'intestazione delle colonne: la riga di titoli delle tabelle — fondo, filo e 11px
+// della grammatica dei riepiloghi — senza tabella.
+.shopify-integration__intestazione {
+  display: none;
+
+  @include bp.media-up('lg') {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    gap: var(--space-1) var(--space-4);
+    min-block-size: var(--table-head-h);
+    align-items: center;
+    padding: 0 var(--space-1);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-weight-label);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--color-table-header-fg);
+    background-color: var(--color-table-header-bg);
+    border-block-end: var(--border-width) solid var(--color-table-header-rule);
   }
 }
 
@@ -451,11 +355,20 @@
   border-block-end: 0;
 }
 
+// Il nome col suo «?» in linea.
 .shopify-integration__riga-nome {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-05);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
   min-inline-size: 0;
+}
+
+// La direzione, in colonna: informazione, non comando (colore del canale).
+.shopify-integration__riga-direzione {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-shopify);
 }
 
 // Il nome della funzione si legge: testo pieno, semibold — non attenuato.
@@ -465,20 +378,19 @@
   color: var(--color-text);
 }
 
-.shopify-integration__riga-nome .shopify-integration__direction {
-  white-space: normal;
-}
-
+// Che cosa modifica (operazioni) o il motivo dello stato (flussi): si legge, non è attenuato.
 .shopify-integration__riga-testo {
   margin: 0;
   font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  color: var(--color-text);
   line-height: var(--leading-normal);
 }
 
-// Il perimetro: su quali dati opera, in chiaro.
-.shopify-integration__riga-perimetro {
-  color: var(--color-text);
+// La data dell'ultimo esito: piccola, sotto il testo.
+.shopify-integration__riga-quando-esito {
+  flex-basis: 100%;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
 }
 
 .shopify-integration__riga-stato {
@@ -496,49 +408,26 @@
   color: var(--color-text);
 }
 
+.shopify-integration__riga-vuoto {
+  color: var(--color-text-subtle);
+
+  @include bp.media-down('lg') {
+    display: none;
+  }
+}
+
 .shopify-integration__riga-azione {
   display: flex;
   justify-content: flex-start;
 
+  // Sulla scrivania i pulsanti delle righe hanno la stessa larghezza: si incolonnano.
+  @include bp.media-up('lg') {
+    --button-inline-size: var(--field-w-lg);
+  }
+
   @include bp.media-down('md') {
     --button-inline-size: 100%;
   }
-}
-
-// ── Gli approfondimenti (notifiche, accesso): un details con sommario e meta ──
-.shopify-integration__dettagli {
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-}
-
-.shopify-integration__dettagli-sommario {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.shopify-integration__dettagli-meta {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  margin-inline-start: auto;
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-regular);
-  color: var(--color-text-muted);
-}
-
-.shopify-integration__dettagli-corpo {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-block-start: var(--space-2);
 }
 
 // Le scelte sulle sedi, fuori dal percorso.
@@ -555,30 +444,27 @@
   border-radius: var(--radius-sm);
 }
 
-// ⭐ La DIREZIONE è un’informazione accanto al titolo, non un comando: la
-//    sincronizzazione bidirezionale del catalogo resta una, e lo dice qui.
-.shopify-integration__direction {
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-shopify);
-  white-space: nowrap;
-}
-
-.shopify-integration__bulk-sync-hint,
-.shopify-integration__shopify-management-hint,
-.shopify-integration__shopify-locations-hint,
-.shopify-integration__shopify-locations-empty {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  line-height: var(--leading-normal);
-}
-
-// Le scelte sulle sedi fuori dal percorso condividono la veste del blocco «Connessione e negozio».
-.shopify-integration__shopify-actions {
+// ⭐ Un comando con il suo «quando» (14/09/2026, `docs/29` §6): il pulsante dice
+//    che cosa fa, la riga accanto dice quando usarlo e che cosa NON fa. Sulla
+//    scrivania stanno in fila; sul telefono il pulsante prende la riga e il
+//    testo va sotto.
+.shopify-integration__comando {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+
+  @include bp.media-down('md') {
+    --button-inline-size: 100%;
+  }
+}
+
+.shopify-integration__comando-quando {
+  flex: 1 1 var(--field-w-xl);
+  min-inline-size: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
 }
 
 /* ── Allinea giacenze: avanzamento ed elenco delle non allineate ────── */
@@ -597,12 +483,6 @@
   margin-block-start: var(--space-12);
   padding-block-start: var(--space-12);
   border-block-start: var(--border-width) solid var(--color-border);
-}
-
-.shopify-integration__allinea-stato {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
 }
 
 /* ⛔ Un controllo incompleto si legge come tale: e' la differenza fra un
@@ -640,4 +520,169 @@
 /* Il motivo si legge dal colore: è l’anomalia, in tabella come sulla card. */
 .shopify-integration__allinea-motivo {
   color: var(--color-warning);
+}
+
+// La nota di una sezione: una riga attenuata, senza riquadro.
+.shopify-integration__nota {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+// Il meta a destra del titolo di sezione.
+.shopify-integration__section-meta--dx {
+  margin-inline-start: auto;
+}
+
+// ⭐ I comandi della sezione, a destra del titolo (14/09/2026): sulla scrivania alla
+//    misura dei pulsanti di barra (28px); sul telefono restano quelli di serie (44px):
+//    la misura da scrivania non riduce l'area premibile.
+.shopify-integration__section-azioni {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+  font-weight: var(--font-weight-regular);
+
+  @include bp.media-up('lg') {
+    --button-h: var(--control-h-button);
+    --button-font-size: var(--text-xs);
+  }
+}
+
+// ── L'approfondimento: un details con la freccia, il corpo in un riquadro tenue ──
+//    Mai una conseguenza importante lì dentro: quelle stanno nello stato o nel «quando».
+.shopify-integration__dettaglio {
+  font-size: var(--text-xs);
+
+  > summary {
+    cursor: pointer;
+    color: var(--color-link);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+.shopify-integration__dettaglio-corpo {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  // Sulla superficie della pagina (grigia) il fondo tenue sparirebbe: il corpo è bianco.
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  line-height: var(--leading-normal);
+}
+
+// Una riga del dettaglio tecnico: etichetta e valore in fila.
+.shopify-integration__dettaglio-riga {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.shopify-integration__dettaglio-etichetta {
+  color: var(--color-text-muted);
+}
+
+.shopify-integration__elenco-notifiche {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--field-w-xl), 100%), 1fr));
+  gap: var(--space-05) var(--space-6);
+  list-style: none;
+
+  > li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-block: var(--space-05);
+    border-block-end: var(--border-width) solid var(--color-border-cell);
+  }
+
+  // Il nome di una notifica è una parola sola e lunga: a 320px spingeva la pastiglia
+  // fuori dallo schermo (misurato il 14/09/2026). Cede e va a capo; la pastiglia resta.
+  > li > span:first-child {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+// ── Le tabelle di questa scheda (esiti): la grammatica dei riepiloghi, e card sotto lg ──
+// Sulla superficie della pagina la tabella conserva la sua: bianca e bordata, come il
+// motore (proprietario, 14/09/2026: «conserva le superfici necessarie alle tabelle»).
+.shopify-integration__tabella-scorri {
+  overflow-x: auto;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+@include rt.summary-grammar('shopify-integration__tabella');
+@include rt.data-table-mobile-cards('shopify-integration__tabella');
+
+.shopify-integration__tabella {
+  inline-size: 100%;
+  border-collapse: collapse;
+
+  // Il dettaglio di un esito va a capo: è una frase, non un codice.
+  tbody td {
+    white-space: normal;
+  }
+}
+
+.shopify-integration__esiti-titolo {
+  font-weight: var(--font-weight-semibold);
+}
+
+// ── I permessi: un elenco a colonne — area e accesso — col mancante in ambra ──
+.shopify-integration__permessi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--field-w-xl), 100%), 1fr));
+  gap: var(--space-05) var(--space-6);
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.shopify-integration__permesso {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-05);
+  border-block-end: var(--border-width) solid var(--color-border-cell);
+
+  > dt {
+    color: var(--color-text);
+  }
+
+  > dd {
+    margin: 0;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+}
+
+.shopify-integration__permesso--mancante > dd {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-semibold);
+}
+
+// ── I comandi in colonna, ognuno con la sua conseguenza a fianco (operazioni sensibili) ──
+.shopify-integration__comandi {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  --button-inline-size: var(--field-w-lg);
+
+  > p {
+    margin: 0;
+  }
+
+  @include bp.media-down('md') {
+    grid-template-columns: minmax(0, 1fr);
+    --button-inline-size: 100%;
+  }
 }

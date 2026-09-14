@@ -109,9 +109,9 @@ describe('ShopifySetupPanelComponent — le tre fasi visibili', () => {
     const utente = userEvent.setup();
     const esiti = await apri(BASE);
 
-    expect(screen.getByRole('heading', { name: /1 Scelte iniziali/ })).toBeVisible();
-    expect(screen.getByRole('heading', { name: /2 Sedi/ })).toBeVisible();
-    expect(screen.getByRole('heading', { name: /3 Controllo e conferma/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /1 · Scelte iniziali/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /2 · Sedi/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /3 · Controllo e conferma/ })).toBeVisible();
 
     await utente.click(screen.getByRole('button', { name: 'Shopify → VestiFlow' }));
     expect(esiti.direzioneScelta).toHaveBeenCalledWith('shopify_to_vestiflow');
@@ -124,15 +124,18 @@ describe('ShopifySetupPanelComponent — le tre fasi visibili', () => {
     await utente.click(
       screen.getByRole('button', { name: /Scelta per la location Negozio centro/ }),
     );
-    const voci = screen.getAllByRole('option').map((o) => o.textContent?.trim());
+    const voci = screen
+      .getAllByRole('option')
+      .map((o) => o.getAttribute('aria-label') ?? o.textContent?.trim());
     // La prima voce è il segnaposto del menu; «Sede già presa» (collegata a #99) non c’è.
+    // L'ordine è quello in cui si decide — collega, crea, lascia — (14/09/2026, `docs/29` §6).
     expect(voci).toEqual([
       'Decidi…',
-      'Lascia fuori da VestiFlow',
-      'Crea la sede «Negozio centro»',
-      'Collega a «Sede 1»',
+      'Collega alla sede «Sede 1»',
+      'Crea una nuova sede «Negozio centro», nasce una sede VestiFlow nuova, collegata a questa location',
+      'Lascia fuori da VestiFlow, nessuna sede: non risulta da configurare',
     ]);
-    await utente.click(screen.getByRole('option', { name: 'Collega a «Sede 1»' }));
+    await utente.click(screen.getByRole('option', { name: 'Collega alla sede «Sede 1»' }));
     expect(esiti.sedeScelta).toHaveBeenCalledWith({
       shopifyLocationId: '11',
       scelta: { choice: 'collega', locationId: 'loc-1' },
@@ -233,7 +236,11 @@ describe('ShopifySetupPanelComponent — le tre fasi visibili', () => {
 
     await utente.click(screen.getByRole('button', { name: 'Conferma e avvia il trasferimento' }));
     expect(esiti.confermata).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/l’esito si legge sotto, non si dà per riuscito/)).toBeVisible();
+    // ⭐ La spiegazione sta nel «?» del titolo (14/09/2026): un pulsante, con la bolla
+    //    come descrizione accessibile — non un paragrafo prima dei comandi.
+    expect(screen.getByRole('button', { name: 'Come si conclude' })).toHaveAccessibleDescription(
+      /l'esito si legge qui sotto, non si dà per riuscito/,
+    );
   });
 
   it('trasferito ma bloccato: l’attivazione resta chiusa e il blocco si legge', async () => {
@@ -370,16 +377,20 @@ describe('ShopifySetupPanelComponent — le tre fasi visibili', () => {
     // Niente storico chiuso: le tre fasi si leggono normalmente, con la sintesi
     // (i `details` che restano sono quelli dell'anteprima: articoli esclusi, variazioni).
     expect(document.querySelector('details.setup__storico')).toBeNull();
-    expect(screen.getByText(/catalogo 9 importati\/pubblicati/)).toBeVisible();
-    expect(screen.getByRole('heading', { name: /1 Scelte iniziali/ })).toBeVisible();
-    expect(screen.getByRole('heading', { name: /3 Controllo e conferma/ })).toBeVisible();
+    // ⭐ I quattro fatti in testa (14/09/2026): la direzione, il catalogo con gli esclusi,
+    //    le sedi, gli ordini — al posto della frase di numeri.
+    expect(screen.getByText('9 articoli importati/pubblicati')).toBeVisible();
+    expect(screen.getByText('Direzione iniziale')).toBeVisible();
+    expect(screen.getByRole('heading', { name: /1 · Scelte iniziali/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /3 · Controllo e conferma/ })).toBeVisible();
     // Niente fotografia ripetuta: l'elenco «casi rimasti esclusi» non c'è più.
     expect(screen.queryByText(/casi sono rimasti esclusi/)).toBeNull();
     // L'esito resta, datato: è l'ultimo tentativo.
     expect(screen.getByText(/Esito dell’ultimo tentativo/)).toBeVisible();
-    // I comandi non più utilizzabili: spenti, con il motivo.
-    expect(screen.getByRole('button', { name: 'Attiva la sincronizzazione' })).toBeDisabled();
-    expect(screen.getByText(/già attivata il/)).toBeVisible();
+    // ⛔ Conclusa, NESSUN comando: niente «Attiva la sincronizzazione» spento con
+    //    «già attivata» — sembrava da rifare (proprietario, 14/09/2026).
+    expect(screen.queryByRole('button', { name: 'Attiva la sincronizzazione' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Conferma e avvia/ })).toBeNull();
   });
 
   it('conclusa senza problemi aperti: nessun rimando ai problemi', async () => {
@@ -430,12 +441,19 @@ describe('ShopifySetupPanelComponent — le tre fasi visibili', () => {
       },
     });
 
-    // Lo stato dell'esito, separato dal «concluso»: l'allineamento è fermo.
+    // Lo stato dell'esito, separato dal «concluso»: l'allineamento è fermo — nel titolo
+    //    e nei fatti in testa (gli ordini senza sede), sempre visibili.
     expect(screen.getByText('allineamento delle quantità fermo')).toBeVisible();
+    expect(screen.getByText('4 acquisiti · 2 senza sede')).toBeVisible();
+    // L'esito dell'ultimo tentativo, datato, sta in un dettaglio: si apre e si legge.
+    const dettaglioEsito = screen
+      .getByText(/Esito dell’ultimo tentativo/)
+      .closest('details') as HTMLDetailsElement;
+    dettaglioEsito.open = true;
     expect(screen.getByText(/Attivazione riuscita: 4 ordini aperti acquisiti/)).toBeVisible();
     expect(screen.getByText(/2 senza sede \(nessun impegno\)/)).toBeVisible();
-    // ⭐ Il fermo è UNA riga corta — il perché e l'azione stanno in «Situazione
-    //    attuale», raggiunta da «Vedi problemi» — non un banner che ripete il motivo.
+    // ⭐ Il fermo è UNA riga corta — il perché e l'azione stanno in «Problemi ed
+    //    esiti», raggiunta da «Vedi problemi» — non un banner che ripete il motivo.
     const fermo = screen.getByText(/Allineamento delle quantità/, { selector: 'p' });
     expect(fermo).toHaveTextContent('fermo');
     expect(fermo).toHaveTextContent('2 ordini aperti senza sede (#1010, #1011)');
@@ -463,7 +481,8 @@ describe('ShopifySetupPanelComponent — le tre fasi visibili', () => {
       },
     });
 
-    expect(screen.getByText('Trasferimento interrotto')).toBeVisible();
+    // Il badge in testa e la riga della fase 3 lo dicono entrambi.
+    expect(screen.getAllByText('Trasferimento interrotto').length).toBeGreaterThan(0);
     expect(screen.getByText(/interrotto: Shopify non ha risposto/)).toBeVisible();
     await utente.click(screen.getByRole('button', { name: 'Riprendi il trasferimento' }));
     expect(esiti.confermata).toHaveBeenCalledTimes(1);

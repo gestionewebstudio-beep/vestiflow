@@ -17,6 +17,12 @@ import { filterSelectMenuOptions } from '@shared/utils/select-menu-filter.util';
 import type { SelectMenuOption } from './select-menu.model';
 
 /**
+ * Il respiro che il pannello tiene dal bordo del confine quando deve stringersi:
+ * lo stesso passo di `--space-2`. In pixel perché qui si misura in pixel.
+ */
+const MARGINE_DAL_CONFINE_PX = 8;
+
+/**
  * Menu a tendina custom (Polaris-like). Dumb: nessun service, solo input/output.
  * Sostituisce il <select> nativo dove serve controllo visivo sul pannello opzioni.
  */
@@ -33,7 +39,9 @@ import type { SelectMenuOption } from './select-menu.model';
     '[class.select-menu-host--icon]': 'iconOnly()',
     '[class.select-menu-host--open]': 'open()',
     '[class.select-menu-host--ribaltato]': 'ribaltato()',
+    '[class.select-menu-host--stretto]': 'stretto()',
     '[class.select-menu-host--fixed]': 'panelFixed()',
+    '[style.--select-menu-trigger-w.px]': 'larghezzaTrigger()',
     '(document:click)': 'onDocumentClick($event)',
     '(window:resize)': 'chiudiSeFisso()',
     '(document:keydown.escape)': 'close()',
@@ -199,7 +207,38 @@ export class SelectMenuComponent {
    * pannello sborda comunque, e ribaltarlo lo farebbe uscire dall'altra parte.
    */
   protected readonly ribaltato = signal(false);
-  /** Coordinate del pannello fisso, misurate all’apertura (`panelFixed`). */
+  /**
+   * ⭐ **E QUANDO NON CI STA DA NESSUNA PARTE, SI STRINGE** — proprietario,
+   * 14/09/2026, sull'anteprima al telefono (390px): la tendina delle sedi
+   * misurava 352px da x=50 a x=402, oltre lo schermo, e tagliava i testi.
+   *
+   * ⛔ Il ribaltamento è «l'ultima risorsa» solo finché dall'altra parte c'è
+   * spazio; su uno schermo stretto non ce n'è da nessuna delle due parti, e il
+   * pannello — largo `max-content` fino al tetto — usciva e basta. Qui, misurato
+   * all'apertura: se il pannello è più largo dello spazio fra i bordi del confine,
+   * prende quello spazio (meno un respiro) e si allinea al bordo sinistro; se ci
+   * sta nel confine ma non accanto al trigger, si spinge dentro fino al bordo
+   * destro. Stretto, le etichette vanno a capo invece di finire in «…»: un testo
+   * su due righe si legge, uno tagliato no. Sulla scrivania, dove il pannello
+   * ci sta, non cambia niente.
+   */
+  protected readonly stretto = signal(false);
+  /** La larghezza imposta al pannello stretto, in px; `null` = la sua. */
+  protected readonly larghezzaMassima = signal<number | null>(null);
+  /**
+   * ⛔ **Il minimo del pannello FISSO non può essere «100%»**: per un elemento
+   * `position: fixed` il 100% è la FINESTRA, non il trigger. Misurato il
+   * 14/09/2026 sulla tabella delle sedi a 1280px: pannello largo 1280 da
+   * x=748, tagliato dal bordo destro — e appena si misura lo spazio, un pannello
+   * largo quanto la finestra «non ci sta da nessuna parte» e si stringerebbe a
+   * tutta larghezza. La misura del trigger si dà al CSS all'apertura, e il
+   * foglio la usa come minimo quando il contenitore non ne dichiara uno.
+   */
+  protected readonly larghezzaTrigger = signal<number | null>(null);
+  /**
+   * Coordinate del pannello decise all'apertura: sulla finestra se fisso
+   * (`panelFixed`), relative al trigger se assoluto. `null` = quelle del CSS.
+   */
   protected readonly fissoAlto = signal<number | null>(null);
   protected readonly fissoBasso = signal<number | null>(null);
   protected readonly fissoSinistra = signal<number | null>(null);
@@ -308,9 +347,16 @@ export class SelectMenuComponent {
     return (this.value() ?? '') === option.value;
   }
 
+  /**
+   * ⛔ Qui c'era `${label}, SKU ${detail}`: il prefisso era della PRIMA voce con
+   *    un dettaglio (le varianti), ed è rimasto quando il dettaglio è diventato
+   *    un'aliquota IVA, «Fornitore»/«Cliente» e — dal 14/09/2026 — la spiegazione
+   *    di una scelta sulle sedi. Lo screen reader diceva «SKU 22% ordinaria».
+   *    Il dettaglio si legge com'è: chi vuole la parola «SKU» la mette nel testo.
+   */
   protected optionAriaLabel(option: SelectMenuOption): string {
     if (option.detail) {
-      return `${option.label}, SKU ${option.detail}`;
+      return `${option.label}, ${option.detail}`;
     }
     return option.label;
   }
@@ -328,6 +374,7 @@ export class SelectMenuComponent {
     }
     this.open.set(willOpen);
     if (willOpen) {
+      this.larghezzaTrigger.set(this.hostElement.getBoundingClientRect().width);
       /*
         ⛔ **`queueMicrotask` NON basta, e la prima stesura lo usava.** Un
         microtask viene eseguito prima che Angular abbia reso il pannello:
@@ -352,6 +399,9 @@ export class SelectMenuComponent {
   protected close(): void {
     this.open.set(false);
     this.ribaltato.set(false);
+    this.stretto.set(false);
+    this.larghezzaMassima.set(null);
+    this.larghezzaTrigger.set(null);
     this.fissoAlto.set(null);
     this.fissoBasso.set(null);
     this.fissoSinistra.set(null);
@@ -393,24 +443,49 @@ export class SelectMenuComponent {
     const ribalta = !staADestra && staASinistra;
     this.ribaltato.set(ribalta);
 
-    if (this.panelFixed()) {
-      // Le stesse coordinate dell’`absolute`, ma misurate sulla finestra: il
-      // pannello si apre sotto il trigger, ancorato al lato deciso qui sopra.
-      const finestra = this.hostElement.ownerDocument.defaultView;
-      const larghezzaFinestra = finestra?.innerWidth ?? 0;
-      const altezzaFinestra = finestra?.innerHeight ?? 0;
-      // ⭐ E si apre SOPRA quando sotto non ci sta e sopra sì — la stessa
-      //    regola del ribaltamento laterale. Un pannello sotto il bordo della
-      //    finestra non si raggiunge: scorrere la pagina lo chiuderebbe.
-      const alto = pannello.getBoundingClientRect().height;
-      const staSotto = trigger.bottom + alto <= altezzaFinestra;
-      const staSopra = trigger.top - alto >= 0;
-      const sopra = !staSotto && staSopra;
-      this.fissoAlto.set(sopra ? null : trigger.bottom);
-      this.fissoBasso.set(sopra ? altezzaFinestra - trigger.top : null);
-      this.fissoSinistra.set(ribalta ? null : trigger.left);
-      this.fissoDestra.set(ribalta ? larghezzaFinestra - trigger.right : null);
+    // Né a destra né a sinistra del trigger: si stringe allo spazio del confine
+    // (con un respiro dai bordi) o, se ci sta, si spinge dentro dal lato destro.
+    let sinistraDecisa: number | null = null;
+    let larghezza: number | null = null;
+    if (!staADestra && !staASinistra) {
+      const bordoSinistro = confine.sinistra + MARGINE_DAL_CONFINE_PX;
+      const bordoDestro = confine.destra - MARGINE_DAL_CONFINE_PX;
+      const spazio = Math.max(0, bordoDestro - bordoSinistro);
+      if (largo > spazio) {
+        larghezza = spazio;
+        sinistraDecisa = bordoSinistro;
+      } else {
+        sinistraDecisa = bordoDestro - largo;
+      }
     }
+    this.stretto.set(larghezza !== null);
+    this.larghezzaMassima.set(larghezza);
+
+    if (!this.panelFixed()) {
+      // Assoluto: la coordinata è relativa al trigger, che è il suo contenitore.
+      this.fissoSinistra.set(sinistraDecisa === null ? null : sinistraDecisa - trigger.left);
+      this.fissoDestra.set(null);
+      return;
+    }
+
+    // Fisso: le stesse coordinate dell’`absolute`, ma misurate sulla finestra —
+    // il pannello si apre sotto il trigger, ancorato al lato deciso qui sopra.
+    const finestra = this.hostElement.ownerDocument.defaultView;
+    const larghezzaFinestra = finestra?.innerWidth ?? 0;
+    const altezzaFinestra = finestra?.innerHeight ?? 0;
+    // ⭐ E si apre SOPRA quando sotto non ci sta e sopra sì — la stessa
+    //    regola del ribaltamento laterale. Un pannello sotto il bordo della
+    //    finestra non si raggiunge: scorrere la pagina lo chiuderebbe.
+    const alto = pannello.getBoundingClientRect().height;
+    const staSotto = trigger.bottom + alto <= altezzaFinestra;
+    const staSopra = trigger.top - alto >= 0;
+    const sopra = !staSotto && staSopra;
+    this.fissoAlto.set(sopra ? null : trigger.bottom);
+    this.fissoBasso.set(sopra ? altezzaFinestra - trigger.top : null);
+    this.fissoSinistra.set(sinistraDecisa ?? (ribalta ? null : trigger.left));
+    this.fissoDestra.set(
+      sinistraDecisa === null && ribalta ? larghezzaFinestra - trigger.right : null,
+    );
   }
 
   /**

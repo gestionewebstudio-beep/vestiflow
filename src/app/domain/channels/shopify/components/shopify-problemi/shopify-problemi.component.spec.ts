@@ -123,32 +123,102 @@ describe('ShopifyProblemiComponent', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
-  it('raggruppa per causa: 3 coppie con la stessa causa sono UN gruppo da 3', async () => {
+  /** Le righe della tabella delle cause (una per causa), senza l'intestazione. */
+  function righeDelleCause() {
+    const tabella = screen.getByRole('table', { name: 'Le cause dei problemi aperti' });
+    return within(tabella).getAllByRole('row').slice(1);
+  }
+
+  it('raggruppa per causa: 3 coppie con la stessa causa sono UNA riga da 3', async () => {
     await apri(PROBLEMI);
 
-    // Il titolo e il conteggio li dà chi ospita: qui le cause, e basta.
-    const gruppi = screen.getAllByRole('term');
-    expect(gruppi).toHaveLength(3);
-    expect(gruppi[0]).toHaveTextContent('1');
-    expect(gruppi[0]).toHaveTextContent('Ordine senza sede: manca il permesso di leggerla');
-    expect(gruppi[1]).toHaveTextContent('3');
-    expect(gruppi[1]).toHaveTextContent('Quantità senza base: lettura del canale fallita');
-    // I nomi degli elementi non stanno nell'intestazione del gruppo: sono nell'elenco.
-    expect(gruppi[1]).not.toHaveTextContent('Articolo 0');
-    // ⭐ Ogni gruppo ha le sue due righe fisse — Effetto, Azione — e l'azione dice
-    //    DOVE si fa (docs/29 §2.3): «da fare su Shopify» non è «nessuna azione»,
-    //    e non è un pulsante.
-    expect(gruppi[2]).toHaveTextContent('Articolo non stoccato nella location Shopify');
-    expect(screen.getAllByText('Effetto')).toHaveLength(3);
-    // «Azione» è anche l'intestazione della colonna in tabella: tre gruppi + una.
-    expect(screen.getAllByText('Azione', { selector: '.problemi__gruppo-etichetta' })).toHaveLength(
-      3,
-    );
+    // ⭐ Una TABELLA delle cause (14/09/2026): N. · causa · effetto · azione con DOVE si fa.
+    //    Il titolo e il conteggio li dà chi ospita: qui le cause, e basta.
+    const righe = righeDelleCause();
+    expect(righe).toHaveLength(3);
+    expect(righe[0]).toHaveTextContent('1');
+    expect(righe[0]).toHaveTextContent('Ordine senza sede: manca il permesso di leggerla');
+    expect(righe[1]).toHaveTextContent('3');
+    expect(righe[1]).toHaveTextContent('Quantità senza base: lettura del canale fallita');
+    // I primi nomi stanno sotto la causa, piccoli: di chi si parla senza aprire l'elenco.
+    expect(righe[1]).toHaveTextContent('Articolo 0');
+    // ⭐ L'azione dice DOVE si fa (docs/29 §2.3): «da fare su Shopify» non è «nessuna
+    //    azione», e non è un pulsante.
+    expect(righe[2]).toHaveTextContent('Articolo non stoccato nella location Shopify');
+    expect(screen.getByRole('columnheader', { name: 'Effetto' })).toBeVisible();
     expect(
       screen.getAllByText('Su Shopify', { selector: '.problemi__dove' }).length,
     ).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /Su Shopify/ })).toBeNull();
     expect(screen.queryByText('Nessuna azione')).toBeNull();
+  });
+
+  /**
+   * ⛔ Le notifiche sulla sede degli ordini mancano perché manca il PERMESSO: Shopify
+   *    rifiuta la registrazione. Mostrare «Registra le notifiche mancanti» come rimedio
+   *    farebbe ripetere un comando che fallisce (proprietario, 14/09/2026): la riga dice
+   *    prima la nuova autorizzazione, e il rimando va ai permessi.
+   */
+  it('notifiche mancanti PER il permesso mancante: prima la nuova autorizzazione, non «Registra»', async () => {
+    const utente = userEvent.setup();
+    const { azione } = await apri([
+      problema({
+        tipo: 'connessione',
+        causa: 'connessione_ambiti_mancanti',
+        riferimento: 'ambiti',
+        nome: 'read_merchant_managed_fulfillment_orders',
+        sede: null,
+        dettaglio: null,
+        azione: {
+          tipo: 'permessi',
+          etichetta:
+            'Disconnetti e Connetti Shopify: la nuova autorizzazione chiede i permessi mancanti',
+          riferimento: null,
+        },
+        apri: null,
+      }),
+      problema({
+        tipo: 'connessione',
+        causa: 'connessione_webhook_mancanti',
+        riferimento: 'webhook',
+        nome: 'fulfillment_orders/moved, fulfillment_orders/order_routing_complete',
+        sede: null,
+        dettaglio: null,
+        azione: { tipo: 'webhook', etichetta: 'Registra le notifiche mancanti', riferimento: null },
+        apri: null,
+      }),
+    ]);
+
+    const righe = righeDelleCause();
+    expect(righe).toHaveLength(2);
+    const notifiche = righe.find((r) =>
+      r.textContent?.includes('Notifiche Shopify non registrate'),
+    )!;
+    expect(notifiche).toHaveTextContent(/Prima la nuova autorizzazione/);
+    expect(notifiche).toHaveTextContent(/Registrarle senza il permesso non riesce/);
+    expect(within(notifiche).queryByRole('button', { name: /Vai alle notifiche/ })).toBeNull();
+    await utente.click(within(notifiche).getByRole('button', { name: /Vai a Connessione e sedi/ }));
+    expect(azione).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'permessi' }));
+  });
+
+  it('notifiche mancanti SENZA un permesso mancante: il rimando resta alle notifiche', async () => {
+    await apri([
+      problema({
+        tipo: 'connessione',
+        causa: 'connessione_webhook_mancanti',
+        riferimento: 'webhook',
+        nome: 'orders/cancelled',
+        sede: null,
+        dettaglio: null,
+        azione: { tipo: 'webhook', etichetta: 'Registra le notifiche mancanti', riferimento: null },
+        apri: null,
+      }),
+    ]);
+    const [riga] = righeDelleCause();
+    expect(riga).toHaveTextContent('Registra le notifiche mancanti');
+    expect(
+      within(riga!).getByRole('button', { name: /Vai alle notifiche dal negozio/ }),
+    ).toBeVisible();
   });
 
   it('l’azione di un gruppo è un RIMANDO a chi ospita: porta al posto in cui si fa, con il perimetro', async () => {
@@ -158,7 +228,7 @@ describe('ShopifyProblemiComponent', () => {
     // ⭐ Il gruppo dice la frase intera e rimanda; l'elenco ripete la forma breve.
     //    «Allinea» si esegue in un posto solo: qui si va, non si allinea
     //    (proprietario, 13/09/2026).
-    const gruppoPermessi = screen.getAllByRole('term')[0]!.parentElement!;
+    const gruppoPermessi = righeDelleCause()[0]!;
     expect(gruppoPermessi).toHaveTextContent('In questa pagina');
     await utente.click(
       within(gruppoPermessi).getByRole('button', {

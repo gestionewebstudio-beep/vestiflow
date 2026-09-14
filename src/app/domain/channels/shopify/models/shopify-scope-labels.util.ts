@@ -71,6 +71,13 @@ const SCOPE_DISPLAY: Record<string, ShopifyScopeDisplay> = {
     description: 'Pubblica e ritira prodotti e varianti dai canali.',
     access: 'write',
   },
+  // ⭐ La SEDE degli ordini online (13/09/2026): Shopify la assegna nel fulfillment
+  //    order. Senza questo permesso la sede non si determina e gli impegni non nascono.
+  read_merchant_managed_fulfillment_orders: {
+    label: 'Sede degli ordini',
+    description: 'Legge in quale sede Shopify assegna ogni ordine (fulfillment order).',
+    access: 'read',
+  },
 };
 
 const ACCESS_LABELS: Record<ShopifyScopeAccess, string> = {
@@ -112,6 +119,7 @@ const SCOPE_GROUP_ORDER = [
   'Canali di vendita',
   'Giacenze',
   'Ordini online',
+  'Sede degli ordini',
   'Clienti ecommerce',
   'Location',
 ] as const;
@@ -121,6 +129,7 @@ const GROUP_SUMMARY_DESCRIPTIONS: Record<string, string> = {
   'Canali di vendita': 'Decide su quali canali prodotti e varianti sono acquistabili.',
   Giacenze: 'Legge e aggiorna le quantità per location.',
   'Ordini online': 'Riceve vendite e aggiornamenti ordini.',
+  'Sede degli ordini': 'Legge in quale sede Shopify assegna ogni ordine (fulfillment order).',
   'Clienti ecommerce': 'Importa l’anagrafica clienti dal negozio online.',
   Location: 'Legge magazzini e punti vendita Shopify.',
   Metaobjects: 'Definizioni e contenuti metaobject.',

@@ -142,12 +142,18 @@ const ELENCO_MOTIVATO = {
     {
       classe: 'C',
       perche:
-        'permessi Shopify = matrice di consultazione (`docs/26` A4); i problemi dei webhook sono un avviso',
+        'permessi Shopify = matrice di consultazione (`docs/26` A4); gli esiti delle operazioni sono un riepilogo — una riga per comando: stato, esito, data — non un elenco di record (`docs/29` §7.4); i problemi dei webhook sono un avviso',
     },
+  'domain/channels/shopify/components/shopify-problemi/shopify-problemi.component.html': {
+    classe: 'C',
+    perche:
+      'la tabella delle cause è un riepilogo raggruppato — una riga per causa: quante, effetto, azione con DOVE si fa — sopra l’elenco dei problemi, che sta sul motore (`docs/29` §7.4)',
+  },
   'domain/channels/shopify/components/shopify-location-choices/shopify-location-choices.component.html':
     {
       classe: 'B',
-      perche: 'una scelta (tendina) per location Shopify: si compila, non si consulta (`docs/27` §1)',
+      perche:
+        'una scelta (tendina) per location Shopify: si compila, non si consulta (`docs/27` §1)',
     },
   'domain/channels/shopify/components/shopify-setup-panel/shopify-setup-panel.component.html': {
     classe: 'C',

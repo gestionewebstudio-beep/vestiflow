@@ -7,6 +7,15 @@
     }
   </span>
 
+  <!--
+    ⭐ I comandi che RISOLVONO ciò che il banner dice (14/09/2026): proiettati con
+       `actions`, a destra del testo, a capo quando la riga è stretta. Vuoto, non occupa
+       spazio: chi non proietta niente non vede niente.
+  -->
+  <span class="inline-banner__actions">
+    <ng-content select="[actions]" />
+  </span>
+
   @if (dismissLabel(); as label) {
     <button type="button" class="inline-banner__dismiss" (click)="dismissed.emit()">
       {{ label }}

@@ -21,6 +21,11 @@ const VALORE_LASCIA = 'lascia';
 const VALORE_CREA = 'crea';
 const PREFISSO_COLLEGA = 'collega:';
 
+/** Stesso nome a meno di maiuscole e spazi ai bordi: basta a SUGGERIRE, non a decidere. */
+function stessoNome(a: string, b: string): boolean {
+  return a.trim().localeCompare(b.trim(), 'it', { sensitivity: 'base' }) === 0;
+}
+
 /**
  * ⭐ **La scelta di una persona per ogni location Shopify** — collega a una
  *    sede, crea la sede, lascia fuori (`docs/24` §1.13.1, B7). È la stessa
@@ -52,22 +57,51 @@ export class ShopifyLocationChoicesComponent {
   readonly sedeScelta = output<ShopifySetupSedeScelta>();
 
   /**
-   * Le voci del menu di una location: «Lascia fuori», «Crea la sede», e una
-   * voce per ogni sede VestiFlow non già collegata ad ALTRA location.
+   * Le voci del menu di una location, nell'ordine in cui si decidono: una voce
+   * «Collega» per ogni sede VestiFlow non già collegata ad ALTRA location — con
+   * la sede dallo STESSO NOME per prima e dichiarata «suggerita» —, poi «Crea
+   * una nuova sede», distinta, poi «Lascia fuori».
+   *
+   * ⛔ Qui c'era l'ordine Lascia · Crea · Collega…, e «Crea la sede «Magazzino
+   *    test 3»» compariva accanto a una sede che si chiamava già così: il
+   *    proprietario, al collaudo del 14/09/2026, ha chiesto se fosse normale.
+   *    Non lo era. ⚠️ Il nome uguale SUGGERISCE: la scelta resta della persona
+   *    (`valoreSede` non propone niente finché non decide) — `docs/24` §8.11.1,
+   *    «il nome serve alla lettura, mai all'abbinamento automatico».
    */
   protected opzioniSede(location: ShopifySetupLocationDto): readonly SelectMenuOption[] {
     const sedi = this.sedi().filter(
       (sede) =>
         sede.shopifyLocationId === null || sede.shopifyLocationId === location.shopifyLocationId,
     );
-    return [
-      { value: VALORE_LASCIA, label: 'Lascia fuori da VestiFlow' },
-      { value: VALORE_CREA, label: `Crea la sede «${location.name}»` },
-      ...sedi.map((sede) => ({
+    const omonima = (sede: ShopifySetupSedeVestiFlowDto): boolean =>
+      stessoNome(sede.name, location.name);
+    const collega = [...sedi]
+      .sort((a, b) => Number(omonima(b)) - Number(omonima(a)))
+      .map((sede): SelectMenuOption => ({
         value: `${PREFISSO_COLLEGA}${sede.id}`,
-        label: `Collega a «${sede.name}»`,
-        triggerLabel: `Collega a «${sede.name}»`,
-      })),
+        label: `Collega alla sede «${sede.name}»`,
+        triggerLabel: `Collega alla sede «${sede.name}»`,
+        ...(omonima(sede)
+          ? { detail: 'stesso nome della location: suggerita, non applicata' }
+          : {}),
+      }));
+    const conOmonima = sedi.some(omonima);
+    return [
+      ...collega,
+      {
+        value: VALORE_CREA,
+        label: `Crea una nuova sede «${location.name}»`,
+        triggerLabel: `Crea una nuova sede «${location.name}»`,
+        detail: conOmonima
+          ? 'una sede in più, oltre a quella con lo stesso nome'
+          : 'nasce una sede VestiFlow nuova, collegata a questa location',
+      },
+      {
+        value: VALORE_LASCIA,
+        label: 'Lascia fuori da VestiFlow',
+        detail: 'nessuna sede: non risulta da configurare',
+      },
     ];
   }
 
