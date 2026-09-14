@@ -188,16 +188,38 @@ describe('Identita del negozio Shopify — acquisizione e registrazione', () => 
   // ── 4 · Richieste ripetute e concorrenti ─────────────────────────────────
 
   it('4a · due registrazioni CONCORRENTI dello stesso negozio non creano doppioni', async () => {
-    const [uno, due] = await Promise.all([
+    const esiti = await Promise.allSettled([
       registraInTransazione(IDS.tenantA, { shopGid: GID, myshopifyDomain: null }),
       registraInTransazione(IDS.tenantA, { shopGid: GID, myshopifyDomain: null }),
     ]);
 
-    expect(uno.tipo).toBe('registrata');
-    expect(due.tipo).toBe('registrata');
-    // ⭐ La stessa riga per entrambe: la seconda non ha inventato un'identita`.
-    expect(uno).toEqual(due);
+    // ⚠️ Le due possono INCROCIARSI: entrambe leggono «assente» e la seconda
+    //    `create` esce con un conflitto RIPROVABILE (P2034 / 40001), che il
+    //    chiamante rimanda come `connection_conflict` senza aver scritto nulla.
+    //    Dipende da quando le due arrivano all'INSERT, non dal merito — misurato
+    //    il 14/09/2026: 5 volte su 12 con la prova da sola, 1 corsa su 5 nella CI
+    //    di `develop`, 0 su 6 dentro il file intero.
+    //    ⛔ Qui c'era «entrambe registrate»: pretendeva un ordine di arrivo che il
+    //    database non promette, come 4b dichiara gia` per i due tenant.
+    const registrate = esiti.flatMap((e) => (e.status === 'fulfilled' ? [e.value] : []));
+    const respinte = esiti.flatMap((e) => (e.status === 'rejected' ? [e.reason] : []));
+    expect(registrate.length).toBeGreaterThanOrEqual(1);
+    for (const esito of registrate) {
+      // ⭐ Chi passa e` registrato, e sulla STESSA riga: nessuna delle due ha
+      //    inventato un'identita`.
+      expect(esito.tipo).toBe('registrata');
+      expect(esito).toEqual(registrate[0]);
+    }
+    for (const errore of respinte) {
+      // ⛔ Chi non passa esce SOLO come conflitto riprovabile: non e` un
+      //    «rivendicato altrove» (e` lo stesso tenant), non un errore di altro tipo.
+      expect(conflittoDiConcorrenza(errore)).toBe(true);
+    }
     expect(await prisma.shopifyShop.count({ where: { shopGid: GID } })).toBe(1);
+    const prima = registrate[0];
+    if (prima?.tipo !== 'registrata') throw new Error('attesa almeno una registrazione');
+    const riga = await prisma.shopifyShop.findUniqueOrThrow({ where: { shopGid: GID } });
+    expect(riga.id).toBe(prima.shopId);
   });
 
   it('4b · due tenant DIVERSI sullo stesso negozio, in concorrenza: uno solo passa', async () => {
