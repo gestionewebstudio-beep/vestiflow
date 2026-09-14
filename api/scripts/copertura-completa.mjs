@@ -73,8 +73,20 @@ function rapporto(nome, corsa, avvio) {
     return { errore: `la corsa «${nome}» non ha eseguito nessun test: niente da unire` };
   }
   if (rossi > 0) {
+    // Il reporter blob non stampa i fallimenti: li si nomina qui, dal rapporto JSON,
+    // altrimenti in CI resta solo un numero (misurato il 14/09/2026: «3 test rossi»).
+    const falliti = (json.testResults ?? []).flatMap((file) =>
+      (file.assertionResults ?? [])
+        .filter((t) => t.status === 'failed')
+        .map((t) => `   × ${file.name.replace(/.*[\\/]src[\\/]/, 'src/')} › ${t.fullName}`),
+    );
+    const suiteRotte = (json.testResults ?? [])
+      .filter((file) => file.status === 'failed' && (file.assertionResults ?? []).length === 0)
+      .map((file) => `   × ${file.name.replace(/.*[\\/]src[\\/]/, 'src/')} (file non eseguibile)`);
     return {
-      errore: `la corsa «${nome}» ha ${rossi} test rossi: la copertura non si giudica su test falliti`,
+      errore:
+        `la corsa «${nome}» ha ${rossi} test rossi: la copertura non si giudica su test falliti\n` +
+        [...falliti, ...suiteRotte].join('\n'),
     };
   }
   return { totali };

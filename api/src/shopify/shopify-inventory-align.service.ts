@@ -257,11 +257,16 @@ export class ShopifyInventoryAlignService {
     //    fermerebbe comunque le coppie coinvolte (`ordine_senza_sede`), ma
     //    «Allinea» è un comando dell'operatore e deve dire PRIMA perché non parte
     //    e che cosa fare (collaudo del 13/09/2026, decisione del proprietario).
+    // ⛔ E prima ancora: SENZA un negozio collegato il comando non è eseguibile. «Senza
+    //    negozio» è `not_connected` (o nessuna riga): `error` e `reauth_required` sono un
+    //    negozio collegato con un problema registrato — misurato sul percorso 7, dove la
+    //    quantità ferma porta la connessione in `error` e il motivo giusto è quello degli
+    //    ordini senza sede, non «nessun negozio».
     const connessione = await this.prisma.shopifyConnection.findUnique({
       where: { tenantId },
       select: { status: true },
     });
-    if (!connessione || connessione.status !== ShopifyConnectionStatus.connected) {
+    if (!connessione || connessione.status === ShopifyConnectionStatus.not_connected) {
       throw new UnprocessableEntityException(MOTIVO_NEGOZIO_NON_COLLEGATO);
     }
     const senzaSede = await ordiniApertiSenzaSede(this.prisma, tenantId);
