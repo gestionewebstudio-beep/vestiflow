@@ -127,17 +127,27 @@ test('⭐ sul telefono il piede è ancorato: «Nuovo» e i totali si vedono senz
   await apri(page, tanti);
   await expect(page.locator('tr.data-table__row').first()).toBeVisible({ timeout: 45_000 });
 
-  const misura = await page.evaluate(() => {
-    const piede = document.querySelector('.list-page__foot')!.getBoundingClientRect();
-    const shell = document.querySelector<HTMLElement>('.shell__content')!;
-    const scroller = document.querySelector<HTMLElement>('.data-table-scroll')!;
-    return {
-      piedeBottom: Math.round(piede.bottom),
-      viewport: window.innerHeight,
-      paginaScorre: shell.scrollHeight - shell.clientHeight,
-      elencoScorre: scroller.scrollHeight - scroller.clientHeight,
-    };
-  });
+  const misuraGeometria = () =>
+    page.evaluate(() => {
+      const piede = document.querySelector('.list-page__foot')!.getBoundingClientRect();
+      const shell = document.querySelector<HTMLElement>('.shell__content')!;
+      const scroller = document.querySelector<HTMLElement>('.data-table-scroll')!;
+      return {
+        piedeBottom: Math.round(piede.bottom),
+        viewport: window.innerHeight,
+        paginaScorre: shell.scrollHeight - shell.clientHeight,
+        elencoScorre: scroller.scrollHeight - scroller.clientHeight,
+      };
+    });
+  // ⚠️ Si misura a geometria ASSESTATA, non alla prima riga visibile: sul telefono le
+  //    card entrano nella finestra di rendering un attimo dopo il primo disegno, e in
+  //    quell'attimo la pagina contiene ancora tutte le card (misurato nella CI della PR #9,
+  //    14/09/2026: `paginaScorre` 2851 con lo scatto già corretto). Non è un'attesa fissa:
+  //    è la condizione stessa, attesa finché non vale.
+  await expect
+    .poll(async () => (await misuraGeometria()).paginaScorre, { timeout: 15_000 })
+    .toBeLessThanOrEqual(1);
+  const misura = await misuraGeometria();
   // Il piede finisce sul bordo dello schermo (meno il margine della shell), la
   // pagina non scorre, l’elenco sì.
   expect(misura.piedeBottom, JSON.stringify(misura)).toBeGreaterThanOrEqual(misura.viewport - 24);
