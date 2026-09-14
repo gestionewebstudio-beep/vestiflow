@@ -1,6 +1,10 @@
 @use 'breakpoints' as bp;
 
 :host {
+  // La misura del trigger, scritta dal componente all'apertura (stile in linea
+  // sull'host): il pannello FISSO la usa come minimo. Qui il valore di riposo.
+  --select-menu-trigger-w: 0;
+
   display: inline-flex;
   position: relative;
   inline-size: var(--select-menu-width);
@@ -289,6 +293,10 @@
   :host(.select-menu-host--fixed) & {
     position: fixed;
     inset: auto;
+    // ⛔ Fisso, «100%» sarebbe la finestra: il minimo è il trigger, misurato
+    //    all'apertura (`--select-menu-trigger-w`), salvo un minimo dichiarato
+    //    dal contenitore (i filtri di colonna col calendario).
+    min-inline-size: var(--select-menu-panel-min-width, var(--select-menu-trigger-w));
   }
   // Largo quanto serve alle opzioni (v4): mai meno del trigger, mai oltre il
   // tetto — un trigger stretto (es. IVA 72px) apre comunque una tendina
@@ -317,6 +325,14 @@
   max-block-size: var(--select-menu-panel-max-height);
   overflow-x: hidden;
   overflow-y: auto;
+  /*
+    ⛔ **Il pannello non eredita il `white-space` di chi ospita il trigger.**
+    Dentro una cella di tabella (taglio a colonna: `nowrap`) un dettaglio più
+    lungo del tetto restava su UNA riga e usciva dal pannello — misurato
+    il 14/09/2026 a 390px: casella 302px, testo 343px, fine del testo a x=410,
+    oltre lo schermo. Le voci decidono da sé come vanno a capo.
+  */
+  white-space: normal;
 }
 
 .select-menu__search-item {
@@ -444,7 +460,12 @@
   font-weight: var(--font-weight-regular);
   color: var(--color-text-muted);
   line-height: var(--leading-snug);
-  word-break: break-all;
+  // ⛔ Era `word-break: break-all`, pensato per i codici (SKU, EAN): una frase
+  //    andava a capo in mezzo a una parola — «collegata a questa l / ocation»,
+  //    visto il 14/09/2026 sul pannello al tetto di larghezza. Si spezza fra le
+  //    parole; dentro una parola solo se da sola non ci sta (un codice lungo).
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 // Detail inline (opzioni compatte, es. IVA): label + detail su UNA riga;
@@ -517,6 +538,26 @@
   white-space: normal;
   line-height: var(--leading-snug);
   word-break: break-word;
+}
+
+/*
+  ⭐ **Pannello STRETTO dallo spazio disponibile** (`stretto`, deciso all'apertura):
+  le etichette vanno a capo e i dettagli spezzano solo le parole che non ci
+  stanno. ⛔ Con «…» o `break-all` un testo che non ci sta diventa illeggibile —
+  è il difetto visto dal proprietario sul telefono il 14/09/2026.
+*/
+:host(.select-menu-host--stretto) .select-menu__option-label {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  line-height: var(--leading-snug);
+  overflow-wrap: anywhere;
+}
+
+:host(.select-menu-host--stretto) .select-menu__option-detail {
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .select-menu__option-btn:hover {

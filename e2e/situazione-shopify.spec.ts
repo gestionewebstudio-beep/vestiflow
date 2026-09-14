@@ -321,11 +321,22 @@ async function instradaSenzaProblemi(page: Page) {
 
 /** Nessuno scorrimento orizzontale: la pagina non deve sbordare, a nessuna larghezza. */
 async function nessunoSbordo(page: Page) {
-  const larghezze = await page.evaluate(() => ({
-    documento: document.documentElement.scrollWidth,
-    finestra: window.innerWidth,
-  }));
+  const larghezze = await page.evaluate(() => {
+    const contenuto = document.querySelector('.shell__content');
+    return {
+      documento: document.documentElement.scrollWidth,
+      finestra: window.innerWidth,
+      // ⛔ La regione del contenuto RITAGLIA (overflow hidden): ciò che la supera non fa
+      //    scorrere la pagina, sparisce. Misurato sul telefono il 14/09/2026: i fatti delle
+      //    notifiche larghi 422px su 390, tagliati, col documento a posto.
+      contenuto: contenuto ? contenuto.scrollWidth : 0,
+      contenutoVisibile: contenuto ? contenuto.clientWidth : 0,
+    };
+  });
   expect(larghezze.documento).toBeLessThanOrEqual(larghezze.finestra);
+  expect(larghezze.contenuto, JSON.stringify(larghezze)).toBeLessThanOrEqual(
+    larghezze.contenutoVisibile + 1,
+  );
 }
 
 const schede = (page: Page) => page.getByRole('navigation', { name: 'Aree di Shopify' });
@@ -368,28 +379,49 @@ test('⭐ con problemi, scrivania: si apre la sincronizzazione; ogni scheda ha l
   //    catalogo e clienti restano attivi.
   const ordini = flussi.getByRole('listitem').filter({ hasText: /^Ordini/ });
   await expect(ordini).toContainText('da verificare');
-  await expect(ordini).toContainText('fulfillment_orders/moved');
+  // ⛔ Mancano PER il permesso: la riga indica prima la nuova autorizzazione e rimanda ai
+  //    permessi, non a «Registra» (proprietario, 14/09/2026). I nomi tecnici delle
+  //    notifiche stanno nel dettaglio «una per una», non sul flusso.
+  await expect(ordini).toContainText('manca il permesso «Sede degli ordini»');
+  await expect(ordini.getByRole('button', { name: /Vai ai permessi/ })).toBeVisible();
+  await expect(ordini).not.toContainText('fulfillment_orders/moved');
+  // ⭐ L'avviso è UN banner (14/09/2026): dice la FUNZIONE interessata in italiano, non il
+  //    nome del topic; col permesso mancante indica la nuova autorizzazione e NON propone
+  //    «Registra», che fallirebbe.
+  const avviso = page.getByRole('alert').filter({ hasText: /Mancano 2 notifiche/ });
+  await expect(avviso).toContainText('quelle per la sede assegnata agli ordini');
+  await expect(avviso).toContainText('serve una nuova autorizzazione');
+  await expect(avviso).not.toContainText('fulfillment_orders/moved');
+  await expect(avviso.getByRole('button', { name: /Vai a Connessione e sedi/ })).toBeVisible();
+  await expect(avviso.getByRole('button', { name: /Registra le notifiche mancanti/ })).toHaveCount(
+    0,
+  );
   const quantita = flussi.getByRole('listitem').filter({ hasText: 'Quantità' });
   await expect(quantita).toContainText('limitato');
   await expect(flussi.getByRole('listitem').filter({ hasText: 'Clienti' })).toContainText('attivo');
-  await expect(page.getByText('Notifiche dal negozio')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Notifiche dal negozio/ })).toBeVisible();
   await page.screenshot({ path: `${SCATTI}/01-sincronizzazione-desktop.png` });
-  // Le notifiche sono un approfondimento: chiuso, si apre.
-  await page.getByText('Notifiche dal negozio').click();
-  await expect(page.getByText('Ultimo evento ricevuto')).toBeVisible();
+  // Le notifiche sono i fatti a colonne, sempre visibili («8 su 10 · 2 mancanti»); «Verifica
+  // ora» sta a destra del titolo; i nomi tecnici nel dettaglio richiudibile.
+  await expect(page.getByText('Ultimo evento ricevuto', { exact: true })).toBeVisible();
+  await expect(page.getByText('8 su 10 · 2 mancanti')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Verifica ora' })).toBeVisible();
+  await expect(page.getByText('fulfillment_orders/moved', { exact: true })).toBeHidden();
+  await page.getByText('Dettagli tecnici delle notifiche').click();
+  await expect(page.getByText('fulfillment_orders/moved', { exact: true })).toBeVisible();
   await page.screenshot({ path: `${SCATTI}/02-notifiche-aperte-desktop.png` });
 
   // ── Problemi ed esiti: cause con effetto e azione, niente nomi troncati, tono per «da valutare» ──
   await nav.getByRole('link', { name: 'Problemi ed esiti 87' }).click();
   await expect(page).toHaveURL(/\/shopify\/problemi/);
   const problemi = page.getByRole('region', { name: /Problemi aperti/ });
-  const cause = problemi.locator('.problemi__gruppi').getByRole('term');
+  // ⭐ Le cause in una TABELLA (14/09/2026): una riga per causa — quante, effetto, azione.
+  const tabellaCause = problemi.getByRole('table', { name: 'Le cause dei problemi aperti' });
+  const cause = tabellaCause.locator('tbody').getByRole('row');
   await expect(cause).toHaveCount(6);
   await expect(cause.nth(3)).toContainText('75');
-  await expect(cause.nth(3)).not.toContainText('Articolo 01');
-  await expect(problemi.getByText('Effetto')).toHaveCount(6);
-  await expect(problemi.locator('.problemi__gruppo--valutare')).toHaveCount(1);
+  await expect(tabellaCause.getByRole('columnheader', { name: 'Effetto' })).toBeVisible();
+  await expect(problemi.locator('.problemi__causa-riga--valutare')).toHaveCount(1);
   await expect(problemi.locator('.problemi__dove--shopify').first()).toContainText('Su Shopify');
   // La tabella: articolo e variante larghi, l'azione breve e premibile.
   const tabella = problemi.getByRole('table', {
@@ -421,7 +453,11 @@ test('⭐ con problemi, scrivania: si apre la sincronizzazione; ogni scheda ha l
   // Le quattro operazioni: effetto, perimetro, esito, pulsante — sulla stessa griglia.
   const operazioni = page.getByRole('region', { name: /Operazioni avviate manualmente/ });
   await expect(operazioni.getByRole('listitem')).toHaveCount(4);
-  await expect(operazioni.getByText('Su tutto il catalogo del negozio.')).toBeVisible();
+  // ⭐ Quando serve e che cosa modifica, verificati contro docs/24 §9.2 (14/09/2026).
+  await expect(operazioni.getByText(/su tutto il catalogo del negozio/)).toBeVisible();
+  await expect(
+    operazioni.getByText(/Non tocca nome e categoria VestiFlow, prezzi di vendita e quantità/),
+  ).toBeVisible();
   await expect(
     operazioni.getByRole('listitem', { name: 'Allinea giacenze su Shopify' }),
   ).toContainText('fermo');
@@ -432,9 +468,11 @@ test('⭐ con problemi, scrivania: si apre la sincronizzazione; ogni scheda ha l
   await expect(page.getByRole('heading', { name: 'Negozio', exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Su Shopify' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Sede VestiFlow' })).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Disconnessione e cambio negozio' }),
-  ).toBeVisible();
+  // ⭐ Quattro gruppi distinti (14/09/2026): negozio, permessi, sedi, operazioni sensibili.
+  await expect(page.getByRole('heading', { name: /Permessi su Shopify/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Operazioni sensibili/ })).toBeVisible();
+  // (La connessione qui non ha errori: «Azzera le segnalazioni» e la sua conseguenza
+  //  visibile sono provati nella prova di componente del pannello.)
   // ⛔ La purga è spenta finché l'API la rifiuta, e il motivo sta accanto al pulsante.
   const purga = page.getByRole('button', { name: 'Disconnetti e rimuovi dati' });
   await expect(purga).toBeDisabled();
@@ -448,8 +486,9 @@ test('⭐ con problemi, scrivania: si apre la sincronizzazione; ogni scheda ha l
   await expect(
     percorso.getByText('allineamento delle quantità fermo', { exact: true }),
   ).toBeVisible();
-  await expect(percorso.getByRole('button', { name: 'Attiva la sincronizzazione' })).toBeDisabled();
-  await expect(percorso.getByText(/già attivata il/)).toBeVisible();
+  // ⛔ Conclusa, nessun comando: niente «Attiva» spento (proprietario, 14/09/2026).
+  await expect(percorso.getByRole('button', { name: 'Attiva la sincronizzazione' })).toHaveCount(0);
+  await expect(percorso.getByText('Direzione iniziale')).toBeVisible();
   await expect(percorso.getByRole('button', { name: '87 problemi aperti oggi ›' })).toBeVisible();
   await page.screenshot({ path: `${SCATTI}/06-prima-connessione-desktop.png` });
   await nessunoSbordo(page);
@@ -468,7 +507,11 @@ test('⭐ senza problemi: gli aggiornamenti sono attivi (verde), nessun rimando 
   await schede(page).getByRole('link', { name: 'Problemi ed esiti 0' }).click();
   const problemi = page.getByRole('region', { name: /Problemi aperti/ });
   await expect(problemi).toContainText('Nessun problema aperto: la sincronizzazione lavora.');
-  await expect(problemi.getByRole('table')).toHaveCount(0);
+  // Nessuna tabella di problemi né di cause: resta solo quella degli esiti precedenti.
+  await expect(problemi.getByRole('table', { name: 'Le cause dei problemi aperti' })).toHaveCount(
+    0,
+  );
+  await expect(problemi.locator('app-shopify-problemi').getByRole('table')).toHaveCount(0);
   await page.screenshot({ path: `${SCATTI}/07-senza-problemi-desktop.png` });
 });
 
@@ -500,7 +543,12 @@ test('telefono VERTICALE (390): schede a scorrimento, righe impilate, card compl
 
   await schede(page).getByRole('link', { name: 'Problemi ed esiti 87' }).click();
   const problemi = page.getByRole('region', { name: /Problemi aperti/ });
-  await expect(problemi.locator('.problemi__gruppi').getByRole('term')).toHaveCount(6);
+  await expect(
+    problemi
+      .getByRole('table', { name: 'Le cause dei problemi aperti' })
+      .locator('tbody')
+      .getByRole('row'),
+  ).toHaveCount(6);
   await nessunoSbordo(page);
   // ⭐ Le card sono COMPATTE (chi è, e la causa): effetto e azione stanno una volta nel
   //    gruppo — non ripetuti in 87 card da 150px (proprietario, 13/09/2026).
@@ -565,9 +613,10 @@ test('nomi LUNGHI: la tabella taglia a colonna senza sbordare, la card mostra tu
 }) => {
   const lungo =
     'Articolo con un nome davvero molto lungo che non finisce mai, edizione limitata autunno inverno 2026 (SHOPIFY-51705810747687)';
+  const sedeLunga = 'Magazzino centrale distribuzione Nord-Est (ex deposito stagionale)';
   const setup = percorsoAttivato();
   const problemi = setup.situazione.problemi.map((p, indice) =>
-    indice === 4 ? { ...p, nome: lungo } : p,
+    indice === 4 ? { ...p, nome: lungo, sede: sedeLunga } : p,
   );
   const conNomiLunghi = { ...setup, situazione: { ...setup.situazione, problemi } };
   await page.route('**/api/v1/shopify/setup', (route: Route) =>
@@ -591,6 +640,22 @@ test('nomi LUNGHI: la tabella taglia a colonna senza sbordare, la card mostra tu
   const card = page.locator('.list-card__what', { hasText: 'edizione limitata' });
   await card.scrollIntoViewIfNeeded();
   await expect(card).toBeVisible();
+  // ⛔ «Visibile» non basta: con la sede nell'ANCORA — che per grammatica non si stringe —
+  //    una sede dal nome lungo lasciava al nome dell'articolo 43px, e la card non diceva
+  //    più di chi parla (misurato sul telefono il 14/09/2026). Il nome tiene la prima riga
+  //    quasi intera; la sede è una parola e sta nella fascia sotto.
+  //    Si misura il gruppo che RITAGLIA (`__ident`), non lo span del nome: quello riporta
+  //    la larghezza intera anche quando ne resta a vista una fetta.
+  const misura = await card.evaluate((el) => {
+    const gruppo = el.closest('.list-card__ident') as HTMLElement;
+    const testa = el.closest('.list-card__head') as HTMLElement;
+    return {
+      gruppo: gruppo.getBoundingClientRect().width,
+      testa: testa.getBoundingClientRect().width,
+    };
+  });
+  expect(misura.gruppo, JSON.stringify(misura)).toBeGreaterThan(misura.testa * 0.8);
+  await expect(page.locator('.list-card__words', { hasText: sedeLunga })).toHaveCount(1);
   await page.screenshot({ path: `${SCATTI}/16-nomi-lunghi-telefono.png` });
 });
 
@@ -652,4 +717,114 @@ test('comando in corso: avanzamento e attesa sulla riga, pulsante spento, nessun
   await expect(riga).toContainText('completata');
   await expect(pulsante).toBeEnabled();
   await page.screenshot({ path: `${SCATTI}/20-comando-concluso-desktop.png` });
+});
+
+/**
+ * ⭐ Gli AIUTI «?» (proprietario, 14/09/2026): le spiegazioni dei titoli stanno in un
+ *    pulsante col tooltip condiviso — mouse, tastiera e tocco. Visibile resta ciò che
+ *    serve per decidere. La bolla ha `pointer-events: none` (è un tooltip): la prova non
+ *    chiede chi sta sotto il suo centro, ma che sia visibile e che non esca da nessun
+ *    antenato che ritaglia né dallo schermo.
+ */
+async function bollaDi(page: Page, nome: string) {
+  return page.evaluate((nome) => {
+    const pulsante = [...document.querySelectorAll('button.hover-tooltip__icona')].find(
+      (b) => b.getAttribute('aria-label') === nome,
+    );
+    if (!pulsante) {
+      return null;
+    }
+    const bolla = document.getElementById(pulsante.getAttribute('aria-describedby') ?? '')!;
+    const stile = getComputedStyle(bolla);
+    const r = bolla.getBoundingClientRect();
+    let ritagliata = false;
+    for (let an = bolla.parentElement; an; an = an.parentElement) {
+      const o = getComputedStyle(an);
+      if (o.overflowX !== 'visible' || o.overflowY !== 'visible') {
+        const a = an.getBoundingClientRect();
+        if (
+          r.left < a.left - 0.5 ||
+          r.right > a.right + 0.5 ||
+          r.top < a.top - 0.5 ||
+          r.bottom > a.bottom + 0.5
+        ) {
+          ritagliata = true;
+        }
+      }
+    }
+    const visibile =
+      stile.display !== 'none' && stile.visibility === 'visible' && stile.opacity === '1';
+    const dentro =
+      r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 && r.bottom <= window.innerHeight;
+    // «A posto» = aperta, dentro lo schermo, non ritagliata: la posizione arriva col
+    // rilevamento delle modifiche, un attimo dopo il fuoco, quindi si attende con poll.
+    return {
+      visibile,
+      dentro,
+      ritagliata,
+      aPosto: visibile && dentro && !ritagliata,
+      testo: bolla.textContent?.trim() ?? '',
+      rect: {
+        left: Math.round(r.left),
+        right: Math.round(r.right),
+        top: Math.round(r.top),
+        bottom: Math.round(r.bottom),
+      },
+    };
+  }, nome);
+}
+
+test('aiuti «?» sulla scrivania: mouse e tastiera; Esc chiude; la bolla resta nello schermo', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await instrada(page);
+  const nome = 'Che cosa sono gli aggiornamenti automatici';
+  const aiuto = page.getByRole('button', { name: nome });
+  await expect(aiuto).toHaveAccessibleDescription(/che cosa si aggiorna da sé/i);
+  expect((await bollaDi(page, nome))?.visibile).toBe(false);
+  // Mouse.
+  await aiuto.hover();
+  await expect.poll(async () => (await bollaDi(page, nome))?.aPosto).toBe(true);
+  await page.mouse.move(640, 800);
+  await expect.poll(async () => (await bollaDi(page, nome))?.visibile).toBe(false);
+  // Tastiera: si arriva col Tab, Esc chiude e il fuoco resta.
+  await aiuto.focus();
+  await expect.poll(async () => (await bollaDi(page, nome))?.visibile).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await bollaDi(page, nome))?.visibile).toBe(false);
+  await expect(aiuto).toBeFocused();
+  // Le spiegazioni non hanno una seconda copia visibile nella pagina.
+  await expect(page.getByText(/che cosa si aggiorna da sé/i)).toHaveCount(1);
+});
+
+test.describe('aiuti «?» sul telefono', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('si aprono al tocco, contenuti nello schermo; un secondo tocco chiude; un tocco altrove chiude', async ({
+    page,
+  }) => {
+    await instrada(page);
+    await schede(page).getByRole('link', { name: 'Connessione e sedi' }).click();
+    // Un pulsante a metà schermo: la bolla non sta né a destra né a sinistra, e si stringe.
+    const nome = 'Che cosa hanno in comune';
+    const aiuto = page.getByRole('button', { name: nome });
+    await aiuto.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await aiuto.tap();
+    await expect.poll(async () => (await bollaDi(page, nome))?.aPosto).toBe(true);
+    await aiuto.tap();
+    await expect.poll(async () => (await bollaDi(page, nome))?.visibile).toBe(false);
+    await aiuto.tap();
+    await expect.poll(async () => (await bollaDi(page, nome))?.aPosto).toBe(true);
+    await page.touchscreen.tap(195, 780);
+    await expect.poll(async () => (await bollaDi(page, nome))?.visibile).toBe(false);
+    // L'icona è piccola, l'area premibile vale un pulsante: a 18px dal centro si colpisce ancora.
+    const colpito = await aiuto.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const sotto = document.elementFromPoint(r.left + r.width / 2 + 18, r.top + r.height / 2 + 18);
+      return sotto?.closest('button.hover-tooltip__icona') === el;
+    });
+    expect(colpito).toBe(true);
+    await nessunoSbordo(page);
+  });
 });

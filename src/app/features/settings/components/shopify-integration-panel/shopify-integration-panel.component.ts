@@ -30,11 +30,14 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
+import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import type {
   DataTableSection,
   DataTableSort,
 } from '@shared/components/data-table/data-table.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { NavTabsComponent } from '@shared/components/nav-tabs/nav-tabs.component';
 import type { NavTab } from '@shared/components/nav-tabs/nav-tabs.component';
@@ -60,7 +63,9 @@ import {
 import {
   groupShopifyScopesForDisplay,
   shopifyScopeAccessLabel,
+  shopifyScopeDisplay,
 } from '@domain/channels/shopify/models/shopify-scope-labels.util';
+import { descriviNotifiche } from '@domain/channels/shopify/models/shopify-webhook-topic-labels.util';
 import {
   formatShopifyCustomersSyncFeedback,
   formatShopifyOrdersSyncFeedback,
@@ -86,6 +91,7 @@ import { gruppiPerCausa } from '@domain/channels/shopify/models/shopify-problemi
 import type {
   ShopifySetupDirection,
   ShopifySetupDto,
+  ShopifySetupLocationDto,
 } from '@domain/channels/shopify/models/shopify-setup.dto';
 import {
   faseDelPercorso,
@@ -103,7 +109,32 @@ import {
   SHOPIFY_ALLINEA_VIEW,
 } from '../../models/shopify-allinea-table-columns.config';
 
-type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected' | 'setup';
+/**
+ * Gli esiti del ritorno da OAuth (`?shopify=…`), uno per banner.
+ *
+ * ⛔ Qui mancavano i QUATTRO rifiuti che l'API emette davvero
+ *    (`shopify-oauth-ritorno.util.ts`): `channel_not_enabled`, `shop_owned_elsewhere`,
+ *    `shop_identity_unavailable`, `connection_conflict`. Chi tornava con uno di quelli
+ *    non vedeva niente, e il parametro restava nell'URL (`docs/29` §6, 14/09/2026).
+ */
+type ShopifyBanner =
+  | 'connected'
+  | 'connected-warn'
+  | 'error'
+  | 'disconnected'
+  | 'setup'
+  | 'channel_not_enabled'
+  | 'shop_owned_elsewhere'
+  | 'shop_identity_unavailable'
+  | 'connection_conflict';
+
+/** I rifiuti OAuth con una spiegazione visibile: nulla è stato scritto, e si dice perché. */
+const RIFIUTI_OAUTH: ReadonlySet<ShopifyBanner> = new Set<ShopifyBanner>([
+  'channel_not_enabled',
+  'shop_owned_elsewhere',
+  'shop_identity_unavailable',
+  'connection_conflict',
+]);
 
 /** Le cinque SCHEDE della pagina (`docs/29` §3): il segmento di rotta di ciascuna. */
 export type SchedaShopify =
@@ -155,6 +186,21 @@ interface FlussoAutomatico {
   readonly rimando?: RimandoScheda;
 }
 
+/**
+ * Il permesso che le notifiche sulla SEDE degli ordini richiedono: senza, Shopify
+ * rifiuta la registrazione di `fulfillment_orders/*` e il rimedio non è «Registra»
+ * ma una nuova autorizzazione (proprietario, 14/09/2026).
+ */
+const AMBITO_SEDE_ORDINI = 'read_merchant_managed_fulfillment_orders';
+
+/** L'esito dell'ultimo comando manuale, in sessione: stato, testo, data. */
+interface EsitoComando {
+  readonly stato: string;
+  readonly tono: TonoStato;
+  readonly testo: string;
+  readonly quando: string;
+}
+
 /** L'esito di un'operazione: una fotografia con la data. */
 interface EsitoOperazione {
   readonly id: string;
@@ -203,9 +249,11 @@ const ATTESA_ATTIVAZIONE_MAX_LETTURE = 40;
     BadgeComponent,
     ButtonComponent,
     DataTableComponent,
+    DetailFactsComponent,
     DataTableCellDirective,
     DataTableRowCardDirective,
     ErrorStateComponent,
+    HoverTooltipComponent,
     InlineBannerComponent,
     ReactiveFormsModule,
     TableColumnPickerComponent,
@@ -342,18 +390,42 @@ export class ShopifyIntegrationPanelComponent {
     () => this.mostraPercorso() && percorsoBloccaSincronizzazione(this.setup()),
   );
 
+  /**
+   * ⭐ Le location del negozio che ATTENDONO una scelta: senza decisione (`choice`
+   *    nullo) e attive su Shopify. ⛔ Una location **lasciata fuori** per scelta
+   *    (`lascia`) è decisa: non è «da configurare» (proprietario, 14/09/2026).
+   *    Si leggono fuori dal percorso, cioè dove la tabella delle scelte è visibile.
+   */
+  protected readonly locationDaDecidere = computed((): readonly ShopifySetupLocationDto[] => {
+    const setup = this.setup();
+    if (!setup || !sceltaSediFuoriPercorso(setup)) {
+      return [];
+    }
+    return setup.locations.filter((location) => location.active && location.choice === null);
+  });
+  /** Le location lasciate fuori per scelta: si contano, non si sollecitano. */
+  protected readonly locationLasciateFuori = computed(
+    () => this.setup()?.locations.filter((location) => location.choice === 'lascia').length ?? 0,
+  );
+
   // ── LE CINQUE SCHEDE (`docs/29` §3, deciso il 13/09/2026) ────────────────
   /**
    * Chi non gestisce la connessione: le operazioni. Negozio da collegare, o percorso
-   * in corso: la prima connessione. Altrimenti la sincronizzazione.
+   * in corso: la prima connessione. Location del negozio che attendono una scelta:
+   * «Connessione e sedi», dove sta la tabella. Altrimenti la sincronizzazione.
+   *
+   * ⭐ La terza voce è del 14/09/2026 (`docs/29` §6): dopo Disconnetti → Connetti il
+   *    proprietario atterrava sulla Sincronizzazione con un avviso, mentre il lavoro
+   *    da fare — ricollegare le sedi — stava in un'altra scheda.
    */
   protected readonly schedaPredefinita = computed((): SchedaShopify => {
     if (!this.canManageShopify()) {
       return 'operazioni';
     }
-    return this.shopifyConnectable() || this.percorsoInCorso()
-      ? 'prima-connessione'
-      : 'sincronizzazione';
+    if (this.shopifyConnectable() || this.percorsoInCorso()) {
+      return 'prima-connessione';
+    }
+    return this.locationDaDecidere().length > 0 ? 'connessione' : 'sincronizzazione';
   });
   protected readonly schedaAttiva = computed((): SchedaShopify => {
     const richiesta = this.scheda();
@@ -523,6 +595,24 @@ export class ShopifyIntegrationPanelComponent {
       }
       const mancanti = truth.missingTopics.filter((topic) => flussoDellaNotifica(topic) === id);
       if (mancanti.length > 0) {
+        // ⛔ Se le notifiche mancano perché manca il PERMESSO, registrarle non basta: il
+        //    rimando va alla nuova autorizzazione (proprietario, 14/09/2026).
+        if (this.permessoNotificheMancante()) {
+          return {
+            id,
+            nome,
+            direzione,
+            descrizione,
+            stato: 'da verificare',
+            tono: 'warning',
+            dettaglio: `${mancanti.length === 1 ? 'notifica non registrata' : 'notifiche non registrate'} perché manca il permesso «${shopifyScopeDisplay(AMBITO_SEDE_ORDINI).label}»: serve una nuova autorizzazione`,
+            rimando: {
+              etichetta: 'Vai ai permessi',
+              scheda: 'connessione',
+              elemento: 'settings-shopify-management',
+            },
+          };
+        }
         return {
           id,
           nome,
@@ -599,7 +689,9 @@ export class ShopifyIntegrationPanelComponent {
 
   // ── ESITI: per riga, con la data; una fotografia, mai un verdetto sull'oggi ──
   /** L'esito dell'ultimo comando, in sessione: compare sulla sua riga. */
-  private readonly esitiComandi = signal<Record<'catalogo' | 'clienti' | 'ordini', string | null>>({
+  private readonly esitiComandi = signal<
+    Record<'catalogo' | 'clienti' | 'ordini', EsitoComando | null>
+  >({
     catalogo: null,
     clienti: null,
     ordini: null,
@@ -607,10 +699,19 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly esitoCatalogo = computed(() => this.esitiComandi().catalogo);
   protected readonly esitoClienti = computed(() => this.esitiComandi().clienti);
   protected readonly esitoOrdini = computed(() => this.esitiComandi().ordini);
-  private registraEsito(comando: 'catalogo' | 'clienti' | 'ordini', testo: string): void {
+  private registraEsito(
+    comando: 'catalogo' | 'clienti' | 'ordini',
+    testo: string,
+    tono: TonoStato = 'success',
+  ): void {
     this.esitiComandi.update((esiti) => ({
       ...esiti,
-      [comando]: `${this.formatDateTime(new Date().toISOString())} — ${testo}`,
+      [comando]: {
+        stato: tono === 'success' ? 'eseguita' : 'non riuscita',
+        tono,
+        testo,
+        quando: this.formatDateTime(new Date().toISOString()),
+      },
     }));
   }
 
@@ -619,7 +720,7 @@ export class ShopifyIntegrationPanelComponent {
    * dopo): stato e numeri, con la data del tentativo. In sessione vince l'avanzamento.
    */
   protected readonly ultimoEsitoAllinea = computed(
-    (): { stato: string; tono: TonoStato; testo: string } | null => {
+    (): { stato: string; tono: TonoStato; testo: string; quando: string } | null => {
       const esito = this.setup()?.esito;
       if (!esito) {
         return null;
@@ -633,14 +734,16 @@ export class ShopifyIntegrationPanelComponent {
         return {
           stato: 'fermo',
           tono: 'warning',
-          testo: `${quando} — nessuna quantità inviata: ${allinea.fermo.ordini.length} ${allinea.fermo.ordini.length === 1 ? 'ordine aperto' : 'ordini aperti'} senza sede (${allinea.fermo.ordini.join(', ')})`,
+          quando,
+          testo: `nessuna quantità inviata: ${allinea.fermo.ordini.length} ${allinea.fermo.ordini.length === 1 ? 'ordine aperto' : 'ordini aperti'} senza sede (${allinea.fermo.ordini.join(', ')})`,
         };
       }
       const nonAllineate = allinea.nonAllineate;
       return {
         stato: nonAllineate > 0 ? 'con esclusi' : 'completato',
         tono: nonAllineate > 0 ? 'warning' : 'success',
-        testo: `${quando} — ${allinea.allineate} allineati · ${allinea.giaAllineate} già uguali · ${nonAllineate} non allineati su ${allinea.totale}`,
+        quando,
+        testo: `${allinea.allineate} allineati · ${allinea.giaAllineate} già uguali · ${nonAllineate} non allineati su ${allinea.totale}`,
       };
     },
   );
@@ -670,16 +773,45 @@ export class ShopifyIntegrationPanelComponent {
       esiti.push({
         id: 'allinea',
         nome: 'Allinea giacenze su Shopify',
-        quando: this.formatDateTime(e.finishedAt ?? e.startedAt),
+        quando: allinea.quando,
         stato: allinea.stato,
         tono: allinea.tono,
-        testo: allinea.testo.replace(/^[^—]+— /, ''),
+        testo: allinea.testo,
         rimando: {
           etichetta: 'Vai all’operazione',
           scheda: 'operazioni',
           elemento: 'settings-shopify-sync-giacenze',
         },
       });
+    }
+    // I comandi lanciati in questa sessione: l'esito resta qui, come promesso nella loro scheda.
+    const comandi = this.esitiComandi();
+    const righeComandi: readonly {
+      id: 'catalogo' | 'clienti' | 'ordini';
+      nome: string;
+      elemento: string;
+    }[] = [
+      { id: 'catalogo', nome: 'Importa catalogo', elemento: 'settings-shopify-sync-catalogo' },
+      { id: 'clienti', nome: 'Importa clienti', elemento: 'settings-shopify-sync-clienti' },
+      { id: 'ordini', nome: 'Importa ordini', elemento: 'settings-shopify-sync-ordini' },
+    ];
+    for (const riga of righeComandi) {
+      const esito = comandi[riga.id];
+      if (esito) {
+        esiti.push({
+          id: riga.id,
+          nome: riga.nome,
+          quando: esito.quando,
+          stato: esito.stato,
+          tono: esito.tono,
+          testo: esito.testo,
+          rimando: {
+            etichetta: 'Vai all’operazione',
+            scheda: 'operazioni',
+            elemento: riga.elemento,
+          },
+        });
+      }
     }
     return esiti;
   });
@@ -897,8 +1029,12 @@ export class ShopifyIntegrationPanelComponent {
       next: (setup) => {
         this.setup.set(setup);
         this.setupBusy.set(false);
-        // Sedi create o collegate cambiano il resto delle Impostazioni.
+        // Sedi create o collegate cambiano il resto delle Impostazioni — anche le
+        // sedi lette dalla pagina, da cui viene lo stato «Sedi collegate» sopra la
+        // tabella: senza rilettura diceva «3» con la quarta appena collegata
+        // (anteprima del 14/09/2026).
         this.reloadConnection();
+        this.locationsChanged.emit();
       },
       error: (err: unknown) => {
         this.setupErrore.set(extractErrorMessage(err));
@@ -932,13 +1068,99 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
+  /** Il dominio del negozio che l'OAuth ha rifiutato (`?shop=`): nominato nel banner. */
+  protected readonly negozioRifiutato = signal<string | null>(null);
 
   /** Tono del banner d'esito OAuth: prima viveva in tre `[class.]` nel template. */
   protected readonly shopifyBannerTone = computed<'error' | 'success' | 'warning'>(() => {
     const banner = this.shopifyBanner();
-    if (banner === 'error') return 'error';
-    if (banner === 'connected-warn') return 'warning';
+    if (
+      banner === 'error' ||
+      banner === 'shop_owned_elsewhere' ||
+      banner === 'channel_not_enabled'
+    ) {
+      return 'error';
+    }
+    if (banner === 'shop_identity_unavailable' || banner === 'connection_conflict') {
+      return 'warning';
+    }
+    // ⭐ «Collegato» è VIVO: il tono segue lo stato di adesso, non l'esito letto al
+    //    ritorno da OAuth — dopo «Azzera le segnalazioni» l'avviso può non esserci più,
+    //    o esserci ancora perché la causa c'è ancora.
+    if (banner === 'connected' || banner === 'connected-warn') {
+      return this.bannerCollegato().rimando ? 'warning' : 'success';
+    }
     return 'success';
+  });
+
+  /**
+   * ⭐ Il banner «collegato» dice lo stato VERO, non una frase fissa (14/09/2026,
+   *    `docs/29` §6): prima diceva «si aggiorneranno quando attivi gli aggiornamenti
+   *    automatici» a un negozio che li aveva già attivi, e a un errore rimandava ai
+   *    «problemi» mentre la causa (notifiche non registrate) stava nella
+   *    Sincronizzazione. Qui: aggiornamenti attivi o sospesi, location che attendono
+   *    una scelta, e — con un avviso — il suo testo e la scheda dove sta la causa.
+   */
+  protected readonly bannerCollegato = computed(
+    (): {
+      readonly testo: string;
+      readonly rimando: { readonly scheda: SchedaShopify; readonly etichetta: string } | null;
+    } => {
+      const conn = this.connection();
+      const attivi = conn?.autoSyncEnabled === true;
+      const daDecidere = this.locationDaDecidere().length;
+      const frasi: string[] = ['Negozio collegato.'];
+      frasi.push(
+        attivi
+          ? 'Aggiornamenti automatici attivi.'
+          : 'Aggiornamenti automatici sospesi: si riattivano in «Sincronizzazione automatica».',
+      );
+      if (daDecidere > 0) {
+        frasi.push(
+          daDecidere === 1
+            ? '1 location del negozio attende una scelta, nella tabella «Sedi».'
+            : `${daDecidere} location del negozio attendono una scelta, nella tabella «Sedi».`,
+        );
+      }
+      // L'avviso si legge dallo stato di ADESSO: l'ultimo errore salvato sulla
+      // connessione o, se non c'è, le notifiche che risultano non registrate.
+      const mancanti = attivi ? this.webhookTruth().missingTopics.length : 0;
+      const avviso =
+        conn?.lastError?.message.trim() ||
+        (mancanti > 0
+          ? mancanti === 1
+            ? '1 notifica non registrata su Shopify'
+            : `${mancanti} notifiche non registrate su Shopify`
+          : null);
+      if (!avviso) {
+        return { testo: frasi.join(' '), rimando: null };
+      }
+      const notifiche = mancanti > 0 || (conn?.lastError?.code ?? '').startsWith('webhook');
+      return {
+        testo: `${frasi.join(' ')} Con un avviso: ${avviso.replace(/\.$/, '')}.`,
+        rimando: notifiche
+          ? { scheda: 'sincronizzazione', etichetta: 'Vedi le notifiche' }
+          : { scheda: 'problemi', etichetta: 'Vedi i problemi' },
+      };
+    },
+  );
+
+  /** Il testo di un rifiuto OAuth: che cosa è successo, che cosa NON è stato scritto, che fare. */
+  protected readonly testoRifiutoOAuth = computed((): string | null => {
+    const negozio = this.negozioRifiutato();
+    const quale = negozio ? `il negozio ${negozio}` : 'il negozio';
+    switch (this.shopifyBanner()) {
+      case 'channel_not_enabled':
+        return `Collegamento non avviato: il profilo di questa azienda non prevede il canale Shopify. Si abilita dal profilo canali dell’azienda, poi si ripete «Connetti Shopify». Nulla è stato scritto.`;
+      case 'shop_owned_elsewhere':
+        return `Collegamento rifiutato: ${quale} è già collegato a un’altra azienda e non può appartenere a due. Nulla è stato scritto.`;
+      case 'shop_identity_unavailable':
+        return `Collegamento non completato: Shopify non ha risposto sull’identità del negozio${negozio ? ` ${negozio}` : ''}. Nulla è stato scritto: ripeti «Connetti Shopify».`;
+      case 'connection_conflict':
+        return `Collegamento non completato: un altro collegamento dello stesso negozio${negozio ? ` (${negozio})` : ''} era in corso. Nulla è stato scritto: ripeti «Connetti Shopify».`;
+      default:
+        return null;
+    }
   });
 
   protected readonly shopWizardOpen = signal(false);
@@ -1082,6 +1304,71 @@ export class ShopifyIntegrationPanelComponent {
     };
   });
 
+  /**
+   * ⭐ I fatti del negozio e delle notifiche stanno sul componente delle pagine di
+   *    Dettaglio (`app-detail-facts`, 14/09/2026): una grammatica sola in tutto il
+   *    gestionale. Solo testo: lo stato con colore è già nell'intestazione della pagina.
+   */
+  protected readonly fattiNegozio = computed((): readonly DetailFact[] => {
+    const conn = this.connection();
+    if (!conn) {
+      return [];
+    }
+    return [
+      { label: 'Dominio', value: conn.shopDomain ?? '—' },
+      { label: 'Nome shop', value: conn.displayName ?? '—' },
+      {
+        label: 'Stato',
+        value: shopifyConnectionStatusLabel(conn.status),
+        note: conn.lastError ? 'con un avviso, qui sotto' : undefined,
+      },
+      {
+        label: 'Ultima connessione',
+        value: conn.lastConnectedAt ? this.formatDateTime(conn.lastConnectedAt) : '—',
+        numeric: true,
+      },
+      {
+        label: 'Ultimo sync',
+        value: conn.lastSyncAt ? this.formatDateTime(conn.lastSyncAt) : '—',
+        numeric: true,
+      },
+      { label: 'Ultimo evento dal negozio', value: this.lastWebhookEventLabel(), numeric: true },
+    ];
+  });
+
+  /**
+   * I fatti delle notifiche: il conteggio («8 su 10 · 2 mancanti»), l'ultimo evento, l'ultima
+   * verifica. ⛔ I nomi dei topic NON stanno qui (proprietario, 14/09/2026): le funzioni
+   * interessate sono nell'avviso in cima, i nomi tecnici nel dettaglio richiudibile.
+   */
+  protected readonly fattiNotifiche = computed((): readonly DetailFact[] => {
+    const truth = this.webhookTruth();
+    const mancanti = truth.missingTopics.length;
+    return [
+      {
+        label: 'Registrate',
+        value: truth.known
+          ? `${truth.registeredCount} su ${truth.expectedCount}${mancanti > 0 ? ` · ${mancanti} ${mancanti === 1 ? 'mancante' : 'mancanti'}` : ''}`
+          : 'Non verificate',
+      },
+      { label: 'Ultimo evento ricevuto', value: this.lastWebhookEventLabel(), numeric: true },
+      { label: 'Ultima verifica', value: this.webhookCheckedAtLabel(), numeric: true },
+    ];
+  });
+
+  /** L'avanzamento di «Allinea», negli stessi fatti a colonne delle altre sezioni. */
+  protected readonly fattiAllinea = computed((): readonly DetailFact[] => {
+    const a = this.allineaAvanzamento();
+    if (!a) {
+      return [];
+    }
+    return [
+      { label: 'Allineate', value: String(a.allineate), numeric: true },
+      { label: 'Già corrette', value: String(a.giaAllineate), numeric: true },
+      { label: 'Non allineate', value: String(a.nonAllineate.length), numeric: true },
+    ];
+  });
+
   /** Dichiarativo: si riporta il fatto, non si dà un giudizio sul tempo passato. */
   protected readonly lastWebhookEventLabel = computed(() => {
     const at = this.webhookTruth().lastEventAt;
@@ -1120,6 +1407,157 @@ export class ShopifyIntegrationPanelComponent {
       : `${truth.address} — confronto non possibile da questo ambiente`;
   });
 
+  /** L'indirizzo, giudicato: coincide, è un altro, o non si può dire. */
+  protected readonly indirizzoNotificheNota = computed((): string | null => {
+    const conn = this.connection();
+    const truth = this.webhookTruth();
+    if (!truth.address || !truth.known) {
+      return null;
+    }
+    if (!truth.addressComparable) {
+      return null;
+    }
+    if (conn?.webhookAddressMatchesConfigured === true) {
+      return 'coincide con quello configurato';
+    }
+    if (conn?.webhookAddressMatchesConfigured === false) {
+      return 'diverso da quello configurato';
+    }
+    return null;
+  });
+
+  /** Le notifiche attese, una per una, con lo stato: registrate prima, mancanti dopo. */
+  protected readonly notificheAttese = computed(
+    (): readonly { readonly topic: string; readonly registrata: boolean }[] => {
+      const conn = this.connection();
+      if (conn?.webhookTopicsKnown !== true) {
+        return [];
+      }
+      const registrate = [...(conn.webhookTopics ?? [])].sort();
+      const mancanti = [...(conn.webhookMissingTopics ?? [])].sort();
+      return [
+        ...registrate.map((topic) => ({ topic, registrata: true })),
+        ...mancanti.map((topic) => ({ topic, registrata: false })),
+      ];
+    },
+  );
+
+  /**
+   * ⛔ Le notifiche sulla sede degli ordini mancano perché manca il PERMESSO: Shopify
+   *    rifiuta `fulfillment_orders/*` senza `read_merchant_managed_fulfillment_orders`.
+   *    «Registra le notifiche mancanti» non è un rimedio sufficiente: prima la nuova
+   *    autorizzazione (proprietario, 14/09/2026).
+   */
+  protected readonly permessoNotificheMancante = computed((): boolean => {
+    const conn = this.connection();
+    const mancaAmbito = (conn?.scopeDiagnostics?.missingFromGrant ?? []).includes(
+      AMBITO_SEDE_ORDINI,
+    );
+    const topicMancanti = this.webhookTruth().missingTopics;
+    return mancaAmbito && topicMancanti.some((topic) => topic.startsWith('fulfillment_orders/'));
+  });
+
+  /**
+   * L'AVVISO della sincronizzazione: un banner solo, in cima, che dice in italiano QUALI
+   * FUNZIONI sono interessate e che cosa fare — non i nomi tecnici dei topic, che stanno
+   * nel dettaglio richiudibile (proprietario, 14/09/2026). Nessun avviso quando tutto è
+   * attivo e verificato: lo stato di ogni flusso sta nelle righe.
+   *
+   * ⛔ Quando le notifiche mancano perché manca il PERMESSO, il rimedio è la nuova
+   *    autorizzazione: «Registra le notifiche mancanti» non si propone, perché non
+   *    riuscirebbe. A sospesi dice che cosa continua: gli invii verso Shopify non
+   *    guardano l'interruttore.
+   */
+  protected readonly avvisoSincronizzazione = computed(
+    (): {
+      readonly tono: TonoStato;
+      readonly testo: string;
+      readonly azione: 'attiva' | 'permesso' | 'registra' | null;
+    } | null => {
+      const conn = this.connection();
+      if (!conn) {
+        return null;
+      }
+      if (!conn.autoSyncEnabled) {
+        return {
+          tono: 'warning',
+          testo:
+            'Aggiornamenti automatici sospesi: le notifiche dal negozio — ordini, clienti, catalogo e quantità — non arrivano. Gli invii verso Shopify, le quantità a ogni movimento e gli articoli al salvataggio, continuano.',
+          azione: 'attiva',
+        };
+      }
+      const truth = this.webhookTruth();
+      if (!truth.known) {
+        return {
+          tono: 'info',
+          testo:
+            'Non sappiamo quali notifiche siano davvero registrate su Shopify: premi «Verifica ora» nelle notifiche dal negozio.',
+          azione: null,
+        };
+      }
+      const frasi: string[] = [];
+      if (truth.addressWrong) {
+        frasi.push(
+          'Le notifiche non arrivano a questo ambiente: su Shopify sono registrate verso un altro indirizzo (nel dettaglio tecnico) e gli eventi vengono consegnati altrove.',
+        );
+      }
+      let azione: 'permesso' | 'registra' | null = null;
+      if (truth.missingTopics.length > 0) {
+        const una = truth.missingTopics.length === 1;
+        // «quella per gli annullamenti degli ordini»: la funzione è un complemento, così la
+        // frase regge per qualunque nome — singolare, plurale, femminile.
+        const quali = `${una ? 'Manca una notifica su Shopify: quella per' : `Mancano ${truth.missingTopics.length} notifiche su Shopify: quelle per`} ${descriviNotifiche(truth.missingTopics)}.`;
+        if (this.permessoNotificheMancante()) {
+          frasi.push(
+            `${quali} Manca il permesso «${shopifyScopeDisplay(AMBITO_SEDE_ORDINI).label}»: serve una nuova autorizzazione — Disconnetti, poi Connetti, in «Connessione e sedi». Registrare le notifiche senza il permesso non riesce.`,
+          );
+          azione = 'permesso';
+        } else {
+          frasi.push(
+            `${quali} ${una ? 'Finché non è registrata, questi eventi non arrivano.' : 'Finché non sono registrate, questi eventi non arrivano.'}`,
+          );
+          azione = this.canRegisterMissingWebhooks() ? 'registra' : null;
+        }
+      }
+      if (frasi.length === 0) {
+        if (conn.lastError?.code === 'webhook_partial_registration') {
+          return {
+            tono: 'warning',
+            testo: `Registrazione delle notifiche parziale: ${truth.registeredCount} su ${truth.expectedCount}. Premi «Verifica ora» per rileggere quali mancano.`,
+            azione: null,
+          };
+        }
+        return null;
+      }
+      return { tono: 'warning', testo: frasi.join(' '), azione };
+    },
+  );
+
+  /** I permessi in una riga: concessi su richiesti, e i mancanti col loro nome. */
+  protected readonly permessiSintesi = computed(
+    (): {
+      readonly concessi: number;
+      readonly richiesti: number;
+      readonly mancanti: readonly {
+        readonly scope: string;
+        readonly label: string;
+        readonly conseguenza: string;
+      }[];
+    } => {
+      const diagnostica = this.connection()?.scopeDiagnostics;
+      const richiesti = diagnostica?.requested.length ?? 0;
+      const mancanti = (diagnostica?.missingFromGrant ?? []).map((scope) => ({
+        scope,
+        label: shopifyScopeDisplay(scope).label,
+        conseguenza:
+          scope === AMBITO_SEDE_ORDINI
+            ? 'senza, la sede degli ordini online non si determina — nessun impegno, quantità ferme — e le notifiche sulla sede non si registrano.'
+            : `senza, le operazioni che lo richiedono falliscono (${shopifyScopeDisplay(scope).description}).`,
+      }));
+      return { concessi: richiesti - mancanti.length, richiesti, mancanti };
+    },
+  );
+
   /**
    * Il pulsante di riparazione compare solo quando ha senso e solo quando e' sicuro.
    *
@@ -1148,11 +1586,6 @@ export class ShopifyIntegrationPanelComponent {
       ? 'Disattiva aggiornamenti automatici'
       : 'Attiva aggiornamenti automatici',
   );
-
-  protected readonly showPostConnectCta = computed(() => {
-    const banner = this.shopifyBanner();
-    return banner === 'connected' || banner === 'connected-warn';
-  });
 
   protected readonly shopifyBulkSyncBusy = computed(
     () =>
@@ -1339,6 +1772,20 @@ export class ShopifyIntegrationPanelComponent {
           queryParamsHandling: 'merge',
           replaceUrl: true,
         });
+      } else if (shopifyParam !== null && RIFIUTI_OAUTH.has(shopifyParam as ShopifyBanner)) {
+        // ⛔ Quattro esiti che l'API manda dal 13/09/2026 e che il pannello non
+        //    leggeva: l'operatore tornava su una pagina muta col parametro
+        //    appeso all'indirizzo. Nessuno dei quattro ha scritto niente: il
+        //    banner lo dice, e la connessione si rilegge per mostrare lo stato vero.
+        this.negozioRifiutato.set(params.get('shop'));
+        this.shopifyBanner.set(shopifyParam as ShopifyBanner);
+        this.reloadConnection();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { shopify: null, shop: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
       }
     });
   }
@@ -1486,7 +1933,7 @@ export class ShopifyIntegrationPanelComponent {
         error: (err: unknown) => {
           this.syncProductsLoading.set(false);
           this.connectError.set(extractErrorMessage(err));
-          this.registraEsito('catalogo', `non riuscita: ${extractErrorMessage(err)}`);
+          this.registraEsito('catalogo', extractErrorMessage(err), 'warning');
         },
       });
   }
@@ -1556,7 +2003,7 @@ export class ShopifyIntegrationPanelComponent {
         error: (err: unknown) => {
           this.syncCustomersLoading.set(false);
           this.connectError.set(extractErrorMessage(err));
-          this.registraEsito('clienti', `non riuscita: ${extractErrorMessage(err)}`);
+          this.registraEsito('clienti', extractErrorMessage(err), 'warning');
         },
       });
   }
@@ -1584,7 +2031,7 @@ export class ShopifyIntegrationPanelComponent {
         error: (err: unknown) => {
           this.syncOrdersLoading.set(false);
           this.connectError.set(extractErrorMessage(err));
-          this.registraEsito('ordini', `non riuscita: ${extractErrorMessage(err)}`);
+          this.registraEsito('ordini', extractErrorMessage(err), 'warning');
         },
       });
   }
@@ -1794,64 +2241,70 @@ function extractErrorMessage(err: unknown): string {
   return isAppError(err) ? err.message : 'Operazione non riuscita. Riprova.';
 }
 
+/**
+ * ⭐ Il messaggio dice che cosa il comando ha FATTO — letto le location del
+ *    negozio e riconosciuto quelle già collegate — e non «importate»: dall'11/09
+ *    il sync non crea sedi (`importedCount` è sempre 0) e la scelta per ogni
+ *    location resta dell'operatore, nella tabella «Sedi» (`docs/29` §6).
+ */
 function formatLocationSyncFeedback(
   result: ShopifySyncLocationsDto,
   mustChooseLocations: boolean,
 ): string {
   if (result.totalCount === 0) {
-    return 'Sync completata: nessuna location trovata su Shopify.';
+    return 'Lette le location del negozio: nessuna trovata su Shopify.';
   }
 
-  const parts: string[] = [];
-
-  if (result.importedCount > 0) {
-    parts.push(
-      result.importedCount === 1
-        ? '1 location importata da Shopify'
-        : `${result.importedCount} location importate da Shopify`,
-    );
-  }
-
-  if (result.matchedCount > 0) {
-    parts.push(
-      result.matchedCount === 1
-        ? '1 location collegata'
-        : `${result.matchedCount} location collegate`,
-    );
-  }
-
-  if (parts.length === 0) {
-    return 'Sync completata: nessuna modifica alle location.';
-  }
-
-  const base = `${parts.join(', ')} (${result.totalCount} sedi su Shopify).`;
+  const lette =
+    result.totalCount === 1
+      ? 'Letta 1 location dal negozio'
+      : `Lette ${result.totalCount} location dal negozio`;
+  const collegate =
+    result.matchedCount === 0
+      ? 'nessuna è collegata a una sede'
+      : result.matchedCount === 1
+        ? '1 è collegata a una sede'
+        : `${result.matchedCount} sono collegate a una sede`;
+  const base = `${lette}: ${collegate}.`;
   if (result.autoLicensed) {
     return `${base} La sede unica è stata attivata automaticamente nel piano.`;
   }
   if (mustChooseLocations) {
     return `${base} Seleziona le sedi da attivare in VestiFlow.`;
   }
+  if (result.matchedCount < result.totalCount) {
+    return `${base} Per le altre la scelta — collega, crea o lascia fuori — è nella tabella «Sedi».`;
+  }
   return base;
 }
 
+/**
+ * ⛔ Qui c'era «Connessione Shopify ripristinata, N prodotti ripristinati»: il
+ *    comando NON ripristina niente. Verificato sull'API (`clearErrors`,
+ *    14/09/2026): cancella l'ultimo errore salvato sulla connessione, azzera gli
+ *    errori salvati su prodotti e sedi e riporta quelli in stato «errore» a «da
+ *    allineare», così il prossimo invio li ritenta. La causa resta dov'è, e se
+ *    c'è ancora la segnalazione ricompare — il messaggio lo dice.
+ */
 function formatClearErrorsFeedback(result: ShopifyClearErrorsDto): ActionFeedback {
-  const parts: string[] = ['Connessione Shopify ripristinata'];
+  const parts: string[] = ['Segnalazioni di errore azzerate'];
 
+  const ritentati: string[] = [];
   if (result.productsReset > 0) {
-    parts.push(
-      result.productsReset === 1
-        ? '1 prodotto ripristinato'
-        : `${result.productsReset} prodotti ripristinati`,
-    );
+    ritentati.push(result.productsReset === 1 ? '1 prodotto' : `${result.productsReset} prodotti`);
   }
-
   if (result.locationsReset > 0) {
+    ritentati.push(result.locationsReset === 1 ? '1 sede' : `${result.locationsReset} sedi`);
+  }
+  if (ritentati.length > 0) {
+    const singolare = result.productsReset + result.locationsReset === 1;
     parts.push(
-      result.locationsReset === 1
-        ? '1 location ripristinata'
-        : `${result.locationsReset} location ripristinate`,
+      `${ritentati.join(' e ')} ${singolare ? 'torna' : 'tornano'} «da allineare»: ${singolare ? 'verrà ritentato' : 'verranno ritentati'} al prossimo invio`,
     );
   }
+  parts.push(
+    'Le cause non sono state corrette: se il problema c’è ancora, la segnalazione ricompare',
+  );
 
   return { tone: 'success', message: `${parts.join('. ')}.` };
 }

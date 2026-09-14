@@ -4,9 +4,10 @@
 
 .inline-banner {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   margin: 0;
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm);
@@ -15,7 +16,21 @@
 }
 
 .inline-banner__text {
+  flex: 1 1 var(--field-w-xl);
   min-inline-size: 0;
+}
+
+// I comandi: a destra del testo; senza contenuto proiettato lo slot non esiste.
+.inline-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+
+  &:not(:has(*)) {
+    display: none;
+  }
 }
 
 .inline-banner--error {

@@ -12,6 +12,12 @@ export interface DetailFact {
   /** Link opzionale sotto al valore (es. admin Shopify). */
   readonly href?: string;
   readonly linkLabel?: string;
+  /**
+   * ⭐ Una nota attenuata sotto il valore («1 escluso: stesso SKU dalle due parti»,
+   * «coincide con quello configurato»): aggiunta il 14/09/2026 per i fatti delle
+   * Impostazioni Shopify, che prima avevano due griglie proprie per dirla.
+   */
+  readonly note?: string;
 }
 
 /**

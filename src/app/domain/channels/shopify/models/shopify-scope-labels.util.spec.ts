@@ -33,10 +33,15 @@ describe('shopify-scope-labels.util', () => {
       'write_locations',
       'read_products',
       'write_products',
+      'read_merchant_managed_fulfillment_orders',
     ];
     for (const scope of knownScopes) {
       expect(shopifyScopeDisplay(scope).label).toBeTruthy();
     }
+    // La sede degli ordini ha un nome che si legge, non lo slug tecnico.
+    expect(shopifyScopeDisplay('read_merchant_managed_fulfillment_orders').label).toBe(
+      'Sede degli ordini',
+    );
     expect(shopifyScopeAccessLabel('write')).toBe('Scrittura');
   });
 

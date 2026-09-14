@@ -16,6 +16,13 @@
 .scelte__tabella {
   inline-size: 100%;
   border-collapse: collapse;
+
+  // Sulla superficie della pagina la tabella conserva la sua (bianca, bordata); sotto lg
+  // le card sono già bianche.
+  @include bp.media-up('lg') {
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+  }
 }
 
 @include rt.summary-grammar('scelte__tabella');
@@ -26,13 +33,98 @@
 @include rt.data-table-mobile-cards('scelte__tabella');
 
 .scelte__cella-scelta {
+  // ⭐ La voce scelta si deve LEGGERE nel pulsante: «Collega alla sede «Snow City
+  //    Warehouse»» a 224px diventava «Collega alla sede «Snow C…» (anteprima del
+  //    14/09/2026). La misura è quella di un nome (`--field-w-xl`), non di un select.
+  --select-menu-width: var(--field-w-xl);
   --select-menu-max-width: 100%;
 }
 
+// ⚠️ La tabella è a colonne FISSE (misurato nell'anteprima del 14/09/2026: quattro
+//    colonne uguali da 259px, e il pulsante tagliato). Con `table-layout: fixed`
+//    le larghezze le decide la prima riga: la colonna della scelta prende la parte
+//    più grande, perché è l'unica che ospita un comando con un nome dentro.
+@include bp.media-up('lg') {
+  .scelte__col-location {
+    inline-size: 30%;
+  }
+
+  .scelte__col-stato {
+    inline-size: 12%;
+  }
+
+  .scelte__col-scelta {
+    inline-size: 36%;
+  }
+
+  .scelte__col-sede {
+    inline-size: 22%;
+  }
+}
+
 @include bp.media-down('lg') {
+  // ⭐ La card di una location si PROGETTA, non si impila (regole-stile-ui §6): nome e
+  //    stato sulla prima riga, la tendina a tutta larghezza sotto, la sede VestiFlow come
+  //    riga etichetta:valore. Il ripiego a quattro righe etichetta:valore costava 169px
+  //    per una decisione e lasciava alla tendina il 61% dello schermo (misurato a 390 il
+  //    14/09/2026). Stessa tabella e stesso mixin: qui si dispongono solo le celle.
+  .scelte__tabella tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+  }
+
+  // Dentro la card il respiro lo dà la card (12px): il padding di cella della grammatica
+  // dei riepiloghi (8px per lato) qui è un secondo rientro, e alla tendina costava 16px.
+  .scelte__tabella tbody td {
+    padding-inline: 0;
+  }
+
+  .scelte__tabella tbody td.scelte__cella-location {
+    display: block;
+    grid-column: 1;
+    padding-block: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    text-align: start;
+    // Sulla card il nome va a capo: il taglio a colonna della grammatica (nowrap) lo
+    // troncava a «Test sede da shopify con un nome davver», e sul telefono non c'è un
+    // `title` da leggere col mouse.
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .scelte__tabella tbody td.scelte__cella-stato {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    padding-block: 0;
+  }
+
+  .scelte__tabella tbody td.scelte__cella-location::before,
+  .scelte__tabella tbody td.scelte__cella-stato::before {
+    content: none;
+  }
+
+  .scelte__tabella tbody td.scelte__cella-sede {
+    grid-column: 1 / -1;
+    // Anche il nome della sede collegata va a capo sulla card, come quello della location.
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .scelte__tabella tbody td.scelte__cella-scelta {
+    grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr);
     --select-menu-width: 100%;
+    // ⛔ «Sul telefono niente ritaglia la tendina» era falso: la cella-card eredita
+    //    `overflow: hidden` dal taglio a colonna della grammatica dei riepiloghi, e
+    //    il pannello — nel flusso, assoluto — restava nel DOM ma NON si vedeva.
+    //    Misurato nell'anteprima del 14/09/2026 (pannello a y 477, cella con
+    //    overflow hidden, schermata senza voci). La cella che ospita la tendina
+    //    lascia uscire il pannello.
+    overflow: visible;
   }
 
   .scelte__tabella tbody td.scelte__cella-scelta::before {

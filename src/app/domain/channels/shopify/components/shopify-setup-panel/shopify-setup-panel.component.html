@@ -6,14 +6,15 @@
     <h3 id="shopify-setup-title" class="setup__title">Prima connessione</h3>
     @if (attivato()) {
       <!-- ⭐ Concluso il … è il percorso; l'esito è un'altra cosa, col suo colore. -->
-      <app-badge [flat]="true" tone="neutral">conclusa il {{ dataAttivazione() }}</app-badge>
-      <span class="setup__head-sep" aria-hidden="true">·</span>
-      <app-badge [flat]="true" [tone]="esitoSintesi().tono">{{ esitoSintesi().testo }}</app-badge>
-      @if (problemiAperti() > 0) {
-        <button type="button" class="setup__link" (click)="problemiRichiesti.emit()">
-          {{ problemiAperti() }} problemi aperti oggi ›
-        </button>
-      }
+      <app-badge tone="success">conclusa il {{ dataAttivazione() }}</app-badge>
+      <span class="setup__head-dx">
+        <app-badge [flat]="true" [tone]="esitoSintesi().tono">{{ esitoSintesi().testo }}</app-badge>
+        @if (problemiAperti() > 0) {
+          <button type="button" class="setup__link" (click)="problemiRichiesti.emit()">
+            {{ problemiAperti() }} problemi aperti oggi ›
+          </button>
+        }
+      </span>
     } @else if (inTrasferimento()) {
       <app-badge tone="info">Trasferimento in corso</app-badge>
     } @else if (interrotto()) {
@@ -21,7 +22,18 @@
     } @else if (trasferito()) {
       <app-badge tone="info">Trasferito, da attivare</app-badge>
     } @else {
-      <app-badge tone="neutral">Da completare</app-badge>
+      <!--
+        ⭐ Le spiegazioni stanno in un «?» accanto al titolo o al comando (proprietario,
+           14/09/2026): mouse, Tab e tocco. Visibile resta ciò che serve per DECIDERE.
+           Il «?» sta subito dopo il titolo: sul telefono, dopo il badge, andava a capo da solo.
+      -->
+      <app-hover-tooltip
+        [icona]="true"
+        position="bottom"
+        etichetta="Che cosa succede intanto"
+        text="Il negozio è collegato ma nessuna sincronizzazione è partita: niente parte da solo finché le tre fasi non sono concluse."
+      />
+      <app-badge tone="neutral">Da completare · {{ etichettaFase() }}</app-badge>
     }
   </header>
 
@@ -34,523 +46,584 @@
 
   @if (attivato()) {
     <!--
-      ⭐ Conclusa, la prima connessione resta CONSULTABILE, non sbiadita (proprietario,
-         13/09/2026): le tre fasi si leggono com'erano — la fotografia di allora —
-         e solo i comandi non più utilizzabili sono spenti, con il motivo. Le sedi di
-         oggi si cambiano in «Connessione e sedi»; i problemi di oggi nella loro scheda.
+      ⭐ Conclusa, la prima connessione resta CONSULTABILE, non sbiadita e non da rifare
+         (proprietario, 13 e 14/09/2026): in testa i QUATTRO FATTI — direzione, catalogo,
+         sedi, ordini — e sotto le tre fasi come sono state fatte, con i dettagli richiudibili.
+         Nessun comando: la prima connessione non si ripete. Le sedi di oggi si cambiano in
+         «Connessione e sedi»; i problemi di oggi nella loro scheda.
     -->
-    <p class="setup__intro">
-      {{ etichettaDirezione(s.direction) }} · {{ sintesiStorico() }}. Da allora ordini e quantità li
-      seguono gli aggiornamenti automatici; le scelte qui sotto sono quelle di allora e non si
-      rifanno da qui.
-    </p>
-    <ng-container [ngTemplateOutlet]="fasi" />
-  } @else {
-    <p class="setup__intro">
-      Il negozio è collegato ma nessuna sincronizzazione è partita. Tre passaggi, nell’ordine: la
-      direzione iniziale, le sedi, il controllo con la conferma. Niente parte da solo.
-    </p>
-    <ng-container [ngTemplateOutlet]="fasi" />
+    <app-detail-facts [facts]="riepilogoAttivato()" />
+    <h4 class="setup__fasi-titolo">
+      Le tre fasi, come sono state fatte
+      <app-hover-tooltip
+        [icona]="true"
+        position="bottom"
+        etichetta="Le fasi concluse"
+        text="Scelte di allora: non si rifanno da qui. Da allora ordini e quantità li seguono gli aggiornamenti automatici; le sedi di oggi si consultano e si cambiano in «Connessione e sedi»."
+      />
+    </h4>
   }
+  <ng-container [ngTemplateOutlet]="fasi" />
 </div>
 
 <ng-template #fasi>
-  <!-- ── Fase 1 · Scelte iniziali ─────────────────────────────────────────── -->
-  <section
-    class="setup__fase"
-    [class.setup__fase--corrente]="fase() === 'scelte' && !attivato()"
-    aria-labelledby="shopify-setup-fase-1"
-  >
-    <h4 id="shopify-setup-fase-1" class="setup__fase-title">
-      <span class="setup__fase-numero">1</span> Scelte iniziali
-      <span class="setup__fase-valore">{{ etichettaDirezione(s.direction) }}</span>
-    </h4>
-    <!--
-      ⭐ A percorso CONCLUSO la scelta si legge nel titolo e basta (proprietario, 13/09/2026:
-         «tenere visibili scelta, sedi ed esito; i dettagli consultabili»): la spiegazione della
-         direzione scelta — e solo di quella — sta in un dettaglio richiudibile, i pulsanti
-         non ci sono perché non c'è più niente da scegliere.
-    -->
-    @if (attivato()) {
-      <details class="setup__dettaglio">
-        <summary>Che cosa ha fatto «{{ etichettaDirezione(s.direction) }}»</summary>
-        <p class="setup__hint">
-          @if (s.direction === 'shopify_to_vestiflow') {
-            Ha importato il catalogo del negozio e preso come giacenza iniziale la quantità fisica
-            di Shopify, con un movimento tracciato. Gli articoli con lo stesso SKU da entrambe le
-            parti senza collegamento sono rimasti esclusi e nominati.
-          } @else {
-            Ha pubblicato gli articoli del gestionale e allineato le quantità del negozio a quelle
-            di VestiFlow, con le protezioni di «Allinea giacenze». La giacenza resta quella di
-            VestiFlow.
-          }
-          Scelta fatta per questa partenza: non si cambia da qui. Dopo, la sincronizzazione continua
-          segue le sue regole campo per campo.
-        </p>
-      </details>
-    } @else if (fase() === 'scelte' || modificabile()) {
-      <p class="setup__hint">
-        Da dove partono catalogo e quantità la prima volta. Vale per questa partenza soltanto: dopo,
-        la sincronizzazione continua segue le sue regole campo per campo.
-      </p>
-      <div class="setup__scelte">
-        <app-button
-          [variant]="s.direction === 'shopify_to_vestiflow' ? 'primary' : 'secondary'"
-          [disabled]="busy() || !modificabile()"
-          (click)="direzioneScelta.emit('shopify_to_vestiflow')"
-        >
-          Shopify → VestiFlow
-        </app-button>
-        <app-button
-          [variant]="s.direction === 'vestiflow_to_shopify' ? 'primary' : 'secondary'"
-          [disabled]="busy() || !modificabile()"
-          (click)="direzioneScelta.emit('vestiflow_to_shopify')"
-        >
-          VestiFlow → Shopify
-        </app-button>
-      </div>
-      <dl class="setup__direzioni">
-        <div>
-          <dt>Shopify → VestiFlow</dt>
-          <dd>
-            Importa il catalogo del negozio e prende come giacenza iniziale la quantità fisica di
-            Shopify, con un movimento tracciato. Gli articoli con lo stesso SKU da entrambe le parti
-            senza collegamento restano esclusi e nominati.
-          </dd>
-        </div>
-        <div>
-          <dt>VestiFlow → Shopify</dt>
-          <dd>
-            Pubblica gli articoli del gestionale e allinea le quantità del negozio a quelle di
-            VestiFlow, con le protezioni di «Allinea giacenze». La giacenza resta quella di
-            VestiFlow.
-          </dd>
-        </div>
-      </dl>
-    }
-  </section>
-
-  <!-- ── Fase 2 · Sedi ───────────────────────────────────────────────────────── -->
-  <section
-    class="setup__fase"
-    [class.setup__fase--corrente]="fase() === 'sedi' && !attivato()"
-    aria-labelledby="shopify-setup-fase-2"
-  >
-    <h4 id="shopify-setup-fase-2" class="setup__fase-title">
-      <span class="setup__fase-numero">2</span> Sedi
-      <span class="setup__fase-valore">
-        @if (attivato() && s.anteprima; as a) {
-          {{ conteggioSedi(a.sedi.collegate.length, 'collegata', 'collegate') }} ·
-          {{ conteggioSedi(a.sedi.lasciate.length, 'lasciata fuori', 'lasciate fuori') }}
-        } @else {
-          {{ s.locations.length }} location su Shopify · {{ sediSenzaScelta() }} da decidere
-        }
+  <!--
+    ⭐ Le tre fasi come uno STEPPER (proposta approvata il 14/09/2026, `docs/29` §7): il
+       numero — ✓ se fatta, pieno se corrente, vuoto se futura — il titolo, la scelta o il
+       risultato su una riga; la fase corrente porta i suoi controlli.
+  -->
+  <ol class="setup__fasi">
+    <!-- ── Fase 1 · Scelte iniziali ─────────────────────────────────────────── -->
+    <li
+      class="setup__fase"
+      [class.setup__fase--corrente]="statoFase(1) === 'corrente'"
+      [class.setup__fase--futura]="statoFase(1) === 'futura'"
+      aria-labelledby="shopify-setup-fase-1"
+    >
+      <span class="setup__fase-numero" aria-hidden="true">
+        {{ statoFase(1) === 'fatta' ? '✓' : '1' }}
       </span>
-    </h4>
-    @if (attivato()) {
-      <!-- ⭐ La FOTOGRAFIA di allora (l'anteprima confermata); le sedi di oggi stanno nell'altra scheda. -->
-      @if (s.anteprima; as a) {
-        <dl class="setup__sedi-allora">
-          @for (sede of a.sedi.collegate; track sede.shopifyLocationId) {
-            <div>
-              <dt>{{ sede.shopifyName }}</dt>
-              <dd>collegata a «{{ sede.nome }}»</dd>
-            </div>
-          }
-          @for (sede of a.sedi.lasciate; track sede.shopifyLocationId) {
-            <div>
-              <dt>{{ sede.shopifyName }}</dt>
-              <dd>lasciata fuori da VestiFlow</dd>
-            </div>
-          }
-        </dl>
-      }
-      <p class="setup__hint">
-        Scelte di allora. Le sedi di oggi si consultano e si cambiano in «Connessione e sedi».
-      </p>
-    } @else if (fase() !== 'scelte') {
-      <p class="setup__hint">
-        Per ogni location del negozio decidi tu: collegarla a una sede che esiste, creare la sede
-        con quel nome, o lasciarla fuori. La location su Shopify non viene toccata.
-      </p>
-      <app-shopify-location-choices
-        [locations]="s.locations"
-        [sedi]="s.sediVestiFlow"
-        [modificabile]="modificabile()"
-        (sedeScelta)="sedeScelta.emit($event)"
-      />
-      @if (fase() === 'sedi') {
-        <div class="setup__azioni">
-          <app-button variant="ghost" [disabled]="busy()" (click)="indietro.emit('scelte')">
-            Indietro
-          </app-button>
-          <app-button
-            [disabled]="busy() || sediSenzaScelta() > 0"
-            [loading]="busy()"
-            (click)="anteprimaRichiesta.emit()"
-          >
-            Vai al controllo
-          </app-button>
-        </div>
-      }
-    }
-  </section>
-
-  <!-- ── Fase 3 · Controllo e conferma (poi trasferimento, esito, attivazione) ── -->
-  <section
-    class="setup__fase"
-    [class.setup__fase--corrente]="fase() === 'controllo' && !attivato()"
-    aria-labelledby="shopify-setup-fase-3"
-  >
-    <h4 id="shopify-setup-fase-3" class="setup__fase-title">
-      <span class="setup__fase-numero">3</span> Controllo e conferma
-      @if (s.confirmedAt) {
-        <span class="setup__fase-valore">
-          confermata il {{ formatta(s.confirmedAt) }}; poi trasferimento e attivazione
-        </span>
-      }
-    </h4>
-    @if (fase() === 'controllo') {
-      @if (s.anteprima; as a) {
-        <p class="setup__hint">
-          @if (attivato()) {
-            Anteprima calcolata il {{ formatta(a.computedAt) }}, prima della conferma: è lo STORICO
-            di allora, non la situazione di oggi.
-          } @else {
-            Anteprima calcolata il {{ formatta(a.computedAt) }}. La conferma avvia il trasferimento;
-            l’esito si legge sotto, non si dà per riuscito.
-          }
-        </p>
-        <dl class="setup__riepilogo">
-          <div>
-            <dt>Catalogo</dt>
-            <dd>
-              {{ a.catalogo.remoti }} su Shopify · {{ a.catalogo.locali }} in VestiFlow ·
-              {{ a.catalogo.collegati }} già collegati
-              @if (a.direction === 'shopify_to_vestiflow') {
-                · {{ a.catalogo.daImportare }} da importare · {{ a.catalogo.daAggiornare }} da
-                aggiornare
-              } @else {
-                · {{ a.catalogo.daPubblicare }} da pubblicare
-              }
-            </dd>
-          </div>
-          <div>
-            <dt>Sedi</dt>
-            <dd>
-              {{ conteggioSedi(a.sedi.collegate.length, 'collegata', 'collegate') }} ·
-              {{ conteggioSedi(a.sedi.lasciate.length, 'lasciata fuori', 'lasciate fuori') }}
-              @if (a.sedi.daDecidere.length > 0) {
-                · {{ a.sedi.daDecidere.length }} da decidere
-              }
-            </dd>
-          </div>
-          <div>
-            <dt>Ordini</dt>
-            <dd>
-              {{ a.ordini.aperti }} aperti su Shopify:
-              @if (attivato()) {
-                diventati impegni all’attivazione, nessuno storico
-              } @else {
-                diventano impegni all’attivazione, nessuno storico
-              }
-              @if (a.ordini.senzaSede > 0) {
-                · {{ a.ordini.senzaSede }} senza sede determinabile
-              }
-              @if (a.ordini.parziali > 0) {
-                · {{ a.ordini.parziali }} evasi in parte
-              }
-              @if (a.ordini.giaInVestiFlow > 0) {
-                · {{ a.ordini.giaInVestiFlow }} già in VestiFlow
-              }
-            </dd>
-          </div>
-          <div>
-            <dt>Quantità</dt>
-            <dd>
-              {{ a.quantita.coppie }} coppie articolo × sede
-              @if (a.direction === 'shopify_to_vestiflow') {
-                · {{ a.quantita.articoliNuovi }} articoli nuovi
-                @if (a.quantita.nonDeterminabili.length > 0) {
-                  · {{ a.quantita.nonDeterminabili.length }} non determinabili
-                }
-              }
-            </dd>
-          </div>
-        </dl>
-
-        @if (a.catalogo.ambigui.length > 0) {
-          <details class="setup__dettaglio">
-            <summary>
-              {{ a.catalogo.ambigui.length }} articoli esclusi: stesso SKU dalle due parti
-            </summary>
-            <ul>
-              @for (ambiguo of a.catalogo.ambigui; track ambiguo.sku) {
-                <li>
-                  <span class="tabular-nums">{{ ambiguo.sku }}</span> — VestiFlow «{{
-                    ambiguo.locale.nome
-                  }}», Shopify «{{ ambiguo.remoto.titolo }}»
-                </li>
-              }
-            </ul>
-          </details>
+      <h4 class="setup__fase-title">
+        <span id="shopify-setup-fase-1">1 · Scelte iniziali</span>
+        @if (!attivato()) {
+          <app-hover-tooltip
+            [icona]="true"
+            position="bottom"
+            etichetta="A che cosa serve la scelta iniziale"
+            text="Da dove partono catalogo e quantità la prima volta. Vale per questa partenza soltanto: dopo, la sincronizzazione continua segue le sue regole campo per campo."
+          />
         }
-
-        @if (a.direction === 'shopify_to_vestiflow' && a.quantita.righe.length > 0) {
-          <details class="setup__dettaglio">
-            <summary>
-              <!-- Su una riga sola: a capo, la parentesi si staccava dal numero. -->
-              Variazioni previste ({{ a.quantita.righe.length
-              }}{{
-                a.quantita.righeTotali > a.quantita.righe.length
-                  ? ' su ' + a.quantita.righeTotali
-                  : ''
-              }})
-            </summary>
-            <!-- ⭐ Sul motore comune (`docs/26`, come A3): ordinamento, card sotto `lg`. -->
-            <app-data-table
-              class="setup__quantita"
-              caption="Quantità attuali e previste"
-              [columns]="colonneQuantita"
-              [sections]="sezioniQuantita()"
-              [rowId]="rigaQuantitaId"
-              [cellText]="testoQuantita"
-              [sortable]="true"
-              [sort]="ordineQuantita()"
-              (sortChange)="ordineQuantita.set($event)"
-            >
-              <ng-template appRowCard let-riga>
-                <div class="list-card__head">
-                  <span class="list-card__ident">
-                    <span class="list-card__what">{{ riga.articolo }}</span>
-                  </span>
-                  <span class="list-card__anchor tabular-nums">→ {{ riga.prevista }}</span>
-                </div>
-                <div class="list-card__words">
-                  <span>{{ testoQuantita(riga, 'variante') }}</span>
-                  <span>{{ riga.sede }}</span>
-                </div>
-                <div class="list-card__figures">
-                  <span class="tabular-nums">Attuale {{ riga.attuale }}</span>
-                  <span class="list-card__total tabular-nums">Prevista {{ riga.prevista }}</span>
-                </div>
-              </ng-template>
-            </app-data-table>
-          </details>
-        }
-
-        @if (!attivato() && (a.ordini.senzaSede > 0 || a.ordini.parziali > 0)) {
-          <details class="setup__dettaglio">
-            <summary>
-              Ordini che resteranno senza impegno: {{ a.ordini.senzaSede + a.ordini.parziali }}
-            </summary>
-            <ul>
-              @for (ordine of a.ordini.elenco; track ordine.shopifyOrderId) {
-                @if (!ordine.sedeDeterminabile || ordine.stato === 'parziale') {
-                  <li>
-                    {{ ordine.nome }} · {{ ordine.righe }} righe
-                    @if (!ordine.sedeDeterminabile) {
-                      — sede non determinabile dal payload: dopo l’attivazione la causa esatta e
-                      l’azione stanno in «Situazione attuale»
-                    }
-                    @if (ordine.stato === 'parziale') {
-                      — evaso in parte: le spedizioni già fatte si acquisiscono come tali
-                    }
-                  </li>
-                }
-              }
-            </ul>
-          </details>
-        }
-
-        @if (!attivato() && a.quantita.nonDeterminabili.length > 0) {
-          <details class="setup__dettaglio">
-            <summary>
-              {{ a.quantita.nonDeterminabili.length }} quantità non determinabili (restano com’è)
-            </summary>
-            <ul>
-              @for (riga of a.quantita.nonDeterminabili; track $index) {
-                <li>
-                  {{ riga.articolo }} · {{ riga.sede }} —
-                  {{ etichettaNonDeterminabile(riga.motivo) }}
-                </li>
-              }
-            </ul>
-          </details>
-        }
-
-        @if (a.blocchi.length > 0) {
-          <ul class="setup__blocchi" aria-label="Che cosa impedisce di confermare">
-            @for (blocco of a.blocchi; track blocco) {
-              <li>{{ blocco }}</li>
-            }
-          </ul>
-        }
-      } @else if (!inTrasferimento() && !trasferito() && !interrotto() && !attivato()) {
-        <p class="setup__hint">
-          Calcola l’anteprima: che cosa si importa o si pubblica, quali sedi, quali quantità
-          cambiano. Si conferma solo dopo averla letta.
-        </p>
-      }
-
-      @if (s.esito; as e) {
+      </h4>
+      <div class="setup__fase-corpo">
+        <p class="setup__fase-valore">{{ etichettaDirezione(s.direction) }}</p>
         <!--
-          ⭐ L'ESITO è dell'ULTIMO TENTATIVO, con la sua data: una fotografia. Che
-             cosa resta aperto oggi lo dice «Situazione attuale», non questo blocco
-             (proprietario, 13/09/2026).
+          ⭐ A percorso CONCLUSO la scelta si legge e basta (proprietario, 13/09/2026): la
+             spiegazione della direzione scelta — e solo di quella — sta in un dettaglio
+             richiudibile, i pulsanti non ci sono perché non c'è più niente da scegliere.
         -->
-        <div class="setup__esito" aria-live="polite">
-          <p class="setup__esito-riga setup__esito-titolo">
-            Esito dell’ultimo tentativo
-            @if (e.finishedAt ?? e.startedAt; as quando) {
-              · {{ formatta(quando) }}
-            }
-          </p>
-          <p class="setup__esito-riga">
-            <strong>Trasferimento:</strong> {{ etichettaFaseTrasferimento(e.fase) }}
-            @if (e.interruzione) {
-              — interrotto: {{ e.interruzione.message }}
-            }
-          </p>
-          @if (e.catalogo) {
-            <p class="setup__esito-riga">
-              Catalogo: {{ e.catalogo.imported }} importati/pubblicati ·
-              {{ e.catalogo.updated }} aggiornati · {{ e.catalogo.skipped }} saltati ·
-              {{ e.catalogo.failed }} falliti
-            </p>
-          }
-          @if (e.quantita) {
-            <p class="setup__esito-riga">
-              Quantità: {{ e.quantita.scritte }} scritte · {{ e.quantita.invariate }} invariate ·
-              {{ e.quantita.giaScritte }} già scritte · {{ e.quantita.nonDeterminabili }} non
-              determinabili su {{ e.quantita.coppie }}
-            </p>
-          }
-          @if (e.allinea && !e.attivazione) {
-            <p class="setup__esito-riga">
-              Allinea: {{ e.allinea.allineate }} allineate · {{ e.allinea.giaAllineate }} già
-              allineate · {{ e.allinea.nonAllineate }} non allineate su {{ e.allinea.totale }}
-            </p>
-          }
-          @if (e.attivazione; as att) {
-            <!--
-              ⭐ Attivazione e allineamento sono DUE esiti, e si leggono separati:
-              l’attivazione (webhook e ordini) può riuscire mentre l’allineamento
-              resta FERMO — e il fermo porta il motivo e l’azione (13/09/2026).
-            -->
-            <p class="setup__esito-riga">
-              Attivazione riuscita: {{ att.ordini.acquisiti }} ordini aperti acquisiti
-              @if (att.ordini.senzaSede > 0) {
-                · {{ att.ordini.senzaSede }} senza sede (nessun impegno)
+        @if (attivato()) {
+          <details class="setup__dettaglio">
+            <summary>Che cosa ha fatto «{{ etichettaDirezione(s.direction) }}»</summary>
+            <p class="setup__dettaglio-corpo">
+              @if (s.direction === 'shopify_to_vestiflow') {
+                Ha importato il catalogo del negozio e preso come giacenza iniziale la quantità
+                fisica di Shopify, con un movimento tracciato. Gli articoli con lo stesso SKU da
+                entrambe le parti senza collegamento sono rimasti esclusi e nominati.
+              } @else {
+                Ha pubblicato gli articoli del gestionale e allineato le quantità del negozio a
+                quelle di VestiFlow, con le protezioni di «Allinea giacenze». La giacenza resta
+                quella di VestiFlow.
               }
-              @if (att.ordini.parziali > 0) {
-                · {{ att.ordini.parziali }} evasi in parte
-              }
-              @if (att.ordini.falliti > 0) {
-                · {{ att.ordini.falliti }} falliti
-              }
+              Scelta fatta per questa partenza: non si cambia da qui. Dopo, la sincronizzazione
+              continua segue le sue regole campo per campo.
             </p>
-            @if (att.base.fermo; as fermo) {
-              <!-- Corto: il perché e l'azione, per ogni ordine, stanno in «Situazione attuale». -->
-              <p class="setup__esito-riga setup__esito-fermo">
-                Allineamento delle quantità <strong>fermo</strong> a quel tentativo:
-                {{ fermo.ordini.length }}
-                {{ fermo.ordini.length === 1 ? 'ordine aperto' : 'ordini aperti' }} senza sede ({{
-                  fermo.ordini.join(', ')
-                }}).
-                <button type="button" class="setup__link" (click)="problemiRichiesti.emit()">
-                  Vedi problemi ›
-                </button>
-              </p>
-            } @else {
-              <p class="setup__esito-riga">
-                Allineamento delle quantità: {{ att.base.giaAllineate }} già uguali ·
-                {{ att.base.allineate }} allineate · {{ att.base.nonAllineate }} non allineate su
-                {{ att.base.totale }}
-              </p>
-            }
-          }
-        </div>
-      }
-
-      <!--
-        ⭐ PRIMA dell'attivazione i casi che l'attivazione NON risolverà stanno
-        APERTI, davanti al pulsante: si attivano solo le parti preparate, e nessun
-        caso irrisolto si dichiara pronto (mandato del 12/09/2026). DOPO, i
-        problemi vivono in «Situazione attuale», letti ogni volta: qui non si
-        ripete una fotografia.
-      -->
-      @if (trasferito() && !inTrasferimento()) {
-        @if (s.irrisolti.length > 0) {
-          <div class="setup__irrisolti" role="status" aria-labelledby="shopify-setup-irrisolti">
-            <p id="shopify-setup-irrisolti" class="setup__irrisolti-titolo">
-              L’attivazione riguarda solo le parti preparate: {{ s.irrisolti.length }} casi restano
-              esclusi, nominati qui.
-            </p>
-            <ul class="setup__irrisolti-elenco">
-              @for (caso of s.irrisolti; track caso.tipo + caso.riferimento) {
-                <li>
-                  <span class="setup__irrisolti-tipo">{{ etichettaIrrisolto(caso.tipo) }}</span>
-                  {{ caso.nome }} — {{ caso.motivo }}
-                </li>
-              }
-            </ul>
+          </details>
+        } @else if (fase() === 'scelte' || modificabile()) {
+          <div class="setup__scelte">
+            <app-button
+              [variant]="s.direction === 'shopify_to_vestiflow' ? 'primary' : 'secondary'"
+              [disabled]="busy() || !modificabile()"
+              (click)="direzioneScelta.emit('shopify_to_vestiflow')"
+            >
+              Shopify → VestiFlow
+            </app-button>
+            <app-button
+              [variant]="s.direction === 'vestiflow_to_shopify' ? 'primary' : 'secondary'"
+              [disabled]="busy() || !modificabile()"
+              (click)="direzioneScelta.emit('vestiflow_to_shopify')"
+            >
+              VestiFlow → Shopify
+            </app-button>
           </div>
-        } @else {
-          <p class="setup__hint">Nessun caso escluso: tutte le parti sono preparate.</p>
-        }
-      }
-
-      @if (!attivato() && trasferito() && s.blocchiAttivazione.length > 0) {
-        <ul class="setup__blocchi" aria-label="Che cosa impedisce di attivare">
-          @for (blocco of s.blocchiAttivazione; track blocco) {
-            <li>{{ blocco }}</li>
+          @if (fase() === 'scelte') {
+            <dl class="setup__direzioni">
+              <div>
+                <dt>Shopify → VestiFlow</dt>
+                <dd>
+                  Importa il catalogo del negozio e prende come giacenza iniziale la quantità fisica
+                  di Shopify, con un movimento tracciato. Gli articoli con lo stesso SKU da entrambe
+                  le parti senza collegamento restano esclusi e nominati.
+                </dd>
+              </div>
+              <div>
+                <dt>VestiFlow → Shopify</dt>
+                <dd>
+                  Pubblica gli articoli del gestionale e allinea le quantità del negozio a quelle di
+                  VestiFlow, con le protezioni di «Allinea giacenze». La giacenza resta quella di
+                  VestiFlow.
+                </dd>
+              </div>
+            </dl>
+          } @else {
+            <details class="setup__dettaglio">
+              <summary>Che cosa fanno le due direzioni</summary>
+              <dl class="setup__direzioni setup__dettaglio-corpo">
+                <div>
+                  <dt>Shopify → VestiFlow</dt>
+                  <dd>
+                    Importa il catalogo del negozio e prende come giacenza iniziale la quantità
+                    fisica di Shopify, con un movimento tracciato. Gli articoli con lo stesso SKU da
+                    entrambe le parti senza collegamento restano esclusi e nominati.
+                  </dd>
+                </div>
+                <div>
+                  <dt>VestiFlow → Shopify</dt>
+                  <dd>
+                    Pubblica gli articoli del gestionale e allinea le quantità del negozio a quelle
+                    di VestiFlow, con le protezioni di «Allinea giacenze». La giacenza resta quella
+                    di VestiFlow.
+                  </dd>
+                </div>
+              </dl>
+            </details>
           }
-        </ul>
-      }
-
-      <div class="setup__azioni">
-        @if (modificabile()) {
-          <app-button variant="ghost" [disabled]="busy()" (click)="indietro.emit('sedi')">
-            Indietro
-          </app-button>
-          <app-button
-            variant="secondary"
-            [disabled]="busy()"
-            [loading]="busy()"
-            (click)="anteprimaRichiesta.emit()"
-          >
-            {{ s.anteprima ? 'Ricalcola anteprima' : 'Calcola anteprima' }}
-          </app-button>
-          <app-button [disabled]="busy() || !puoConfermare()" (click)="confermata.emit()">
-            Conferma e avvia il trasferimento
-          </app-button>
-        } @else if (inTrasferimento()) {
-          <app-button
-            variant="secondary"
-            [disabled]="busy()"
-            (click)="aggiornamentoRichiesto.emit()"
-          >
-            Aggiorna
-          </app-button>
-        } @else if (interrotto()) {
-          <app-button [disabled]="busy()" [loading]="busy()" (click)="confermata.emit()">
-            Riprendi il trasferimento
-          </app-button>
-        } @else if (trasferito()) {
-          <app-button
-            [disabled]="busy() || s.blocchiAttivazione.length > 0"
-            [loading]="busy()"
-            (click)="attivazioneRichiesta.emit()"
-          >
-            Attiva la sincronizzazione
-          </app-button>
-        } @else if (attivato()) {
-          <!-- Il comando non più utilizzabile resta, spento, con il motivo accanto. -->
-          <app-button [disabled]="true">Attiva la sincronizzazione</app-button>
-          <span class="setup__hint">già attivata il {{ dataAttivazione() }}</span>
         }
       </div>
-    }
-  </section>
+    </li>
+
+    <!-- ── Fase 2 · Sedi ───────────────────────────────────────────────────────── -->
+    <li
+      class="setup__fase"
+      [class.setup__fase--corrente]="statoFase(2) === 'corrente'"
+      [class.setup__fase--futura]="statoFase(2) === 'futura'"
+      aria-labelledby="shopify-setup-fase-2"
+    >
+      <span class="setup__fase-numero" aria-hidden="true">
+        {{ statoFase(2) === 'fatta' ? '✓' : '2' }}
+      </span>
+      <h4 class="setup__fase-title">
+        <span id="shopify-setup-fase-2">2 · Sedi</span>
+        @if (!attivato()) {
+          <app-hover-tooltip
+            [icona]="true"
+            position="bottom"
+            etichetta="Che cosa si decide per le sedi"
+            text="Per ogni location del negozio decidi tu: collegarla a una sede che esiste, creare la sede con quel nome, o lasciarla fuori. La location su Shopify non viene toccata."
+          />
+        }
+      </h4>
+      <div class="setup__fase-corpo">
+        <p class="setup__fase-valore">
+          @if (attivato() && s.anteprima; as a) {
+            {{ conteggioSedi(a.sedi.collegate.length, 'collegata', 'collegate') }} ·
+            {{ conteggioSedi(a.sedi.lasciate.length, 'lasciata fuori', 'lasciate fuori') }}
+          } @else if (fase() === 'scelte') {
+            <span class="setup__fase-futura">Dopo le scelte iniziali</span>
+          } @else {
+            {{ s.locations.length }} location su Shopify · {{ sediSenzaScelta() }} da decidere
+          }
+        </p>
+        @if (attivato()) {
+          <!-- ⭐ La FOTOGRAFIA di allora (l'anteprima confermata); le sedi di oggi stanno nell'altra scheda. -->
+          @if (s.anteprima; as a) {
+            <details class="setup__dettaglio">
+              <summary>Le scelte, location per location</summary>
+              <dl class="setup__sedi-allora setup__dettaglio-corpo">
+                @for (sede of a.sedi.collegate; track sede.shopifyLocationId) {
+                  <div>
+                    <dt>{{ sede.shopifyName }}</dt>
+                    <dd>collegata a «{{ sede.nome }}»</dd>
+                  </div>
+                }
+                @for (sede of a.sedi.lasciate; track sede.shopifyLocationId) {
+                  <div>
+                    <dt>{{ sede.shopifyName }}</dt>
+                    <dd>lasciata fuori da VestiFlow</dd>
+                  </div>
+                }
+              </dl>
+            </details>
+          }
+        } @else if (fase() !== 'scelte') {
+          <app-shopify-location-choices
+            [locations]="s.locations"
+            [sedi]="s.sediVestiFlow"
+            [modificabile]="modificabile()"
+            (sedeScelta)="sedeScelta.emit($event)"
+          />
+          @if (fase() === 'sedi') {
+            <div class="setup__azioni">
+              <app-button variant="ghost" [disabled]="busy()" (click)="indietro.emit('scelte')">
+                Indietro
+              </app-button>
+              <app-button
+                [disabled]="busy() || sediSenzaScelta() > 0"
+                [loading]="busy()"
+                (click)="anteprimaRichiesta.emit()"
+              >
+                Vai al controllo
+              </app-button>
+            </div>
+          }
+        }
+      </div>
+    </li>
+
+    <!-- ── Fase 3 · Controllo e conferma (poi trasferimento, esito, attivazione) ── -->
+    <li
+      class="setup__fase"
+      [class.setup__fase--corrente]="statoFase(3) === 'corrente'"
+      [class.setup__fase--futura]="statoFase(3) === 'futura'"
+      aria-labelledby="shopify-setup-fase-3"
+    >
+      <span class="setup__fase-numero" aria-hidden="true">
+        {{ statoFase(3) === 'fatta' ? '✓' : '3' }}
+      </span>
+      <h4 class="setup__fase-title">
+        <span id="shopify-setup-fase-3">3 · Controllo e conferma</span>
+        @if (!attivato()) {
+          <app-hover-tooltip
+            [icona]="true"
+            position="bottom"
+            etichetta="Come si conclude"
+            text="L'anteprima dice che cosa si importa o si pubblica, quali sedi e quali quantità cambiano. La conferma avvia il trasferimento; l'esito si legge qui sotto, non si dà per riuscito. Poi l'attivazione."
+          />
+        }
+      </h4>
+      <div class="setup__fase-corpo">
+        <p class="setup__fase-valore">
+          @if (fase() !== 'controllo') {
+            <span class="setup__fase-futura">Dopo le sedi</span>
+          } @else {
+            {{ cronologiaFase3() }}
+          }
+        </p>
+        @if (fase() === 'controllo') {
+          @if (s.anteprima; as a) {
+            <dl class="setup__riepilogo">
+              <div>
+                <dt>Catalogo</dt>
+                <dd>
+                  {{ a.catalogo.remoti }} su Shopify · {{ a.catalogo.locali }} in VestiFlow ·
+                  {{ a.catalogo.collegati }} già collegati
+                  @if (a.direction === 'shopify_to_vestiflow') {
+                    · {{ a.catalogo.daImportare }} da importare · {{ a.catalogo.daAggiornare }} da
+                    aggiornare
+                  } @else {
+                    · {{ a.catalogo.daPubblicare }} da pubblicare
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Sedi</dt>
+                <dd>
+                  {{ conteggioSedi(a.sedi.collegate.length, 'collegata', 'collegate') }} ·
+                  {{ conteggioSedi(a.sedi.lasciate.length, 'lasciata fuori', 'lasciate fuori') }}
+                  @if (a.sedi.daDecidere.length > 0) {
+                    · {{ a.sedi.daDecidere.length }} da decidere
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Ordini</dt>
+                <dd>
+                  {{ a.ordini.aperti }} aperti su Shopify:
+                  @if (attivato()) {
+                    diventati impegni all’attivazione, nessuno storico
+                  } @else {
+                    diventano impegni all’attivazione, nessuno storico
+                  }
+                  @if (a.ordini.senzaSede > 0) {
+                    · {{ a.ordini.senzaSede }} senza sede determinabile
+                  }
+                  @if (a.ordini.parziali > 0) {
+                    · {{ a.ordini.parziali }} evasi in parte
+                  }
+                  @if (a.ordini.giaInVestiFlow > 0) {
+                    · {{ a.ordini.giaInVestiFlow }} già in VestiFlow
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Quantità</dt>
+                <dd>
+                  {{ a.quantita.coppie }} coppie articolo × sede
+                  @if (a.direction === 'shopify_to_vestiflow') {
+                    · {{ a.quantita.articoliNuovi }} articoli nuovi
+                    @if (a.quantita.nonDeterminabili.length > 0) {
+                      · {{ a.quantita.nonDeterminabili.length }} non determinabili
+                    }
+                  }
+                </dd>
+              </div>
+            </dl>
+
+            @if (a.catalogo.ambigui.length > 0) {
+              <details class="setup__dettaglio">
+                <summary>
+                  {{ a.catalogo.ambigui.length }} articoli esclusi: stesso SKU dalle due parti
+                </summary>
+                <ul class="setup__dettaglio-corpo">
+                  @for (ambiguo of a.catalogo.ambigui; track ambiguo.sku) {
+                    <li>
+                      <span class="tabular-nums">{{ ambiguo.sku }}</span> — VestiFlow «{{
+                        ambiguo.locale.nome
+                      }}», Shopify «{{ ambiguo.remoto.titolo }}»
+                    </li>
+                  }
+                </ul>
+              </details>
+            }
+
+            @if (a.direction === 'shopify_to_vestiflow' && a.quantita.righe.length > 0) {
+              <details class="setup__dettaglio">
+                <summary>
+                  <!-- Su una riga sola: a capo, la parentesi si staccava dal numero. -->
+                  Variazioni previste ({{ a.quantita.righe.length
+                  }}{{
+                    a.quantita.righeTotali > a.quantita.righe.length
+                      ? ' su ' + a.quantita.righeTotali
+                      : ''
+                  }})
+                </summary>
+                <!-- ⭐ Sul motore comune (`docs/26`, come A3): ordinamento, card sotto `lg`. -->
+                <app-data-table
+                  class="setup__quantita"
+                  caption="Quantità attuali e previste"
+                  [columns]="colonneQuantita"
+                  [sections]="sezioniQuantita()"
+                  [rowId]="rigaQuantitaId"
+                  [cellText]="testoQuantita"
+                  [sortable]="true"
+                  [sort]="ordineQuantita()"
+                  (sortChange)="ordineQuantita.set($event)"
+                >
+                  <ng-template appRowCard let-riga>
+                    <div class="list-card__head">
+                      <span class="list-card__ident">
+                        <span class="list-card__what">{{ riga.articolo }}</span>
+                      </span>
+                      <span class="list-card__anchor tabular-nums">→ {{ riga.prevista }}</span>
+                    </div>
+                    <div class="list-card__words">
+                      <span>{{ testoQuantita(riga, 'variante') }}</span>
+                      <span>{{ riga.sede }}</span>
+                    </div>
+                    <div class="list-card__figures">
+                      <span class="tabular-nums">Attuale {{ riga.attuale }}</span>
+                      <span class="list-card__total tabular-nums"
+                        >Prevista {{ riga.prevista }}</span
+                      >
+                    </div>
+                  </ng-template>
+                </app-data-table>
+              </details>
+            }
+
+            @if (!attivato() && (a.ordini.senzaSede > 0 || a.ordini.parziali > 0)) {
+              <details class="setup__dettaglio">
+                <summary>
+                  Ordini che resteranno senza impegno: {{ a.ordini.senzaSede + a.ordini.parziali }}
+                </summary>
+                <ul class="setup__dettaglio-corpo">
+                  @for (ordine of a.ordini.elenco; track ordine.shopifyOrderId) {
+                    @if (!ordine.sedeDeterminabile || ordine.stato === 'parziale') {
+                      <li>
+                        {{ ordine.nome }} · {{ ordine.righe }} righe
+                        @if (!ordine.sedeDeterminabile) {
+                          — sede non determinabile dal payload: dopo l’attivazione la causa esatta e
+                          l’azione stanno in «Problemi ed esiti»
+                        }
+                        @if (ordine.stato === 'parziale') {
+                          — evaso in parte: le spedizioni già fatte si acquisiscono come tali
+                        }
+                      </li>
+                    }
+                  }
+                </ul>
+              </details>
+            }
+
+            @if (!attivato() && a.quantita.nonDeterminabili.length > 0) {
+              <details class="setup__dettaglio">
+                <summary>
+                  {{ a.quantita.nonDeterminabili.length }} quantità non determinabili (restano
+                  com’è)
+                </summary>
+                <ul class="setup__dettaglio-corpo">
+                  @for (riga of a.quantita.nonDeterminabili; track $index) {
+                    <li>
+                      {{ riga.articolo }} · {{ riga.sede }} —
+                      {{ etichettaNonDeterminabile(riga.motivo) }}
+                    </li>
+                  }
+                </ul>
+              </details>
+            }
+
+            @if (a.blocchi.length > 0) {
+              <ul class="setup__blocchi" aria-label="Che cosa impedisce di confermare">
+                @for (blocco of a.blocchi; track blocco) {
+                  <li>{{ blocco }}</li>
+                }
+              </ul>
+            }
+          }
+
+          @if (s.esito; as e) {
+            <!--
+              ⭐ L'ESITO è dell'ULTIMO TENTATIVO, con la sua data: una fotografia. Che
+                 cosa resta aperto oggi lo dice «Problemi ed esiti», non questo blocco
+                 (proprietario, 13/09/2026). A percorso concluso sta in un dettaglio: il
+                 fatto che conta — l'allineamento fermo — è già nel titolo e nei fatti.
+            -->
+            <details class="setup__dettaglio" [open]="!attivato()">
+              <summary>
+                Esito dell’ultimo tentativo
+                @if (e.finishedAt ?? e.startedAt; as quando) {
+                  · {{ formatta(quando) }}
+                }
+              </summary>
+              <div class="setup__esito setup__dettaglio-corpo" aria-live="polite">
+                <p class="setup__esito-riga">
+                  <strong>Trasferimento:</strong> {{ etichettaFaseTrasferimento(e.fase) }}
+                  @if (e.interruzione) {
+                    — interrotto: {{ e.interruzione.message }}
+                  }
+                </p>
+                @if (e.catalogo) {
+                  <p class="setup__esito-riga">
+                    Catalogo: {{ e.catalogo.imported }} importati/pubblicati ·
+                    {{ e.catalogo.updated }} aggiornati · {{ e.catalogo.skipped }} saltati ·
+                    {{ e.catalogo.failed }} falliti
+                  </p>
+                }
+                @if (e.quantita) {
+                  <p class="setup__esito-riga">
+                    Quantità: {{ e.quantita.scritte }} scritte ·
+                    {{ e.quantita.invariate }} invariate · {{ e.quantita.giaScritte }} già scritte ·
+                    {{ e.quantita.nonDeterminabili }} non determinabili su {{ e.quantita.coppie }}
+                  </p>
+                }
+                @if (e.allinea && !e.attivazione) {
+                  <p class="setup__esito-riga">
+                    Allinea: {{ e.allinea.allineate }} allineate · {{ e.allinea.giaAllineate }} già
+                    allineate · {{ e.allinea.nonAllineate }} non allineate su {{ e.allinea.totale }}
+                  </p>
+                }
+                @if (e.attivazione; as att) {
+                  <!--
+                    ⭐ Attivazione e allineamento sono DUE esiti, e si leggono separati:
+                       l’attivazione (webhook e ordini) può riuscire mentre l’allineamento
+                       resta FERMO — e il fermo porta il motivo e l’azione (13/09/2026).
+                  -->
+                  <p class="setup__esito-riga">
+                    Attivazione riuscita: {{ att.ordini.acquisiti }} ordini aperti acquisiti
+                    @if (att.ordini.senzaSede > 0) {
+                      · {{ att.ordini.senzaSede }} senza sede (nessun impegno)
+                    }
+                    @if (att.ordini.parziali > 0) {
+                      · {{ att.ordini.parziali }} evasi in parte
+                    }
+                    @if (att.ordini.falliti > 0) {
+                      · {{ att.ordini.falliti }} falliti
+                    }
+                  </p>
+                  @if (att.base.fermo; as fermo) {
+                    <p class="setup__esito-riga setup__esito-fermo">
+                      Allineamento delle quantità <strong>fermo</strong> a quel tentativo:
+                      {{ fermo.ordini.length }}
+                      {{ fermo.ordini.length === 1 ? 'ordine aperto' : 'ordini aperti' }} senza sede
+                      ({{ fermo.ordini.join(', ') }}).
+                      <button type="button" class="setup__link" (click)="problemiRichiesti.emit()">
+                        Vedi problemi ›
+                      </button>
+                    </p>
+                  } @else {
+                    <p class="setup__esito-riga">
+                      Allineamento delle quantità: {{ att.base.giaAllineate }} già uguali ·
+                      {{ att.base.allineate }} allineate · {{ att.base.nonAllineate }} non allineate
+                      su {{ att.base.totale }}
+                    </p>
+                  }
+                }
+              </div>
+            </details>
+          }
+
+          <!--
+            ⭐ PRIMA dell'attivazione i casi che l'attivazione NON risolverà stanno
+               APERTI, davanti al pulsante: si attivano solo le parti preparate, e nessun
+               caso irrisolto si dichiara pronto (mandato del 12/09/2026). DOPO, i
+               problemi vivono in «Problemi ed esiti», letti ogni volta: qui non si
+               ripete una fotografia.
+          -->
+          @if (trasferito() && !inTrasferimento()) {
+            @if (s.irrisolti.length > 0) {
+              <div class="setup__irrisolti" role="status" aria-labelledby="shopify-setup-irrisolti">
+                <p id="shopify-setup-irrisolti" class="setup__irrisolti-titolo">
+                  L’attivazione riguarda solo le parti preparate: {{ s.irrisolti.length }} casi
+                  restano esclusi, nominati qui.
+                </p>
+                <ul class="setup__irrisolti-elenco">
+                  @for (caso of s.irrisolti; track caso.tipo + caso.riferimento) {
+                    <li>
+                      <span class="setup__irrisolti-tipo">{{ etichettaIrrisolto(caso.tipo) }}</span>
+                      {{ caso.nome }} — {{ caso.motivo }}
+                    </li>
+                  }
+                </ul>
+              </div>
+            } @else {
+              <p class="setup__hint">Nessun caso escluso: tutte le parti sono preparate.</p>
+            }
+          }
+
+          @if (!attivato() && trasferito() && s.blocchiAttivazione.length > 0) {
+            <ul class="setup__blocchi" aria-label="Che cosa impedisce di attivare">
+              @for (blocco of s.blocchiAttivazione; track blocco) {
+                <li>{{ blocco }}</li>
+              }
+            </ul>
+          }
+
+          <!--
+            ⛔ A percorso concluso NESSUN comando: qui c'era «Attiva la sincronizzazione»
+               spento con «già attivata il…», e la scheda sembrava da rifare
+               (proprietario, 14/09/2026). Conclusa, si legge e basta.
+          -->
+          @if (!attivato()) {
+            <div class="setup__azioni">
+              @if (modificabile()) {
+                <app-button variant="ghost" [disabled]="busy()" (click)="indietro.emit('sedi')">
+                  Indietro
+                </app-button>
+                <app-button
+                  variant="secondary"
+                  [disabled]="busy()"
+                  [loading]="busy()"
+                  (click)="anteprimaRichiesta.emit()"
+                >
+                  {{ s.anteprima ? 'Ricalcola anteprima' : 'Calcola anteprima' }}
+                </app-button>
+                <app-button [disabled]="busy() || !puoConfermare()" (click)="confermata.emit()">
+                  Conferma e avvia il trasferimento
+                </app-button>
+              } @else if (inTrasferimento()) {
+                <app-button
+                  variant="secondary"
+                  [disabled]="busy()"
+                  (click)="aggiornamentoRichiesto.emit()"
+                >
+                  Aggiorna
+                </app-button>
+              } @else if (interrotto()) {
+                <app-button [disabled]="busy()" [loading]="busy()" (click)="confermata.emit()">
+                  Riprendi il trasferimento
+                </app-button>
+              } @else if (trasferito()) {
+                <app-button
+                  [disabled]="busy() || s.blocchiAttivazione.length > 0"
+                  [loading]="busy()"
+                  (click)="attivazioneRichiesta.emit()"
+                >
+                  Attiva la sincronizzazione
+                </app-button>
+              }
+            </div>
+          }
+        }
+      </div>
+    </li>
+  </ol>
 </ng-template>

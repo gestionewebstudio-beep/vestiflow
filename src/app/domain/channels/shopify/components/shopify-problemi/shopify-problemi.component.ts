@@ -43,7 +43,11 @@ import {
   percorsoProblema,
   problemiCsv,
 } from '../../models/shopify-problemi.util';
-import type { DoveSiFaAzione, FormaAzione } from '../../models/shopify-problemi.util';
+import type {
+  DoveSiFaAzione,
+  FormaAzione,
+  GruppoProblemi,
+} from '../../models/shopify-problemi.util';
 import type {
   ShopifySetupProblemaAzione,
   ShopifySetupProblemaDto,
@@ -64,6 +68,9 @@ import type {
  * (permessi, Sedi). Ordine e articolo si aprono da qui con un collegamento.
  * ⛔ Nessuna correzione dei dati: nomina e indirizza.
  */
+/** Il permesso che le notifiche sulla sede degli ordini richiedono. */
+const AMBITO_SEDE_ORDINI = 'read_merchant_managed_fulfillment_orders';
+
 @Component({
   selector: 'app-shopify-problemi',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -99,6 +106,47 @@ export class ShopifyProblemiComponent {
   protected readonly colonne: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly gruppi = computed(() => gruppiPerCausa(this.problemi()));
+
+  /**
+   * ⛔ Le notifiche sulla sede degli ordini (`fulfillment_orders/*`) mancano perché manca
+   *    il permesso `read_merchant_managed_fulfillment_orders`: Shopify rifiuta la
+   *    registrazione. «Registra le notifiche mancanti» non è un rimedio sufficiente, e
+   *    mostrarlo come tale farebbe ripetere un comando che fallisce (proprietario,
+   *    14/09/2026). Si legge dai problemi stessi: la causa «permessi mancanti» che nomina
+   *    quell'ambito, insieme alla causa «notifiche mancanti» sui fulfillment order.
+   */
+  protected readonly notificheBloccateDalPermesso = computed((): boolean => {
+    const problemi = this.problemi();
+    const mancaAmbito = problemi.some(
+      (p) => p.causa === 'connessione_ambiti_mancanti' && p.nome.includes(AMBITO_SEDE_ORDINI),
+    );
+    const notificheSede = problemi.some(
+      (p) => p.causa === 'connessione_webhook_mancanti' && p.nome.includes('fulfillment_orders/'),
+    );
+    return mancaAmbito && notificheSede;
+  });
+
+  /** L'azione da mostrare per un gruppo: quella dell'API, salvo il caso del permesso. */
+  protected azioneMostrata(gruppo: GruppoProblemi): {
+    readonly azione: ShopifySetupProblemaAzione;
+    readonly etichetta: string;
+    readonly forma: FormaAzione;
+  } {
+    if (gruppo.causa === 'connessione_webhook_mancanti' && this.notificheBloccateDalPermesso()) {
+      const azione: ShopifySetupProblemaAzione = {
+        tipo: 'permessi',
+        etichetta:
+          'Prima la nuova autorizzazione (Disconnetti, poi Connetti: chiede il permesso «Sede degli ordini»); poi «Registra le notifiche mancanti». Registrarle senza il permesso non riesce',
+        riferimento: null,
+      };
+      return { azione, etichetta: azione.etichetta, forma: formaAzione(azione) };
+    }
+    return {
+      azione: gruppo.azione,
+      etichetta: gruppo.azione.etichetta,
+      forma: formaAzione(gruppo.azione),
+    };
+  }
 
   protected readonly rigaId = (p: ShopifySetupProblemaDto): string => `${p.tipo}·${p.riferimento}`;
 

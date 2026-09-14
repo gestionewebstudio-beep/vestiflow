@@ -124,7 +124,7 @@ test('⭐ titolare: dalla card delle Impostazioni alla pagina Shopify con le cin
   }
   // Connessione e sedi: il comando sulle location e la disconnessione.
   await schede.getByRole('link', { name: 'Connessione e sedi' }).click();
-  await expect(page.getByRole('button', { name: 'Sincronizza location' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rileggi le location dal negozio' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Disconnetti Shopify' })).toBeVisible();
   await page.screenshot({ path: `${SCATTI}/titolare.png`, fullPage: true });
 });
@@ -152,7 +152,7 @@ test('⭐ un solo permesso di sync: il menu porta a Shopify, la pagina mostra il
     'Importa catalogo',
     'Importa clienti',
     'Importa ordini',
-    'Sincronizza location',
+    'Rileggi le location dal negozio',
     'Disconnetti Shopify',
     'Connetti Shopify',
   ]) {
@@ -195,7 +195,7 @@ test('⭐ la combinazione dei clienti (Esportare dati E Gestire clienti): il men
     'Importa ordini',
     'Importa catalogo',
     'Allinea giacenze su Shopify',
-    'Sincronizza location',
+    'Rileggi le location dal negozio',
     'Disconnetti Shopify',
   ]) {
     await expect(page.getByRole('button', { name: assente })).toHaveCount(0);

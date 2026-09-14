@@ -5,20 +5,20 @@
   <table class="scelte__tabella" aria-label="Location del negozio e scelta per ciascuna">
     <thead>
       <tr>
-        <th scope="col">Location Shopify</th>
-        <th scope="col">Su Shopify</th>
-        <th scope="col">Scelta</th>
-        <th scope="col">Sede VestiFlow</th>
+        <th scope="col" class="scelte__col-location">Location Shopify</th>
+        <th scope="col" class="scelte__col-stato">Su Shopify</th>
+        <th scope="col" class="scelte__col-scelta">Scelta</th>
+        <th scope="col" class="scelte__col-sede">Sede VestiFlow</th>
       </tr>
     </thead>
     <tbody>
       @for (location of locations(); track location.shopifyLocationId) {
         <tr>
-          <td data-label="Location Shopify">
+          <td data-label="Location Shopify" class="scelte__cella-location">
             {{ location.name }}
             <span class="scelte__gid tabular-nums">#{{ location.shopifyLocationId }}</span>
           </td>
-          <td data-label="Su Shopify">
+          <td data-label="Su Shopify" class="scelte__cella-stato">
             <app-badge [tone]="location.active ? 'success' : 'neutral'" [flat]="true">
               {{ location.active ? 'Attiva' : 'Non attiva' }}
             </app-badge>
@@ -66,7 +66,7 @@
             }
           </td>
           <!-- Collegata a VestiFlow, distinta da «attiva su Shopify» (proprietario, 13/09/2026). -->
-          <td data-label="Sede VestiFlow">
+          <td data-label="Sede VestiFlow" class="scelte__cella-sede">
             @if (
               (location.choice === 'collega' || location.choice === 'crea') && location.locationName
             ) {

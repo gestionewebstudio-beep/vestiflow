@@ -49,4 +49,27 @@ describe('InlineBannerComponent', () => {
     // Resta nel DOM: e' il chiamante a decidere quando smettere di mostrarlo.
     expect(screen.getByRole('status')).toBeVisible();
   });
+
+  /**
+   * ⭐ I comandi che RISOLVONO (14/09/2026): proiettati con `actions`, stanno nel banner
+   *    accanto al testo; senza contenuto proiettato lo spazio non esiste.
+   */
+  it('i comandi proiettati con «actions» stanno nel banner; senza, nessuno spazio vuoto', async () => {
+    await render(
+      `<app-inline-banner tone="warning">
+        Mancano 2 notifiche.
+        <button actions type="button">Registra</button>
+      </app-inline-banner>`,
+      { imports: [InlineBannerComponent] },
+    );
+    const avviso = screen.getByRole('alert');
+    expect(avviso).toHaveTextContent('Mancano 2 notifiche.');
+    const comando = screen.getByRole('button', { name: 'Registra' });
+    expect(comando.closest('.inline-banner__actions')).not.toBeNull();
+  });
+
+  it('senza comandi lo slot resta vuoto', async () => {
+    await render(InlineBannerComponent, { inputs: { tone: 'info', message: 'Solo testo' } });
+    expect(document.querySelector('.inline-banner__actions')?.children).toHaveLength(0);
+  });
 });

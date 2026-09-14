@@ -1366,6 +1366,37 @@ aspettano la pausa (`role="status"`).
 Non va usato per l'errore di un singolo campo: quello sta sotto il campo, come
 testo, ed è un'altra cosa (vedi «Error state» sotto).
 
+⭐ **I comandi che risolvono stanno DENTRO il banner** _(14/09/2026)_: proiettati con
+l'attributo `actions` (`<app-button actions …>`), a destra del testo, a capo quando la riga è
+stretta. Un avviso che dice «manca il permesso» porta con sé «Vai a Connessione e sedi»; non
+si mette il comando trenta righe più in basso. Senza contenuto proiettato lo slot non occupa
+spazio. Allo stesso modo `app-detail-facts` accetta una `note` sotto il valore («1 escluso:
+stesso SKU dalle due parti»): è la grammatica dei fatti di tutte le pagine di Dettaglio, e le
+Impostazioni Shopify la riusano invece di due griglie proprie.
+
+### La spiegazione accanto a un titolo o a un comando: il «?» (`app-hover-tooltip [icona]`) _(14/09/2026)_
+
+_Proprietario, sulle Impostazioni Shopify: «per le spiegazioni aggiuntive usa una piccola icona
+interrogativa accanto al titolo o al comando, riusando app-hover-tooltip; disponibile al
+passaggio del mouse, al focus da tastiera e con un tocco sul telefono»._
+
+- **Un componente solo**: `<app-hover-tooltip [icona]="true" etichetta="…" text="…" />`. Il
+  trigger è un `<button>` da 16px con l'area premibile di un pulsante (`--btn-min-height`,
+  quindi 44 sul telefono) tramite pseudo-elemento: il titolo non cresce. Tab e tocco lo
+  raggiungono; lo screen reader legge l'etichetta e, via `aria-describedby`, la bolla.
+- **Apre**: mouse sopra, fuoco, tocco. **Chiude**: mouse via, Tab via, Esc, un secondo tocco,
+  un tocco altrove. **Sta dentro lo schermo**: si ribalta a sinistra se a destra non c'è spazio,
+  e sul telefono — dove non ci sta da nessuna parte — si ancora al margine e si stringe; sopra
+  o sotto secondo lo spazio nella regione che scorre.
+- ⛔ **Nel «?» non va ciò che serve per DECIDERE**: motivo di un blocco, ambito ed effetti di
+  un'operazione, conseguenze di un comando sensibile restano visibili accanto al comando. Il
+  «?» porta ciò che spiega, non ciò che decide. E **nessuna doppia copia**: una spiegazione sta
+  o nel «?» o nel testo, mai in entrambi. Gli approfondimenti lunghi restano nel `details`.
+- ⛔ **Niente icone proiettate con `tabindex="-1" aria-hidden`**: sono le `<i class="pi
+pi-info-circle">` di prima, che né la tastiera né lo screen reader raggiungono — e un
+  `app-hover-tooltip` senza trigger proiettato (com'è nel riepilogo Corrispettivi) non si apre
+  affatto. Sono da portare a `[icona]` quando si lavora su quelle schermate.
+
 ### Stati vuoti / caricamento / errore
 
 - Empty state: icona in medaglione tondo 48×48px su `--color-surface-soft`, titolo H2, descrizione muted, CTA se ha senso
