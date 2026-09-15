@@ -13,7 +13,7 @@ import {
 export type BackupRow = Record<string, unknown>;
 export type BackupData = Partial<Record<TenantBackupEntityFile, BackupRow[]>>;
 type BackupDelegate = {
-  findMany(args: { where?: BackupRow }): Promise<BackupRow[]>;
+  findMany(args: { where?: BackupRow; orderBy?: BackupRow }): Promise<BackupRow[]>;
   createMany(args: { data: BackupRow[] }): Promise<unknown>;
   updateMany(args: { where: BackupRow; data: BackupRow }): Promise<unknown>;
   deleteMany(args: { where: BackupRow }): Promise<unknown>;
@@ -57,7 +57,13 @@ export async function readTenantBackupData(
 ): Promise<BackupData> {
   const data: BackupData = {};
   for (const key of TENANT_BACKUP_ENTITY_FILES) {
-    data[key] = await backupDelegate(tx, key).findMany({ where: backupTenantWhere(key, tenantId) });
+    data[key] = await backupDelegate(tx, key).findMany({
+      where: backupTenantWhere(key, tenantId),
+      // ⭐ Le ricevute webhook escono nell'ORDINE DI ARRIVO: il ripristino le reinserisce
+      //    in quest'ordine e il database assegna un arrivo nuovo, crescente allo stesso modo
+      //    (il valore originale non si reinserisce: e' un'identita' della tabella, non del dato).
+      ...(key === 'shopifyWebhookReceipts' ? { orderBy: { arrivo: 'asc' } } : {}),
+    });
   }
   return data;
 }

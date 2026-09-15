@@ -28,7 +28,11 @@ describe('Coda di ripubblicazione — rotazione su database vero', () => {
   const DIETRO = 3;
   const TOTALE = BLOCCATE + DIETRO;
 
-  /** Le righe di stato sync non hanno chiavi esterne nel database: bastano id sintetici. */
+  /**
+   * Gli id delle varianti sono deterministici (l'indice sta dentro l'uuid) e le varianti
+   * ESISTONO davvero: dal 15/09/2026 gli stati sync hanno le chiavi esterne (migration
+   * 20260915220000) e una riga verso una variante inesistente non si scrive più.
+   */
   const varianteDi = (i: number) =>
     `9c${String(i).padStart(6, '0')}-0000-4000-8000-00000000c${String(i).padStart(3, '0')}`;
   const indiceDi = (variantId: string) => Number(variantId.slice(2, 8));
@@ -38,6 +42,29 @@ describe('Coda di ripubblicazione — rotazione su database vero', () => {
     ambienteIntegrazione();
     prisma = creaClientIntegrazione();
   });
+
+  /** Un articolo con una variante per indice, con l'id che le prove si aspettano. */
+  async function creaVarianti(indici: readonly number[]): Promise<void> {
+    const prodotto = await prisma.product.create({
+      data: {
+        tenantId: IDS.tenantA,
+        name: 'Articolo della coda',
+        articleCode: 'CODA-RIP',
+        options: [{ name: 'Indice', values: indici.map(String) }],
+      },
+      select: { id: true },
+    });
+    await prisma.productVariant.createMany({
+      data: indici.map((i) => ({
+        id: varianteDi(i),
+        tenantId: IDS.tenantA,
+        productId: prodotto.id,
+        sku: `CODA-RIP-${i}`,
+        optionValues: [{ name: 'Indice', value: String(i) }],
+        sellingPriceMinor: 1000,
+      })),
+    });
+  }
 
   afterAll(async () => {
     await prisma.shopifyInventorySyncState.deleteMany({});
@@ -60,6 +87,7 @@ describe('Coda di ripubblicazione — rotazione su database vero', () => {
     // ⭐ Ed è anche più fedele: in esercizio le righe entrano in coda in momenti
     //    diversi, non tutte nello stesso istante.
     const nascita = Date.now() - TOTALE * 1000;
+    await creaVarianti([...Array.from({ length: TOTALE }, (_, i) => i), 900, 901, 902, 903]);
     await prisma.shopifyInventorySyncState.createMany({
       data: Array.from({ length: TOTALE }, (_, i) => ({
         tenantId: IDS.tenantA,
@@ -248,7 +276,8 @@ describe('Coda di ripubblicazione — rotazione su database vero', () => {
       undefined as never,
       undefined as never,
       undefined as never,
-      // ⭐ La prima connessione (`ShopifySetupService`): non serve a questa prova.
+      undefined as never,
+      // La coda webhook: non serve a questa prova.
       undefined as never,
     );
 

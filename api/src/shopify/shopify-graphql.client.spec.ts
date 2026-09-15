@@ -77,51 +77,96 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
     return JSON.parse(init.body) as { query: string; variables: Record<string, unknown> };
   }
 
-  describe('creazione prodotto — productSet è SOLO per creare', () => {
-    it('crea e restituisce id e stato', async () => {
+  describe('creazione prodotto — productSet è SOLO per creare, con le identità nel payload', () => {
+    const input = {
+      title: 'Maglietta',
+      status: 'ACTIVE' as const,
+      productOptions: [{ name: 'Taglia', values: [{ name: 'M' }] }],
+      metafields: [{ namespace: 'vestiflow', key: 'product_id', type: 'id', value: 'prod-1' }],
+      variants: [
+        {
+          optionValues: [{ optionName: 'Taglia', name: 'M' }],
+          price: '29.90',
+          sku: 'SKU-M',
+          metafields: [{ namespace: 'vestiflow', key: 'variant_id', type: 'id', value: 'var-1' }],
+        },
+      ],
+    };
+
+    it('crea in UNA mutation sincrona e restituisce id, stato e varianti; nel payload nessun id né identifier', async () => {
       const fetchMock = mockFetch(
         rispondi({
           productSet: {
-            product: { id: 'gid://shopify/Product/1', status: 'ACTIVE' },
+            product: {
+              id: 'gid://shopify/Product/1',
+              status: 'ACTIVE',
+              variants: { nodes: [{ id: 'gid://shopify/ProductVariant/11', sku: 'SKU-M' }] },
+            },
             userErrors: [],
           },
         }),
       );
 
-      const prodotto = await client.createProduct(SHOP, TOKEN, {
-        title: 'Maglietta',
-        status: 'ACTIVE',
-      });
+      const prodotto = await client.createProductSet(SHOP, TOKEN, input);
 
-      expect(prodotto).toEqual({ id: 'gid://shopify/Product/1', status: 'ACTIVE' });
+      expect(prodotto).toEqual({
+        id: 'gid://shopify/Product/1',
+        status: 'ACTIVE',
+        variants: [{ id: 'gid://shopify/ProductVariant/11', sku: 'SKU-M' }],
+      });
       const { query, variables } = corpo(fetchMock);
-      expect(query).toContain('productSet');
-      // ⛔ Nessun `id` nell'input: la firma non lo prevede, quindi productSet
-      //    non può cadere sul ramo «aggiorna» e cancellare le liste omesse.
+      expect(query).toContain('productSet(input: $input, synchronous: true)');
+      expect(query).not.toContain('identifier');
+      // ⛔ Nessun `id` né `identifier` nell'input: productSet non può cadere sul ramo
+      //    «aggiorna» e cancellare le liste omesse (semantica sostitutiva).
       expect(variables['input']).not.toHaveProperty('id');
+      expect(variables['input']).not.toHaveProperty('identifier');
+      expect(variables['input']).toMatchObject({ metafields: input.metafields });
     });
 
-    it('userErrors di productSet diventano un errore col nome della mutation', async () => {
+    it('⛔ un input con id o identifier è rifiutato PRIMA di chiamare il negozio', async () => {
+      const fetchMock = mockFetch();
+
+      await expect(
+        client.createProductSet(SHOP, TOKEN, { ...input, id: 'gid://shopify/Product/9' } as never),
+      ).rejects.toThrow(/SOLA creazione/);
+      await expect(
+        client.createProductSet(SHOP, TOKEN, {
+          ...input,
+          identifier: { customId: { namespace: 'vestiflow', key: 'product_id', value: 'x' } },
+        } as never),
+      ).rejects.toThrow(/SOLA creazione/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('userErrors di productSet diventano un errore col nome della mutation (nessun fallback)', async () => {
       mockFetch(
         rispondi({
           productSet: {
             product: null,
-            userErrors: [{ field: null, message: 'Title is required' }],
+            userErrors: [
+              {
+                field: ['input', 'metafields', '0', 'value'],
+                message:
+                  'Value is already assigned to another metafield. Choose a different value to ensure it remains unique.',
+                code: 'INVALID_METAFIELD',
+              },
+            ],
           },
         }),
       );
 
-      await expect(
-        client.createProduct(SHOP, TOKEN, { title: '', status: 'ACTIVE' }),
-      ).rejects.toThrow(/productSet: Title is required/);
+      await expect(client.createProductSet(SHOP, TOKEN, input)).rejects.toThrow(
+        /productSet: Value is already assigned/,
+      );
     });
 
     it('risposta senza prodotto: errore esplicito, non un null che viaggia', async () => {
       mockFetch(rispondi({ productSet: { product: null, userErrors: [] } }));
 
-      await expect(
-        client.createProduct(SHOP, TOKEN, { title: 'X', status: 'ACTIVE' }),
-      ).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(client.createProductSet(SHOP, TOKEN, input)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
     });
   });
 

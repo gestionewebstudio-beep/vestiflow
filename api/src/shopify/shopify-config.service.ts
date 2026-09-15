@@ -182,6 +182,27 @@ export class ShopifyConfigService {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
   }
 
+  /**
+   * Ogni quanto il lavoratore della coda webhook cerca ricevute pronte (docs/30 §7.1.2, D1
+   * e D3): i ritentativi in attesa e la ripresa dopo un arresto. `0` = nessuna scansione
+   * periodica (solo la sveglia dopo il `200` e la passata all'avvio).
+   */
+  get webhookScanIntervalMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_WEBHOOK_SCAN_INTERVAL_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 30_000;
+  }
+
+  /**
+   * Durata della rivendicazione della corsia webhook (D4): scaduta, un altro lavoratore
+   * può prenderla. NON dimostra che il precedente sia morto: la versione lo esclude.
+   */
+  get webhookLaneLeaseMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_WEBHOOK_LANE_LEASE_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 5 * 60_000;
+  }
+
   /** Retry massimi su HTTP 429 prima di fallire. */
   get apiMaxRetries(): number {
     const raw = this.config.get<string>('SHOPIFY_API_MAX_RETRIES');

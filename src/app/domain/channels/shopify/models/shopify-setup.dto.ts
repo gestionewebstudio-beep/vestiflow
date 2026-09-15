@@ -175,7 +175,7 @@ export interface ShopifySetupEsitoDto {
  *    richiesta, ognuno con causa, conseguenza e azione. Distinta dall'esito
  *    dell'ultimo tentativo, che è una fotografia con la sua data (`docs/27` §4-bis).
  */
-export type ShopifySetupProblemaTipo = 'ordine' | 'coppia' | 'articolo' | 'connessione';
+export type ShopifySetupProblemaTipo = 'ordine' | 'coppia' | 'articolo' | 'connessione' | 'evento';
 
 export type ShopifySetupProblemaCausa =
   | 'ordine_permesso_fulfillment_orders'
@@ -193,7 +193,12 @@ export type ShopifySetupProblemaCausa =
   | 'articolo_import_fallito'
   | 'articolo_pubblicazione_fallita'
   | 'connessione_ambiti_mancanti'
-  | 'connessione_webhook_mancanti';
+  | 'connessione_webhook_mancanti'
+  /** Eventi webhook accolti e non applicati (docs/30 §7.1.2): `riferimento` = id della ricevuta. */
+  | 'evento_fallito'
+  | 'evento_sospeso_dopo_ripristino'
+  | 'evento_scartato_sync_spenta'
+  | 'evento_scartato_associazione_cambiata';
 
 export type ShopifySetupProblemaAzioneTipo =
   | 'apri_ordine'
@@ -205,6 +210,8 @@ export type ShopifySetupProblemaAzioneTipo =
   | 'webhook'
   /** Da fare SU SHOPIFY: distinto da `nessuna` (13/09/2026, `docs/29` §2.3). */
   | 'shopify'
+  /** «Riprova» un evento webhook: la stessa ricevuta torna in coda (docs/30 §7.1.2 D4). */
+  | 'riprova_evento'
   | 'nessuna';
 
 export interface ShopifySetupProblemaAzione {

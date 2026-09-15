@@ -28,6 +28,7 @@ import {
 import { formatDateTime } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
@@ -249,6 +250,7 @@ const ATTESA_ATTIVAZIONE_MAX_LETTURE = 40;
     NavTabsComponent,
     BadgeComponent,
     ButtonComponent,
+    ConfirmDialogComponent,
     DataTableComponent,
     DetailFactsComponent,
     DataTableCellDirective,
@@ -883,9 +885,38 @@ export class ShopifyIntegrationPanelComponent {
       case 'sedi':
         this.vaiAllaScheda('connessione', 'settings-shopify-scelte-sedi');
         return;
+      case 'riprova_evento':
+        this.riprovaEvento(azione.riferimento);
+        return;
       default:
         return;
     }
+  }
+
+  /**
+   * «Riprova» di un evento webhook (docs/30 §7.1.2 D4): un comando esplicito sulla
+   * STESSA ricevuta. L'API verifica tenant, negozio, connessione e sincronizzazione; qui
+   * si rilegge la situazione, che dice se l'evento è ripartito o perché no.
+   */
+  protected riprovaEvento(ricevutaId: string | null): void {
+    if (!ricevutaId || this.setupBusy()) {
+      return;
+    }
+    this.setupBusy.set(true);
+    this.setupErrore.set(null);
+    this.shopifyConnectionService
+      .riprovaEventoWebhook(ricevutaId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.setupBusy.set(false);
+          this.ricaricaSetup();
+        },
+        error: (err: unknown) => {
+          this.setupBusy.set(false);
+          this.setupErrore.set(extractErrorMessage(err));
+        },
+      });
   }
 
   /**
@@ -1091,6 +1122,9 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
   protected readonly checkWebhooksLoading = signal(false);
+  protected readonly puliziaNotificheLoading = signal(false);
+  /** Il dialogo di conferma della pulizia: un comando che cancella righe si conferma prima. */
+  protected readonly puliziaNotificheConferma = signal(false);
   protected readonly registerMissingLoading = signal(false);
   protected readonly syncProductsLoading = signal(false);
   protected readonly syncCustomersLoading = signal(false);
@@ -2140,6 +2174,46 @@ export class ShopifyIntegrationPanelComponent {
    * cancella niente sul negozio — a garantirlo e' il servizio lato server, che non ha fra
    * le dipendenze niente capace di farlo.
    */
+  /**
+   * La pulizia delle notifiche CONCLUSE da più di 30 giorni (docs/30 §7.1.2 D7): un comando
+   * esplicito, non un job; pendenti, fallite e sospese restano — e il riscontro lo dice.
+   */
+  protected chiediPuliziaNotifiche(): void {
+    if (this.puliziaNotificheLoading()) {
+      return;
+    }
+    this.puliziaNotificheConferma.set(true);
+  }
+
+  protected puliziaNotifiche(): void {
+    if (this.puliziaNotificheLoading()) {
+      return;
+    }
+    this.puliziaNotificheConferma.set(false);
+    this.puliziaNotificheLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+    this.shopifyConnectionService
+      .puliziaNotificheWebhook()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (esito) => {
+          this.puliziaNotificheLoading.set(false);
+          this.showActionFeedback({
+            tone: 'success',
+            message:
+              esito.eliminate === 0
+                ? `Nessuna notifica conclusa da più di 30 giorni da togliere (${esito.conservate} conservate).`
+                : `${esito.eliminate} notifiche concluse da più di 30 giorni tolte; ${esito.conservate} conservate (in attesa, fallite e sospese non si toccano).`,
+          });
+        },
+        error: (err: unknown) => {
+          this.puliziaNotificheLoading.set(false);
+          this.connectError.set(extractErrorMessage(err));
+        },
+      });
+  }
+
   protected checkWebhooks(): void {
     if (this.checkWebhooksLoading()) {
       return;

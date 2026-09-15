@@ -6,6 +6,16 @@ import {
   MESSAGGIO_CONFRONTO_FALLITO,
 } from '../../shopify/shopify-inventory-user-error.util';
 import { GID_COLLAUDO_A, GID_COLLAUDO_DA } from '../fixtures/collaudo-shopify.dataset';
+import { ShopifyTrasportoException } from '../../shopify/shopify-trasporto.util';
+
+/**
+ * Il rifiuto di un metafield di tipo `id` già in uso: il TESTO è quello catturato dal
+ * negozio il 15/09/2026 (prova di contratto G9/G10 su `productSet`, codice
+ * `INVALID_METAFIELD`, campo `input.metafields.0.value` / `input.variants.N.metafields.0.value`).
+ * Il servizio non lo interpreta — qualunque non-successo si rilegge per identità.
+ */
+const MESSAGGIO_IDENTITA_DOPPIA =
+  'Value is already assigned to another metafield. Choose a different value to ensure it remains unique.';
 
 /** Un fulfillment order del negozio simulato. */
 export interface FulfillmentOrderSimulato {
@@ -57,6 +67,8 @@ export interface VarianteRemota {
   option1: string | null;
   option2: string | null;
   option3: string | null;
+  /** `vestiflow.variant_id` (tipo `id`): assente sulle varianti non nostre. */
+  identita?: string | null;
 }
 
 export interface ProdottoRemoto {
@@ -70,6 +82,17 @@ export interface ProdottoRemoto {
   options: { name: string; values: string[] }[];
   variants: VarianteRemota[];
   images: never[];
+  /** `vestiflow.product_id` (tipo `id`): assente sui prodotti nati su Shopify. */
+  identita?: string | null;
+}
+
+/** Una definizione di metafield del negozio simulato, come la legge `metafieldDefinitions`. */
+export interface DefinizioneSimulata {
+  readonly id: string;
+  readonly namespace: string;
+  readonly key: string;
+  readonly ownerType: 'PRODUCT' | 'PRODUCTVARIANT';
+  readonly typeName: string;
 }
 
 /** La forma DICHIARATIVA di un prodotto nato su Shopify (seme del catalogo remoto). */
@@ -165,6 +188,14 @@ export class NegozioSimulato {
    *    conferma — che è il caso in cui un ritentativo può fare danno.
    */
   private readonly rispostePerse = new Map<string, number>();
+  /**
+   * Le definizioni di metafield del negozio, per `owner/namespace.key`.
+   *
+   * ⭐ **Sopravvivono a `azzeraChiamate` e sono PERMANENTI come sul negozio vero**
+   *    (contratto G1, 15/09/2026): create una volta, restano. Una prova che vuole
+   *    partire «senza definizioni» crea un negozio nuovo.
+   */
+  readonly definizioni = new Map<string, DefinizioneSimulata>();
 
   constructor(
     readonly dominio: string,
@@ -193,6 +224,56 @@ export class NegozioSimulato {
   /** La prossima invocazione di `metodo` APPLICA l'effetto e poi solleva. */
   perdiProssimaRisposta(metodo: string, volte = 1): void {
     this.rispostePerse.set(metodo, volte);
+  }
+
+  private readonly varchi = new Map<string, { attesa: Promise<void>; apri: () => void }>();
+  /**
+   * Tiene FERMA la prossima chiamata a `metodo` — prima di ogni effetto — finché la prova
+   * non chiama la funzione restituita. È una richiesta in volo: chi la sta aspettando non
+   * sa ancora com'è andata, e nel frattempo un altro può fare la propria.
+   */
+  bloccaProssima(metodo: string): () => void {
+    let apri: () => void = () => undefined;
+    const attesa = new Promise<void>((resolve) => {
+      apri = resolve;
+    });
+    this.varchi.set(metodo, { attesa, apri });
+    return apri;
+  }
+
+  private async varco(metodo: string): Promise<void> {
+    const v = this.varchi.get(metodo);
+    if (v) {
+      this.varchi.delete(metodo);
+      await v.attesa;
+    }
+  }
+
+  /** Una definizione già presente sul negozio, anche di un TIPO diverso da `id` (G1: non si adotta). */
+  seminaDefinizione(def: Omit<DefinizioneSimulata, 'id'>): DefinizioneSimulata {
+    const chiave = `${def.ownerType}/${def.namespace}.${def.key}`;
+    const creata = { ...def, id: gidDi('MetafieldDefinition', this.nuovoId()) };
+    this.definizioni.set(chiave, creata);
+    return creata;
+  }
+
+  /** Il prodotto remoto che porta QUELLA identità VestiFlow, o nessuno. */
+  prodottoPerIdentita(productId: string): ProdottoRemoto | null {
+    for (const prodotto of this.prodotti.values()) {
+      if (prodotto.identita === productId) {
+        return structuredClone(prodotto);
+      }
+    }
+    return null;
+  }
+
+  /** Quanti prodotti remoti portano quell'identità: la misura del doppione. */
+  contaProdottiConIdentita(productId: string): number {
+    let n = 0;
+    for (const prodotto of this.prodotti.values()) {
+      if (prodotto.identita === productId) n += 1;
+    }
+    return n;
   }
 
   /** Stabilisce che cosa il negozio porta, senza passare da una chiamata. */
@@ -707,9 +788,12 @@ export class NegozioSimulato {
   }
 
   /** Il prossimo `volte` invocazioni di `metodo` FALLISCONO: un guasto in un punto preciso. */
-  guastaProssima(metodo: string, volte = 1): void {
+  guastaProssima(metodo: string, volte = 1, dopo = 0): void {
     this.guasti.set(metodo, volte);
+    this.guastiDopo.set(metodo, dopo);
   }
+  /** Quante chiamate SANE lasciar passare prima del guasto: «la seconda rilettura cade». */
+  private readonly guastiDopo = new Map<string, number>();
 
   /**
    * La prossima scrittura di inventario risponde con QUESTO `userError`.
@@ -746,10 +830,31 @@ export class NegozioSimulato {
 
   private conta(metodo: string): void {
     this.chiamate.set(metodo, (this.chiamate.get(metodo) ?? 0) + 1);
+    const dopo = this.guastiDopo.get(metodo) ?? 0;
+    if (dopo > 0) {
+      this.guastiDopo.set(metodo, dopo - 1);
+      return;
+    }
     const guasti = this.guasti.get(metodo) ?? 0;
     if (guasti > 0) {
       this.guasti.set(metodo, guasti - 1);
       throw new Error(`Shopify simulato (${this.dominio}): guasto iniettato su ${metodo}`);
+    }
+  }
+
+  /**
+   * Un articolo nuovo è STOCCATO a zero in ogni location attiva del negozio (dove il
+   * negozio ne ha): così Allinea trova un livello da scrivere, come dopo una creazione
+   * con inventario tracciato.
+   */
+  private stoccaAZero(prodotto: ProdottoRemoto): void {
+    for (const sede of this.location.filter((l) => l.active)) {
+      for (const v of prodotto.variants) {
+        const chiave = `${v.inventory_item_id}@${sede.id}`;
+        if (!this.quantitaRemote.has(chiave)) {
+          this.quantitaRemote.set(chiave, 0);
+        }
+      }
     }
   }
 
@@ -918,17 +1023,7 @@ export class NegozioSimulato {
             images: [],
           };
           this.prodotti.set(id, prodotto);
-          // Un articolo nuovo è STOCCATO a zero in ogni location attiva del
-          // negozio (dove il negozio ne ha): così Allinea trova un livello da
-          // scrivere, come dopo una creazione via REST con inventario tracciato.
-          for (const sede of this.location.filter((l) => l.active)) {
-            for (const v of prodotto.variants) {
-              const chiave = `${v.inventory_item_id}@${sede.id}`;
-              if (!this.quantitaRemote.has(chiave)) {
-                this.quantitaRemote.set(chiave, 0);
-              }
-            }
-          }
+          this.stoccaAZero(prodotto);
           // ⚠️ Anche qui la risposta può perdersi DOPO l'effetto: il prodotto remoto esiste,
           //    VestiFlow non ne conosce l'id (`docs/30` #5).
           const perse = this.rispostePerse.get('createProduct') ?? 0;
@@ -1043,6 +1138,23 @@ export class NegozioSimulato {
         throw new Error(`Shopify simulato: prodotto ${productGid} inesistente`);
       }
       return prodotto;
+    };
+    const identitaProdotto = (
+      metafields: readonly { namespace: string; key: string; value: string }[] | undefined,
+    ): string | null =>
+      metafields?.find((m) => m.namespace === 'vestiflow' && m.key === 'product_id')?.value ?? null;
+    const identitaVariante = (
+      metafields: readonly { namespace: string; key: string; value: string }[] | undefined,
+    ): string | null =>
+      metafields?.find((m) => m.namespace === 'vestiflow' && m.key === 'variant_id')?.value ?? null;
+    /** Un'identità di variante già portata da un'ALTRA variante del negozio (G4: unica per negozio). */
+    const identitaVarianteOccupata = (identita: string, salvoId: number | null): boolean => {
+      for (const prodotto of this.prodotti.values()) {
+        if (prodotto.variants.some((v) => v.identita === identita && v.id !== salvoId)) {
+          return true;
+        }
+      }
+      return false;
     };
     return {
       /**
@@ -1297,10 +1409,20 @@ export class NegozioSimulato {
             compareAtPrice?: string;
             barcode?: string;
             inventoryItem?: { sku?: string };
+            metafields?: readonly { namespace: string; key: string; value: string }[];
           }[],
         ) => {
           this.conta('bulkUpdateVariants');
           const prodotto = trova(productGid);
+          // ⭐ Tutto-o-niente: un'identità già di un'altra variante rifiuta l'intera mutation.
+          for (const input of varianti) {
+            const identita = identitaVariante(input.metafields);
+            if (identita && identitaVarianteOccupata(identita, idDaGid(input.id))) {
+              throw new Error(
+                `Shopify productVariantsBulkUpdate: ${MESSAGGIO_IDENTITA_DOPPIA} (variant_id ${identita})`,
+              );
+            }
+          }
           for (const input of varianti) {
             const variante = prodotto.variants.find((v) => v.id === idDaGid(input.id));
             if (!variante) {
@@ -1311,9 +1433,265 @@ export class NegozioSimulato {
               variante.compare_at_price = input.compareAtPrice;
             if (input.barcode !== undefined) variante.barcode = input.barcode;
             if (input.inventoryItem?.sku !== undefined) variante.sku = input.inventoryItem.sku;
+            const identita = identitaVariante(input.metafields);
+            if (identita) variante.identita = identita;
           }
         },
       ),
+      // ── l'identità VestiFlow in creazione (contratto G1–G7, 15/09/2026) ──────
+      leggiDefinizioneMetafield: vi.fn(
+        async (_d: string, _t: string, ownerType: string, namespace: string, key: string) => {
+          this.conta('leggiDefinizioneMetafield');
+          return this.definizioni.get(`${ownerType}/${namespace}.${key}`) ?? null;
+        },
+      ),
+      creaDefinizioneMetafield: vi.fn(
+        async (
+          _d: string,
+          _t: string,
+          def: {
+            readonly namespace: string;
+            readonly key: string;
+            readonly type: string;
+            readonly ownerType: 'PRODUCT' | 'PRODUCTVARIANT';
+          },
+        ) => {
+          this.conta('creaDefinizioneMetafield');
+          const chiave = `${def.ownerType}/${def.namespace}.${def.key}`;
+          if (this.definizioni.has(chiave)) {
+            // Il negozio vero risponde con un userError (TAKEN): il client lo solleva.
+            throw new Error(`Shopify metafieldDefinitionCreate: Key is in use for ${chiave}`);
+          }
+          return this.seminaDefinizione({ ...def, typeName: def.type });
+        },
+      ),
+      /**
+       * `productSet` in SOLA creazione, come catturato sul negozio il 15/09/2026 (G9–G11):
+       * prodotto, opzioni, varianti (nell'ORDINE dell'input, con le identità) in una
+       * mutation; nessuna variante iniziale. ⛔ Un'identità di prodotto o di variante già
+       * usata → `INVALID_METAFIELD` («Value is already assigned to another metafield…») e
+       * NIENTE creato, senza toccare il prodotto esistente; una combinazione doppia →
+       * `INVALID_VARIANT` («The variant 'M' already exists.») e NIENTE creato. Un `id` o un
+       * `identifier` nell'input è un errore: qui non si aggiorna mai. La risposta può
+       * perdersi DOPO l'effetto (`perdiProssimaRisposta('createProductSet')`).
+       */
+      createProductSet: vi.fn(
+        async (
+          _d: string,
+          _t: string,
+          input: {
+            readonly id?: unknown;
+            readonly identifier?: unknown;
+            readonly title: string;
+            readonly descriptionHtml?: string;
+            readonly vendor?: string;
+            readonly productType?: string;
+            readonly tags?: readonly string[];
+            readonly status: string;
+            readonly productOptions: readonly {
+              readonly name: string;
+              readonly values: readonly { readonly name: string }[];
+            }[];
+            readonly metafields?: readonly { namespace: string; key: string; value: string }[];
+            readonly variants: readonly {
+              readonly optionValues: readonly {
+                readonly optionName: string;
+                readonly name: string;
+              }[];
+              readonly price?: string;
+              readonly compareAtPrice?: string;
+              readonly barcode?: string;
+              readonly sku?: string;
+              readonly metafields?: readonly { namespace: string; key: string; value: string }[];
+            }[];
+          },
+        ) => {
+          this.conta('createProductSet');
+          await this.varco('createProductSet');
+          if (input.id !== undefined || input.identifier !== undefined) {
+            throw new Error(
+              `Shopify simulato (${this.dominio}): productSet con id/identifier — non è una creazione`,
+            );
+          }
+          // ── i controlli, TUTTI prima di qualunque effetto (atomicità osservata, G9/G10) ──
+          const identita = identitaProdotto(input.metafields);
+          if (identita && this.contaProdottiConIdentita(identita) > 0) {
+            throw new Error(
+              `Shopify productSet: INVALID_METAFIELD input.metafields.0.value: ${MESSAGGIO_IDENTITA_DOPPIA}`,
+            );
+          }
+          const opzioni = input.productOptions.map((o) => ({
+            name: o.name,
+            values: o.values.map((v) => v.name),
+          }));
+          const combinazioni = new Set<string>();
+          input.variants.forEach((riga, i) => {
+            const identitaVar = identitaVariante(riga.metafields);
+            if (identitaVar && identitaVarianteOccupata(identitaVar, null)) {
+              throw new Error(
+                `Shopify productSet: INVALID_METAFIELD input.variants.${i}.metafields.0.value: ${MESSAGGIO_IDENTITA_DOPPIA}`,
+              );
+            }
+            const perOpzione = new Map(riga.optionValues.map((o) => [o.optionName, o.name]));
+            const chiave = opzioni.map((o) => perOpzione.get(o.name) ?? '').join(' / ');
+            if (combinazioni.has(chiave)) {
+              throw new Error(
+                `Shopify productSet: INVALID_VARIANT input.variants.${i}: The variant '${chiave}' already exists.`,
+              );
+            }
+            combinazioni.add(chiave);
+          });
+          // ── l'effetto: prodotto e varianti nell'ordine dell'input ──
+          const id = this.nuovoId();
+          const varianti: VarianteRemota[] = input.variants.map((riga) => {
+            const perOpzione = new Map(riga.optionValues.map((o) => [o.optionName, o.name]));
+            const valori = opzioni.map((o) => perOpzione.get(o.name) ?? null);
+            return {
+              id: this.nuovoId(),
+              title: valori.filter((v): v is string => v !== null).join(' / ') || 'Default Title',
+              sku: riga.sku ?? null,
+              barcode: riga.barcode ?? null,
+              price: riga.price ?? '0.00',
+              compare_at_price: riga.compareAtPrice ?? null,
+              inventory_item_id: this.nuovoId(),
+              cost: null,
+              option1: valori[0] ?? null,
+              option2: valori[1] ?? null,
+              option3: valori[2] ?? null,
+              identita: identitaVariante(riga.metafields),
+            };
+          });
+          const prodotto: ProdottoRemoto = {
+            id,
+            title: input.title,
+            body_html: input.descriptionHtml ?? null,
+            vendor: input.vendor ?? null,
+            product_type: input.productType ?? null,
+            tags: input.tags ? input.tags.join(', ') : '',
+            status: input.status.toLowerCase(),
+            options: opzioni,
+            variants: varianti,
+            images: [],
+            identita,
+          };
+          this.prodotti.set(id, prodotto);
+          this.stoccaAZero(prodotto);
+          const perse = this.rispostePerse.get('createProductSet') ?? 0;
+          if (perse > 0) {
+            this.rispostePerse.set('createProductSet', perse - 1);
+            throw new ShopifyTrasportoException(
+              'timeout',
+              true,
+              `Shopify simulato (${this.dominio}): risposta persa su productSet — il prodotto E' stato creato`,
+            );
+          }
+          return {
+            id: gidDi('Product', id),
+            status: input.status,
+            variants: varianti.map((v) => ({ id: gidDi('ProductVariant', v.id), sku: v.sku })),
+          };
+        },
+      ),
+      productByIdentity: vi.fn(
+        async (_d: string, _t: string, identita: { readonly value: string }) => {
+          this.conta('productByIdentity');
+          const prodotto = this.prodottoPerIdentita(identita.value);
+          return prodotto
+            ? { id: gidDi('Product', prodotto.id), status: prodotto.status.toUpperCase() }
+            : null;
+        },
+      ),
+      /**
+       * `productVariantsBulkCreate`: TUTTO-O-NIENTE (G6, nel caso provato) — una riga con
+       * un'identità già presente rifiuta l'intera mutation e non crea nulla. Serve solo al
+       * COMPLETAMENTO: nessuna strategia, le varianti presenti non si toccano.
+       */
+      bulkCreateVariants: vi.fn(
+        async (
+          _d: string,
+          _t: string,
+          productGid: string,
+          righe: readonly {
+            readonly optionValues: readonly {
+              readonly optionName: string;
+              readonly name: string;
+            }[];
+            readonly price?: string;
+            readonly compareAtPrice?: string;
+            readonly barcode?: string;
+            readonly inventoryItem?: { readonly sku?: string };
+            readonly metafields?: readonly { namespace: string; key: string; value: string }[];
+          }[],
+        ) => {
+          this.conta('bulkCreateVariants');
+          await this.varco('bulkCreateVariants');
+          const prodotto = trova(productGid);
+          for (const riga of righe) {
+            const identita = identitaVariante(riga.metafields);
+            if (identita && identitaVarianteOccupata(identita, null)) {
+              throw new Error(
+                `Shopify productVariantsBulkCreate: ${MESSAGGIO_IDENTITA_DOPPIA} (variant_id ${identita})`,
+              );
+            }
+          }
+          const nuove = righe.map((riga) => {
+            const perOpzione = new Map(riga.optionValues.map((o) => [o.optionName, o.name]));
+            const valori = prodotto.options.map((o) => perOpzione.get(o.name) ?? null);
+            const variante: VarianteRemota = {
+              id: this.nuovoId(),
+              title: valori.filter((v): v is string => v !== null).join(' / ') || 'Default Title',
+              sku: riga.inventoryItem?.sku ?? null,
+              barcode: riga.barcode ?? null,
+              price: riga.price ?? '0.00',
+              compare_at_price: riga.compareAtPrice ?? null,
+              inventory_item_id: this.nuovoId(),
+              cost: null,
+              option1: valori[0] ?? null,
+              option2: valori[1] ?? null,
+              option3: valori[2] ?? null,
+              identita: identitaVariante(riga.metafields),
+            };
+            prodotto.variants.push(variante);
+            return variante;
+          });
+          this.stoccaAZero(prodotto);
+          const perse = this.rispostePerse.get('bulkCreateVariants') ?? 0;
+          if (perse > 0) {
+            this.rispostePerse.set('bulkCreateVariants', perse - 1);
+            throw new ShopifyTrasportoException(
+              'timeout',
+              true,
+              `Shopify simulato (${this.dominio}): risposta persa su productVariantsBulkCreate — le varianti SONO state create`,
+            );
+          }
+          return nuove.map((v) => ({
+            id: gidDi('ProductVariant', v.id),
+            sku: v.sku,
+            barcode: v.barcode,
+            inventoryItemId: gidDi('InventoryItem', v.inventory_item_id),
+            selectedOptions: prodotto.options
+              .map((o, i) => ({ name: o.name, value: [v.option1, v.option2, v.option3][i] ?? '' }))
+              .filter((o) => o.value !== ''),
+          }));
+        },
+      ),
+      listProductVariantsWithIdentity: vi.fn(async (_d: string, _t: string, productGid: string) => {
+        this.conta('listProductVariantsWithIdentity');
+        await this.varco('listProductVariantsWithIdentity');
+        const prodotto = trova(productGid);
+        return prodotto.variants.map((v) => ({
+          id: gidDi('ProductVariant', v.id),
+          sku: v.sku,
+          barcode: v.barcode,
+          inventoryItemId: gidDi('InventoryItem', v.inventory_item_id),
+          selectedOptions: prodotto.options
+            .map((o, i) => ({ name: o.name, value: [v.option1, v.option2, v.option3][i] ?? '' }))
+            .filter((o) => o.value !== ''),
+          title: v.title,
+          price: v.price,
+          identita: v.identita ?? null,
+        }));
+      }),
       listProductVariants: vi.fn(async (_d: string, _t: string, productGid: string) => {
         this.conta('listProductVariants');
         const prodotto = trova(productGid);
@@ -1373,6 +1751,18 @@ export class NegozioSimulato {
           taxonomyCategoryFullName: null,
           categoryMetafields: [],
         };
+      }),
+      // ⭐ Le due riletture dell'identità: le stesse del client GraphQL simulato, esposte
+      //    dove il pull le chiede. Un guasto iniettato qui è una LETTURA FALLITA, che per
+      //    contratto non vale «assente».
+      identitaVestiflowDelProdotto: vi.fn(async (_d: string, _t: string, productGid: string) => {
+        this.conta('identitaVestiflowDelProdotto');
+        const prodotto = this.prodotti.get(idDaGid(productGid));
+        return prodotto?.identita ?? null;
+      }),
+      variantiConIdentita: vi.fn(async (_d: string, _t: string, productGid: string) => {
+        this.conta('variantiConIdentita');
+        return this.graphql().listProductVariantsWithIdentity(_d, _t, productGid);
       }),
     };
   }

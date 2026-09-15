@@ -10,6 +10,7 @@ import { PlatformAdminService } from '../../common/platform-admin/platform-admin
 import { TenantBackupExportService } from '../../tenant/tenant-backup/tenant-backup-export.service';
 import { TenantBackupImportService } from '../../tenant/tenant-backup/tenant-backup-import.service';
 import {
+  TENANT_BACKUP_FORMAT_VERSION,
   TENANT_BACKUP_STORICO_SHOPIFY,
   TENANT_BACKUP_V3_ENTITY_FILES,
   TENANT_BACKUP_V4_ENTITY_FILES,
@@ -124,7 +125,12 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
     );
 
     await prisma.shopifyShop.create({
-      data: { id: SHOP, tenantId: IDS.tenantA, shopGid: GID_SHOP, myshopifyDomain: 'prova.myshopify.com' },
+      data: {
+        id: SHOP,
+        tenantId: IDS.tenantA,
+        shopGid: GID_SHOP,
+        myshopifyDomain: 'prova.myshopify.com',
+      },
     });
 
     await prisma.shopifyProductIdentity.create({
@@ -228,7 +234,9 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
   async function fotografiaStorico(): Promise<Record<string, unknown[]>> {
     const fotografia: Record<string, unknown[]> = {};
     for (const key of TENANT_BACKUP_STORICO_SHOPIFY) {
-      const delegato = (prisma as unknown as Record<string, { findMany(args: unknown): Promise<unknown[]> }>)[
+      const delegato = (
+        prisma as unknown as Record<string, { findMany(args: unknown): Promise<unknown[]> }>
+      )[
         key === 'shopifyShops'
           ? 'shopifyShop'
           : key === 'shopifyProductIdentities'
@@ -243,7 +251,10 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
                     ? 'shopifyLocationPair'
                     : 'shopifyLocationLink'
       ]!;
-      const righe = await delegato.findMany({ where: { tenantId: IDS.tenantA }, orderBy: { id: 'asc' } });
+      const righe = await delegato.findMany({
+        where: { tenantId: IDS.tenantA },
+        orderBy: { id: 'asc' },
+      });
       // ⚠️ `updatedAt` cambia da se': confrontarlo direbbe «diverso» a ogni
       //    ripristino anche quando non e' cambiato niente di significativo.
       fotografia[key] = righe.map((riga) => {
@@ -286,9 +297,11 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
 
   // ── 1 · Compatibilita' dei formati ───────────────────────────────────────
 
-  it('1a · l export e` v5 e porta i sette file dello storico, con i conteggi', async () => {
+  it('1a · l export e` almeno v5 (oggi v6, con le ricevute webhook) e porta i sette file dello storico, con i conteggi', async () => {
     const manifest = await readZipManifest(await esporta());
-    expect(manifest.formatVersion).toBe(5);
+    // ⭐ v6 dal 15/09/2026 (ricevute webhook, docs/30 §7.1.2 D7): lo storico c'è dalla v5 in poi.
+    expect(manifest.formatVersion).toBe(TENANT_BACKUP_FORMAT_VERSION);
+    expect(manifest.formatVersion).toBeGreaterThanOrEqual(5);
     for (const key of TENANT_BACKUP_STORICO_SHOPIFY) {
       expect(manifest.entityCounts[key]).toBeDefined();
     }
@@ -353,6 +366,32 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
     expect(esclusa.productId).toBeNull();
     expect(esclusa.localDeletedAt).not.toBeNull();
     expect(esclusa.shopifyProductGid).toBe(GID_ESCLUSO);
+  });
+
+  it('2a-bis · un CLAIM di creazione aperto nel backup si ripristina su database vuoto (FK verso il negozio)', async () => {
+    // ⭐ Il claim (docs/30 §7.2-bis) porta `shopify_create_claim_shop_id`, FK verso
+    //    `shopify_shops` — che il ripristino reinserisce DOPO i prodotti. Senza il
+    //    differimento, il backup preso durante una creazione in corso non si ripristina.
+    await prisma.product.update({
+      where: { id: P_SOLO },
+      data: {
+        shopifyCreateClaimId: '11111111-1111-4111-8111-111111111111',
+        shopifyCreateClaimVersion: 2,
+        shopifyCreateClaimShopId: SHOP,
+        shopifyCreateClaimedAt: new Date('2026-09-15T10:00:00Z'),
+      },
+    });
+    const archivio = await esporta();
+    await svuota(prisma);
+    await creaDataset(prisma);
+
+    await importer.importFromZipBuffer(IDS.tenantA, IDS.utenteA1, archivio);
+
+    const tornato = await prisma.product.findUniqueOrThrow({ where: { id: P_SOLO } });
+    expect(tornato.shopifyCreateClaimId).toBe('11111111-1111-4111-8111-111111111111');
+    expect(tornato.shopifyCreateClaimVersion).toBe(2);
+    expect(tornato.shopifyCreateClaimShopId).toBe(SHOP);
+    expect(tornato.shopifyCreateClaimedAt?.toISOString()).toBe('2026-09-15T10:00:00.000Z');
   });
 
   it('2b · un ESCLUSIONE decisa DOPO il backup non viene sovrascritta', async () => {
@@ -600,7 +639,9 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
       );
       await tx.$executeRawUnsafe(IDENTITA_SGANCIATA, IDS.tenantA, SHOP, gid, P_VIVO);
     });
-    expect(await prisma.shopifyProductIdentity.count({ where: { shopifyProductGid: gid } })).toBe(1);
+    expect(await prisma.shopifyProductIdentity.count({ where: { shopifyProductGid: gid } })).toBe(
+      1,
+    );
 
     // ⛔ Fuori dalla transazione il permesso e` finito con lei.
     await expect(
@@ -627,7 +668,9 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
       }),
     ).rejects.toThrow(/rollback voluto/);
 
-    expect(await prisma.shopifyProductIdentity.count({ where: { shopifyProductGid: gid } })).toBe(0);
+    expect(await prisma.shopifyProductIdentity.count({ where: { shopifyProductGid: gid } })).toBe(
+      0,
+    );
   });
 
   it('4f · una connessione RIUSATA dal pool non si porta dietro il permesso', async () => {

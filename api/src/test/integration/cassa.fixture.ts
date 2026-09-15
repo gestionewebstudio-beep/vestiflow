@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { PrismaClient } from '@prisma/client';
 
 import { creaDataset, IDS } from './fixture';
@@ -6,15 +8,18 @@ import { creaDataset, IDS } from './fixture';
 export async function creaDatasetCassa(prisma: PrismaClient) {
   await creaDataset(prisma);
   await prisma.user.update({ where: { id: IDS.utenteA1 }, data: { role: 'owner' } });
-  // ⭐ Solo l'id: questa fixture semina anche schemi FERMI a una migration precedente
-  //    (prova delle migration, «prima della correttiva RLS»), dove le colonne che il
-  //    client conosce da migration successive (`products.shopify_product_type`, 11/09)
-  //    non esistono ancora. L'INSERT scrive le sole colonne nominate; è il ritorno
-  //    dell'intera riga che le chiederebbe tutte.
-  const product = await prisma.product.create({
-    data: { tenantId: IDS.tenantA, name: 'Articolo Cassa TEST', articleCode: 'CASSA-TEST' },
-    select: { id: true },
-  });
+  // ⭐ INSERT scritto a mano: questa fixture semina anche schemi FERMI a una migration
+  //    precedente (prova delle migration, «prima della correttiva RLS»), dove le colonne
+  //    che il client conosce da migration successive non esistono ancora.
+  //    ⛔ Qui c'era `prisma.product.create` con `select: { id }`, col commento «l'INSERT
+  //    scrive le sole colonne nominate»: vale per una colonna nullable
+  //    (`shopify_product_type`, 11/09), non per una con `@default` letterale, che Prisma
+  //    manda nell'INSERT — misurato nella CI della PR #16 (15/09/2026) con
+  //    `shopify_create_claim_version @default(0)`: P2022 «column does not exist».
+  const product = { id: randomUUID() };
+  await prisma.$executeRaw`
+    INSERT INTO "products" ("id", "tenant_id", "name", "article_code", "updated_at")
+    VALUES (${product.id}::uuid, ${IDS.tenantA}::uuid, 'Articolo Cassa TEST', 'CASSA-TEST', now())`;
   const variant = await prisma.productVariant.create({
     data: {
       tenantId: IDS.tenantA,

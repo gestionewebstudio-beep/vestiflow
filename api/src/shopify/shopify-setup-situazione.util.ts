@@ -50,7 +50,24 @@ export interface ArticoloEsclusoAttuale {
   readonly dettaglio: string | null;
 }
 
+/** Una ricevuta webhook accolta e NON applicata, come la legge l'operatore. */
+export interface EventoNonApplicatoAttuale {
+  readonly ricevutaId: string;
+  readonly topic: string;
+  readonly risorsa: string | null;
+  readonly esito:
+    | 'fallita'
+    | 'sospesa_dopo_ripristino'
+    | 'scartata_sync_spenta'
+    | 'scartata_associazione_cambiata';
+  readonly tentativi: number;
+  readonly motivo: string | null;
+  readonly receivedAt: Date;
+}
+
 export interface SituazioneInput {
+  /** Gli eventi webhook accolti e non applicati (docs/30 §7.1.2), dal più recente. */
+  readonly eventiNonApplicati?: readonly EventoNonApplicatoAttuale[];
   readonly ordiniSenzaSede: readonly OrdineSenzaSedeAttuale[];
   readonly coppieSenzaBase: readonly CoppiaSenzaBaseAttuale[];
   readonly articoliEsclusi: readonly ArticoloEsclusoAttuale[];
@@ -123,6 +140,67 @@ function azione(
   riferimento?: string | null,
 ): ShopifySetupProblemaAzione {
   return { tipo, etichetta, riferimento: riferimento ?? null };
+}
+
+/**
+ * ⭐ Un evento accolto e non applicato (docs/30 §7.1.2, decisioni D2–D4 del 15/09/2026):
+ *    «Riprova» solo per le fallite e le sospese dopo un ripristino; le scartate per
+ *    sincronizzazione spenta si riallineano con «Importa» (nessun «Riprendi sospesi»),
+ *    quelle per associazione cambiata restano documentate e non si spostano.
+ */
+function problemaEvento(evento: EventoNonApplicatoAttuale): ShopifySetupProblemaDto {
+  const nome = `${evento.topic}${evento.risorsa ? ` · ${evento.risorsa}` : ''}`;
+  const base = {
+    tipo: 'evento' as const,
+    riferimento: evento.ricevutaId,
+    nome,
+    dettaglio: evento.motivo,
+    sede: null,
+    apri: null,
+    rilevatoAt: evento.receivedAt.toISOString(),
+  };
+  switch (evento.esito) {
+    case 'fallita':
+      // ⭐ Il MOTIVO sta nell'effetto, non solo nel dettaglio: a schermo (15/09) il dettaglio
+      //    finiva in una colonna stretta, troncata — e il motivo di un articolo `syncing` è
+      //    ciò che dice all'operatore come sbloccare, e che cosa comporta.
+      return {
+        ...base,
+        causa: 'evento_fallito',
+        conseguenza:
+          `Notifica di Shopify non applicata dopo ${evento.tentativi} tentativi: ciò che è cambiato là per questa risorsa non è arrivato, e gli eventi successivi della stessa risorsa aspettano.` +
+          (evento.motivo ? ` ${evento.motivo}` : ''),
+        azione: azione('riprova_evento', 'Rimetti in coda questa notifica, con le stesse protezioni', evento.ricevutaId),
+      };
+    case 'sospesa_dopo_ripristino':
+      return {
+        ...base,
+        causa: 'evento_sospeso_dopo_ripristino',
+        conseguenza:
+          'Notifica ancora da applicare al momento del backup: dopo il ripristino non riparte da sola.',
+        azione: azione(
+          'riprova_evento',
+          'Riprova, dopo aver verificato che il negozio collegato sia lo stesso',
+          evento.ricevutaId,
+        ),
+      };
+    case 'scartata_sync_spenta':
+      return {
+        ...base,
+        causa: 'evento_scartato_sync_spenta',
+        conseguenza:
+          'Arrivata con gli aggiornamenti automatici disattivati: non applicata e non si riprova.',
+        azione: azione('importa_ordini', 'Riallinea con «Importa ordini» / «Importa catalogo»'),
+      };
+    case 'scartata_associazione_cambiata':
+      return {
+        ...base,
+        causa: 'evento_scartato_associazione_cambiata',
+        conseguenza:
+          'Il negozio non è più collegato a questa azienda come quando la notifica è arrivata: nessun effetto, per non applicare eventi vecchi a un altro collegamento.',
+        azione: azione('nessuna', 'Nessuna: resta documentata'),
+      };
+  }
 }
 
 function problemaOrdine(ordine: OrdineSenzaSedeAttuale): ShopifySetupProblemaDto {
@@ -372,6 +450,10 @@ export function situazioneAttuale(input: SituazioneInput): readonly ShopifySetup
 
   for (const articolo of input.articoliEsclusi) {
     problemi.push(problemaArticolo(articolo));
+  }
+
+  for (const evento of input.eventiNonApplicati ?? []) {
+    problemi.push(problemaEvento(evento));
   }
 
   if (input.ordiniFallitiAttivazione > 0) {

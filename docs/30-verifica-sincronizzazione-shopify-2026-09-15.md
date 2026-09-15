@@ -6,35 +6,37 @@ segnalazioni di `docs/23` (versione aggiornata, letta senza modificarla) sono st
 come indizi e **riverificate una per una sul codice attuale**. Nessuna correzione applicata:
 questo documento serve a decidere gli interventi, che NON entrano nel ramo delle impostazioni.
 
-## Stato dell'elenco iniziale (aggiornato il 15/09/2026, notte) — in caso di contrasto vince questa tabella
+## Stato dell'elenco iniziale (aggiornato il 15/09/2026, pomeriggio) — in caso di contrasto vince questa tabella
 
 Le voci sono quelle di §2, numerate come là. **Risolta** = corretta sul ramo motore con prove
 (PR #15, in attesa di merge); **aperta** = difetto confermato, riprodotto o no, senza
 correzione; **da decidere** = serve una decisione del proprietario prima di scrivere codice;
 **non verificata** = né riprodotta né esclusa.
 
-| #   | Voce                                                                                  | Stato                                                                                    | Dove                                    |
-| --- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------- |
-| 1   | consegne webhook senza deduplica, risposta dopo l'elaborazione                        | **aperta** — riprodotta (`it.fails` ×2)                                                  | §7.1 (progetto corretto, non approvato) |
-| 2   | `fetchVariantCosts` su `products/update`                                              | **risolta**                                                                              | §7-bis.1                                |
-| 3   | nessun timeout, nessun ritentativo delle letture                                      | **risolta**                                                                              | §7-ter                                  |
-| 4   | GraphQL `THROTTLED` non ritentato                                                     | **risolta**                                                                              | §7-ter                                  |
-| 5   | creazione prodotto REST senza idempotenza; risposta persa → secondo prodotto          | **aperta** — riprodotta (`it.fails`); **proposta rivista in §7.2-bis**, non implementata | §7.2-bis                                |
-| 6   | prodotto rimasto `syncing` dopo un'interruzione                                       | **aperta** — non riprodotta; proposta 7.3 respinta nella forma                           | §7.3                                    |
-| 7   | `GET /shopify/connection` guariva lo stato                                            | **risolta**                                                                              | §7.4                                    |
-| 8   | sedi collegate fuori piano                                                            | **da decidere** (`docs/22` B3)                                                           | §2                                      |
-| 9   | attivazione: confine ordini fissato dopo l'allineamento                               | **aperta** — confermata nel codice, non riprodotta                                       | §2, `docs/23` #45                       |
-| 10  | guardia «un trasferimento per tenant» non atomica                                     | **aperta** — confermata nel codice, non riprodotta                                       | §2, `docs/23` #37                       |
-| 11  | eco prodotto senza orologio                                                           | **da decidere** (`docs/24` §9.10)                                                        | §2                                      |
-| 12  | ordini esistenti senza `shopify_updated_at`                                           | **aperta**, si chiude da sé al primo evento; nessuna migrazione dati senza via           | §0                                      |
-| 13  | evento scartato con sync spenta, riattivazione senza recupero                         | **da decidere** (dentro §7.1)                                                            | §7.1.1                                  |
-| 14  | limitatore in memoria di processo                                                     | **aperta** — nota di deploy, non urgente con un'istanza                                  | §2                                      |
-| 15  | nessuno scheduler di riconciliazione                                                  | **da decidere** (`docs/24` §8.9)                                                         | §2                                      |
-| —   | due `orders/create` concorrenti su ordine nuovo → P2002                               | **misurata**, comportamento non cambiato; da decidere se accogliere il P2002             | §7-ter.1                                |
-| —   | scadenza complessiva, corpo interrotto dopo le intestazioni                           | **risolte**                                                                              | §7-ter.0                                |
-| —   | `last_webhook_event_at` nullo sul tenant di prova                                     | **non verificata** (consegne dell'app partner o log di Railway)                          | §0                                      |
-| —   | tempo reale del webhook su prodotto a molte varianti                                  | **non verificata** (richiede il negozio)                                                 | §7-bis                                  |
-| —   | prove reali del contratto Shopify per la creazione (unicità del metafield `id`, ecc.) | **non verificata**, da concordare                                                        | §7.2-bis                                |
+| #   | Voce                                                                                  | Stato                                                                                                                                                                                                                                               | Dove                           |
+| --- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 1   | consegne webhook senza deduplica, risposta dopo l'elaborazione                        | **risolta** sul ramo motore (15/09 sera): ricevute durevoli, `200` dopo il commit, corsia per tenant con versione, ordine per risorsa, ritentativi per natura, «Riprova» — §7.1.2                                                                   |
+| 2   | `fetchVariantCosts` su `products/update`                                              | **risolta**                                                                                                                                                                                                                                         | §7-bis.1                       |
+| 3   | nessun timeout, nessun ritentativo delle letture                                      | **risolta**                                                                                                                                                                                                                                         | §7-ter                         |
+| 4   | GraphQL `THROTTLED` non ritentato                                                     | **risolta**                                                                                                                                                                                                                                         | §7-ter                         |
+| 5   | creazione prodotto REST senza idempotenza; risposta persa → secondo prodotto          | **risolta** sul ramo unico `feat/shopify-affidabilita-creazione` (non committato): identità VestiFlow, claim, rilettura, adozione; dal pomeriggio del 15/09 la creazione è `productSet` in sola creazione (finestra della variante iniziale chiusa) | §7.2-bis, §7.2-ter, §7.2-ter.3 |
+| 6   | prodotto rimasto `syncing` dopo un'interruzione                                       | **aperta** — non riprodotta; proposta 7.3 respinta nella forma                                                                                                                                                                                      | §7.3                           |
+| 7   | `GET /shopify/connection` guariva lo stato                                            | **risolta**                                                                                                                                                                                                                                         | §7.4                           |
+| 8   | sedi collegate fuori piano                                                            | **da decidere** (`docs/22` B3)                                                                                                                                                                                                                      | §2                             |
+| 9   | attivazione: confine ordini fissato dopo l'allineamento                               | **aperta** — confermata nel codice, non riprodotta                                                                                                                                                                                                  | §2, `docs/23` #45              |
+| 10  | guardia «un trasferimento per tenant» non atomica                                     | **aperta** — confermata nel codice, non riprodotta                                                                                                                                                                                                  | §2, `docs/23` #37              |
+| 11  | eco prodotto senza orologio                                                           | **da decidere** (`docs/24` §9.10)                                                                                                                                                                                                                   | §2                             |
+| 12  | ordini esistenti senza `shopify_updated_at`                                           | **aperta**, si chiude da sé al primo evento; nessuna migrazione dati senza via                                                                                                                                                                      | §0                             |
+| 13  | evento scartato con sync spenta, riattivazione senza recupero                         | **da decidere** (dentro §7.1)                                                                                                                                                                                                                       | §7.1.1                         |
+| 14  | limitatore in memoria di processo                                                     | **aperta** — nota di deploy, non urgente con un'istanza                                                                                                                                                                                             | §2                             |
+| 15  | nessuno scheduler di riconciliazione                                                  | **da decidere** (`docs/24` §8.9)                                                                                                                                                                                                                    | §2                             |
+| —   | due `orders/create` concorrenti su ordine nuovo → P2002                               | **misurata**, comportamento non cambiato; da decidere se accogliere il P2002                                                                                                                                                                        | §7-ter.1                       |
+| —   | scadenza complessiva, corpo interrotto dopo le intestazioni                           | **risolte**                                                                                                                                                                                                                                         | §7-ter.0                       |
+| —   | `last_webhook_event_at` nullo sul tenant di prova                                     | **non verificata** (consegne dell'app partner o log di Railway)                                                                                                                                                                                     | §0                             |
+| —   | tempo reale del webhook su prodotto a molte varianti                                  | **non verificata** (richiede il negozio)                                                                                                                                                                                                            | §7-bis                         |
+| —   | prove reali del contratto Shopify per la creazione (unicità del metafield `id`, ecc.) | **eseguita** il 15/09 su `test-vestiflow.myshopify.com`: G1–G7 verificate (7/7), G6 = atomicità **osservata nel caso provato**                                                                                                                      | §7.2-bis.1                     |
+| —   | completamento delle varianti mancanti dopo un recupero parziale                       | **risolta per regola** — abbinamento solo per `vestiflow.variant_id`, creazione delle mancanti con identità, conflitto di combinazione → stop; resta il caso della iniziale «M» senza identità, che si ferma sul conflitto (decide una persona)     | §7.2-ter.1                     |
+| —   | backup preso con un claim di creazione aperto non si ripristinava (FK)                | **risolta** — campo differito nel ripristino, riproduzione 2a-bis                                                                                                                                                                                   | §7.2-ter.2                     |
 
 **Proposte superate** (restano nel testo per non essere riproposte): §7.1 prima stesura —
 rivendicazione della singola ricevuta e scadenza di 10 minuti come prova di morte del
@@ -274,6 +276,186 @@ solo** — sarebbe una regola nuova di recupero. Da decidere: (a) resta così, e
 eventi sospesi», che rimette in coda le ricevute `scartata_sync_spenta` più recenti
 dell'ultimo evento applicato, nell'ordine di `triggered_at`.
 
+#### 7.1.2 La coda webhook — ✅ FATTA sul ramo motore (15/09/2026, sera; decisioni D1–D7 e le sei conferme del proprietario)
+
+Parte dalle due `it.fails` di `shopify-webhooks.controller.spec.ts` (stesso
+`X-Shopify-Webhook-Id` due volte → UNA elaborazione; `200` anche se l'elaborazione non è
+finita) e da §7.1/§7.1.1, che restano validi: qui si fissa la forma finale e si isolano le
+decisioni che mancano. ⛔ Nessuna regola di recupero nuova è introdotta da questo testo.
+
+**Che cosa si riusa (misurato nel codice del ramo, non dedotto).**
+
+| Meccanismo esistente                                                                                    | Dove                                                                | Ruolo nella coda                                                                                                        |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| verifica HMAC, `resolveTenantByShopDomain`, `handleWebhook`                                             | `shopify-webhook.service.ts`, `shopify-sync.service.ts`             | invariati: il primo resta il cancello, l'ultimo resta l'elaboratore                                                     |
+| chiave unica per tenant (`OnlineOrderEvent.dedupeKey`, `FOR UPDATE`, `shopifyUpdatedAt`)                | ordini                                                              | è ciò che rende **ripetibile** l'elaborazione di un ordine: la coda può rielaborare senza doppioni                      |
+| **claim con `claim_version` + `assicuraProprietario`** (§7.2-ter, fatto)                                | `shopify-product-push.service.ts`, colonne `shopify_create_claim_*` | **lo stesso schema per la corsia del negozio**: rivendicazione fenced, un proprietario superato non scrive e non chiama |
+| `recordSetupWarning` / `lastErrorMessage` sulla connessione, stato `error` sul prodotto                 | `shopify-connection.service.ts`, `recordProductWebhookFailure`      | oggi l'unico canale verso l'operatore — un solo slot per connessione (vedi D4)                                          |
+| ripubblicazione a passate con tetto dichiarato (`REPUBLISH_BATCH_LIMIT`, `SCAN_LIMIT`, esiti in classi) | `shopify-inventory-republish.service.ts`                            | modello per la passata del lavoratore: tetto per passata, arretrato **detto**, classi `refused`/`failed` distinte       |
+| fixture `svuota`/`creaDataset`, simulatore, `concorrenza.util`                                          | `src/test/integration`                                              | le prove A1–A5, la concorrenza a due processi e il riavvio                                                              |
+
+**Schema (migration scritta a mano, con RLS e `REVOKE` come le altre).** ⚠️ **Con le chiavi
+esterne dal primo giorno** — la tabella degli stati sync senza FK è costata una giornata di
+diagnosi (allegato corsa ripristino); `ON DELETE CASCADE` da `tenants`, così `svuota`,
+cancellazione del tenant e purga del ripristino la raggiungono.
+
+```text
+shopify_webhook_receipts      una riga per consegna accolta
+  tenant_id FK · shop_domain · webhook_id                UNIQUE (shop_domain, webhook_id)
+  topic · triggered_at (X-Shopify-Triggered-At) · api_version · payload jsonb
+  received_at · processed_at · esito · tentativi · ultimo_errore · next_attempt_at
+  esito ∈ { in_coda, elaborata, scartata_sync_spenta, scartata_topic, fallita }
+
+shopify_webhook_lanes         una riga per negozio: la CORSIA (§7.1.1)
+  shop_domain PK · tenant_id FK · claimed_by · claimed_at · claim_version
+```
+
+**Flusso della richiesta.** HMAC → intestazioni (`topic`, `shop-domain`, `webhook-id`) →
+JSON → tenant → `INSERT … ON CONFLICT (shop_domain, webhook_id) DO NOTHING` in una
+transazione propria → **`200`** → `setImmediate`: sveglia del lavoratore per quel negozio.
+Doppione: il conflitto conta come «già accolta», `200`, nessuna seconda elaborazione. Tutto
+ciò che oggi risponde `4xx` prima dell'inserimento resta `4xx` (HMAC, corpo, JSON).
+
+**Lavoratore.** Nel processo dell'API, uno per negozio alla volta: rivendica la corsia
+(`UPDATE … WHERE claimed_at IS NULL OR claimed_at < now() − lease RETURNING claim_version`),
+prende le ricevute `in_coda` di quel negozio in ordine di `received_at` (⚠️ non
+`triggered_at`: per gli ordini decide già `updated_at` del canale, per i prodotti vale
+«ultimo elaborato vince» finché #11 non è deciso), elabora ciascuna in una transazione che
+**rilegge la corsia e abortisce se `claim_version` non è la sua**, ricontrolla la versione
+prima di ogni chiamata verso Shopify, scrive `processed_at` + `esito`; a coda vuota o lease
+scaduta rilascia. All'avvio dell'API: una passata su tutte le corsie con ricevute `in_coda`.
+Il cancello «sincronizzazione attiva» si valuta **al momento dell'elaborazione**, non
+dell'accoglienza.
+
+**Decisioni del proprietario (15/09, sera).** Vincolano l'implementazione; quello che
+sotto è marcato ⏸ è la mia proposta per chiudere un punto che la decisione lascia aperto.
+
+| #         | Deciso                                                                                                                                                                                                                                                                                                                                 | Come si applica                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D1**    | Un tentativo immediato e **cinque ritentativi** dopo 1, 5, 15, 30, 60 min dal fallimento precedente; scansione ogni 30 s. Ritentare in automatico **solo errori transitori e operazioni ripetibili in sicurezza**; permanenti ed esiti incerti hanno una gestione distinta. ⛔ Niente provvisorio «un tentativo e ripresa al riavvio». | **Transitorio** = `ShopifyTrasportoException` di una lettura (`timeout`/`rete`/`server`/`scadenza`, già classificati in `shopify-trasporto.util`), 429/`THROTTLED` oltre i limiti del trasporto, errori di connessione o lock del database (Prisma `P1001`, `P1002`, `P1008`, `P1017`, `P2024`, `P2034`). **Permanente** = tutto il resto (4xx, `userErrors`, rifiuti di dominio come `fulfillment_order_senza_ordine`, dati non validi): `fallita` subito, senza ritentativi, visibile. **Esito incerto**: nell'elaborazione di un webhook le uniche scritture remote sono le ripubblicazioni di quantità, lanciate con la propria chiave e il proprio stato (`tentativo_incerto` degli stati sync); la ricevuta non le ritenta e non le conta come proprie — l'effetto locale della ricevuta o è nel commit o non c'è                                                                                             |
+| **D2**    | Con sincronizzazione spenta: `scartata_sync_spenta`; nessuna rielaborazione automatica alla riattivazione, nessun comando «Riprendi sospesi» in questo blocco.                                                                                                                                                                         | valutato **al momento dell'elaborazione**; `processed_at` valorizzato; compare nell'elenco di D4 come scartata, senza «Riprova» (⏸ da confermare: «Riprova» su una scartata per sync spenta equivarrebbe al comando escluso)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **D3**    | Recupero dopo arresto: scansione periodica **e** passata all'avvio. La scadenza della lease permette una nuova rivendicazione, non prova la morte del vecchio lavoratore: restano i controlli di proprietà e l'idempotenza degli effetti.                                                                                              | corsia con `claim_version` (schema del claim di creazione), transazione che abortisce se superata, ricontrollo prima di ogni chiamata remota; lease 5 min (⏸ valore da confermare)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **D4**    | Elenco «Eventi non applicati» e «Riprova» con componenti e permessi esistenti; «Riprova» usa la **stessa ricevuta** e le stesse protezioni, **senza** azzerare gli errori della connessione.                                                                                                                                           | elenco nel pannello Shopify con la tabella comune; permesso quello dei comandi Shopify già esistenti (Importa/Azzera); «Riprova» = `esito ← in_coda`, `tentativi` conservati, `next_attempt_at = now`, sveglia del lavoratore; nessun `clearErrors`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **D5–D6** | Id consegna assente → `400`; negozio sconosciuto → il rifiuto attuale. HMAC prima di fidarsi dei dati, senza registrare segreti.                                                                                                                                                                                                       | ordine: HMAC → intestazioni → JSON → tenant → ricevuta. Nei log mai l'intestazione HMAC né il segreto; del payload solo topic, nome/id, come oggi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **D7**    | ⛔ Non «tutte fuori dal backup»: gli eventi accolti e non applicati devono essere recuperabili dopo un ripristino; prova di backup/ripristino; nessuna cancellazione per anzianità di pendenti o fallite; pulizia oltre 30 giorni **solo** per ricevute concluse, con deduplicazione e dati personali considerati esplicitamente.      | `shopify_webhook_receipts` **entra** nel backup (tutte le righe, nell'ordine di arrivo; `arrivo` lo riassegna il database); `shopify_webhook_lanes` no (è una rivendicazione di processo). Dopo un ripristino le ricevute `in_coda`/`in_lavorazione`/`fallita` tornano `sospesa_dopo_ripristino`: recuperabili con «Riprova», non applicate da sole. **Pulizia** = comando esplicito del titolare («Togli le notifiche concluse da oltre 30 giorni», `POST /shopify/webhook-ricevute/pulizia`): solo `elaborata`/`scartata_*` concluse da più di 30 giorni; la deduplicazione vale finché la riga c'è (almeno 30 giorni dopo la conclusione, un margine ampio rispetto alle riconsegne di Shopify, che avvengono nelle ore successive); una riconsegna oltre la conservazione verrebbe rielaborata in modo ripetibile, non due volte; il `payload` (dati personali) se ne va con la riga; nei log non è mai entrato |
+
+**I due punti tecnici, chiusi nella proposta.**
+
+1. **Il `200` arriva solo dopo il salvataggio durevole.** L'`INSERT … ON CONFLICT DO NOTHING`
+   della ricevuta è una transazione propria, **attesa** prima di rispondere; `setImmediate`
+   viene armato solo dopo il commit. Se l'inserimento fallisce (database irraggiungibile,
+   vincolo), la richiesta esce con `5xx` e **nessuna conferma**: in quel caso a ritentare è
+   ancora Shopify, e alla riconsegna la chiave unica fa il resto. Il conflitto (doppione) è
+   `200` perché la ricevuta è già durevole.
+2. **Gli eventi successivi dello stesso negozio mentre uno attende un ritentativo.** La
+   corsia serializza l'**esecuzione** per negozio (una ricevuta alla volta: limitatore e
+   ordine), ma l'**ordine da conservare è per risorsa**, non per negozio: l'ordine
+   `#1001` e il prodotto `42` non dipendono l'uno dall'altro. Ogni ricevuta porta quindi
+   una `risorsa` (`orders:{id}`, `products:{id}`, `customers:{id}`,
+   `inventory:{inventory_item_id}@{location_id}`; per `fulfillment_orders/*` l'ordine
+   risolto) e il lavoratore prende la più vecchia `in_coda` con `next_attempt_at <= now`
+   **la cui risorsa non ha una ricevuta più vecchia ancora aperta**. Effetti: una ricevuta in
+   attesa di ritentativo **non ferma** le altre risorse del negozio (nessun blocco
+   indefinito) e **non viene scavalcata** da una più giovane della stessa risorsa (nessuna
+   applicazione fuori ordine); l'attesa della stessa risorsa è limitata da D1 (al massimo
+   ~111 min — ⚠️ è la somma delle attese configurate, non un tempo massimo garantito:
+   contano anche elaborazioni, arretrato e indisponibilità). ⛔ **Deciso (proprietario,
+   15/09 sera): NESSUN superamento automatico di una fallita.** Lo stato pieno non dimostra
+   l'equivalenza degli effetti intermedi: una `fallita` resta visibile e blocca soltanto
+   la propria risorsa; le successive correlate risultano «in attesa del precedente»;
+   «Riprova» riparte dalla ricevuta fallita con le stesse protezioni. Niente `superata`,
+   niente comando per saltarla. ⭐ **Risorsa non risolvibile** (`risorsa = NULL`): non
+   riceve una chiave inventata — è correlata a tutto ciò che la precede e la segue nello
+   stesso negozio (aspetta, e fa aspettare).
+
+**Associazione verificata, e riconnessioni.** La ricevuta porta `tenant_id` (FK) **e**
+`shop_id` (FK a `shopify_shops`, l'identità permanente del negozio, la stessa del claim di
+creazione; nulla se la connessione non l'aveva ancora acquisita) più il dominio
+normalizzato, risolti all'accoglienza; la corsia è per tenant (una connessione per tenant).
+All'elaborazione — e di nuovo a «Riprova» — il lavoratore rilegge la connessione corrente
+del tenant (dominio, negozio) e, se non coincide più con quella della ricevuta, l'esito è
+`scartata_associazione_cambiata`, senza effetti e senza «Riprova»: una riconnessione a un
+altro negozio non fa applicare eventi vecchi alla nuova associazione, e la ricevuta non si
+sposta su un altro tenant o negozio. Lo stesso controllo copre il ripristino da backup (D7).
+
+**Alternative valutate.** (a) Coalescenza anticipata — se in coda ci sono due ricevute della
+stessa risorsa, saltare subito la vecchia: risparmierebbe lavoro nei burst, ma
+`applyOrderFromShopify` deriva gli eventi canonici dal payload e non è dimostrato che
+saltare `orders/create` a favore di `orders/updated` produca gli stessi eventi — **no**,
+finché non è misurato. (b) Ordine per negozio invece che per risorsa: più semplice, ma un
+ordine che fallisce fermerebbe il catalogo intero per ~2 ore — **no**. (c) Lavoratore
+fuori processo (coda esterna): non serve con un'istanza, e la corsia con versione regge
+anche con più istanze — **no**, come deciso in §7.
+
+**Implementazione (stesso ramo, ambiente isolato).**
+
+| Dove                                                                     | Cosa                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| migration `20260915190000_coda_webhook_shopify` (solo DB di prova)       | `shopify_webhook_receipts` (FK tenant CASCADE, FK negozio SET NULL, unica `(shop_domain, webhook_id)`, esiti enum) e `shopify_webhook_lanes` (una per tenant, `claim_version`); RLS e `REVOKE`                                                                                                                                                                                 |
+| `shopify-webhooks.controller.ts`                                         | firma → intestazioni (`X-Shopify-Webhook-Id` obbligatorio, altrimenti `400`) → JSON → `accogli` (attesa) → `200` → `sveglia`; negozio sconosciuto = rifiuto di sempre                                                                                                                                                                                                          |
+| `shopify-webhook-coda.service.ts`                                        | accoglienza (`INSERT`, `P2002` = doppione, `200`), corsia (rivendicazione con lease e versione, rinnovo, rilascio), `prossimaPronta` (ordine per risorsa, `NULL` correlata a tutto, `fallita` che blocca i correlati), `elabora` (associazione → sync spenta → topic → `handleWebhook` con guardia → chiusura fenced), ritentativi per natura, `elencoNonApplicate`, `riprova` |
+| `shopify-webhook-corsia.util.ts`                                         | `GuardiaCorsia`: `assicura(tx)` rilegge la corsia `FOR UPDATE` e lancia `CorsiaWebhookSuperataException` se la versione non è più quella                                                                                                                                                                                                                                       |
+| `shopify-sync.service.ts`, `shopify-product-pull.service.ts`             | la guardia entra nelle transazioni di effetto (ordini, clienti, prodotti/adozione), prima della riconciliazione delle quantità e prima dell'unica scrittura remota (la ripubblicazione); senza guardia (import massivi) niente cambia                                                                                                                                          |
+| `shopify-webhook-risorsa.util.ts`, `shopify-webhook-ritentativo.util.ts` | la chiave di risorsa (tutti i topic dello stesso ordine → `ordine:{id legacy}`); attese 1·5·15·30·60 min, `TENTATIVI_MASSIMI = 6`, `naturaDellErrore` per causa (trasporto di lettura, 429/THROTTLED, database) e non per nome                                                                                                                                                 |
+| `shopify-config.service.ts`, `.env.example`                              | `SHOPIFY_WEBHOOK_SCAN_INTERVAL_MS` (30 s; 0 = nessuna scansione) e `SHOPIFY_WEBHOOK_LANE_LEASE_MS` (5 min)                                                                                                                                                                                                                                                                     |
+| `shopify-setup-situazione.util.ts`, `shopify.controller.ts`              | gli eventi non applicati entrano nella SITUAZIONE (tipo «Notifica», cause `evento_*`, azione `riprova_evento`); `POST /shopify/webhook-ricevute/:id/riprova` del titolare                                                                                                                                                                                                      |
+| frontend (`shopify-problemi`, pannello Shopify)                          | nessun componente nuovo: etichette del tipo e delle cause, «Riprova» come azione di pagina che chiama l'API e rilegge la situazione                                                                                                                                                                                                                                            |
+| backup (`tenant-backup.constants`, import)                               | formato **6**: `shopifyWebhookReceipts` nel backup (dopo negozi e connessione, in ordine di arrivo); al ripristino `in_coda`/`in_lavorazione`/`fallita` → `sospesa_dopo_ripristino`; le corsie no                                                                                                                                                                              |
+| pulizia (D7)                                                             | `puliziaConcluse`: solo `elaborata`/`scartata_*` concluse da più di 30 giorni (soglia minima, non abbassabile); `POST /shopify/webhook-ricevute/pulizia` del titolare; pulsante «Togli le notifiche concluse da oltre 30 giorni» nella sezione Notifiche del pannello. Prova A11: pendenti, fallite e sospese restano; ordine per risorsa, deduplicazione e backup intatti     |
+
+⚠️ **La guardia e le letture remote** (residuo chiuso il 15/09, notte): anche
+l'arricchimento del prodotto, lo scarico dell'immagine e la rilettura dell'ordine per
+`fulfillment_orders` sono preceduti dal controllo di proprietà — un lavoratore superato non
+chiama Shopify nemmeno in lettura (prova: l'arricchimento parte una volta sola, quella del
+nuovo lavoratore; falsificata). Resta, per costruzione, la chiamata già partita nel momento
+del sorpasso. Il fallimento definitivo registra prodotto `error` e avviso sulla connessione
+come prima della coda; il fallimento transitorio no.
+
+⭐ **Ordine di ARRIVO, non orologio** (difetto trovato e corretto il 15/09, notte): l'ordine
+per risorsa era su `received_at` con l'uuid come spareggio, quindi due consegne della
+stessa risorsa nello stesso millisecondo (burst di Shopify) si ordinavano a caso — riprodotto
+in modo deterministico. La ricevuta porta `arrivo` (identità assegnata dal database,
+migration `20260915200000`), il lavoratore ordina su quello; il backup esporta in
+quell'ordine e al ripristino il database lo riassegna crescente.
+
+**Prove eseguite** (`coda-webhook.integration-spec.ts`, 19, database vero; unitarie del
+controller 10, delle due util 6, della situazione 1; frontend 8):
+
+| Obbligatoria                        | Prova                                                                                                                                                                                                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| conferma solo dopo commit           | A1: il controller vero risponde con la ricevuta già nel database mentre l'elaboratore è tenuto fermo; la sveglia la porta a `elaborata`; corsia rilasciata                                                                                                               |
+| salvataggio fallito senza 200       | A2: `create` che fallisce → la richiesta esce con l'errore, 0 ricevute, nessuna sveglia, nessuna elaborazione, data dell'ultimo evento non scritta                                                                                                                       |
+| consegne duplicate                  | A3: stesso id due volte in concorrenza → una ricevuta, una elaborazione; una terza consegna dopo → ancora niente                                                                                                                                                         |
+| arresto prima degli effetti         | A4: ricevuta `in_lavorazione` di un processo morto (lease scaduta) → ripresa, effetti una volta, versione della corsia avanzata; con lease viva la corsia non si rivendica e niente si elabora due volte                                                                 |
+| arresto dopo gli effetti            | A5: pull VERO ripetuto → un prodotto, le stesse varianti; riconciliazione VERA ripetuta → uno stato sync, stessi valori, giacenza intatta                                                                                                                                |
+| vecchio lavoratore superato         | A6: lavoratore lento fermo, lease scaduta, un nuovo lavoratore finisce; il lento riparte e la guardia nella transazione del cliente lo ferma — `updatedAt` del party immutato, ricevuta del nuovo (**falsificata**: senza la guardia nella transazione la prova è rossa) |
+| ordine fra topic correlati          | A7: `orders/create` 5001 fallisce in modo transitorio → il suo `fulfillment_orders` aspetta, 5002 e il prodotto 42 passano; nessun ritentativo anticipato; alla scadenza prima 5001 poi il correlato; risorsa `NULL` correlata a tutto                                   |
+| risorsa fallita non blocca le altre | A8: 4xx → `fallita` subito; `orders/updated` dello stesso ordine aspetta anche a scansioni ripetute; 5002 passa; «Riprova» riparte dalla stessa ricevuta (tentativi conservati) e poi sblocca il correlato; errori della connessione non azzerati                        |
+| ritentativi per natura              | A7: 4xx e esito incerto → `fallita` al primo tentativo; transitorio → 6 tentativi conclusi poi `fallita`                                                                                                                                                                 |
+| ripristino sospeso                  | A9: export/ripristino veri → `in_coda`, `in_lavorazione`, `fallita` → `sospesa_dopo_ripristino` col payload; `elaborata` com'era; né scansione né corsia le toccano; «Riprova» le riprende una per una                                                                   |
+| isolamento tenant/negozio           | A10: ricevuta accolta, poi il tenant si ricollega a un altro negozio → `scartata_associazione_cambiata`, nessun effetto, non riprovabile, non spostata; il tenant B lavora; corsia di A tenuta da un altro processo non ferma B                                          |
+| sync spenta                         | A8: `scartata_sync_spenta`, nessun «Riprova»; riattivata la sincronizzazione niente riparte (D2)                                                                                                                                                                         |
+
+| pulizia delle concluse (D7) | A11 · con soglia chiesta sotto i 30 giorni si applicano comunque 30; 2 concluse vecchie tolte, pendente/fallita/sospesa/recente restano; la fallita blocca ancora il correlato; l'id di una tolta torna accoglibile e si rielabora una volta; export/ripristino dopo la pulizia |
+| ordine di arrivo | A7 · due ricevute della stessa risorsa con lo stesso `received_at` e uuid in ordine inverso → elaborate nell'ordine di arrivo (**falsificata**: con l'ordine per uuid è rossa) |
+| lavoratore superato, letture | A6 · il lento superato non fa nemmeno l'arricchimento (**falsificata**) |
+
+Le due `it.fails` del controller non esistono più: deduplica e `200` prima
+dell'elaborazione sono prove ordinarie (A3, A1).
+
+**Nel piano restano, e non si perdono**: §7.3 (`syncing` dopo processo morto — riprodotto
+in §7.3.1, decisioni D8/D9); il residuo del claim dopo un'adozione da webhook — **corretto**
+(§7.3.1 C1); le **FK degli stati sync** (`DA-FARE` §21-ter: regole proposte, orfani
+contati, decisione sulla pulizia); il **limite di scala** di `productSet` e
+`inventoryItem.tracked` dentro `productSet` da rileggere sul negozio (§7.2-ter.3, il
+completamento è corretto). Nessuno entra nella coda webhook: sono voci con la propria decisione.
+
+⚠️ **Le FK delle tabelle della coda seguono il modello** (corretto il 15/09 notte,
+migration `20260915210000`): le ricevute sono dati nel backup → `RESTRICT` dal tenant e
+purga esplicita, come `products` e `inventory_levels`; la corsia è una rivendicazione di
+processo → in cascata, come `tenant_user_audit_logs`. La cascata sulle ricevute era una
+supposizione. Prova: la cancellazione del tenant passa con ricevute e corsia presenti.
+
 ### 7.2 Scritture con esito incerto e timeout (#3, #5 senza `productSet`) — ⛔ NON approvata nella forma proposta (15/09)
 
 ⛔ Il proprietario: una creazione con esito incerto **non** deve diventare ripubblicabile
@@ -303,7 +485,7 @@ consultivo `serializzaImport` preso anche da `persistShopifyIds` (stessa chiave
   locale, identità unica, nessun P2002 non gestito.
 - B4 · P5/P7 di `protezione-scritture-inventario` restano verdi (regressione).
 
-### 7.2-bis Creazione prodotto e varianti con esito incerto — PROPOSTA rivista (15/09, notte), NON implementata
+### 7.2-bis Creazione prodotto e varianti con esito incerto — ✅ IMPLEMENTATA sul ramo unico (15/09/2026), vedi §7.2-ter
 
 Direzione approvata dal proprietario: **identità stabile del prodotto VestiFlow** sul remoto,
 con un metafield tecnico; niente identità da SKU, titolo o handle. Le precisazioni sotto sono
@@ -358,10 +540,13 @@ nuova `bulkCreate` (un doppione lo impedisce l'unicità). Interruzione **fra** `
 «intatta»**: potrebbe essere stata modificata sul negozio nel frattempo. Si rimuove
 (`REMOVE_STANDALONE_VARIANT`) o si adotta come _la_ variante del prodotto a variante unica
 **solo se è ancora quella nata da `productCreate`**: senza SKU, senza barcode, prezzo a zero,
-titolo predefinito, senza il nostro metafield. Se porta anche una sola modifica, non si
-elimina e non si sovrascrive: il prodotto va in errore con la causa scritta («variante
-iniziale modificata sul negozio»), e decide una persona — nessuno stato né comando nuovo, è
-il meccanismo di errore che esiste.
+titolo iniziale (con le opzioni è il primo valore di ciascuna: «M», non «Default Title» —
+misurato in G2), senza il nostro metafield. Se porta anche una sola modifica, non si elimina
+e non si sovrascrive: si **conserva**, e il prodotto resta `out_of_sync` con la causa scritta
+(«variante remota senza identità VestiFlow conservata», «completamento in sospeso»), e decide
+una persona — nessuno stato né comando nuovo, è il meccanismo di errore che esiste.
+⚠️ **Nel recupero `REMOVE_STANDALONE_VARIANT` non si usa mai**: solo nello stesso tentativo,
+subito dopo `productCreate`, quando la risposta dice che la iniziale è intatta.
 
 **Ritrovare = recuperare gli ID, non riscrivere (punto 3).** Sono **due operazioni diverse**,
 in due momenti diversi:
@@ -402,7 +587,7 @@ seconda `productCreate` rifiutata **senza** lasciare un secondo prodotto, idem `
 `productByIdentifier`, `REMOVE_STANDALONE_VARIANT` sul recupero, atomicità di `bulkCreate` —
 lo dà solo il negozio (`test:shopify:contract`), da concordare a parte.
 
-#### 7.2-bis.1 La prova di contratto minima — proposta, NON eseguita (serve il via)
+#### 7.2-bis.1 La prova di contratto minima — ✅ ESEGUITA il 15/09/2026 su `test-vestiflow.myshopify.com` (via del proprietario)
 
 **Negozio**: lo shop di sviluppo già usato dal gate (`VESTIFLOW_SHOPIFY_CONTRACT_SHOP`,
 `SHOPIFY_CONTRACT_TEST=1`), con le sicurezze esistenti: `plan.partnerDevelopment === true` o
@@ -432,6 +617,434 @@ lasciati in `DRAFT` e portati a `ARCHIVED` in coda — non cancellati; il conteg
 **Esito atteso**: per ogni G, «verificata» / «smentita» con la risposta di Shopify citata; il
 simulatore verrà poi allineato a quanto **verificato**, non il contrario.
 
+**Esito reale (`shopify-identita-creazione.contract-spec.ts`, due esecuzioni)** — la credenziale
+è stata letta dal condiviso in sola lettura e mai mostrata; nessuna scrittura sul condiviso.
+
+| G   | Esito            | Come lo sappiamo                                                                                                                                                                                                                                                      |
+| --- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | ✅ verificata    | **catturato** nel log della prima esecuzione: create le definizioni `gid://shopify/MetafieldDefinition/257539768615` (PRODUCT `product_id`) e `…/257539801383` (PRODUCTVARIANT `variant_id`), tipo `id`; la seconda esecuzione le ha ritrovate senza crearne altre    |
+| G2  | ✅ verificata    | esito **catturato** (verde); dettaglio **ricostruito** dal negozio: il prodotto G2 ha le varianti M (iniziale), L (sequenziale), 3XL (concorrente vincente) — un solo prodotto con quell'identità                                                                     |
+| G3  | ✅ verificata    | esito catturato; ricostruito: un solo prodotto `G3-a`; la seconda `productCreate` concorrente è stata rifiutata (gli `userErrors` di `productCreate` non portano `code`, solo `field`/`message` — il testo del rifiuto **non è stato catturato**)                     |
+| G4  | ✅ verificata    | esito catturato; con identità di variante **nuova** nel caso concorrente (precisazione del proprietario): nessuna seconda variante con lo stesso `variant_id`                                                                                                         |
+| G5  | ✅ verificata    | esito catturato; ricostruito: prodotto G5 con due varianti, entrambe con identità, ritrovate per `productByIdentifier` e per metafield senza usare la risposta della creazione                                                                                        |
+| G6  | ✅ **osservata** | ⚠️ **atomicità osservata nel caso provato, non garanzia generale**: con una riga valida (L) e una rifiutata, il prodotto G6 ha la sola iniziale M — la valida **non** è stata creata. Un altro tipo di rifiuto potrebbe comportarsi diversamente: non è stato provato |
+| G7  | ✅ verificata    | ricostruito: la iniziale è stata rimossa **sia** intatta **sia** modificata (prezzo 12,50) → «standalone» ≠ «intatta»; la guardia sta nel codice, non in Shopify                                                                                                      |
+| G8  | ✅ eseguita      | 6 prodotti dell'esecuzione portati ad `ARCHIVED` (tag `vestiflow-contract-test` + id esecuzione `vf-esecuzione-2026-09-15T08-43-26-270Z`); nessuna cancellazione                                                                                                      |
+
+⚠️ **Catturato vs ricostruito.** La seconda esecuzione (7/7 verdi) ha lasciato solo l'esito
+pass/fail: gli oggetti di risposta non sono finiti nel log (`console.log` dentro la prova non
+arriva al report). I dettagli per prodotto sono stati **riletti dal negozio** dopo, in sola
+lettura, per id. G1 è l'unica con la risposta catturata (prima esecuzione). **Residui sul
+negozio**: 2 definizioni permanenti + 6 prodotti archiviati; nessun prodotto attivo o bozza
+creato dalla prova. Il negozio del collega non è stato toccato.
+
+### 7.2-ter Il blocco «creazione con esito incerto» — sul ramo unico `feat/shopify-affidabilita-creazione` (15/09/2026, da `develop` `bd22d421`, non committato)
+
+**Stato, in QUATTRO parti separate** (proprietario, 15/09 pomeriggio) — in caso di
+contrasto con il resto della sezione vince questa tabella:
+
+| Parte                                                              | Stato                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A · Recupero e completamento — corretti**                        | ✅ verificati nei casi riportati (§7.2-ter.1): doppione chiuso (risposta persa, interruzione, riavvio, concorrenza, webhook anticipato), recupero dei soli id, completamento per sola identità, conflitto di combinazione come esito **protettivo dichiarato** — non una sincronizzazione completata — con il motivo che arriva all'interfaccia e nomina la variante                                                 |
+| **B · Finestra della prima creazione — ✅ CHIUSA per costruzione** | `productSet` in SOLA creazione (contratto G9–G11, risposte catturate): prodotto, opzioni, varianti e identità in una mutation; nessuna variante iniziale, `REMOVE_STANDALONE_VARIANT` e `productCreate` fuori dal push; niente `id`/`identifier` per tipo e per guardia. ⚠️ **Limite di scala non provato**: sul negozio al massimo 3 varianti; nessun limite né troncamento nel codice, un rifiuto resta un rifiuto |
+| **C · Recupero automatico degli stati `syncing` — suo blocco**     | ⏸ §7.3 (#6): dopo un arresto il claim resta finché un push non lo rilegge (lease 5 min); nessun automatismo. Da trattare a parte, ora con il claim come dato verificabile                                                                                                                                                                                                                                            |
+| **D · Coda webhook — da implementare**                             | ⏸ §7.1 (#1, #2, #13): ricezione durevole, `200` dopo il salvataggio, deduplica per `X-Shopify-Webhook-Id`; le due `it.fails` restano la misura                                                                                                                                                                                                                                                                       |
+
+**Perimetro rispettato**: niente doppioni di prodotti e varianti dopo risposta persa, riavvio,
+richieste concorrenti e webhook anticipato, con le identità VestiFlow; meccanismi esistenti
+riusati (storico `ShopifyLinkHistoryService`, lock `shopify_import:<tenant>`, stato
+`out_of_sync` + `shopifyLastError`, registro `import_prodotto_rifiutato`); nessuna altra
+correzione di sincronizzazione; nessuna scrittura su Shopify o sul condiviso; migration
+provata solo sul database di test.
+
+**Che cosa è cambiato (API).**
+
+| Dove                                       | Cosa                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prisma/migrations/20260915120000_claim_…` | quattro colonne su `products`: `shopify_create_claim_id`, `_version` (intero, +1 a ogni rivendicazione), `_shop_id` (FK `shopify_shops`, `SET NULL`), `shopify_create_claimed_at`; indice parziale sui claim aperti. Applicata al solo DB di test (`prisma:deploy:test`)                                                                                                             |
+| `shopify-identita-catalogo.util.ts`        | le identità (`vestiflow.product_id` / `variant_id`, tipo `id`), il payload di `productCreate` e di `bulkCreate` con i metafield, l'abbinamento **per identità**, `varianteInizialeIntatta(v, options)`, `ShopifyClaimSuperatoException`                                                                                                                                              |
+| `shopify-identita-adozione.util.ts`        | **una** definizione dell'adozione degli id (lock, `updateMany … WHERE claim_version`, varianti per identità, storico della pubblicazione), usata dal push e dal webhook                                                                                                                                                                                                              |
+| `shopify-graphql.client.ts`                | `leggiDefinizioneMetafield`, `creaDefinizioneMetafield`, `createProductWithIdentity`, `productByIdentity`, `listProductVariantsWithIdentity`, `productIdentity`; `bulkCreateVariants(…, strategy?)`; `metafields` anche nell'input di aggiornamento                                                                                                                                  |
+| `shopify-product-push.service.ts`          | il ramo di creazione: claim (`rivendicaCreazione`), definizioni verificate, **rilettura per identità prima di creare**, `productCreate` + `bulkCreate`/aggiornamento della iniziale, `assicuraProprietario` **prima di ogni chiamata remota**, recupero su qualunque non-successo, chiusura del claim a tentativo finito. ⛔ Rimossi `persistShopifyIds` (per SKU) e il payload REST |
+| `shopify-product-pull.service.ts`          | `riconosciCreazioneVestiflow` per ogni remoto **non ancora collegato** (webhook e pull del catalogo): rilettura dell'identità per gid, adozione con claim aperto verso il negozio della connessione, **rifiuto registrato** senza claim (nessun doppione locale). Lock condiviso con l'adozione                                                                                      |
+| `shopify-product-enrichment.service.ts`    | `identitaVestiflowDelProdotto` e `variantiConIdentita`, senza `catch`: una lettura fallita non è «assente»                                                                                                                                                                                                                                                                           |
+| `products.service.ts`                      | le quattro colonne nel `select` della lista (viaggiano nelle risposte come ogni scalare di `Product`)                                                                                                                                                                                                                                                                                |
+| `shopify-simulato.util.ts`                 | il contratto verificato: definizioni permanenti, `productCreate` con identità e rifiuto del doppione, `productByIdentifier`, `bulkCreate` tutto-o-niente con identità uniche e `REMOVE_STANDALONE_VARIANT` che rimuove anche la modificata, varianti con identità, risposte perse, **varco** (`bloccaProssima`) e guasto differito                                                   |
+
+**Le decisioni prese implementando** (non nella proposta, da confermare):
+
+- **Un tentativo FINITO chiude il proprio claim**, anche se finito male: il claim che resta
+  aperto è solo quello di un processo morto (per cui c'è la lease di 5 minuti). Senza,
+  ogni fallimento avrebbe bloccato la ripubblicazione per cinque minuti con un falso
+  «in corso». Il proprietario superato non chiude niente e non scrive niente:
+  `executePushWork` traduce `ShopifyClaimSuperatoException` in «avviato» senza toccare lo stato.
+- **Il recupero termina il push con `out_of_sync` + motivo** («Identità Shopify
+  recuperata … nessun dato inviato in questo giro», più «N varianti locali non sono ancora
+  sul negozio: completamento in sospeso» e/o «variante remota senza identità conservata»);
+  l'esito dichiarato è `parziale`. Nessuno stato nuovo.
+- **Prodotto a variante unica senza opzioni**: la variante iniziale di Shopify **è** la
+  variante — si aggiorna con i valori locali e l'identità, non se ne crea una seconda.
+- **Il riconoscimento dell'identità nel pull vale per ogni remoto non collegato** — ma la
+  rilettura parte solo se nel tenant esiste un prodotto non collegato con un tentativo di
+  creazione alle spalle (`claim_version > 0`): senza, nessun remoto può portare
+  un'identità di quel tenant non già collegata, e non si spende la chiamata (non
+  solo per il webhook `products/create`): costa una lettura GraphQL per remoto sconosciuto,
+  ed è ciò che impedisce il doppione locale anche a un pull del catalogo dopo un tentativo
+  morto. Senza claim aperto **non importa e non adotta**: rifiuto nel registro
+  (`import_prodotto_rifiutato`, dettaglio `identita_vestiflow_senza_claim`).
+- **Le definizioni si rileggono a ogni creazione** (due letture), nessuna cache di processo:
+  verificabile, e la creazione è rara.
+
+**Prove eseguite (ambiente isolato, PostgreSQL 5433, negozio simulato).**
+
+| Prova                                                                                                                                                                                                                                                        | File                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| risposta persa dopo `productCreate` → 1 remoto, id adottati nello stesso giro, alla ripubblicazione nessuna seconda creazione (**la `it.fails` diventata ordinaria**)                                                                                        | `creazione-con-identita.integration-spec.ts`                    |
+| idem con la rilettura del recupero che fallisce → nessuna creazione, `error`, claim libero; il tentativo dopo rilegge e adotta                                                                                                                               | idem                                                            |
+| risposta persa dopo `bulkCreate` → varianti ritrovate per identità, nessuna seconda `bulkCreate`                                                                                                                                                             | idem                                                            |
+| interruzione fra le due chiamate → iniziale conservata, «completamento in sospeso»; iniziale modificata → conservata, mai rimossa                                                                                                                            | idem                                                            |
+| riavvio: claim di processo morto (lease scaduta) → rilettura e adozione; claim vivo → «avviato», **zero** chiamate remote                                                                                                                                    | idem                                                            |
+| due processi concorrenti / stesso processo → una `productCreate`, l'altro senza chiamate                                                                                                                                                                     | idem                                                            |
+| vecchio proprietario superato che riprende → `productCreate` rifiutata dal negozio, **nessun'altra chiamata, nessuna scrittura**                                                                                                                             | idem                                                            |
+| webhook `products/create` prima del salvataggio → adotta, un solo locale, il push conclude; senza claim → rifiuto registrato; altro tenant → import normale per quel tenant; claim verso altro negozio → non adotta; rilettura fallita → il webhook fallisce | idem                                                            |
+| modifiche remote dopo la risposta persa → **remoto identico** dopo il recupero                                                                                                                                                                               | idem                                                            |
+| isolamento tenant/negozio del claim; definizioni assenti / presenti / **tipo sbagliato** (nessuna creazione); variante unica                                                                                                                                 | idem                                                            |
+| B3 storico: 3a–3h riscritte sul simulatore; **3h misura l'adozione** invece del doppione; 3c è la guardia 26.7 (colonna-cache persa con storia → rifiuto)                                                                                                    | `storico-push.integration-spec.ts`                              |
+| collaudo S2/S7: le varianti **senza SKU** ora si collegano (per identità); la iniziale con opzioni ha titolo «M», non «Default Title» — corretto `varianteInizialeIntatta`                                                                                   | `collaudo-ciclo-utilizzo.integration-spec.ts`                   |
+| unitarie push (prezzo in uscita ora sulla variante iniziale aggiornata; niente REST) e pull (riconoscimento senza identità = import normale)                                                                                                                 | `shopify-product-push.service.spec.ts`, `…pull.service.spec.ts` |
+
+**Falsificazioni** (una guardia tolta alla volta, prove rieseguite, file ripristinato dalla
+copia): senza la rilettura prima di creare → 5 rosse (risposta persa con rilettura fallita,
+riavvio, 3h, 3f, webhook senza claim); senza il controllo di proprietà prima delle chiamate
+remote → 2 rosse (proprietario superato, webhook senza claim); senza il riconoscimento nel pull
+→ 4 rosse (i quattro casi webhook). ⚠️ `varianteInizialeIntatta` nel ramo di creazione
+**non è falsificabile in simulazione**: la risposta di `productCreate` porta sempre una
+iniziale intatta; è una difesa contro una risposta inattesa, dichiarata tale. Trovato
+falsificando: il registro `platform_audit_log` non viene svuotato fra le prove (nessuna FK
+verso `tenants`, ed è voluto) — la prova filtra per `entityId`.
+
+#### 7.2-ter.1 Il percorso completo: risposta persa → recupero dei soli id → invio ordinario (misurato il 15/09, pomeriggio)
+
+Letto il codice: dopo il recupero il prodotto è collegato, e il push successivo passa da
+`updateLinkedProductViaGraphql` → `linkOrphanVariants` → `matchOrphanVariants`, che abbina
+le locali senza id alle remote non collegate per **SKU, poi barcode, poi opzioni** (legacy,
+nato per i prodotti importati), si ferma con errore se una locale non ha candidate, e poi
+`bulkUpdateVariants` scrive i valori locali sulle abbinate. Quattro prove in
+`creazione-con-identita.integration-spec.ts` (blocco 11):
+
+| Caso                                                                                                    | Oggi                                                                                                                                                                                                                                | Criteri del proprietario        |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| recupero **completo** (risposta persa su `bulkCreate`) → invio ordinario                                | ✅ `synced`; stesse due varianti, stessi id, **identità intatte**; i valori locali arrivano sulle nostre; una sola `bulkCreate`                                                                                                     | rispettati                      |
+| recupero **parziale**, due locali e sola iniziale remota → invio                                        | ✅ `pushed: false`, `out_of_sync` «Varianti non abbinabili» (la L non ha candidate); **niente scritto**, remoto identico. ⚠️ La M non viene collegata per opzioni **solo perché la L ferma tutto**: effetto collaterale, non regola | rispettati, per caso            |
+| **RIPRODUZIONE** · recupero parziale con **una** locale e la sola iniziale remota → invio               | ⛔ la locale è abbinata alla iniziale per il valore di **opzione**, la iniziale riceve SKU e prezzo locali, il push dichiara `synced`; la remota **non porta l'identità**                                                           | **violati** (opzioni, riuscito) |
+| **RIPRODUZIONE** · recupero parziale, poi una L creata **a mano** sul negozio con lo SKU locale → invio | ⛔ la L locale si aggancia alla fatta-a-mano per **SKU** (prezzo 99,00 sovrascritto con 29,90), la M alla iniziale per opzioni, `synced`, nessuna identità                                                                          | **violati** (SKU, sovrascrive)  |
+
+⛔ Le due «RIPRODUZIONE» erano verdi e fotografavano l'oggi; il caso «due locali» era
+protetto da una **coincidenza** (una locale senza candidate). **Superate lo stesso giorno**:
+regola confermata dal proprietario e implementata (sotto), e le stesse prove asseriscono ora
+il comportamento corretto (nessun abbinamento arbitrario, prezzo remoto conservato, niente
+falso «synced»).
+
+**Regola funzionale — ✅ confermata dal proprietario (15/09, pomeriggio) e implementata
+(`completaVariantiPerIdentita` nel push).** Per un prodotto pubblicato da VestiFlow con
+identità (`shopify_create_claim_version > 0`, cioè creato da questo percorso — i prodotti
+importati o pubblicati prima via REST restano **invariati** in questo intervento, prova
+«un prodotto IMPORTATO resta all'abbinamento di prima»):
+
+1. una locale senza `shopifyVariantId` **non si abbina mai** per SKU, barcode, titolo o
+   opzioni; si abbina **solo per `vestiflow.variant_id`** (rilettura delle varianti remote
+   per metafield, come nel recupero);
+2. le locali senza remota si **creano** con la loro identità (`bulkCreate` delle sole
+   mancanti, senza `REMOVE_STANDALONE_VARIANT`): è il **completamento**, nel push ordinario,
+   come la tabella di §7.2-bis prevedeva; l'unicità del metafield impedisce il doppione;
+3. le remote **senza identità** (iniziale, fatte a mano) **non si toccano** né si cancellano:
+   il push le dichiara nel motivo («N varianti remote senza identità VestiFlow conservate»)
+   e resta `out_of_sync` finché una persona non decide — nessuno stato né comando nuovo;
+4. **prima di scrivere** qualunque cosa sul negozio si verificano tutte le corrispondenze:
+   se la combinazione di opzioni di una locale mancante è **occupata** da una remota senza
+   identità (la iniziale, una fatta a mano) → ⛔ **conflitto**: il push si ferma con un
+   errore che nomina variante, combinazione e remota (`out_of_sync`, `pushed: false`),
+   nessun collegamento automatico, cancellazione o sovrascrittura — decide una persona sul
+   negozio;
+5. qualunque esito non-successo della `bulkCreate` di completamento → rilettura per
+   identità: le create si adottano (un doppione lo impedisce l'unicità, G4), quelle ancora
+   assenti fermano il push senza secondo tentativo cieco.
+
+Costo: una lettura GraphQL in più (le varianti per metafield) solo quando ci sono locali
+senza id; nessuna colonna nuova. `REMOVE_STANDALONE_VARIANT` resta **solo** nella prima
+creazione, subito dopo `productCreate`; ⚠️ quella finestra (variante iniziale modificata
+fra le due chiamate, G7) resta **esplicitamente da risolvere** — la guardia
+`varianteInizialeIntatta` controlla una fotografia della risposta, non lo stato del negozio.
+
+**Prove del completamento** (`creazione-con-identita`, blocchi 11–12, 29/29):
+
+| Caso                                                                  | Esito                                                                                                            |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| recupero completo → invio                                             | identità intatte, stessi id, una sola `bulkCreate`                                                               |
+| recupero parziale, due locali e sola iniziale → invio                 | **conflitto** sulla «M» (nomina `IDN-1-M`), niente scritto, remoto identico                                      |
+| **ex RIPRODUZIONE** · una locale e sola iniziale → invio              | conflitto, iniziale intatta (SKU nullo, prezzo 0,00), non collegata, `out_of_sync`                               |
+| **ex RIPRODUZIONE** · L fatta a mano con lo SKU locale → invio        | conflitto su M e L («2 varianti locali», nomina `SKU IDN-1-L`), prezzo 99,00 conservato, niente collegato        |
+| completamento · XL aggiunta localmente, più una «S» fatta a mano      | XL creata con la sua identità; M/L stessi id e identità; la «S» intatta e non adottata; storico della XL scritto |
+| completamento · combinazione XL occupata da una fatta a mano          | conflitto, zero chiamate di scrittura                                                                            |
+| completamento · risposta persa su `bulkCreate`                        | rilettura per identità: una sola XL, id adottato                                                                 |
+| completamento · due processi concorrenti                              | la seconda `bulkCreate` è rifiutata (identità occupata), rilettura, una sola XL, un solo storico                 |
+| prodotto importato (`claim_version = 0`), cache di una variante persa | abbinamento legacy per SKU come prima; `listProductVariantsWithIdentity` mai chiamata                            |
+
+Falsificazioni: senza il controllo del conflitto → 5 rosse; instradando i prodotti con
+identità all'abbinamento legacy → 8 rosse. File ripristinato dalla copia.
+
+#### 7.2-ter.2 Tre chiarimenti chiesti dal proprietario (15/09, pomeriggio)
+
+**1 · Quando un claim rimasto aperto dopo un arresto torna recuperabile.** Mai da solo. La
+scadenza (5 min) **non esegue** niente: rende soltanto rivendicabile il prodotto. Il
+recupero parte al **primo push successivo** — «Sincronizza con Shopify» nel dettaglio, o un
+salvataggio che pubblica — e prima della scadenza quel push risponde «avviato» senza
+chiamare Shopify (prova «claim ancora vivo»). Nel frattempo il prodotto resta `syncing`: il
+dettaglio lo interroga per 2 minuti (`SHOPIFY_FOLLOW_UP_MAX_WAIT_MS`) e poi si ferma, il
+pulsante torna premibile. Nessuno scheduler, nessun elenco dei claim aperti: è il punto #6
+(§7.3), che resta da progettare — con questo claim la ripresa ha finalmente un dato
+verificabile su cui appoggiarsi (claim id, versione, negozio, `claimed_at`), non la sola
+età dello stato.
+
+**2 · Perché `varianteInizialeIntatta` «non era falsificabile».** Perché controlla la
+**risposta di `productCreate`** — la variante iniziale che Shopify dice di aver creato:
+senza SKU, senza barcode, prezzo 0, titolo iniziale per quelle opzioni («M», o «Default
+Title»), senza il nostro metafield — e il negozio simulato risponde sempre così. Non
+controlla lo stato del negozio un istante dopo (quello è ciò che il contratto G7 dice
+irrilevante: la strategia rimuove la standalone anche modificata), quindi non è una
+protezione contro una modifica **fra** le due chiamate — la prova «variante iniziale
+MODIFICATA prima della bulkCreate» lo misura, e quella finestra resta dichiarata. Si
+verifica pilotando la risposta: unitaria `shopify-product-push.service.spec.ts` «la
+variante iniziale nella risposta di productCreate» — intatta → `REMOVE_STANDALONE_VARIANT`;
+con uno SKU, un prezzo o un titolo diverso → nessuna strategia. Falsificata (`intatta =
+true`): 3 rosse.
+
+**3 · I quattro campi del claim nelle risposte prodotto.** Verificato il contratto: l'API
+**non ha un DTO di risposta** per i prodotti — serializza le righe Prisma (`include` /
+`select` «ogni scalare del modello», come già `importHandle`, `deletedById`, `tiktok*`);
+il contratto consumato è `ProductApiRow` in `src/app/core/api/domain-api.mapper.ts`, e
+`mapProductApiRow` prende solo i campi che elenca. I quattro campi **non vi compaiono e
+non servono al client**: non sono necessari. **Campi tecnici esposti oggi** dalle risposte prodotto senza che il client li legga:
+`importHandle`, `deletedById`, `tiktokCategoryId`, `tiktokProductId`, `tiktokSyncStatus`
+e affini, e ora i quattro del claim (`shopifyCreateClaimId`, `…Version`, `…ShopId`,
+`shopifyCreateClaimedAt`). **Proposta locale e semplice, senza toccare il backup** (che
+legge il modello con `findMany`, non le risposte): le due uscite — elenco e dettaglio —
+passano entrambe da `withReadableShopifyErrors` in `products.service.ts`; lì un
+`senzaCampiDelClaim()` che toglie i quattro campi con una destrutturazione, e il tipo di
+ritorno di quelle due letture che diventa `Omit<ProductWithVariants, CampiDelClaim>`.
+Nessun DTO nuovo, nessuna revisione generale; una prova per uscita. ✅ **Fatto** (via del
+proprietario, 15/09 pomeriggio): `senzaCampiDelClaim()` in `products.service.ts`, applicato
+in `getById` e nella mappa dell'elenco; creazione, modifica e copia rispondono rileggendo il
+dettaglio, quindi passano di lì; il tipo esposto è `ProdottoInRisposta =
+Omit<ProductWithVariants, CampoDelClaim>` (controller compreso). Tre prove unitarie
+(dettaglio, elenco, creazione), falsificate (3 rosse). `loadProductOrThrow` resta intero per
+l'uso interno (confronti in `update`). Gli altri campi tecnici (`importHandle`,
+`deletedById`, `tiktok*`) restano come sono: nessuna revisione generale. ⚠️ Nel
+**backup** invece devono viaggiare, e viaggiano: trovato e chiuso in questo giro il caso in
+cui un backup preso con un claim aperto **non si ripristinava** (FK verso `shopify_shops`,
+reinserito dopo i prodotti): `shopifyCreateClaimShopId` è ora un campo differito
+(`TENANT_BACKUP_DEFERRED_FIELDS`), riproduzione `ripristino-storico-shopify` 2a-bis.
+
+**Il motivo arriva all'interfaccia.** Verificato: `shopifyLastError` passa da
+`toShopifyUserMessage` (dettaglio ed elenco), che **riscriveva** in «Conflitto su SKU o
+codici prodotto…» qualunque testo contenente «sku» — quindi il conflitto, che nomina lo SKU
+della remota, perdeva proprio la variante. Corretto: gli esiti del motore già scritti per
+l'operatore («Completamento su Shopify…», «Identità Shopify recuperata…», «Creazione su
+Shopify…») passano intatti (unitaria + asserzione nelle due prove di conflitto: il testo
+per l'operatore contiene `IDN-1-M`, «M», «decidere sul negozio»). Il dettaglio lo mostra in
+`shopifySyncMessage` e nella scheda Problemi.
+
+#### 7.2-ter.3 La finestra della prima creazione — ✅ CHIUSA con `productSet` in sola creazione (15/09/2026, pomeriggio)
+
+**Riproduzione** (`creazione-con-identita`, «RIPRODUZIONE (finestra della prima creazione)»):
+`productCreate` risponde; qualcuno modifica la variante iniziale (prezzo 12,50, SKU proprio)
+prima che parta la `bulkCreate`; la strategia `REMOVE_STANDALONE_VARIANT` — decisa sulla
+**fotografia** della risposta di `productCreate` (`varianteInizialeIntatta`) — la rimuove
+con la modifica (contratto G7), e il push dichiara riuscito. Verde oggi: è la misura.
+
+**Perché una rilettura prima di cancellare non basta.** Ridurrebbe la finestra al tempo fra
+la rilettura e la `bulkCreate`, ma resterebbe una cancellazione decisa su uno stato che
+può cambiare dopo la lettura: Shopify non offre una rimozione condizionata («rimuovi solo
+se ancora così»).
+
+⛔ **Prima proposta (15/09, pomeriggio) NON approvata**: «adotta la iniziale con la sola
+identità; valori locali solo se la rilettura la mostra intatta» — il proprietario ha
+rilevato che «rileggi, poi scrivi se intatta» conserva la possibilità di sovrascrivere una
+modifica intervenuta nel frattempo, e che «ultimo che scrive vince» non è approvato
+implicitamente. Anche il riordino dei valori di opzione non va fatto solo per aggirare il
+problema senza verificarne l'effetto sull'ordine delle varianti in vetrina. Superata.
+
+**Verifica sulle API (shopify.dev, versione 2026-07, letta il 15/09 pomeriggio — solo testo
+letterale, con i limiti dichiarati).**
+
+| Domanda                                                                     | Risposta della documentazione                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `productCreate` può assegnare identità e valori alla variante iniziale?     | **No.** `ProductCreateInput` non ha `variants`, prezzo, SKU, barcode né metafield di variante (ha solo i metafield di prodotto e `productOptions`). Testuale: «only supports creating a product with its initial product variant … use productVariantsBulkCreate». La guida: «The API automatically creates one standalone variant using the first value from each option», prezzo 0.00. La finestra è **strutturale** a `productCreate` + `bulkCreate` |
+| Esiste una creazione in UNA mutation con prodotto + varianti + identità?    | **Sì: `productSet`.** `ProductSetInput.variants: [ProductVariantSetInput!]` con `price`, `sku`, `barcode`, `compareAtPrice`, `optionValues` (obbligatorio), `inventoryItem`, `inventoryPolicy`, **`metafields`** per variante, e `metafields` di prodotto; `synchronous: true` (predefinito) restituisce il prodotto. Nessuna variante iniziale «standalone» da rimuovere: le varianti sono quelle dichiarate                                           |
+| `productSet` senza `id` e senza `identifier` crea sempre un prodotto nuovo? | La documentazione dice «Omit the ID to create a new product» e gli esempi senza id/identifier creano; **non** trovata una frase «crea sempre» (nessun abbinamento per handle documentato in assenza di identifier)                                                                                                                                                                                                                                      |
+| Con `identifier.customId` (upsert)?                                         | «For list fields: creates, updates, **and deletes existing entries that aren't included**» (`variants`, `collections`, `metafields`): è la semantica sostitutiva già respinta in §7.2 — **non** per la creazione                                                                                                                                                                                                                                        |
+| Atomicità e limite di varianti in modalità sincrona                         | **Non confermati nel testo letterale** (la pagina era troncata; un riassunto automatico citava «250 varianti in sincrono» e «succeed or fail together», da NON considerare verificati). Il negozio ha un limite di 2048 varianti per prodotto; «Exempt from variant limits» per productSet                                                                                                                                                              |
+| L'unicità del metafield `id` vale anche scritto dentro `productSet`?        | «ID metafield types are automatically configured to have unique values»; codici `ProductSetUserErrorCode.CAPABILITY_VIOLATION` / `DUPLICATED_VALUE` / `INVALID_METAFIELD` esistono, ma **nessuna frase esplicita** che una seconda creazione con lo stesso valore sia rifiutata senza lasciare un prodotto. Per `productCreate` lo ha verificato il contratto G2/G3; per `productSet` **va verificato sul negozio**                                     |
+
+**Il limite, e la scelta funzionale minima (proposta, NON implementata).** Con
+`productCreate` la seconda scrittura vulnerabile è inevitabile: la variante iniziale nasce
+prima e senza identità, e qualunque cosa se ne faccia dopo (rimuoverla, adottarla,
+aggiornarla) è una scrittura su uno stato che nel frattempo può essere cambiato. L'unica
+strada che **evita** quella scrittura è `productSet` **senza identifier** per la sola
+PRIMA creazione: prodotto, varianti, valori e le due identità in una mutation sincrona;
+tutto il resto del blocco (claim, rilettura per identità prima di creare, recupero,
+completamento, webhook anticipato) resta com'è, e `REMOVE_STANDALONE_VARIANT` esce dal push.
+Condizioni prima di implementare, entrambe da verificare **sul negozio di prova** con una
+prova di contratto (via del proprietario, come per G1–G8):
+
+- **G9** · `productSet` (senza identifier) con `vestiflow.product_id` già usato → rifiutata
+  **senza** lasciare un secondo prodotto; idem con un `vestiflow.variant_id` già usato;
+- **G10** · `productSet` con una variante invalida (combinazione doppia) → **nessun**
+  prodotto creato (atomicità osservata nel caso provato, come G6), o registrare cosa resta;
+- **G11** · nessuna variante «standalone» in più rispetto a quelle dichiarate; ordine delle
+  varianti e dei valori di opzione **come dichiarato** (senza toccare l'ordine locale).
+
+Se G9 o G10 fossero smentite, `productSet` non chiude la finestra e la scelta torna fra
+(a) tenere `productCreate` + `bulkCreate` **senza** strategia, adottando la iniziale con la
+sola identità e **mai** i valori nella stessa scrittura (la iniziale resta a prezzo 0 finché
+un push ordinario non la aggiorna — cioè finché una persona non ha deciso, se nel frattempo
+è stata toccata: da dichiarare come conflitto, non «ultimo che scrive vince»), oppure
+(b) la creazione a variante unica senza opzioni. ⛔ Nessuna delle tre è approvata.
+
+**Prova di contratto G9–G12 — ✅ ESEGUITA il 15/09/2026 (pomeriggio) su
+`test-vestiflow.myshopify.com`** (`shopify-identita-productset.contract-spec.ts`, esecuzione
+`vf-productset-2026-09-15T12-29-05-524Z`, API 2026-07; via del proprietario). Stesse
+protezioni di G1–G8: gate esplicito, negozio verificato per dominio e `partnerDevelopment`,
+credenziale letta dal condiviso in sola lettura e mai esposta, definizioni **riusate** (non
+create), prodotti in DRAFT col tag di esecuzione, nessuna cancellazione, archiviazione dei soli
+id fotografati. ⛔ Nessun `identifier`, nessun `id` nel payload; nessun fallback a
+`productCreate`; nessun aggiornamento via `productSet`. **Questa volta le risposte sono state
+CATTURATE** (file di esito scritto dalla prova, senza credenziali):
+`docs/30-allegato-contratto-productset-2026-09-15.json` — esiti, risposte grezze, fotografie
+prima/dopo di ogni prodotto.
+
+| G   | Esito         | Che cosa ha detto il negozio (catturato)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G9  | ✅ verificata | sola creazione: la prima `productSet` crea `…/10412267471143` (2 varianti M/L con identità); la seconda **sequenziale**, stessa identità e titolo/varianti diversi, è rifiutata con `INVALID_METAFIELD` su `input.metafields.0.value` — «Value is already assigned to another metafield. Choose a different value to ensure it remains unique.» — **nessun prodotto**, e il primo è **invariato** (fotografia identica); due **concorrenti** con identità nuova: una creata (`…/602215`, 1 variante), l'altra rifiutata con lo stesso errore; `productByIdentifier` ritrova entrambi i creati; **zero residui** non fotografati (confronto sugli ultimi 25 prodotti del negozio, e sul tag di esecuzione) |
+| G10 | ✅ verificata | errore su variante, **misurato senza presumere**: (a) due varianti con la stessa combinazione «M» → `INVALID_VARIANT` su `input.variants.1` («The variant 'M' already exists.») e **nessun prodotto creato** (rilettura per identità: assente); (b) una variante con l'identità già usata dalla M di G9 → `INVALID_METAFIELD` su `input.variants.1.metafields.0.value`, **nessun prodotto creato**, e il prodotto di G9 **intatto** (fotografia identica, la sua M conserva l'identità). Atomicità **osservata nei due casi provati**: non resta niente dell'input rifiutato                                                                                                                              |
+| G11 | ✅ verificata | variante **unica** (`Title` / «Default Title»): 1 variante, identità, SKU e prezzo come richiesti, `hasOnlyDefaultVariant: true`; **tre** varianti dichiarate nell'ordine L, M, S: esattamente 3 (nessuna in più), `position` 1/2/3 = L/M/S, valori di opzione `["L","M","S"]` come dichiarati, tutte con identità e SKU; gli id sono stati **riletti da `productByIdentifier`** ignorando la risposta di creazione                                                                                                                                                                                                                                                                                       |
+| G12 | ✅ eseguita   | archiviati 4/4 (`…/471143`, `…/602215`, `…/962663`, `…/028199`); la ricerca per tag ne restituiva 3 al termine della prova e 4 a una rilettura successiva (indice di ricerca di Shopify in ritardo, non un residuo); nessuna cancellazione                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+Residui sul negozio dopo questa prova: 4 prodotti ARCHIVED in più (totale delle due prove: 10)
+e le 2 definizioni permanenti di G1. Il negozio del collega non è stato toccato.
+
+**Che cosa cambia nella scelta.** Le tre condizioni sono verificate nei casi provati: `productSet`
+senza identifier crea prodotto, varianti, valori e identità in una mutation sincrona, **senza**
+variante standalone e nell'ordine dichiarato; una seconda creazione con la stessa identità è
+rifiutata senza lasciare né un secondo prodotto né una modifica al primo; un input con una
+variante rifiutata non lascia niente. La finestra fra `productCreate` e `bulkCreate` sparisce
+per costruzione, e con essa `REMOVE_STANDALONE_VARIANT`. ⚠️ Non provato (dichiarato): il
+limite di varianti in modalità sincrona (qui al massimo 3), l'esito con una risposta persa
+(la rilettura per identità è la stessa di oggi), e il comportamento su un negozio con più
+di 50.000 varianti.
+
+**Implementazione — ✅ FATTA (via del proprietario, 15/09 pomeriggio), stesso ramo.**
+
+| Dove                                             | Cosa                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shopify-graphql.client.ts`                      | `createProductSet(input: ShopifyProductSetCreateInput)`: `productSet(input, synchronous: true)` con prodotto, opzioni, varianti (`sku`, prezzo, barcode, `optionValues`, `inventoryItem.tracked`, identità) e identità di prodotto; **il tipo non ha `id` né `identifier` e il metodo li rifiuta prima di chiamare** («SOLA creazione»); `userErrors` → errore col nome della mutation, nessun fallback. Rimossi `createProductWithIdentity` (productCreate), la `strategy` di `bulkCreateVariants`, e il `createProduct` legacy via productSet senza identità (mai usato dai servizi) |
+| `shopify-identita-catalogo.util.ts`              | `buildProductSetCreateInput(product, options, variants, compareAt)`: opzioni e varianti **nell'ordine locale**, tutte con identità; senza opzioni → `Title` / «Default Title» (come Shopify rappresenta la variante unica, G11). Rimosse `titoloVarianteIniziale` e `varianteInizialeIntatta`. ⚠️ Nessun limite né troncamento sulle varianti                                                                                                                                                                                                                                          |
+| `shopify-product-push.service.ts`                | `tentativoDiCreazione`: claim → definizioni → rilettura per identità → **`productSet`** → rilettura degli id per identità → adozione → chiusura del claim. Qualunque non-successo (esito incerto o rifiuto) → rilettura, mai seconda creazione, mai `productCreate`. Conservati: claim, `assicuraProprietario` prima di ogni chiamata, recupero, completamento, riconoscimento webhook                                                                                                                                                                                                 |
+| `shopify-simulato.util.ts`                       | `createProductSet` come catturato: rifiuto `INVALID_METAFIELD` («Value is already assigned to another metafield…») per identità di prodotto o di variante già usata, `INVALID_VARIANT` («The variant 'M' already exists.») per combinazione doppia, **tutti i controlli prima di qualunque effetto** (niente creato, niente toccato), varianti nell'ordine dell'input, risposta persa dopo l'effetto, varco; `bulkCreate` senza strategia; `id`/`identifier` → errore                                                                                                                  |
+| `shopify-catalogo.contract-spec.ts` (gate 03/09) | passa a `createProductSet` con identità proprie del gate (non eseguito: solo tipi)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+**Prove riverificate** (`creazione-con-identita` 26 + `storico-push` 9, tutte verdi; unitarie
+client 4 nuove/riscritte, push 22, util 8):
+
+| Caso                                                                                                       | Esito                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| creazione: una mutation, nessuna variante in più, **ordine locale** (M, L), identità e SKU                 | ✅ `createProductSet` 1, `bulkCreate` 0, `bulkUpdate` 0                                                                                                |
+| **risposta persa** da `productSet`                                                                         | ✅ rilettura per identità nello stesso giro, id adottati (tutte le varianti c'erano: niente «in sospeso»), un solo remoto; poi push ordinario `synced` |
+| risposta persa + rilettura fallita                                                                         | ✅ nessuna seconda creazione, `error`, claim libero; il tentativo dopo adotta                                                                          |
+| rifiuto del negozio (identità già creata da un altro processo un istante prima)                            | ✅ nessun fallback: rilettura e adozione; un solo remoto                                                                                               |
+| **modifica remota fra la risposta e l'adozione** (ex riproduzione della finestra)                          | ✅ **conservata**: prezzo 12,50 e SKU messi a mano restano, stessa identità; la creazione non scrive dopo la mutation                                  |
+| modifiche remote dopo una risposta persa                                                                   | ✅ remoto identico dopo il recupero                                                                                                                    |
+| **riavvio** (lease scaduta / viva), **concorrenza** (due processi, stesso processo, proprietario superato) | ✅ come prima, sul nuovo doppio                                                                                                                        |
+| **webhook anticipato** (adozione / senza claim / altro tenant / altro negozio / rilettura fallita)         | ✅ come prima; il push in volo è fermo sulla rilettura degli id, non più sulla `bulkCreate`                                                            |
+| variante unica senza opzioni                                                                               | ✅ `Title` / «Default Title», identità e SKU, nessuna scrittura dopo                                                                                   |
+| variante locale nuova con combinazione occupata da una fatta a mano con lo stesso SKU                      | ✅ conflitto dichiarato, prezzo remoto conservato, niente `synced`, motivo all'interfaccia                                                             |
+| completamento (XL nuova, conflitto, risposta persa, concorrenza, eliminata in volo, importato)             | ✅ invariati                                                                                                                                           |
+
+⚠️ **Verificato vs non provato — due cose diverse, tenute separate.**
+
+**1 · Limite di scala (non provato).** Verificato sul negozio (G9–G11) e riprodotto nel
+simulatore: fino a **3 varianti** per mutation, opzioni a un livello, identità uniche,
+rifiuti atomici nei due casi provati. Non provato: il limite di varianti in modalità
+sincrona (la documentazione non lo dà in chiaro), prodotti con **molte** varianti
+(decine/centinaia) e più opzioni, negozi oltre 50.000 varianti. Il codice non impone limiti
+né tronca: se il negozio rifiuta, il prodotto va in errore col motivo e nessun fallback
+distruttivo parte — sarà una prova di contratto dedicata a dire dove sta il limite.
+
+**2 · `inventoryItem.tracked` (verifica FUNZIONALE, non di scala).** Confronto in sola
+lettura fra il percorso precedente e quello nuovo, 15/09:
+
+| Percorso                                             | Che cosa manda per il tracciamento inventario                                                                                                                                           | Verificato sul negozio                                                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **prima** (develop `bd22d421`): creazione REST       | `inventory_management: 'shopify'` su ogni variante (`shopify-variant-payload.util`); nessuna creazione di varianti in aggiornamento                                                     | dall'uso                                                                                                                                                                                     |
+| **ora**: `productSet` (prima creazione)              | `inventoryItem: { tracked: true }` su **ogni** variante, sku al primo livello                                                                                                           | ⛔ **no**: G9–G11 non includevano `inventoryItem` — accettazione del campo e valore risultante da leggere (`inventoryItem { tracked }`) in una prova col via                                 |
+| **ora**: completamento (`productVariantsBulkCreate`) | `inventoryItem: { tracked: true, sku? }` su **ogni** variante — ⭐ corretto il 15/09 (sera): prima la chiave partiva solo con lo SKU, e una variante senza codice nasceva non tracciata | ✅ gate del 03/09 (`shopify-catalogo.contract-spec`, 349–360): con `tracked: true` la variante rilegge `tracked = true`; prova unitaria sul payload senza SKU (rossa prima della correzione) |
+
+⭐ **Differenza trovata e corretta lo stesso giorno**: una variante **senza SKU**
+(`ProductVariant.sku` è nullo per gli importati) nasceva tracciata da `productSet` e non
+tracciata dal completamento, mentre il percorso REST precedente la tracciava sempre
+(`inventory_management: 'shopify'` ↔ `inventoryItem.tracked: true`). Ora i due percorsi
+mandano `tracked: true` su ogni variante, con lo SKU solo se c'è (`buildVariantCreateInputs`).
+Resta da verificare sul negozio, col via, che `productSet` accetti `inventoryItem.tracked` e
+la variante rilegga `tracked = true` (non era in G9–G11).
+
+**Residui dichiarati.**
+
+- ✅ **Variante eliminata localmente durante l'invio — CORRETTO** (15/09, pomeriggio; era
+  la «MISURA» qui sopra: errore grezzo di Prisma in `shopifyLastError` col percorso del
+  file, poi un push «synced» che ignorava la remota con identità orfana). Ora: l'adozione
+  rilegge **sotto il lock** le varianti locali che esistono adesso, non la fotografia di
+  chi chiama (`adottaIdentitaRecuperata`); una remota con un'identità che non è di nessuna
+  locale è una terza categoria (`remoteConIdentitaSenzaLocale`): **si conserva, la locale
+  NON si ricrea**, e il prodotto lo dichiara con il canale esistente — `out_of_sync` +
+  `shopifyLastError` («Completamento su Shopify incompleto: una variante remota porta
+  l'identità di una variante VestiFlow che non esiste più — gid (SKU …). Conservata sul
+  negozio, non ricreata in VestiFlow: decidere sul negozio.»), esito `parziale`, mai
+  `synced`; per i prodotti con identità la rilettura delle varianti remote avviene a **ogni**
+  push (una lettura in più), così anche il push successivo lo dichiara. I dettagli di
+  persistenza restano nel log: `motivoDiPersistenzaPerLOperatore` traduce gli errori Prisma
+  («Salvataggio locale non riuscito durante la pubblicazione (P2025): i dati locali sono
+  cambiati mentre l'invio era in corso. Ripubblica il prodotto.»), senza chiamata né
+  percorso del file. Prove: integrazione «completamento · la XL viene ELIMINATA localmente…»
+  (esito, motivo per l'operatore, nessuna cancellazione remota, nessuna ricreazione locale,
+  **e il push successivo** identico), unitaria sull'errore di persistenza tradotto;
+  falsificazioni (adozione sulla fotografia; avviso fuori dallo stato) → rosse. ⚠️ Una
+  variante **già pubblicata** con lo storico scritto non si può eliminare fisicamente (la
+  FK di `shopify_variant_identities` la rifiuta, misurato): il caso nasce solo nella
+  finestra fra la `bulkCreate` e l'adozione, prima dello storico. Trovato di passaggio:
+  il doppio Prisma delle unitarie del push non aveva `$queryRaw` — l'adozione cadeva dopo
+  l'invio del prezzo e due prove restavano verdi su un push fallito; ora asseriscono
+  `pushed`.
+- **Remota senza identità sulla combinazione di una locale** (fatta a mano): il
+  completamento si ferma sul conflitto, per regola; il prodotto resta `out_of_sync` finché
+  una persona non decide sul negozio. Nessuna rimozione automatica in nessun percorso. La
+  finestra della prima creazione è chiusa (§7.2-ter.3); resta **non provato il limite di
+  scala** di `productSet`.
+- **Il completamento non ha un claim proprio**: due processi che completano insieme sono
+  protetti dall'unicità dell'identità di variante (G4) e da `pushInFlight` per processo,
+  non da un claim persistito; misurato verde, dichiarato.
+- **Prodotto `syncing` per la durata della lease** (5 min) se il processo muore con il claim
+  aperto: il push successivo, a lease scaduta, rilegge e adotta. Nessuno scheduler.
+- **Claim residuo dopo adozione dal webhook di un tentativo morto**: le colonne restano
+  valorizzate su un prodotto ormai collegato; inerti (`rivendicaCreazione` guarda solo i
+  prodotti senza `shopifyProductId`), non ripulite.
+- **Testo del rifiuto di unicità** non catturato dal negozio: il simulatore usa un
+  segnaposto dichiarato; il servizio non lo interpreta (qualunque non-successo → rilettura).
+- **Una `productCreate` in volo di un proprietario superato** arriva al negozio: la respinge
+  l'unicità (G3); per `bulkCreate` in volo, l'unicità delle identità di variante (G4).
+- `buildVariantsPayload` (REST) resta nell'util con la sua prova: non più usata dal push.
+- La CI non è stata eseguita (nessun commit/push in questo mandato); in locale: unitarie
+  API, integrazione completa, `tsc` build/spec, lint API e guardie dell'API verdi (vedi §9).
+
 ### 7.3 Ripresa dei prodotti bloccati in `syncing` senza interrompere lavorazioni (#6) — ⛔ NON approvata nella forma proposta (15/09)
 
 ⛔ Il proprietario: la sola scadenza temporale non basta a dichiarare morta una
@@ -447,6 +1060,37 @@ reset di massa all'avvio. **Si riusa**: `pushInFlight` per l'istanza corrente.
 **Prove**: C1 · `syncing` scaduto + webhook → elaborato; C2 · `syncing` fresco + webhook →
 scartato (come oggi); C3 · push in corso nella stessa istanza + webhook → scartato, e a push
 finito il prodotto non resta `syncing`.
+
+#### 7.3.1 Riprodotto il 15/09 (notte): che cosa succede oggi, e che cosa si può correggere senza decisioni nuove
+
+`syncing-e-claim-dopo-arresto.integration-spec.ts` (database vero, negozio simulato):
+
+| Prova                                                                                                                                                                                                    | Esito misurato                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S1 · RIPRODUZIONE** — prodotto pubblicato, poi un push avviato da un processo che muore subito dopo `markProductSyncing`: il prodotto resta `syncing`; su Shopify cambia il titolo e arriva il webhook | ⛔ il pull lo **scarta** («sync VestiFlow→Shopify in corso»), la ricevuta della coda esce **`elaborata`** senza effetto, il titolo remoto non arriva mai e **nessuno lo dice**; un secondo webhook ore dopo fa lo stesso. Non c'è un tempo dopo il quale cambi                                                                                                                                                             |
+| **S2 · RIPRODUZIONE** — lo stesso prodotto, un push da un altro processo                                                                                                                                 | ✅ lo lavora e lo chiude: il lucchetto `pushInFlight` è solo in memoria, il claim non c'entra (prodotto già collegato)                                                                                                                                                                                                                                                                                                     |
+| **C1 · CORRETTO** — webhook adotta la creazione mentre il push è fermo, poi il push muore                                                                                                                | ⭐ **il claim non resta più aperto**: l'adozione (`adottaIdentitaRecuperata`, fenced sulla versione) chiude `claim_id/shop_id/claimed_at` da qualunque percorso arrivi — è la conclusione della creazione; la versione resta ed è l'unica cosa che il push vivo ricontrolla, quindi il push che riprende conclude senza doppione. Prima restava «del push», e su un prodotto già collegato nessun percorso lo chiudeva più |
+
+**Decise il 15/09 (notte) e fatte: D8(b), D9(a).** Il webhook di un articolo `syncing`
+non esce più «elaborato senza effetti»: il pull, dal solo percorso webhook, lancia
+`NotificaDaRinviareException` (`shopify-notifica-rinviata.exception.ts`) e la coda la
+tratta come transitoria — stessa ricevuta, attese approvate, poi `fallita` visibile col
+motivo e «Riprova»; al fallimento definitivo l'articolo **non si tocca** (resta `syncing`,
+nessun reset per anzianità: D9(a)) e il motivo dice all'operatore come sbloccarlo — «Sincronizza
+con Shopify» dal dettaglio articolo — **e che quel push scrive sul negozio** i dati locali.
+Prove (`syncing-e-claim-dopo-arresto`): S1 rinviata con motivo e articolo intatto; S1a push
+vivo che termina → applicata dopo, una volta; S1b push morto → fallita dopo sei tentativi,
+nell'elenco, articolo ancora `syncing`, avviso sulla connessione; S1c correlate in ordine di
+arrivo, altre risorse continuano; S1d «Riprova» dopo lo sblocco (un push nuovo) → nessun
+doppione, vale l'ultimo stato pieno. ⚠️ **Lo stato `syncing` bloccato resta un limite
+aperto**: lo sblocca solo un push, che non è un'operazione neutra.
+
+La tabella qui sotto resta come storia della decisione:
+
+| ⏸ Decisione                                                                                                                                           | Le opzioni                                                                                                                                                                                                                                                                                                                                                                                                 | Proposta                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D8 · il webhook di un prodotto `syncing`** — oggi si scarta (era pensato come eco del push; il proprietario ha già detto che un'eco non è scontata) | (a) resta scartato, ma la ricevuta lo dice (`scartata_push_in_corso`, visibile in Problemi, senza «Riprova»); (b) si **differisce**: la ricevuta resta `in_coda` con le attese di D1 e si applica quando il prodotto non è più `syncing`; se dopo i sei tentativi lo è ancora → `fallita`, visibile, con «Riprova». Nessun orologio dichiara morto il push: dice solo che l'evento non si applica _adesso_ | **(b)**: usa il meccanismo già approvato (D1) e trasforma una perdita muta in un'attesa dichiarata. È però una regola funzionale (da «scarta» a «differisci»), e per questo si chiede |
+| **D9 · la ripresa automatica di un prodotto rimasto `syncing`**                                                                                       | (a) nessuna: lo sblocca il prossimo push (manuale o da modifica), che già lo lavora (S2); (b) un claim di push per gli aggiornamenti (lease + versione, come la creazione), così un `syncing` con claim scaduto torna `out_of_sync` al primo push o alla prima scansione — meccanismo nuovo; (c) la sola scadenza temporale — già respinta                                                                 | **(a)** ora, con D8(b) che toglie il danno principale (i webhook non si perdono più); (b) resta la forma corretta se si vorrà una ripresa senza intervento, e va deciso a parte       |
 
 ### 7.4 Lo stato della connessione non guarisce in lettura (#7) — ✅ FATTO sul ramo `fix/shopify-connessione-lettura-senza-scritture` (15/09/2026, da `develop` `01852516`, non committato)
 
@@ -586,21 +1230,21 @@ Tre categorie, come chiesto: **verde** (comportamento giusto, dimostrato), **dif
 riprodotto** (prova `it.fails`: asserisce il comportamento desiderato e oggi fallisce — la
 misura del difetto, che diventa rossa quando la correzione arriva), **non verificato**.
 
-| Caso                                                                    | Esito                                | Prova                                                           | Che cosa dice                                                                                                                                                                                                        |
-| ----------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| REST 429 + `Retry-After`                                                | ✅ verde (nuova)                     | `shopify-admin-http.client.spec.ts`                             | attesa da `Retry-After` (2 s) tramite il limitatore, ritentativo, risposta buona al chiamante; bucket letto a ogni risposta; senza `Retry-After` si ritenta col backoff fino a `apiMaxRetries`, poi 429 al chiamante |
-| REST 5xx transitorio                                                    | ✅ verde (fissa l'attuale)           | idem                                                            | **non** ritentato: errore al primo colpo (#3, da decidere per le letture)                                                                                                                                            |
-| REST timeout di lettura                                                 | ⛔ riprodotto → ✅ corretto (§7-ter) | `shopify-admin-http.client.spec.ts`                             | era appesa dopo 120 s; ora interrotta a 15 s, ritentata 2 volte, poi «timeout»                                                                                                                                       |
-| GraphQL 429                                                             | ✅ verde (esistente)                 | `shopify-graphql.client.spec.ts`                                | attende e riprova; oltre il limite 429                                                                                                                                                                               |
-| GraphQL `200` + `THROTTLED`                                             | ⛔ riprodotto → ✅ corretto (§7-ter) | `shopify-graphql.client.spec.ts`                                | lanciava; ora attende il ripristino dei punti e riprova entro `apiMaxRetries`                                                                                                                                        |
-| Risposta persa dopo una scrittura — quantità                            | ✅ verde (esistente)                 | `protezione-scritture-inventario` P5/P7                         | il ritentativo non riscrive: chiave + tentativo aperto                                                                                                                                                               |
-| Risposta persa dopo una scrittura — creazione prodotto                  | ⛔ riprodotto                        | `riproduzioni-sincronizzazione.integration-spec.ts`, `it.fails` | Shopify crea, la risposta si perde, `shopifyProductId` resta nullo; alla ripubblicazione **secondo prodotto remoto** (2 `createProduct`, 2 prodotti sul negozio simulato) — #5                                       |
-| Webhook duplicati (stesso `X-Shopify-Webhook-Id`)                       | ⛔ riprodotto                        | `shopify-webhooks.controller.spec.ts`, `it.fails`               | due consegne, due elaborazioni: l'intestazione non è letta — #1                                                                                                                                                      |
-| Webhook: risposta prima dell'elaborazione                               | ⛔ riprodotto                        | idem, `it.fails`                                                | con l'elaborazione ferma la risposta non parte (dopo 50 ms «ancora in attesa») — #1                                                                                                                                  |
-| Webhook concorrenti, stesso ordine esistente                            | ✅ verde (esistente)                 | `prima-connessione-percorso` #17, #20                           | eventi ripetuti e concorrenti → un solo effetto, `FOR UPDATE` + orologio                                                                                                                                             |
-| Webhook concorrenti, ordine NUOVO (due `orders/create` insieme)         | ✅ misurato (prova 24)               | `prima-connessione-percorso` #24                                | una riesce, l'altra P2002 (5xx → Shopify ritenta); un ordine, un impegno, un evento; il ritentativo è idempotente (§7-ter.1)                                                                                         |
-| Prodotto con molte varianti (8) su `products/update`                    | ✅ verde (nuova, dopo la correzione) | `costi-varianti-in-aggiornamento.integration-spec.ts`           | vedi sotto                                                                                                                                                                                                           |
-| Prodotto con 8 varianti: tempo di risposta del webhook sul negozio vero | ⚠️ non verificato                    | —                                                               | richiede il negozio (log dei tempi o consegne dell'app partner); resta il limite inferiore aritmetico                                                                                                                |
+| Caso                                                                    | Esito                                  | Prova                                                                                                          | Che cosa dice                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REST 429 + `Retry-After`                                                | ✅ verde (nuova)                       | `shopify-admin-http.client.spec.ts`                                                                            | attesa da `Retry-After` (2 s) tramite il limitatore, ritentativo, risposta buona al chiamante; bucket letto a ogni risposta; senza `Retry-After` si ritenta col backoff fino a `apiMaxRetries`, poi 429 al chiamante |
+| REST 5xx transitorio                                                    | ✅ verde (fissa l'attuale)             | idem                                                                                                           | **non** ritentato: errore al primo colpo (#3, da decidere per le letture)                                                                                                                                            |
+| REST timeout di lettura                                                 | ⛔ riprodotto → ✅ corretto (§7-ter)   | `shopify-admin-http.client.spec.ts`                                                                            | era appesa dopo 120 s; ora interrotta a 15 s, ritentata 2 volte, poi «timeout»                                                                                                                                       |
+| GraphQL 429                                                             | ✅ verde (esistente)                   | `shopify-graphql.client.spec.ts`                                                                               | attende e riprova; oltre il limite 429                                                                                                                                                                               |
+| GraphQL `200` + `THROTTLED`                                             | ⛔ riprodotto → ✅ corretto (§7-ter)   | `shopify-graphql.client.spec.ts`                                                                               | lanciava; ora attende il ripristino dei punti e riprova entro `apiMaxRetries`                                                                                                                                        |
+| Risposta persa dopo una scrittura — quantità                            | ✅ verde (esistente)                   | `protezione-scritture-inventario` P5/P7                                                                        | il ritentativo non riscrive: chiave + tentativo aperto                                                                                                                                                               |
+| Risposta persa dopo una scrittura — creazione prodotto                  | ⛔ riprodotto → ✅ corretto (§7.2-ter) | `creazione-con-identita.integration-spec.ts` (era `it.fails` in `riproduzioni-sincronizzazione`, file rimosso) | Shopify crea, la risposta si perde: il tentativo rilegge per identità e adotta gli id; alla ripubblicazione **un solo** prodotto remoto (1 `productCreate`) — #5                                                     |
+| Webhook duplicati (stesso `X-Shopify-Webhook-Id`)                       | ⛔ riprodotto                          | `shopify-webhooks.controller.spec.ts`, `it.fails`                                                              | due consegne, due elaborazioni: l'intestazione non è letta — #1                                                                                                                                                      |
+| Webhook: risposta prima dell'elaborazione                               | ⛔ riprodotto                          | idem, `it.fails`                                                                                               | con l'elaborazione ferma la risposta non parte (dopo 50 ms «ancora in attesa») — #1                                                                                                                                  |
+| Webhook concorrenti, stesso ordine esistente                            | ✅ verde (esistente)                   | `prima-connessione-percorso` #17, #20                                                                          | eventi ripetuti e concorrenti → un solo effetto, `FOR UPDATE` + orologio                                                                                                                                             |
+| Webhook concorrenti, ordine NUOVO (due `orders/create` insieme)         | ✅ misurato (prova 24)                 | `prima-connessione-percorso` #24                                                                               | una riesce, l'altra P2002 (5xx → Shopify ritenta); un ordine, un impegno, un evento; il ritentativo è idempotente (§7-ter.1)                                                                                         |
+| Prodotto con molte varianti (8) su `products/update`                    | ✅ verde (nuova, dopo la correzione)   | `costi-varianti-in-aggiornamento.integration-spec.ts`                                                          | vedi sotto                                                                                                                                                                                                           |
+| Prodotto con 8 varianti: tempo di risposta del webhook sul negozio vero | ⚠️ non verificato                      | —                                                                                                              | richiede il negozio (log dei tempi o consegne dell'app partner); resta il limite inferiore aritmetico                                                                                                                |
 
 ### 7-bis.1 `fetchVariantCosts` su `products/update` — dimostrato e ristretto (ramo motore)
 
@@ -634,8 +1278,44 @@ logica di motore in quel ramo.
 
 ## 9 · Che cosa NON è stato fatto
 
-Nessuna scrittura sul condiviso o su Shopify; nessun webhook inviato all'API 3000; nessuna
-misura dei tempi di risposta del webhook (richiede il negozio); nessun test nuovo scritto
-(le prove mancanti sono elencate per riga). Le correzioni proposte sono separate dal ramo
-`fix/impostazioni-shopify-caricamento-percorso`, che resta con i soli cinque file
-dell'interfaccia.
+Nessuna scrittura sul condiviso; su Shopify solo le prove di contratto autorizzate
+(§7.2-bis.1 G1–G7 e §7.2-ter.3 G9–G12, prodotti DRAFT archiviati, mai eliminati); nessun
+webhook inviato all'API 3000; nessuna misura dei tempi di risposta del webhook (richiede il
+negozio). I blocchi §7.2-ter (creazione) e §7.1.2 (coda webhook) sono sul ramo unico
+`feat/shopify-affidabilita-creazione` (da `bd22d421`, worktree `C:/vf-motore`) in commit
+**locali**: push, PR e CI attendono il via; le due migration (claim, coda) sono applicate al
+solo database di prova — al condiviso con la procedura e il via del proprietario. Restano
+aperti: le decisioni D8/D9 sui `syncing` dopo un arresto (§7.3.1), il limite di scala di
+`productSet` e `tracked` dentro `productSet` sul negozio (§7.2-ter.3), la deriva della
+tabella degli stati sync (sotto; regole proposte in `DA-FARE` §21-ter, 62 orfani contati sul
+condiviso). Il claim residuo è corretto (§7.3.1 C1). L'elenco in tre categorie — difetti,
+decisioni, miglioramenti — è in `DA-FARE`, sezione «Sincronizzazione Shopify».
+
+**Suite complete sull'albero finale (15/09, sera, dopo la coda webhook)**: `nest build`,
+`tsc` (app e test) e `eslint` puliti; unitarie API 245 file, **2880/2880** (nessun
+expected fail: le due `it.fails` del webhook sono prove ordinarie); integrazione
+**64 file, 1037/1037** (tredicesima esecuzione); frontend: tipi puliti, lint del
+dominio Shopify e del pannello puliti, 20 file / 185 prove verdi.
+
+⚠️ **Il sintomo del ripristino ha una causa MISURATA, e non è ambientale.** Nelle esecuzioni 8
+e 10 le sei prove di export→ripristino di `invariante-disponibile` cadevano con «Riferimento
+assente o di un altro negozio: shopifyInventorySyncStates.variantId». Con una diagnosi
+temporanea (file poi ripristinato, `git diff` vuoto) la riga rifiutata è stata catturata: uno
+stato sync del tenant A creato **6 secondi prima** dell'inizio del file, dalla forma esatta di
+`collegamento-escluso` (sezione delle quantità), la cui variante non esiste più. Sopravvive
+perché `shopify_inventory_sync_states` **non ha chiavi esterne nel database** (`pg_constraint`:
+solo la primaria; la migration `20260713140000` non le scrive mentre lo schema ne dichiara
+tre) e il `TRUNCATE … tenants CASCADE` della fixture non la raggiunge — deriva già registrata
+in `docs/DA-FARE` §21-ter il 09/09, qui rimisurata. `collegamento-escluso` la ripulisce solo
+nel `beforeEach` della sezione, non nell'`afterAll`: l'ultima riga esce dal file, e cade chi
+lo segue nell'ordine della cache di vitest se esporta il tenant A senza prima ripulire. Le
+due ipotesi della mattina (ritentativi pendenti, isolamento dell'export) sono **ritirate**.
+⭐ **Contenimento fatto (15/09, sera, commit separato)**: l'`afterAll` di
+`collegamento-escluso` cancella gli stati sync **dei soli tenant della fixture** prima dello
+`svuota`, come negli altri sette file, e la pulizia non ingoia i propri errori. Sequenza
+verificata a comando: prima della correzione il file da solo lasciava 1 riga e
+`invariante-disponibile` subito dopo cadeva su 6 ripristini; dopo, 0 righe e 19/19; suite
+completa 63 file, 1018/1018 (12ª corsa). ⛔ Le tre FK restano la correzione vera, **non
+introdotte**: migration a parte, con scelta esplicita delle regole di cancellazione e conteggio
+degli orfani sul condiviso (`DA-FARE` §21-ter). Dettaglio in
+`docs/30-allegato-corsa-ripristino-2026-09-15.md`.

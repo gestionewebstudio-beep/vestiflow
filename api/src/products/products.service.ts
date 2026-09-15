@@ -141,6 +141,12 @@ const PRODUCT_LIST_SELECT = {
   shopifySyncStatus: true,
   shopifyLastSyncAt: true,
   shopifyLastError: true,
+  // Il claim della creazione su Shopify (docs/30 §7.2-bis): la lista deve restare
+  // sovrapponibile a `ProductWithVariants`, quindi le colonne nuove entrano qui.
+  shopifyCreateClaimId: true,
+  shopifyCreateClaimVersion: true,
+  shopifyCreateClaimShopId: true,
+  shopifyCreateClaimedAt: true,
   tiktokCategoryId: true,
   tiktokProductId: true,
   tiktokSyncStatus: true,
@@ -158,6 +164,34 @@ const PRODUCT_LIST_SELECT = {
 
 type ProductListRow = Prisma.ProductGetPayload<{ select: typeof PRODUCT_LIST_SELECT }>;
 
+/**
+ * I quattro campi tecnici del CLAIM di creazione su Shopify (docs/30 §7.2-bis): servono al
+ * motore di sincronizzazione e al backup, non al client, che non li legge
+ * (`ProductApiRow` nel frontend non li elenca). Si tolgono nel punto condiviso da cui
+ * escono tutte le risposte prodotto — elenco, dettaglio, e creazione/modifica/copia che
+ * rileggono il dettaglio. ⛔ Solo questi quattro: nessuna revisione generale dei campi
+ * esposti, e il backup (che legge il modello, non le risposte) non cambia.
+ */
+const CAMPI_DEL_CLAIM = [
+  'shopifyCreateClaimId',
+  'shopifyCreateClaimVersion',
+  'shopifyCreateClaimShopId',
+  'shopifyCreateClaimedAt',
+] as const;
+type CampoDelClaim = (typeof CAMPI_DEL_CLAIM)[number];
+/** Il prodotto come esce dall'API: tutto il modello, tranne il claim. */
+export type ProdottoInRisposta = Omit<ProductWithVariants, CampoDelClaim>;
+
+function senzaCampiDelClaim<T extends Partial<Record<CampoDelClaim, unknown>>>(
+  product: T,
+): Omit<T, CampoDelClaim> {
+  const copia: Record<string, unknown> = { ...product };
+  for (const campo of CAMPI_DEL_CLAIM) {
+    delete copia[campo];
+  }
+  return copia as Omit<T, CampoDelClaim>;
+}
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
@@ -174,7 +208,7 @@ export class ProductsService {
     tenantId: string,
     query: ListProductsQueryDto,
     user?: UserProfileDto,
-  ): Promise<Paginated<ProductWithVariants>> {
+  ): Promise<Paginated<ProdottoInRisposta>> {
     const showPurchaseCosts = canViewPurchaseCosts(user);
     // Il Cestino è una vista AMMINISTRATIVA (docs/24 §6): lo stesso permesso
     // che governa l'eliminazione, verificato qui e non solo nella rotta del
@@ -237,7 +271,7 @@ export class ProductsService {
         );
         // Costo d'acquisto (dato sensibile §permessi): stessa regola dei
         // riepiloghi varianti — senza permesso il campo non entra in risposta.
-        return showPurchaseCosts ? mapped : this.stripPurchaseCosts(mapped);
+        return senzaCampiDelClaim(showPurchaseCosts ? mapped : this.stripPurchaseCosts(mapped));
       }),
       total,
       page: query.page,
@@ -530,12 +564,14 @@ export class ProductsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(tenantId: string, id: string, user?: UserProfileDto): Promise<ProductWithVariants> {
+  async getById(tenantId: string, id: string, user?: UserProfileDto): Promise<ProdottoInRisposta> {
     const normalized = await this.loadProductOrThrow(tenantId, id);
     // Costo d'acquisto (dato sensibile §permessi): mascherato come nella lista.
     // Si può fare senza perdere dati perché il salvataggio ignora i costi di
     // chi non li vede (vedi `canWriteCosts` in create/update).
-    return canViewPurchaseCosts(user) ? normalized : this.stripPurchaseCosts(normalized);
+    return senzaCampiDelClaim(
+      canViewPurchaseCosts(user) ? normalized : this.stripPurchaseCosts(normalized),
+    );
   }
 
   /** Prodotto completo SENZA mascheramento: uso interno (confronti, mutazioni). */
@@ -560,7 +596,7 @@ export class ProductsService {
     tenantId: string,
     dto: CreateProductDto,
     user?: UserProfileDto,
-  ): Promise<ProductWithVariants> {
+  ): Promise<ProdottoInRisposta> {
     // Costo d'acquisto: chi non lo vede non lo scrive. Senza questo, il form
     // di chi ha il costo mascherato rimanderebbe indietro un valore assente e
     // azzererebbe il costo salvando l'articolo.
@@ -665,7 +701,7 @@ export class ProductsService {
     tenantId: string,
     id: string,
     user?: UserProfileDto,
-  ): Promise<ProductWithVariants> {
+  ): Promise<ProdottoInRisposta> {
     const original = await this.prisma.product.findFirst({
       where: { id, tenantId },
       include: PRODUCT_INCLUDE,
@@ -803,7 +839,7 @@ export class ProductsService {
     id: string,
     dto: UpdateProductDto,
     user?: UserProfileDto,
-  ): Promise<ProductWithVariants> {
+  ): Promise<ProdottoInRisposta> {
     // Vedi create(): senza permesso il costo non si scrive e quello a
     // database resta quello che è.
     const canWriteCosts = canViewPurchaseCosts(user);
@@ -1096,7 +1132,11 @@ export class ProductsService {
         //    la modifica NON e' di chi sta scrivendo adesso.
         const { count } = await tx.product.updateMany({
           where: { id, tenantId, deletedAt: null },
-          data: { deletedAt: new Date(), deletedById: attoreUserId(attore), deletionReason: reason ?? null },
+          data: {
+            deletedAt: new Date(),
+            deletedById: attoreUserId(attore),
+            deletionReason: reason ?? null,
+          },
         });
         return count > 0 ? 'applicata' : 'ininfluente';
       },
@@ -1204,7 +1244,11 @@ export class ProductsService {
         assertLocalOnlyTrash([dentro.shopifyVariantId, dentro.product.shopifyProductId]);
         const { count } = await tx.productVariant.updateMany({
           where: { id: variantId, productId, tenantId, deletedAt: null },
-          data: { deletedAt: new Date(), deletedById: attoreUserId(attore), deletionReason: reason ?? null },
+          data: {
+            deletedAt: new Date(),
+            deletedById: attoreUserId(attore),
+            deletionReason: reason ?? null,
+          },
         });
         return count > 0 ? 'applicata' : 'ininfluente';
       },

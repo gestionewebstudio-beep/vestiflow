@@ -51,6 +51,8 @@ function creaService(existing: Record<string, unknown> | null) {
     product: {
       findFirst,
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      // Nessun prodotto con un tentativo di creazione alle spalle: nessuna rilettura di identità.
+      count: vi.fn().mockResolvedValue(0),
     },
     // Le varianti locali si leggono PRIMA dell'arricchimento (fuori dal lock) per
     // decidere di quali varianti chiedere il costo: qui nessuna → tutte nuove.
@@ -84,7 +86,12 @@ function creaService(existing: Record<string, unknown> | null) {
       touchSync: vi.fn(),
       recordApiFailure: vi.fn(),
     } as unknown as ShopifyConnectionService,
-    { enrichProduct } as unknown as ShopifyProductEnrichmentService,
+    {
+      enrichProduct,
+      // Un remoto NON ancora collegato viene riconosciuto per identità PRIMA di
+      // importarlo come nuovo: qui non porta la nostra, quindi è un import normale.
+      identitaVestiflowDelProdotto: vi.fn().mockResolvedValue(null),
+    } as unknown as ShopifyProductEnrichmentService,
     // ⭐ B2 · lo storico dei collegamenti. Qui il tenant NON ha un negozio
     //    identificato — è la connessione preesistente non ancora migrata — e
     //    l'import deve comportarsi esattamente come prima: nessuna scrittura.

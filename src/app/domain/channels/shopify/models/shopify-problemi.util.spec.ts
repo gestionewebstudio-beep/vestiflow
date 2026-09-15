@@ -6,6 +6,7 @@ import {
   formaAzione,
   tonoProblema,
   etichettaCausaProblema,
+  etichettaTipoProblema,
   gruppiPerCausa,
   percorsoProblema,
   problemiCsv,
@@ -106,6 +107,20 @@ describe('shopify-problemi.util', () => {
     expect(azioneEseguibile({ tipo: 'shopify', etichetta: 'x', riferimento: null })).toBe(false);
     expect(etichettaDove('shopify')).toBe('Su Shopify');
     expect(etichettaDove('pagina')).toBe('In questa pagina');
+  });
+
+  it('gli EVENTI webhook (docs/30 §7.1.2): tipo «Notifica», cause leggibili, «Riprova» è un azione di questa pagina', () => {
+    expect(etichettaTipoProblema('evento')).toBe('Notifica');
+    expect(etichettaCausaProblema('evento_fallito')).toBe('Notifica di Shopify non applicata');
+    expect(etichettaCausaProblema('evento_sospeso_dopo_ripristino')).toBe(
+      'Notifica sospesa dopo il ripristino',
+    );
+    expect(etichettaCausaProblema('evento_scartato_sync_spenta')).toMatch(/disattivati/);
+    expect(etichettaCausaProblema('evento_scartato_associazione_cambiata')).toMatch(/collegato/);
+    const riprova = { tipo: 'riprova_evento' as const, etichetta: 'Riprova', riferimento: 'r-1' };
+    expect(formaAzione(riprova)).toEqual({ dove: 'pagina', breve: 'Riprova' });
+    expect(azioneEseguibile(riprova)).toBe(true);
+    expect(tonoProblema(riprova)).toBe('attenzione');
   });
 
   it('il CSV: intestazione, BOM, separatore «;», virgolette dove serve, data leggibile', () => {

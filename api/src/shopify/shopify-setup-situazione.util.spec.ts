@@ -264,4 +264,37 @@ describe('situazioneAttuale', () => {
 
     expect(situazioneAttuale({ ...vuota, topicMancanti: null })).toEqual([]);
   });
+
+  it('eventi webhook non applicati (docs/30 §7.1.2): «Riprova» solo per fallita e sospesa; la scartata per sync spenta manda a Importa; l’associazione cambiata resta documentata', () => {
+    const ricevuta = (esito: 'fallita' | 'sospesa_dopo_ripristino' | 'scartata_sync_spenta' | 'scartata_associazione_cambiata', id: string) => ({
+      ricevutaId: id,
+      topic: 'orders/updated',
+      risorsa: 'ordine:5001',
+      esito,
+      tentativi: 6,
+      motivo: 'Shopify non è raggiungibile',
+      receivedAt: new Date('2026-09-15T18:00:00.000Z'),
+    });
+    const problemi = situazioneAttuale({
+      ...vuota,
+      eventiNonApplicati: [
+        ricevuta('fallita', 'r-1'),
+        ricevuta('sospesa_dopo_ripristino', 'r-2'),
+        ricevuta('scartata_sync_spenta', 'r-3'),
+        ricevuta('scartata_associazione_cambiata', 'r-4'),
+      ],
+    });
+
+    expect(problemi.map((p) => [p.tipo, p.causa, p.azione.tipo, p.azione.riferimento])).toEqual([
+      ['evento', 'evento_fallito', 'riprova_evento', 'r-1'],
+      ['evento', 'evento_sospeso_dopo_ripristino', 'riprova_evento', 'r-2'],
+      ['evento', 'evento_scartato_sync_spenta', 'importa_ordini', null],
+      ['evento', 'evento_scartato_associazione_cambiata', 'nessuna', null],
+    ]);
+    expect(problemi[0]!.nome).toBe('orders/updated · ordine:5001');
+    expect(problemi[0]!.dettaglio).toBe('Shopify non è raggiungibile');
+    expect(problemi[0]!.conseguenza).toContain('6 tentativi');
+    expect(problemi[0]!.rilevatoAt).toBe('2026-09-15T18:00:00.000Z');
+    expect(problemi[0]!.riferimento).toBe('r-1');
+  });
 });

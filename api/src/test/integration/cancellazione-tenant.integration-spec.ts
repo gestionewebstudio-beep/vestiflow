@@ -194,7 +194,24 @@ describe('Cancellazione amministrativa del tenant', () => {
   // ── 1 · La sequenza, e la traccia che sopravvive ─────────────────────────
 
   it('1a · il tenant sparisce, e la sua traccia RESTA', async () => {
+    // Le ricevute webhook (RESTRICT dal tenant, nel backup: passano dalla purga) e la corsia
+    // (una rivendicazione di processo, in cascata) non fermano la cancellazione.
+    await prisma.shopifyWebhookReceipt.create({
+      data: {
+        tenantId: IDS.tenantA,
+        shopDomain: 'cancellato.myshopify.com',
+        webhookId: 'canc-1',
+        topic: 'orders/create',
+        risorsa: 'ordine:1',
+        payload: { id: 1 },
+      },
+    });
+    await prisma.shopifyWebhookLane.create({ data: { tenantId: IDS.tenantA, claimVersion: 3 } });
+
     await admin.deleteTenant(IDS.tenantA, operatore);
+
+    expect(await prisma.shopifyWebhookReceipt.count({ where: { tenantId: IDS.tenantA } })).toBe(0);
+    expect(await prisma.shopifyWebhookLane.count({ where: { tenantId: IDS.tenantA } })).toBe(0);
 
     expect(await prisma.tenant.count({ where: { id: IDS.tenantA } })).toBe(0);
     expect(await prisma.shopifyProductIdentity.count({ where: { tenantId: IDS.tenantA } })).toBe(0);

@@ -32,6 +32,10 @@ const ETICHETTA_CAUSA: Record<ShopifySetupProblemaCausa, string> = {
   articolo_pubblicazione_fallita: 'Articolo escluso: pubblicazione fallita',
   connessione_ambiti_mancanti: 'Permessi Shopify mancanti',
   connessione_webhook_mancanti: 'Notifiche Shopify non registrate',
+  evento_fallito: 'Notifica di Shopify non applicata',
+  evento_sospeso_dopo_ripristino: 'Notifica sospesa dopo il ripristino',
+  evento_scartato_sync_spenta: 'Notifica scartata: aggiornamenti automatici disattivati',
+  evento_scartato_associazione_cambiata: 'Notifica scartata: negozio non più collegato così',
 };
 
 const ETICHETTA_TIPO: Record<ShopifySetupProblemaTipo, string> = {
@@ -39,6 +43,7 @@ const ETICHETTA_TIPO: Record<ShopifySetupProblemaTipo, string> = {
   coppia: 'Articolo × sede',
   articolo: 'Articolo',
   connessione: 'Connessione',
+  evento: 'Notifica',
 };
 
 export function etichettaCausaProblema(causa: ShopifySetupProblemaCausa): string {
@@ -183,6 +188,8 @@ export function formaAzione(azione: ShopifySetupProblemaAzione): FormaAzione {
       return { dove: 'vestiflow', breve: 'Apri l’ordine' };
     case 'apri_articolo':
       return { dove: 'vestiflow', breve: 'Apri l’articolo' };
+    case 'riprova_evento':
+      return { dove: 'pagina', breve: 'Riprova' };
     case 'shopify':
       return { dove: 'shopify', breve: azione.etichetta };
     case 'nessuna':

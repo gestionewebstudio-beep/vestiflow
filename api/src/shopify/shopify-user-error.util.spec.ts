@@ -39,6 +39,22 @@ describe('toShopifyUserMessage', () => {
     expect(toShopifyUserMessage(undefined, 'unique constraint failed on sku')).toContain('SKU');
   });
 
+  it('⭐ un CONFLITTO di completamento arriva intatto, con variante e combinazione — anche se nomina uno SKU', () => {
+    const conflitto =
+      'Completamento su Shopify fermato: la combinazione di una variante locale è già occupata sul negozio da una variante senza identità VestiFlow — IDN-1-L («L», occupata da gid://shopify/ProductVariant/995010, SKU IDN-1-L). Nessun collegamento automatico, nessuna cancellazione né sovrascrittura: decidere sul negozio.';
+    // ⛔ Senza il ramo dedicato finiva in «Conflitto su SKU o codici prodotto…».
+    expect(toShopifyUserMessage(undefined, conflitto)).toBe(conflitto);
+    expect(
+      toShopifyUserMessage(
+        undefined,
+        'Identità Shopify recuperata (prodotto 995002): nessun dato inviato in questo giro. 2 varianti locali non sono ancora sul negozio: completamento in sospeso.',
+      ),
+    ).toContain('completamento in sospeso');
+    expect(toShopifyUserMessage(undefined, 'Creazione su Shopify non riuscita: timeout')).toBe(
+      'Creazione su Shopify non riuscita: timeout',
+    );
+  });
+
   it('fallback generico per messaggio vuoto o troppo lungo', () => {
     expect(toShopifyUserMessage(undefined, '')).toContain('problema con Shopify');
     expect(toShopifyUserMessage(undefined, 'x'.repeat(600))).toContain('problema con Shopify');

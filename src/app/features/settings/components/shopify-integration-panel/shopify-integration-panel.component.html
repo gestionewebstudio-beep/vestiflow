@@ -401,6 +401,17 @@
               >
                 Verifica ora
               </app-button>
+              <!-- La pulizia delle notifiche concluse (docs/30 §7.1.2 D7): esplicita, del titolare. -->
+              <app-button
+                variant="ghost"
+                [loading]="puliziaNotificheLoading()"
+                [disabled]="
+                  puliziaNotificheLoading() || checkWebhooksLoading() || disconnectLoading()
+                "
+                (click)="chiediPuliziaNotifiche()"
+              >
+                Togli le notifiche concluse da oltre 30 giorni
+              </app-button>
             </span>
           </h3>
           <app-detail-facts [facts]="fattiNotifiche()" />
@@ -1327,5 +1338,16 @@
     [(open)]="shopWizardOpen"
     [mode]="shopWizardMode()"
     (completed)="onShopWizardCompleted()"
+  />
+  <!-- La pulizia delle notifiche concluse cancella righe: prima le conseguenze, poi il comando. -->
+  <app-confirm-dialog
+    [open]="puliziaNotificheConferma()"
+    title="Togliere le notifiche concluse da oltre 30 giorni?"
+    message="Si tolgono solo le notifiche già applicate o scartate, chiuse da più di 30 giorni. Quelle in attesa, fallite o sospese restano e si possono ancora riprovare. Le notifiche tolte non si recuperano."
+    confirmLabel="Sì, togli le concluse"
+    cancelLabel="Annulla"
+    [busy]="puliziaNotificheLoading()"
+    (confirmed)="puliziaNotifiche()"
+    (dismissed)="puliziaNotificheConferma.set(false)"
   />
 </div>

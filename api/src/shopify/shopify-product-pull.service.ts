@@ -33,6 +33,11 @@ import {
   type VerdettoCreazione,
 } from './shopify-link-history.service';
 import { ShopifyProductEnrichmentService } from './shopify-product-enrichment.service';
+import {
+  adottaIdentitaRecuperata,
+  serializzaPerProdottoRemoto,
+} from './shopify-identita-adozione.util';
+import { ShopifyClaimSuperatoException } from './shopify-identita-catalogo.util';
 import type { ProductShopifyEnrichment } from './shopify-product-metadata.types';
 import { PRODUCT_IMPORT_TX } from './shopify-product-metadata.types';
 import {
@@ -49,6 +54,11 @@ import { shopifyBodyHtmlToPlainText } from './shopify-html.util';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { toShopifyUserMessage } from './shopify-user-error.util';
+import type { GuardiaCorsia } from './shopify-webhook-corsia.util';
+import {
+  motivoArticoloInSincronizzazione,
+  NotificaDaRinviareException,
+} from './shopify-notifica-rinviata.exception';
 import {
   mergeShopifyScopes,
   buildShopifyScopeDiagnostics,
@@ -92,6 +102,8 @@ type AttoreImport = typeof PlatformAuditActor.pull | typeof PlatformAuditActor.w
 interface Ingresso {
   readonly attore: AttoreImport;
   readonly correlationId: string;
+  /** La guardia di proprietà del lavoratore della coda webhook (docs/30 §7.1.2); assente negli import. */
+  readonly guardia?: GuardiaCorsia;
 }
 
 /** Un verdetto dello storico che NON è «si crea»: porta il motivo, per nome. */
@@ -362,6 +374,7 @@ export class ShopifyProductPullService {
   async importProductFromWebhook(
     tenantId: string,
     payload: Record<string, unknown>,
+    guardia?: GuardiaCorsia,
   ): Promise<'imported' | 'updated' | 'skipped'> {
     const remote = this.normalizeWebhookProduct(payload);
     if (!remote) {
@@ -385,6 +398,9 @@ export class ShopifyProductPullService {
     //    riconoscimento è lo stesso dell'aggiornamento: `shopifyVariantId` sulle
     //    varianti locali del prodotto. Prodotto sconosciuto = prima importazione = tutte.
     const variantiNuove = await this.variantiRemoteNonAncoraLocali(tenantId, remote);
+    // ⛔ Un lavoratore della coda già superato non chiama Shopify nemmeno in lettura:
+    //    la lettura non è un effetto, ma è evitabile col controllo che esiste già.
+    await guardia?.assicura(this.prisma);
     let enrichment: ProductShopifyEnrichment | undefined;
     try {
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
@@ -398,12 +414,21 @@ export class ShopifyProductPullService {
     }
 
     // ⭐ UNA correlazione per la CONSEGNA: nasce qui, all'ingresso, e scende
-    //    fino alle righe di registro. ⛔ Non è l'id di consegna di Shopify — il
-    //    controller non legge `X-Shopify-Webhook-Id` — e non lo si inventa.
-    const ingresso: Ingresso = { attore: PlatformAuditActor.webhook, correlationId: randomUUID() };
+    //    fino alle righe di registro. ⛔ Non è l'id di consegna di Shopify (la
+    //    ricevuta della coda lo conserva a parte) e non lo si inventa.
+    const ingresso: Ingresso = {
+      attore: PlatformAuditActor.webhook,
+      correlationId: randomUUID(),
+      ...(guardia ? { guardia } : {}),
+    };
     try {
       return await this.importProduct(tenantId, remote, enrichment, ingresso);
     } catch (error: unknown) {
+      if (error instanceof NotificaDaRinviareException) {
+        // Non è un errore dell'articolo: lo stato resta quello che è (`syncing`), e il
+        // motivo lo porta la ricevuta.
+        throw error;
+      }
       const message = error instanceof Error ? error.message : 'Import webhook fallito';
       await this.recordProductImportError(tenantId, String(remote.id), message);
       throw error;
@@ -444,6 +469,139 @@ export class ShopifyProductPullService {
    * ⚠️ Nessuna chiamata di rete qui dentro: `enrichProduct` è già stato fatto
    *    dal chiamante, e `syncProductImagesFromShopify` non ne fa.
    */
+  /**
+   * RICONOSCE un remoto non ancora collegato che porti l'identità VestiFlow
+   * (`vestiflow.product_id`), prima di importarlo come nuovo (docs/30 §7.2-bis).
+   *
+   * ⛔ Senza questo passo un webhook anticipato — o un pull del catalogo dopo un tentativo
+   *    morto — troverebbe `existing` nullo e creerebbe un DOPPIONE locale del prodotto
+   *    che VestiFlow stesso ha appena creato. L'identità si RILEGGE da Shopify per gid
+   *    (il payload non la porta): una lettura fallita fa fallire l'import, non vale
+   *    «assente».
+   *
+   *   - nessun prodotto del tenant non collegato con un tentativo di creazione alle spalle
+   *     (`claim_version > 0`), oppure identità assente o di nessun prodotto del tenant →
+   *     `estraneo`: import normale, e nel primo caso senza nemmeno la rilettura;
+   *   - prodotto del tenant senza `shopifyProductId` e claim APERTO verso il negozio della
+   *     connessione → `adottato`: gli id si scrivono sotto il lock con la `claim_version`
+   *     (lo stesso codice del recupero nel push), e l'import prosegue come per un prodotto
+   *     collegato — il push in corso lo trova `syncing` e lo salta;
+   *   - prodotto del tenant SENZA claim aperto, verso un altro negozio, o già collegato a
+   *     un altro remoto → `rifiutato`: nessun import, una riga nel registro; sarà il push
+   *     successivo, che rilegge l'identità, ad adottarlo.
+   */
+  private async riconosciCreazioneVestiflow(
+    tenantId: string,
+    remote: ShopifyAdminProduct,
+    ingresso: Ingresso,
+  ): Promise<'estraneo' | 'adottato' | 'rifiutato'> {
+    const legacyId = String(remote.id);
+    const collegato = await this.prisma.product.findFirst({
+      where: { tenantId, shopifyProductId: legacyId },
+      select: { id: true },
+    });
+    if (collegato) {
+      return 'estraneo';
+    }
+    // ⭐ La rilettura costa una chiamata: si fa solo se nel tenant esiste un prodotto NON
+    //    collegato che abbia mai tentato una creazione (`claim_version > 0`: claim aperto
+    //    di un tentativo vivo o morto, oppure chiuso da un tentativo finito male). Senza,
+    //    nessun remoto può portare un'identità di questo tenant che non sia già collegata.
+    const candidatiPossibili = await this.prisma.product.count({
+      where: { tenantId, shopifyProductId: null, shopifyCreateClaimVersion: { gt: 0 } },
+    });
+    if (candidatiPossibili === 0) {
+      return 'estraneo';
+    }
+    const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
+    const productGid = `gid://shopify/Product/${legacyId}`;
+    const identita = await this.shopifyEnrichment.identitaVestiflowDelProdotto(
+      shopDomain,
+      accessToken,
+      productGid,
+    );
+    if (!identita) {
+      return 'estraneo';
+    }
+    const candidato = await this.prisma.product.findFirst({
+      where: { id: identita, tenantId },
+      select: {
+        id: true,
+        name: true,
+        shopifyProductId: true,
+        shopifyCreateClaimId: true,
+        shopifyCreateClaimShopId: true,
+        shopifyCreateClaimVersion: true,
+      },
+    });
+    if (!candidato) {
+      // Un'identità che non è di questo tenant: non nostra, si importa come sempre.
+      return 'estraneo';
+    }
+    const shopId = await this.storico.negozioDelTenant(this.prisma, tenantId);
+    const claimAperto =
+      candidato.shopifyProductId === null &&
+      candidato.shopifyCreateClaimId !== null &&
+      shopId !== null &&
+      candidato.shopifyCreateClaimShopId === shopId;
+    if (!claimAperto) {
+      const motivo =
+        candidato.shopifyProductId !== null
+          ? `porta l'identità di «${candidato.name}», già collegato al prodotto Shopify ${candidato.shopifyProductId}`
+          : `porta l'identità di «${candidato.name}» ma nessuna creazione è in corso verso questo negozio`;
+      this.logger.warn(
+        `Import Shopify rifiutato: il prodotto remoto ${legacyId} ${motivo}. Nessun doppione locale; sarà la pubblicazione a rileggerlo.`,
+      );
+      if (shopId) {
+        await this.registraRifiuto(this.prisma, tenantId, ingresso, shopId, {
+          operation: PlatformAuditOperation.import_prodotto_rifiutato,
+          entityId: candidato.id,
+          entityLabel: candidato.name,
+          remoteGid: productGid,
+          detail: `identita_vestiflow_senza_claim: ${motivo}`,
+        });
+      }
+      return 'rifiutato';
+    }
+    // Le varianti remote, fuori dalla transazione: nessuna rete sotto il lock.
+    const varianti = await this.shopifyEnrichment.variantiConIdentita(
+      shopDomain,
+      accessToken,
+      productGid,
+    );
+    try {
+      const esito = await this.prisma.$transaction(async (tx) => {
+        await ingresso.guardia?.assicura(tx);
+        const product = await tx.product.findFirst({
+          where: { id: candidato.id, tenantId },
+          select: { id: true, tenantId: true, variants: { select: { id: true } } },
+        });
+        if (!product) {
+          return null;
+        }
+        return adottaIdentitaRecuperata(tx, this.storico, this.logger, {
+          product,
+          versione: candidato.shopifyCreateClaimVersion,
+          legacyId,
+          remote: varianti,
+        });
+      }, PRODUCT_IMPORT_TX);
+      if (!esito) {
+        return 'rifiutato';
+      }
+      this.logger.log(
+        `Webhook Shopify anticipato: prodotto ${legacyId} adottato come ${candidato.id} (${esito.abbinate.length} varianti per identità, ${esito.localiSenzaRemota.length} ancora da completare).`,
+      );
+      return 'adottato';
+    } catch (error: unknown) {
+      if (error instanceof ShopifyClaimSuperatoException) {
+        // Il push ha salvato (o un tentativo nuovo ha rivendicato) nel frattempo: fa lui.
+        return 'adottato';
+      }
+      throw error;
+    }
+  }
+
   private async importProduct(
     tenantId: string,
     remote: ShopifyAdminProduct,
@@ -451,7 +609,11 @@ export class ShopifyProductPullService {
     ingresso: Ingresso,
   ): Promise<'imported' | 'updated' | 'skipped'> {
     const shopifyProductId = String(remote.id);
+    if ((await this.riconosciCreazioneVestiflow(tenantId, remote, ingresso)) === 'rifiutato') {
+      return 'skipped';
+    }
     const esito = await this.prisma.$transaction(async (tx) => {
+      await ingresso.guardia?.assicura(tx);
       await this.serializzaImport(tx, tenantId, shopifyProductId);
       return this.importProductSerializzato(
         tx,
@@ -464,6 +626,9 @@ export class ShopifyProductPullService {
     }, PRODUCT_IMPORT_TX);
 
     if (esito !== 'skipped') {
+      // L'immagine si scarica DOPO il commit del prodotto: chi è stato superato nel
+      // frattempo non scarica (la guardia c'è solo nel percorso del webhook).
+      await ingresso.guardia?.assicura(this.prisma);
       await this.sincronizzaImmagine(tenantId, shopifyProductId, remote);
     }
     return esito;
@@ -537,10 +702,9 @@ export class ShopifyProductPullService {
     tenantId: string,
     shopifyProductId: string,
   ): Promise<void> {
-    const spazio = `shopify_import:${tenantId}`;
-    // Cast ::text obbligatorio: pg_advisory_xact_lock restituisce `void`, che
-    // Prisma non sa deserializzare (vedi `nextArticleCodeInTx`).
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${spazio}), hashtext(${shopifyProductId}))::text`;
+    // ⭐ Lo STESSO lock dell'adozione degli id dal push (`shopify-identita-adozione.util`):
+    //    import, adozione dal webhook e recupero dal push si serializzano fra loro.
+    await serializzaPerProdottoRemoto(tx, tenantId, shopifyProductId);
   }
 
   /**
@@ -587,8 +751,15 @@ export class ShopifyProductPullService {
     }
 
     if (existing?.shopifySyncStatus === ShopifySyncStatus.syncing) {
+      // ⭐ Dal webhook NON si salta: la notifica si RINVIA (D8(b)). «Elaborata senza
+      //    effetto» era una perdita muta; la coda la ritenta con le attese approvate e,
+      //    esauriti i tentativi, la mostra fallita col motivo. Dall'import massivo resta
+      //    un salto: là il chiamante conta gli esiti e ripasserà.
+      if (ingresso.attore === PlatformAuditActor.webhook) {
+        throw new NotificaDaRinviareException(motivoArticoloInSincronizzazione(existing.name));
+      }
       this.logger.debug(
-        `Import webhook saltato: sync VestiFlow→Shopify in corso (${shopifyProductId})`,
+        `Import saltato: sync VestiFlow→Shopify in corso (${shopifyProductId})`,
       );
       return 'skipped';
     }

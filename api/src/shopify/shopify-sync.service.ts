@@ -45,6 +45,7 @@ import {
   type SedeRigaRisolta,
 } from './shopify-fulfillment-orders.service';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
+import type { GuardiaCorsia } from './shopify-webhook-corsia.util';
 
 @Injectable()
 export class ShopifySyncService {
@@ -61,18 +62,30 @@ export class ShopifySyncService {
     private readonly fulfillmentOrders: ShopifyFulfillmentOrdersService,
   ) {}
 
-  async handleWebhook(tenantId: string, topic: string, payload: unknown): Promise<void> {
+  /**
+   * ⭐ `guardia` (docs/30 §7.1.2): la guardia di proprietà del lavoratore della coda
+   *    webhook. Quando c'è, ogni transazione di effetto la rilegge `FOR UPDATE` e
+   *    abortisce se la corsia è passata a un altro lavoratore; prima della sola
+   *    scrittura remota di questo percorso (la ripubblicazione di una quantità) si
+   *    ricontrolla. Senza guardia (import massivi, chiamate dirette) niente cambia.
+   */
+  async handleWebhook(
+    tenantId: string,
+    topic: string,
+    payload: unknown,
+    guardia?: GuardiaCorsia,
+  ): Promise<void> {
     const data = payload as Record<string, unknown>;
 
     switch (topic) {
       case 'customers/create':
       case 'customers/update':
-        await this.applyCustomerFromShopify(tenantId, data);
+        await this.applyCustomerFromShopify(tenantId, data, guardia);
         break;
       case 'orders/create':
       case 'orders/updated':
       case 'orders/cancelled':
-        await this.applyOrderFromShopify(tenantId, data, 'continua');
+        await this.applyOrderFromShopify(tenantId, data, 'continua', guardia);
         break;
       case 'inventory_levels/update':
         await this.applyInventoryLevelFromShopify(
@@ -81,15 +94,16 @@ export class ShopifySyncService {
           String(data.location_id),
           Number(data.available),
           'Sync inventario Shopify',
+          guardia,
         );
         break;
       case 'products/create':
       case 'products/update':
-        await this.shopifyProductPull.importProductFromWebhook(tenantId, data);
+        await this.shopifyProductPull.importProductFromWebhook(tenantId, data, guardia);
         break;
       case 'fulfillment_orders/order_routing_complete':
       case 'fulfillment_orders/moved':
-        await this.applyFulfillmentOrderWebhook(tenantId, data);
+        await this.applyFulfillmentOrderWebhook(tenantId, data, guardia);
         break;
       default:
         this.logger.debug(`Webhook Shopify ignorato: ${topic}`);
@@ -103,6 +117,7 @@ export class ShopifySyncService {
   async applyCustomerFromShopify(
     tenantId: string,
     customer: Record<string, unknown>,
+    guardia?: GuardiaCorsia,
   ): Promise<'created' | 'updated' | 'skipped'> {
     const shopifyId = this.shopifyCustomerId(customer);
     if (!shopifyId) {
@@ -133,14 +148,18 @@ export class ShopifySyncService {
     };
 
     if (existing) {
-      await this.prisma.party.update({
-        where: { id: existing.partyId },
-        data: partyData,
+      await this.prisma.$transaction(async (tx) => {
+        await guardia?.assicura(tx);
+        await tx.party.update({
+          where: { id: existing.partyId },
+          data: partyData,
+        });
       });
       return 'updated';
     }
 
     await this.prisma.$transaction(async (tx) => {
+      await guardia?.assicura(tx);
       const party = await tx.party.create({
         data: { tenantId, ...partyData },
         select: { id: true },
@@ -162,7 +181,10 @@ export class ShopifySyncService {
   private async applyFulfillmentOrderWebhook(
     tenantId: string,
     payload: Record<string, unknown>,
+    guardia?: GuardiaCorsia,
   ): Promise<void> {
+    // La rilettura dell'ordine è una chiamata a Shopify: un lavoratore superato non la fa.
+    await guardia?.assicura(this.prisma);
     const ordine = await this.fulfillmentOrders.ordineDelWebhook(tenantId, payload);
     if (!ordine) {
       const messaggio =
@@ -175,7 +197,7 @@ export class ShopifySyncService {
       );
       return;
     }
-    await this.applyOrderFromShopify(tenantId, ordine, 'continua');
+    await this.applyOrderFromShopify(tenantId, ordine, 'continua', guardia);
   }
 
   /** Allinea un ordine Shopify in locale (webhook o import bulk). */
@@ -189,6 +211,7 @@ export class ShopifySyncService {
     tenantId: string,
     order: Record<string, unknown>,
     acquisizione: OrigineAcquisizioneOrdine = 'massiva',
+    guardia?: GuardiaCorsia,
   ): Promise<'created' | 'updated' | 'skipped'> {
     const shopifyOrderId = this.shopifyOrderId(order);
     if (!shopifyOrderId) {
@@ -225,7 +248,7 @@ export class ShopifySyncService {
     let customerId: string | null = null;
     const shopifyCustomerId = customer ? this.shopifyCustomerId(customer) : null;
     if (shopifyCustomerId) {
-      await this.applyCustomerFromShopify(tenantId, customer!);
+      await this.applyCustomerFromShopify(tenantId, customer!, guardia);
       const dbCustomer = await this.prisma.customer.findFirst({
         where: { tenantId, shopifyCustomerId },
         select: { id: true },
@@ -292,6 +315,7 @@ export class ShopifySyncService {
 
     let notificaVecchia: { applicato: Date } | null = null;
     await this.prisma.$transaction(async (tx) => {
+      await guardia?.assicura(tx);
       if (existingBefore && payloadUpdatedAt) {
         // La riga si blocca QUI: una notifica più vecchia arrivata insieme a quella
         // nuova aspetta il suo commit e poi si confronta col valore che ha scritto.
@@ -1041,7 +1065,11 @@ export class ShopifySyncService {
     shopifyLocationId: string,
     available: number,
     _reason: string,
+    guardia?: GuardiaCorsia,
   ): Promise<'created' | 'updated' | 'unchanged' | 'skipped'> {
+    // La riconciliazione scrive lo stato sync in un'istruzione sola, senza transazione
+    // propria: la proprietà si verifica prima di entrarci.
+    await guardia?.assicura(this.prisma);
     const outcome = await this.inventoryReconciliation.reconcileFromShopifyWebhook(
       tenantId,
       shopifyInventoryItemId,
@@ -1059,6 +1087,9 @@ export class ShopifySyncService {
         select: { id: true },
       });
       if (variant && location) {
+        // ⛔ L'unica SCRITTURA REMOTA di questo percorso: un lavoratore superato non la
+        //    avvia. (Chiave e stato della quantità restano la protezione della push.)
+        await guardia?.assicura(this.prisma);
         void this.inventoryPush
           .pushLevel(tenantId, variant.id, location.id)
           .catch((error: unknown) => {

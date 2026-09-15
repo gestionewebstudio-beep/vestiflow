@@ -209,7 +209,7 @@ export interface ShopifySetupAllineaDto {
  *    dell'ultimo tentativo (`esito`), che è una fotografia con la sua data.
  *    `docs/27` §4-bis.
  */
-export type ShopifySetupProblemaTipo = 'ordine' | 'coppia' | 'articolo' | 'connessione';
+export type ShopifySetupProblemaTipo = 'ordine' | 'coppia' | 'articolo' | 'connessione' | 'evento';
 
 export type ShopifySetupProblemaCausa =
   | 'ordine_permesso_fulfillment_orders'
@@ -227,7 +227,15 @@ export type ShopifySetupProblemaCausa =
   | 'articolo_import_fallito'
   | 'articolo_pubblicazione_fallita'
   | 'connessione_ambiti_mancanti'
-  | 'connessione_webhook_mancanti';
+  | 'connessione_webhook_mancanti'
+  /**
+   * ⭐ Gli EVENTI webhook accolti e non applicati (docs/30 §7.1.2, D4): la ricevuta è
+   *    durevole, l'effetto no. `riferimento` = l'id della ricevuta.
+   */
+  | 'evento_fallito'
+  | 'evento_sospeso_dopo_ripristino'
+  | 'evento_scartato_sync_spenta'
+  | 'evento_scartato_associazione_cambiata';
 
 /**
  * L'azione che chiude il caso, o `nessuna` con il perché. `riferimento`: l'id
@@ -250,6 +258,8 @@ export interface ShopifySetupProblemaAzione {
      *    legge, non una classificazione automatica.
      */
     | 'shopify'
+    /** «Riprova»: la STESSA ricevuta torna in coda con le stesse protezioni (docs/30 §7.1.2 D4). */
+    | 'riprova_evento'
     | 'nessuna';
   readonly etichetta: string;
   readonly riferimento: string | null;

@@ -221,6 +221,8 @@ describe('Prima connessione — il percorso sui servizi reali', () => {
       collegamento,
       transfer,
       ordersPull,
+      // La coda webhook non entra nel percorso della prima connessione: nessun evento non applicato.
+      { elencoNonApplicate: async () => [] } as never,
     );
   });
 

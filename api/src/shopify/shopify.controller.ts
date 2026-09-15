@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Query,
@@ -66,6 +67,7 @@ import {
 } from './dto/shopify-setup.dto';
 import type { ShopifySetupDto } from './shopify-setup.model';
 import { ShopifySetupService } from './shopify-setup.service';
+import { ShopifyWebhookCodaService } from './shopify-webhook-coda.service';
 import { LocationLicensingService } from '../inventory/location-licensing.service';
 import { ShopifyShopChangeService } from './shopify-shop-change.service';
 import { indirizzoRitornoShopify } from './shopify-oauth-ritorno.util';
@@ -94,6 +96,7 @@ export class ShopifyController {
     private readonly shopifyWebhookRepair: ShopifyWebhookRepairService,
     private readonly locationLicensing: LocationLicensingService,
     private readonly shopifySetup: ShopifySetupService,
+    private readonly codaWebhook: ShopifyWebhookCodaService,
   ) {}
 
   @Get('connection')
@@ -420,6 +423,35 @@ export class ShopifyController {
   @Roles(UserRole.owner)
   async clearErrors(@CurrentTenant() tenantId: string): Promise<ClearShopifyErrorsResult> {
     return this.shopifyConnection.clearErrors(tenantId);
+  }
+
+  /**
+   * ⭐ «Riprova» un evento webhook non applicato (docs/30 §7.1.2, D4): la STESSA ricevuta
+   *    torna in coda con le stesse protezioni, dopo la verifica di tenant, negozio,
+   *    connessione e sincronizzazione attuali. Del titolare, come gli altri comandi di
+   *    sincronizzazione; non azzera gli errori della connessione.
+   */
+  /**
+   * ⭐ La pulizia delle ricevute webhook CONCLUSE da più di 30 giorni (docs/30 §7.1.2, D7):
+   *    comando esplicito del titolare; pendenti, fallite e sospese restano.
+   */
+  @Post('webhook-ricevute/pulizia')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  puliziaRicevute(
+    @CurrentTenant() tenantId: string,
+  ): Promise<{ readonly eliminate: number; readonly conservate: number }> {
+    return this.codaWebhook.puliziaConcluse(tenantId);
+  }
+
+  @Post('webhook-ricevute/:id/riprova')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  riprovaEvento(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) ricevutaId: string,
+  ): Promise<{ readonly inCoda: true }> {
+    return this.codaWebhook.riprova(tenantId, ricevutaId);
   }
 
   @Get('taxonomy/categories')

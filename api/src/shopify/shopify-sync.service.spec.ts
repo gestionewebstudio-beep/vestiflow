@@ -125,7 +125,7 @@ describe('ShopifySyncService', () => {
     expect(fulfillmentOrders.ordineDelWebhook).toHaveBeenCalledWith('tenant-1', {
       moved_fulfillment_order: { id: 'gid://shopify/FulfillmentOrder/2' },
     });
-    expect(applica).toHaveBeenCalledWith('tenant-1', ordine, 'continua');
+    expect(applica).toHaveBeenCalledWith('tenant-1', ordine, 'continua', undefined);
     expect(shopifyConnection.touchSync).toHaveBeenCalledWith('tenant-1');
   });
 
@@ -149,9 +149,12 @@ describe('ShopifySyncService', () => {
 
     await service.handleWebhook('tenant-1', 'products/update', { id: 999 });
 
-    expect(shopifyProductPull.importProductFromWebhook).toHaveBeenCalledWith('tenant-1', {
-      id: 999,
-    });
+    expect(shopifyProductPull.importProductFromWebhook).toHaveBeenCalledWith(
+      'tenant-1',
+      { id: 999 },
+      undefined,
+    );
+
     expect(shopifyConnection.touchSync).toHaveBeenCalledWith('tenant-1');
   });
 

@@ -216,8 +216,10 @@ beforeAll(async () => {
   const esistente = trovati.products.nodes[0];
   idProdotto = esistente
     ? esistente.id
-    : (
-        await client.createProduct(cred.shopDomain, cred.accessToken, {
+    : // ⭐ Dal 15/09/2026 la creazione porta SEMPRE le identità VestiFlow (`productSet` in
+      //    sola creazione): qui un valore proprio del gate, unico per esecuzione.
+      (
+        await client.createProductSet(cred.shopDomain, cred.accessToken, {
           title: TITOLO,
           descriptionHtml: '<p>Prodotto di collaudo del contratto GraphQL. Non vendibile.</p>',
           vendor: 'VestiFlow',
@@ -225,11 +227,27 @@ beforeAll(async () => {
           tags: [TAG],
           status: 'DRAFT',
           productOptions: [{ name: 'Taglia', values: [{ name: 'M' }] }],
+          metafields: [
+            {
+              namespace: 'vestiflow',
+              key: 'product_id',
+              type: 'id',
+              value: `contratto-catalogo-${Date.now()}`,
+            },
+          ],
           variants: [
             {
               optionValues: [{ optionName: 'Taglia', name: 'M' }],
               price: '9.99',
               sku: 'VF-CONTRACT-M',
+              metafields: [
+                {
+                  namespace: 'vestiflow',
+                  key: 'variant_id',
+                  type: 'id',
+                  value: `contratto-catalogo-${Date.now()}-M`,
+                },
+              ],
             },
           ],
         })
