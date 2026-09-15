@@ -36,7 +36,12 @@ describe('locationSetupStatusOf', () => {
     expect(locationSetupStatusOf([], 1).detail).toMatch(/Il piano prevede una sede operativa\.$/);
   });
 
-  it('conta le sedi collegate — attive e nel piano — e l’ultima lettura dal negozio', () => {
+  /**
+   * ⛔ Sul tenant di prova (14/09/2026) il titolo diceva «1 sede collegata» sopra una tabella
+   *    con cinque «Collegata»: contava solo le attive nel piano. Le collegate si contano
+   *    tutte; le operative si dicono a parte, solo quando sono di meno.
+   */
+  it('conta TUTTE le sedi collegate; quante sono attive nel piano lo dice a parte; e l’ultima lettura', () => {
     const stato = locationSetupStatusOf(
       [
         sede({
@@ -57,7 +62,7 @@ describe('locationSetupStatusOf', () => {
             lastSyncedAt: '2026-09-14T10:30:00.000Z',
           },
         }),
-        // Collegata ma fuori dal piano: non conta.
+        // Collegata ma fuori dal piano: è collegata (la tabella la dice tale), non operativa.
         sede({
           id: 'l3',
           name: 'Fuori piano',
@@ -71,7 +76,32 @@ describe('locationSetupStatusOf', () => {
     );
     expect(stato.active).toBe(true);
     expect(stato.label).toBe('Sedi collegate');
-    expect(stato.detail).toMatch(/^2 sedi collegate a una location del negozio · ultima lettura /);
+    expect(stato.detail).toMatch(
+      /^3 sedi collegate a una location del negozio · 2 attive nel piano · ultima lettura /,
+    );
+  });
+
+  it('collegate tutte operative: nessun secondo conteggio; collegate ma nessuna operativa: lo stato non è attivo', () => {
+    const collegata = (id: string, licensedInVf = true, isActive = true) =>
+      sede({
+        id,
+        name: id,
+        licensedInVf,
+        isActive,
+        shopify: { status: ShopifySyncStatus.Synced, shopifyId: id },
+      });
+    expect(locationSetupStatusOf([collegata('a'), collegata('b')], 2).detail).toBe(
+      '2 sedi collegate a una location del negozio',
+    );
+    const nessunaOperativa = locationSetupStatusOf(
+      [collegata('a', false), collegata('b', true, false)],
+      2,
+    );
+    expect(nessunaOperativa.label).toBe('Sedi collegate');
+    expect(nessunaOperativa.active).toBe(false);
+    expect(nessunaOperativa.detail).toBe(
+      '2 sedi collegate a una location del negozio · 0 attive nel piano',
+    );
   });
 
   it('una sede collegata dal percorso, senza ancora una lettura dei dati, conta lo stesso', () => {

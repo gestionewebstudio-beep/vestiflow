@@ -8,6 +8,7 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -358,6 +359,13 @@ export class ShopifyIntegrationPanelComponent {
   //    percorso non c’è (connessione nata prima) la sezione mostra solo le
   //    sedi con le loro scelte: la parte che serve anche a loro.
   protected readonly setup = signal<ShopifySetupDto | null>(null);
+  /**
+   * ⛔ Il percorso si legge in ~2,6 s sull'API vera (misurato il 14/09/2026 sul tenant di
+   *    prova): senza questo stato le schede che dipendono dal percorso restavano VUOTE
+   *    («Problemi ed esiti») o dicevano il falso («nata prima del percorso guidato», prima di
+   *    saperlo). Il caricamento si mostra, come per la connessione.
+   */
+  protected readonly setupInLettura = signal(false);
   protected readonly setupBusy = signal(false);
   protected readonly setupErrore = signal<string | null>(null);
   /** L’attivazione dura oltre il timeout HTTP: si sta rileggendo lo stato dal server. */
@@ -460,17 +468,20 @@ export class ShopifyIntegrationPanelComponent {
         ? { label: 'Prima connessione', link: `${base}/prima-connessione`, stato: 'conclusa' }
         : { label: 'Prima connessione', link: `${base}/prima-connessione` };
     const automatico = this.statoAutomatico();
-    const automatici: NavTab = this.percorsoInCorso()
-      ? { label: 'Sincronizzazione automatica', link: `${base}/sincronizzazione` }
-      : {
-          label: 'Sincronizzazione automatica',
-          link: `${base}/sincronizzazione`,
-          stato: automatico.breve,
-          tono:
-            automatico.tono === 'success' || automatico.tono === 'warning'
-              ? automatico.tono
-              : 'neutral',
-        };
+    // ⛔ Senza il percorso letto (in lettura, o lettura fallita) la parola di stato non c'è:
+    //    «attiva» prima di sapere è il falso misurato il 14/09/2026.
+    const automatici: NavTab =
+      this.percorsoInCorso() || this.setup() === null
+        ? { label: 'Sincronizzazione automatica', link: `${base}/sincronizzazione` }
+        : {
+            label: 'Sincronizzazione automatica',
+            link: `${base}/sincronizzazione`,
+            stato: automatico.breve,
+            tono:
+              automatico.tono === 'success' || automatico.tono === 'warning'
+                ? automatico.tono
+                : 'neutral',
+          };
     return [
       prima,
       automatici,
@@ -504,6 +515,17 @@ export class ShopifyIntegrationPanelComponent {
   );
   /** La situazione letta ora (tollerante a un'API che non la porta ancora). */
   protected readonly situazione = computed(() => situazioneDi(this.setup()));
+  /**
+   * ⛔ Finché il percorso non è stato letto la situazione è VUOTA, non «tutto bene»: sui
+   *    dati veri (14/09/2026, ~2,6 s) i quattro flussi e l'etichetta della scheda dicevano
+   *    «attivo» prima di sapere. Prima lettura in corso, o fallita: nessun verdetto.
+   */
+  protected readonly situazioneNonLetta = computed(
+    () => this.setup() === null && this.setupInLettura(),
+  );
+  protected readonly situazioneFallita = computed(
+    () => this.setup() === null && !this.setupInLettura() && this.setupErrore() !== null,
+  );
   /** Lo stesso valore, per un `@let` nel template che non può ombreggiare il nome. */
   protected readonly situazioneAttuale = this.situazione;
   protected readonly ordiniSenzaSede = computed(
@@ -903,12 +925,26 @@ export class ShopifyIntegrationPanelComponent {
     if (!this.canManageShopify()) {
       return;
     }
+    // `untracked`: chiamata anche dall'effect sulla connessione, che non deve dipendere dal
+    // percorso letto (dipendesse, ogni lettura ne farebbe partire un'altra).
+    if (untracked(this.setup) === null) {
+      // «Riprova» della PRIMA lettura: l'errore precedente era di quella lettura. Con un
+      // percorso già letto l'errore può essere di un comando, e non si tocca qui.
+      this.setupErrore.set(null);
+    }
+    this.setupInLettura.set(true);
     this.shopifySetupService
       .stato()
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (setup) => this.setup.set(setup),
-        error: (err: unknown) => this.setupErrore.set(extractErrorMessage(err)),
+        next: (setup) => {
+          this.setup.set(setup);
+          this.setupInLettura.set(false);
+        },
+        error: (err: unknown) => {
+          this.setupErrore.set(extractErrorMessage(err));
+          this.setupInLettura.set(false);
+        },
       });
   }
 
