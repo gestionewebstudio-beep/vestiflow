@@ -15,7 +15,7 @@ correzione; **da decidere** = serve una decisione del proprietario prima di scri
 
 | #   | Voce                                                                                  | Stato                                                                                                                                                                                                                                               | Dove                           |
 | --- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| 1   | consegne webhook senza deduplica, risposta dopo l'elaborazione                        | **aperta** — riprodotta (`it.fails` ×2)                                                                                                                                                                                                             |
+| 1   | consegne webhook senza deduplica, risposta dopo l'elaborazione                        | **aperta** — riprodotta (`it.fails` ×2); progettazione finale in §7.1.2, **sette decisioni** (D1–D7) da prendere prima del codice                                                                                                                   |
 | 2   | `fetchVariantCosts` su `products/update`                                              | **risolta**                                                                                                                                                                                                                                         | §7-bis.1                       |
 | 3   | nessun timeout, nessun ritentativo delle letture                                      | **risolta**                                                                                                                                                                                                                                         | §7-ter                         |
 | 4   | GraphQL `THROTTLED` non ritentato                                                     | **risolta**                                                                                                                                                                                                                                         | §7-ter                         |
@@ -275,6 +275,83 @@ solo** — sarebbe una regola nuova di recupero. Da decidere: (a) resta così, e
 è «Importa ordini / Importa catalogo» come oggi; (b) un comando esplicito «Riprendi gli
 eventi sospesi», che rimette in coda le ricevute `scartata_sync_spenta` più recenti
 dell'ultimo evento applicato, nell'ordine di `triggered_at`.
+
+#### 7.1.2 Progettazione finale della coda webhook (15/09/2026, sera) — ⏸ da decidere prima del codice
+
+Parte dalle due `it.fails` di `shopify-webhooks.controller.spec.ts` (stesso
+`X-Shopify-Webhook-Id` due volte → UNA elaborazione; `200` anche se l'elaborazione non è
+finita) e da §7.1/§7.1.1, che restano validi: qui si fissa la forma finale e si isolano le
+decisioni che mancano. ⛔ Nessuna regola di recupero nuova è introdotta da questo testo.
+
+**Che cosa si riusa (misurato nel codice del ramo, non dedotto).**
+
+| Meccanismo esistente                                                                                    | Dove                                                                | Ruolo nella coda                                                                                                        |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| verifica HMAC, `resolveTenantByShopDomain`, `handleWebhook`                                             | `shopify-webhook.service.ts`, `shopify-sync.service.ts`             | invariati: il primo resta il cancello, l'ultimo resta l'elaboratore                                                     |
+| chiave unica per tenant (`OnlineOrderEvent.dedupeKey`, `FOR UPDATE`, `shopifyUpdatedAt`)                | ordini                                                              | è ciò che rende **ripetibile** l'elaborazione di un ordine: la coda può rielaborare senza doppioni                      |
+| **claim con `claim_version` + `assicuraProprietario`** (§7.2-ter, fatto)                                | `shopify-product-push.service.ts`, colonne `shopify_create_claim_*` | **lo stesso schema per la corsia del negozio**: rivendicazione fenced, un proprietario superato non scrive e non chiama |
+| `recordSetupWarning` / `lastErrorMessage` sulla connessione, stato `error` sul prodotto                 | `shopify-connection.service.ts`, `recordProductWebhookFailure`      | oggi l'unico canale verso l'operatore — un solo slot per connessione (vedi D4)                                          |
+| ripubblicazione a passate con tetto dichiarato (`REPUBLISH_BATCH_LIMIT`, `SCAN_LIMIT`, esiti in classi) | `shopify-inventory-republish.service.ts`                            | modello per la passata del lavoratore: tetto per passata, arretrato **detto**, classi `refused`/`failed` distinte       |
+| fixture `svuota`/`creaDataset`, simulatore, `concorrenza.util`                                          | `src/test/integration`                                              | le prove A1–A5, la concorrenza a due processi e il riavvio                                                              |
+
+**Schema (migration scritta a mano, con RLS e `REVOKE` come le altre).** ⚠️ **Con le chiavi
+esterne dal primo giorno** — la tabella degli stati sync senza FK è costata una giornata di
+diagnosi (allegato corsa ripristino); `ON DELETE CASCADE` da `tenants`, così `svuota`,
+cancellazione del tenant e purga del ripristino la raggiungono.
+
+```text
+shopify_webhook_receipts      una riga per consegna accolta
+  tenant_id FK · shop_domain · webhook_id                UNIQUE (shop_domain, webhook_id)
+  topic · triggered_at (X-Shopify-Triggered-At) · api_version · payload jsonb
+  received_at · processed_at · esito · tentativi · ultimo_errore · next_attempt_at
+  esito ∈ { in_coda, elaborata, scartata_sync_spenta, scartata_topic, fallita }
+
+shopify_webhook_lanes         una riga per negozio: la CORSIA (§7.1.1)
+  shop_domain PK · tenant_id FK · claimed_by · claimed_at · claim_version
+```
+
+**Flusso della richiesta.** HMAC → intestazioni (`topic`, `shop-domain`, `webhook-id`) →
+JSON → tenant → `INSERT … ON CONFLICT (shop_domain, webhook_id) DO NOTHING` in una
+transazione propria → **`200`** → `setImmediate`: sveglia del lavoratore per quel negozio.
+Doppione: il conflitto conta come «già accolta», `200`, nessuna seconda elaborazione. Tutto
+ciò che oggi risponde `4xx` prima dell'inserimento resta `4xx` (HMAC, corpo, JSON).
+
+**Lavoratore.** Nel processo dell'API, uno per negozio alla volta: rivendica la corsia
+(`UPDATE … WHERE claimed_at IS NULL OR claimed_at < now() − lease RETURNING claim_version`),
+prende le ricevute `in_coda` di quel negozio in ordine di `received_at` (⚠️ non
+`triggered_at`: per gli ordini decide già `updated_at` del canale, per i prodotti vale
+«ultimo elaborato vince» finché #11 non è deciso), elabora ciascuna in una transazione che
+**rilegge la corsia e abortisce se `claim_version` non è la sua**, ricontrolla la versione
+prima di ogni chiamata verso Shopify, scrive `processed_at` + `esito`; a coda vuota o lease
+scaduta rilascia. All'avvio dell'API: una passata su tutte le corsie con ricevute `in_coda`.
+Il cancello «sincronizzazione attiva» si valuta **al momento dell'elaborazione**, non
+dell'accoglienza.
+
+**Le decisioni ancora necessarie** (senza, il codice non parte):
+
+| #      | Decisione                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Proposta, non approvata                                                                                                                                                                                                                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D1** | **Ritentativi.** ⚠️ Cambia il peso della domanda: oggi ritenta Shopify (8 volte in 4 h) perché rispondiamo dopo l'elaborazione; con il `200` subito **Shopify non ritenta più**, e l'unico ritentativo è il nostro. Quanti, con che attesa, e cosa succede dopo l'ultimo.                                                                                                                                                                                                                          | fino alla decisione: **un** tentativo dopo il `200` + la passata all'avvio (§7.1.1). Proposta: 5 tentativi con attesa 1·5·15·30·60 min, poi `fallita` e visibile (D4). Serve anche la scansione periodica (30 s) delle `next_attempt_at` scadute: è un timer nel processo, come il limitatore |
+| **D2** | **Eventi ricevuti con sincronizzazione disattivata.** Si accolgono e si conservano (`scartata_sync_spenta`, `processed_at` valorizzato). Alla riattivazione: (a) niente da soli, ripresa con «Importa ordini / Importa catalogo» come oggi; (b) comando esplicito «Riprendi gli eventi sospesi» che rimette `in_coda` le ricevute più recenti dell'ultimo evento applicato, in ordine.                                                                                                             | (a) nel primo passo; (b) è una regola di recupero nuova, si decide a parte                                                                                                                                                                                                                    |
+| **D3** | **Recupero dopo arresto.** Lease della corsia (proposta 5 min, come il claim di creazione); alla ripartenza le ricevute `in_coda` si rielaborano **una volta**; una ricevuta lasciata a metà da un processo morto si ripete per intero — ammesso perché ordini, quantità, clienti e prodotti sono ripetibili (§7.1.1), le immagini si riscaricano. ⚠️ Da confermare: **nessun reset di massa** e nessuna rielaborazione delle `fallita` all'avvio.                                                 | come descritto; il numero di rivendicazione rende innocuo il lavoratore lento sul database, **non** sulle scritture remote già partite (limite dichiarato in §7.1.1)                                                                                                                          |
+| **D4** | **Errori visibili all'operatore.** Oggi: stato `error` sul prodotto + **un solo** `lastErrorMessage` sulla connessione (ogni nuovo avviso sovrascrive il precedente). Con la coda: (a) restare così; (b) un elenco «Eventi non applicati» nel pannello Shopify, letto dalle ricevute `fallita`/`scartata_*` (topic, quando, motivo per chi legge, tentativi), con «Riprova» per ricevuta. Il motivo segue `toShopifyUserMessage`/`motivoDiPersistenzaPerLOperatore`: dettagli Prisma solo nei log. | (b), sola lettura nel primo passo; «Riprova» è un comando esplicito (non un recupero automatico) e si decide con D1                                                                                                                                                                           |
+| **D5** | `X-Shopify-Webhook-Id` **assente** (consegne di prova dall'admin, o strumenti): rifiutare con `400`, o accogliere senza deduplica con un id generato.                                                                                                                                                                                                                                                                                                                                              | `400`: senza id non c'è idempotenza, e il rifiuto si vede                                                                                                                                                                                                                                     |
+| **D6** | **Negozio sconosciuto** (`resolveTenantByShopDomain` fallisce): oggi errore → Shopify ritenta e poi cancella la sottoscrizione. Con la coda: `404`/`401` come oggi (nessuna ricevuta), o `200` e scarto registrato.                                                                                                                                                                                                                                                                                | come oggi: un negozio che non è nostro non deve ricevere `200`                                                                                                                                                                                                                                |
+| **D7** | **Conservazione e backup.** Quanto tenere le ricevute (`payload` compreso) e se entrano nel backup del tenant (`TENANT_BACKUP`: sono tracce operative, non dati).                                                                                                                                                                                                                                                                                                                                  | purga delle `elaborata` oltre 30 giorni con un comando, non un job; **fuori** dal backup, dichiarato in `tenant-backup.constants`                                                                                                                                                             |
+
+**Prove di accettazione** (integrazione, isolato, in aggiunta ad A1–A5 di §7.1): A6 · due
+processi simulati sullo stesso negozio → una sola corsia attiva, ordine conservato; A7 ·
+lavoratore lento superato → la sua transazione abortisce, nessuna scrittura locale; A8 ·
+riavvio con tre ricevute `in_coda` → tre elaborazioni, una ciascuna; A9 · elaborazione
+fallita → `fallita` col motivo leggibile, prodotto/connessione come deciso in D4; A10 ·
+webhook senza id → esito di D5. Le due `it.fails` diventano prove ordinarie.
+
+**Nel piano restano, e non si perdono**: §7.3 (`syncing` dopo processo morto — ora con lo
+schema del claim, non con la sola scadenza); il **residuo del claim** dopo un'adozione da
+webhook (§7.2-ter: chi lo chiude, e quando); le **FK degli stati sync** (`DA-FARE` §21-ter,
+regole di cancellazione da scegliere); il **limite di scala** di `productSet` e
+`inventoryItem.tracked` nel completamento senza SKU (§7.2-ter.3). Nessuno dei cinque entra
+nella coda webhook: sono voci con la propria decisione.
 
 ### 7.2 Scritture con esito incerto e timeout (#3, #5 senza `productSet`) — ⛔ NON approvata nella forma proposta (15/09)
 
