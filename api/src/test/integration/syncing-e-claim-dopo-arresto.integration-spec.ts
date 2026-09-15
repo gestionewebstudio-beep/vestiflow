@@ -220,7 +220,7 @@ describe('Syncing e claim dopo un arresto', () => {
       });
     }
     const ricevuta = (id: string) => prisma.shopifyWebhookReceipt.findUniqueOrThrow({ where: { id } });
-    const pronta = (id: string) => prisma.shopifyWebhookReceipt.update({ where: { id }, data: { nextAttemptAt: new Date() } });
+    const pronta = (id: string) => prisma.shopifyWebhookReceipt.update({ where: { id }, data: { nextAttemptAt: new Date(Date.now() - 60_000) } });
 
     it('S1 · CORRETTO (D8b): il webhook del prodotto `syncing` è RINVIATO con le attese approvate, non «elaborato senza effetti»; l articolo non si tocca', async () => {
       const { id, remotoId } = await pubblicatoPoiMortoInSyncing();

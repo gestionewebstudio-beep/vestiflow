@@ -51,12 +51,6 @@ const ESITI_APERTI: readonly ShopifyWebhookReceiptEsito[] = [
   ShopifyWebhookReceiptEsito.in_lavorazione,
 ];
 
-/** Gli esiti che fanno ATTENDERE le ricevute più giovani della stessa risorsa (aperti + fallita). */
-const ESITI_CHE_BLOCCANO: readonly ShopifyWebhookReceiptEsito[] = [
-  ...ESITI_APERTI,
-  ShopifyWebhookReceiptEsito.fallita,
-];
-
 /**
  * ⭐ Gli esiti CONCLUSI, i soli che la pulizia può toccare (D7): la ricevuta ha finito il
  *    proprio corso e non blocca nessuno. Pendenti (`in_coda`, `in_lavorazione`), fallite e
@@ -78,10 +72,7 @@ const ESITI_RIPROVABILI: readonly ShopifyWebhookReceiptEsito[] = [
   ShopifyWebhookReceiptEsito.sospesa_dopo_ripristino,
 ];
 
-type RicevutaAperta = Pick<
-  Prisma.ShopifyWebhookReceiptGetPayload<object>,
-  'id' | 'risorsa' | 'esito' | 'nextAttemptAt' | 'receivedAt' | 'lavorataDaVersione'
->;
+type RicevutaAperta = Pick<Prisma.ShopifyWebhookReceiptGetPayload<object>, 'id' | 'risorsa' | 'esito'>;
 
 /** Il messaggio con cui una ricevuta viene chiusa quando non si applica: per chi legge, non per chi programma. */
 const MOTIVI = {
@@ -242,12 +233,14 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
       return;
     }
     try {
-      const pronte = await this.prisma.shopifyWebhookReceipt.findMany({
-        where: { esito: { in: [...ESITI_APERTI] }, nextAttemptAt: { lte: new Date() } },
-        select: { tenantId: true },
-        distinct: ['tenantId'],
-      });
-      await Promise.all(pronte.map((riga) => this.lavoraCorsia(riga.tenantId)));
+      // ⭐ «Pronta» lo decide l'orologio del DATABASE, lo stesso che scrive
+      //    `next_attempt_at`: API e database sono macchine diverse, e un orologio
+      //    di Node anche di poco indietro lascerebbe in attesa ricevute già pronte
+      //    (misurato il 15/09/2026 dopo un riavvio: due prove rosse solo in suite).
+      const pronte = await this.prisma.$queryRaw<{ tenant_id: string }[]>`
+        SELECT DISTINCT "tenant_id" FROM "shopify_webhook_receipts"
+         WHERE "esito" IN ('in_coda', 'in_lavorazione') AND "next_attempt_at" <= now()`;
+      await Promise.all(pronte.map((riga) => this.lavoraCorsia(riga.tenant_id)));
     } catch (error) {
       this.logger.error(
         `Scansione della coda webhook fallita: ${error instanceof Error ? error.message : String(error)}`,
@@ -361,19 +354,21 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
     tenantId: string,
     versione: number,
   ): Promise<RicevutaAperta | null> {
-    const aperte: RicevutaAperta[] = await this.prisma.shopifyWebhookReceipt.findMany({
-      where: { tenantId, esito: { in: [...ESITI_CHE_BLOCCANO] } },
-      orderBy: [{ arrivo: 'asc' }],
-      select: {
-        id: true,
-        risorsa: true,
-        esito: true,
-        nextAttemptAt: true,
-        receivedAt: true,
-        lavorataDaVersione: true,
-      },
-    });
-    const adesso = Date.now();
+    // ⭐ L'orologio è quello del database (`now()`), lo stesso di `next_attempt_at`.
+    const aperte = await this.prisma.$queryRaw<
+      {
+        id: string;
+        risorsa: string | null;
+        esito: ShopifyWebhookReceiptEsito;
+        lavorata_da_versione: number | null;
+        pronta: boolean;
+      }[]
+    >`
+      SELECT "id", "risorsa", "esito", "lavorata_da_versione", ("next_attempt_at" <= now()) AS "pronta"
+        FROM "shopify_webhook_receipts"
+       WHERE "tenant_id" = ${tenantId}::uuid
+         AND "esito" IN ('in_coda', 'in_lavorazione', 'fallita') -- aperte + fallite: fanno attendere i correlati
+       ORDER BY "arrivo" ASC`;
     const bloccate = new Set<string>();
     let bloccoTotale = false;
     for (const ricevuta of aperte) {
@@ -382,15 +377,15 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
         (ricevuta.risorsa === null ? bloccate.size > 0 : bloccate.has(ricevuta.risorsa));
       const inLavorazioneAltrui =
         ricevuta.esito === ShopifyWebhookReceiptEsito.in_lavorazione &&
-        ricevuta.lavorataDaVersione !== null &&
-        ricevuta.lavorataDaVersione >= versione;
+        ricevuta.lavorata_da_versione !== null &&
+        ricevuta.lavorata_da_versione >= versione;
       const pronta =
         !bloccataDaUnaPrecedente &&
         ricevuta.esito !== ShopifyWebhookReceiptEsito.fallita &&
         !inLavorazioneAltrui &&
-        ricevuta.nextAttemptAt.getTime() <= adesso;
+        ricevuta.pronta;
       if (pronta) {
-        return ricevuta;
+        return { id: ricevuta.id, risorsa: ricevuta.risorsa, esito: ricevuta.esito };
       }
       if (ricevuta.risorsa === null) {
         bloccoTotale = true;
@@ -688,15 +683,12 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
         'Gli aggiornamenti automatici da Shopify sono disattivati: attivali prima di riprovare.',
       );
     }
-    await this.prisma.shopifyWebhookReceipt.updateMany({
-      where: { id: ricevutaId, tenantId, esito: { in: [...ESITI_RIPROVABILI] } },
-      data: {
-        esito: ShopifyWebhookReceiptEsito.in_coda,
-        processedAt: null,
-        nextAttemptAt: new Date(),
-        lavorataDaVersione: null,
-      },
-    });
+    // «Subito» secondo l'orologio del DATABASE, lo stesso che decide se una ricevuta è pronta.
+    await this.prisma.$executeRaw`
+      UPDATE "shopify_webhook_receipts"
+         SET "esito" = 'in_coda', "processed_at" = NULL, "next_attempt_at" = now(), "lavorata_da_versione" = NULL
+       WHERE "id" = ${ricevutaId}::uuid AND "tenant_id" = ${tenantId}::uuid
+         AND "esito" IN ('fallita', 'sospesa_dopo_ripristino')`;
     this.logger.log(`Webhook ${ricevuta.topic} (${ricevutaId}) rimesso in coda da «Riprova» (${tenantId})`);
     this.sveglia(tenantId);
     return { inCoda: true };

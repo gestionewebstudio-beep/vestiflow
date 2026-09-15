@@ -732,7 +732,7 @@ describe('Coda webhook Shopify — ricevute durevoli, corsia per negozio, ordine
       expect(chiamate).toHaveLength(3);
 
       // Passa il tempo (la scansione trova la ricevuta pronta): prima 5001, poi il suo correlato.
-      await prisma.shopifyWebhookReceipt.update({ where: { id: r1.ricevutaId }, data: { nextAttemptAt: new Date() } });
+      await prisma.shopifyWebhookReceipt.update({ where: { id: r1.ricevutaId }, data: { nextAttemptAt: new Date(Date.now() - 60_000) } });
       await coda.scansione();
       expect(chiamate).toEqual([
         'orders/create:5001',
@@ -766,7 +766,7 @@ describe('Coda webhook Shopify — ricevute durevoli, corsia per negozio, ordine
       expect((await ricevuta(r2.ricevutaId)).esito).toBe(ShopifyWebhookReceiptEsito.in_coda);
       expect((await ricevuta(r3.ricevutaId)).esito).toBe(ShopifyWebhookReceiptEsito.in_coda);
 
-      await prisma.shopifyWebhookReceipt.update({ where: { id: r1.ricevutaId }, data: { nextAttemptAt: new Date() } });
+      await prisma.shopifyWebhookReceipt.update({ where: { id: r1.ricevutaId }, data: { nextAttemptAt: new Date(Date.now() - 60_000) } });
       await coda.lavoraCorsia(IDS.tenantA);
       expect(chiamate.slice(1)).toEqual([
         'orders/create:{"id":5001}',
@@ -835,7 +835,7 @@ describe('Coda webhook Shopify — ricevute durevoli, corsia per negozio, ordine
         expect(stato.tentativi).toBe(giro);
         if (giro < 6) {
           expect(stato.esito).toBe(ShopifyWebhookReceiptEsito.in_coda);
-          await prisma.shopifyWebhookReceipt.update({ where: { id: r1.ricevutaId }, data: { nextAttemptAt: new Date() } });
+          await prisma.shopifyWebhookReceipt.update({ where: { id: r1.ricevutaId }, data: { nextAttemptAt: new Date(Date.now() - 60_000) } });
         } else {
           expect(stato.esito).toBe(ShopifyWebhookReceiptEsito.fallita);
         }
