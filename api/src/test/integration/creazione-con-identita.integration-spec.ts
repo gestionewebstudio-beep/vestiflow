@@ -470,7 +470,11 @@ describe('Creazione su Shopify con identità VestiFlow (PostgreSQL isolato, nego
     expect(await prisma.product.count({ where: { tenantId: IDS.tenantA } })).toBe(1);
     const durante = await locale(id);
     expect(durante.shopifyProductId).toBe(String(remoto.id));
-    expect(durante.shopifyCreateClaimId).not.toBeNull(); // il claim resta del push
+    // ⭐ L'adozione chiude il claim (creazione conclusa, 15/09 notte): prima restava «del
+    //    push», e se il push moriva qui il prodotto collegato lo teneva aperto per sempre.
+    //    Il push vivo ricontrolla la sola versione, quindi conclude lo stesso (sotto).
+    expect(durante.shopifyCreateClaimId).toBeNull();
+    expect(durante.shopifyCreateClaimVersion).toBe(1);
 
     apri();
     const esitoPush = await push;

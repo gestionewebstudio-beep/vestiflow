@@ -92,6 +92,15 @@ export async function adottaIdentitaRecuperata(
       shopifyProductId: legacyId,
       catalogOrigin: CatalogOrigin.vestiflow,
       shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
+      // ⭐ L'adozione È la conclusione della creazione: il claim si chiude QUI, nella stessa
+      //    scrittura fenced, da qualunque percorso arrivi (push o webhook anticipato).
+      //    ⛔ Prima restava aperto «del push»: se il push moriva dopo l'adozione da webhook,
+      //    il prodotto — già collegato — teneva un claim che nessun percorso chiudeva più
+      //    (riprodotto il 15/09/2026, `syncing-e-claim-dopo-arresto` C1). La versione resta:
+      //    è la storia del tentativo, e il push vivo ricontrolla solo quella.
+      shopifyCreateClaimId: null,
+      shopifyCreateClaimShopId: null,
+      shopifyCreateClaimedAt: null,
     },
   });
   if (scritto.count !== 1) {
