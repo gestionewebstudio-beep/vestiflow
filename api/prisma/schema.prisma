@@ -2537,7 +2537,7 @@ model ShopifyInventorySyncState {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id])
-  variant  ProductVariant @relation(fields: [variantId], references: [id])
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   location Location       @relation(fields: [locationId], references: [id])
 
   @@unique([tenantId, variantId, locationId])
