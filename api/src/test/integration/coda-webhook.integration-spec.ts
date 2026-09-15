@@ -612,6 +612,68 @@ describe('Coda webhook Shopify — ricevute durevoli, corsia per negozio, ordine
       expect(await corsia()).toMatchObject({ claimVersion: 2, claimedAt: null });
     });
 
+    it('il lavoratore superato non fa NEMMENO la lettura remota: l arricchimento del prodotto parte una volta sola (quella del nuovo)', async () => {
+      const pull = new ShopifyProductPullService(
+        prisma as never,
+        negozio.oauth() as never,
+        { requestedScopes: ['read_products', 'write_products'] } as never,
+        negozio.admin() as never,
+        { healStaleErrorStatus: vi.fn(), touchSync: vi.fn(), recordApiFailure: vi.fn(), markSynced: vi.fn(), markError: vi.fn() } as never,
+        negozio.enrichment() as never,
+        storico,
+        registro,
+        archivioImmaginiFinto() as never,
+      );
+      const syncVero = new ShopifySyncService(
+        prisma as never,
+        connessioneVera,
+        pull as never,
+        null as never,
+        null as never,
+        null as never,
+        storico,
+        null as never,
+      );
+      const remoto = negozio.semina({
+        title: 'Felpa coda',
+        vendor: 'F',
+        product_type: 'T',
+        tags: 'collaudo',
+        opzioni: [{ name: 'Taglia', values: ['L'] }],
+        varianti: [{ sku: 'CODA-L', barcode: '9960000000035', price: '10.00', valori: ['L'] }],
+      });
+      const fermo = barriera();
+      const lento = new ShopifyWebhookCodaService(
+        prisma as never,
+        config as never,
+        oauth() as never,
+        connessioneVera,
+        {
+          handleWebhook: async (tenantId: string, topic: string, payload: unknown, guardia: unknown) => {
+            await fermo.attesa;
+            return syncVero.handleWebhook(tenantId, topic, payload, guardia as never);
+          },
+        } as never,
+      );
+      const accolta = await lento.accogli(consegna('products/update', negozio.webhook(remoto.id)));
+      const corsaLenta = lento.lavoraCorsia(IDS.tenantA);
+      await vi.waitFor(async () =>
+        expect((await ricevuta(accolta.ricevutaId)).esito).toBe(ShopifyWebhookReceiptEsito.in_lavorazione),
+      );
+      await prisma.$executeRaw`UPDATE "shopify_webhook_lanes" SET "claimed_at" = now() - interval '10 minutes' WHERE "tenant_id" = ${IDS.tenantA}::uuid`;
+      negozio.azzeraChiamate();
+      const nuovo = new ShopifyWebhookCodaService(prisma as never, config as never, oauth() as never, connessioneVera, syncVero);
+      await nuovo.lavoraCorsia(IDS.tenantA);
+      expect(negozio.chiamate.get('enrichProduct') ?? 0).toBe(1);
+      expect((await ricevuta(accolta.ricevutaId)).esito).toBe(ShopifyWebhookReceiptEsito.elaborata);
+
+      fermo.sblocca();
+      await corsaLenta;
+      // ⛔ Prima: la lettura partiva lo stesso (costava una chiamata, non un effetto). Ora no.
+      expect(negozio.chiamate.get('enrichProduct') ?? 0).toBe(1);
+      expect(await prisma.product.count({ where: { tenantId: IDS.tenantA, shopifyProductId: String(remoto.id) } })).toBe(1);
+    });
+
     it('la guardia da sola: superata la corsia, assicura() lancia e una chiusura fenced non scrive', async () => {
       const { coda } = creaCoda(async () => undefined);
       const accolta = await coda.accogli(consegna('orders/create', { id: 5006 }));
@@ -709,6 +771,29 @@ describe('Coda webhook Shopify — ricevute durevoli, corsia per negozio, ordine
         'fulfillment_orders/moved:{"moved_fulfillment_order":{"id":9}}',
         'products/update:{"id":42}',
       ]);
+    });
+
+    it('⛔ due consegne della stessa risorsa nello STESSO millisecondo si elaborano nell ordine di ARRIVO, non per uuid', async () => {
+      const chiamate: string[] = [];
+      const { coda } = creaCoda(async (_t, topic) => {
+        chiamate.push(topic);
+      });
+      const stessoIstante = new Date('2026-09-15T18:00:00.000Z');
+      // Inserite direttamente, con gli id in ordine INVERSO a quello di arrivo.
+      const base = { tenantId: IDS.tenantA, shopId, shopDomain: DOMINIO, risorsa: 'ordine:5001', receivedAt: stessoIstante, payload: { id: 5001 } };
+      const prima = await prisma.shopifyWebhookReceipt.create({
+        data: { ...base, id: 'ffffffff-0000-4000-8000-000000000001', webhookId: 'arrivo-1', topic: 'orders/create' },
+      });
+      const seconda = await prisma.shopifyWebhookReceipt.create({
+        data: { ...base, id: '00000000-0000-4000-8000-000000000002', webhookId: 'arrivo-2', topic: 'orders/updated' },
+      });
+      expect(prima.arrivo < seconda.arrivo).toBe(true);
+      expect(prima.id > seconda.id).toBe(true);
+
+      await coda.lavoraCorsia(IDS.tenantA);
+
+      // Prima della correzione l'ordine seguiva l'uuid: qui sarebbe stato orders/updated, orders/create.
+      expect(chiamate).toEqual(['orders/create', 'orders/updated']);
     });
 
     it('i ritentativi seguono la NATURA dell errore: un 4xx è permanente e va subito in fallita; un esito incerto pure', async () => {

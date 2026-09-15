@@ -394,6 +394,9 @@ export class ShopifyProductPullService {
     //    riconoscimento è lo stesso dell'aggiornamento: `shopifyVariantId` sulle
     //    varianti locali del prodotto. Prodotto sconosciuto = prima importazione = tutte.
     const variantiNuove = await this.variantiRemoteNonAncoraLocali(tenantId, remote);
+    // ⛔ Un lavoratore della coda già superato non chiama Shopify nemmeno in lettura:
+    //    la lettura non è un effetto, ma è evitabile col controllo che esiste già.
+    await guardia?.assicura(this.prisma);
     let enrichment: ProductShopifyEnrichment | undefined;
     try {
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
@@ -614,6 +617,9 @@ export class ShopifyProductPullService {
     }, PRODUCT_IMPORT_TX);
 
     if (esito !== 'skipped') {
+      // L'immagine si scarica DOPO il commit del prodotto: chi è stato superato nel
+      // frattempo non scarica (la guardia c'è solo nel percorso del webhook).
+      await ingresso.guardia?.assicura(this.prisma);
       await this.sincronizzaImmagine(tenantId, shopifyProductId, remote);
     }
     return esito;

@@ -333,7 +333,9 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
 
   /**
    * ⭐ L'ORDINE PER RISORSA (decisione 1). Le ricevute che bloccano (aperte o fallite) si
-   *    percorrono dalla più vecchia: la prima pronta la cui risorsa non ha una più vecchia
+   *    percorrono dalla più vecchia (ordine di ARRIVO assegnato dal database, non l'orologio:
+   *    due consegne nello stesso millisecondo restano nell'ordine in cui sono entrate): la
+   *    prima pronta la cui risorsa non ha una più vecchia
    *    ancora aperta è la prossima. Una risorsa `null` è correlata a tutto: non scavalca
    *    (aspetta che tutto ciò che la precede sia concluso) e non è scavalcata (ferma tutto
    *    ciò che la segue). Una `in_lavorazione` di una versione superata è abbandonata da un
@@ -345,7 +347,7 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
   ): Promise<RicevutaAperta | null> {
     const aperte: RicevutaAperta[] = await this.prisma.shopifyWebhookReceipt.findMany({
       where: { tenantId, esito: { in: [...ESITI_CHE_BLOCCANO] } },
-      orderBy: [{ receivedAt: 'asc' }, { id: 'asc' }],
+      orderBy: [{ arrivo: 'asc' }],
       select: {
         id: true,
         risorsa: true,

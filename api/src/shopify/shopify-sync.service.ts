@@ -183,6 +183,8 @@ export class ShopifySyncService {
     payload: Record<string, unknown>,
     guardia?: GuardiaCorsia,
   ): Promise<void> {
+    // La rilettura dell'ordine è una chiamata a Shopify: un lavoratore superato non la fa.
+    await guardia?.assicura(this.prisma);
     const ordine = await this.fulfillmentOrders.ordineDelWebhook(tenantId, payload);
     if (!ordine) {
       const messaggio =

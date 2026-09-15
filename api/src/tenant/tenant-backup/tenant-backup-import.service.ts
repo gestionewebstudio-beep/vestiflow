@@ -486,16 +486,19 @@ export class TenantBackupImportService {
  */
 function sospendiRicevuteDaApplicare(rows: BackupRow[]): BackupRow[] {
   const daSospendere = new Set<string>(['in_coda', 'in_lavorazione', 'fallita']);
-  return rows.map((row) =>
-    typeof row['esito'] === 'string' && daSospendere.has(row['esito'])
+  return rows.map((row) => {
+    // ⚠️ `arrivo` lo assegna il database (identita' della tabella): le righe arrivano
+    //    gia' nell'ordine di arrivo dell'export, e l'inserimento in quell'ordine lo conserva.
+    const { arrivo: _arrivo, ...senzaArrivo } = row;
+    return typeof senzaArrivo['esito'] === 'string' && daSospendere.has(senzaArrivo['esito'])
       ? {
-          ...row,
+          ...senzaArrivo,
           esito: 'sospesa_dopo_ripristino',
           lavorataDaVersione: null,
-          processedAt: row['processedAt'] ?? null,
+          processedAt: senzaArrivo['processedAt'] ?? null,
         }
-      : row,
-  );
+      : senzaArrivo;
+  });
 }
 
 /**

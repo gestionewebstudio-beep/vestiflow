@@ -4673,6 +4673,10 @@ model ShopifyWebhookReceipt {
   apiVersion         String?                    @map("api_version")
   payload            Json
   receivedAt         DateTime                   @default(now()) @map("received_at")
+  /// ⭐ L'ordine di ARRIVO, assegnato dal database: due consegne nello stesso
+  /// millisecondo non si ordinano per un uuid casuale. E' la chiave dell'ordine
+  /// per risorsa.
+  arrivo             BigInt                     @unique @default(autoincrement())
   processedAt        DateTime?                  @map("processed_at")
   esito              ShopifyWebhookReceiptEsito @default(in_coda)
   /// Tentativi CONCLUSI (riusciti o falliti), compreso il primo.
