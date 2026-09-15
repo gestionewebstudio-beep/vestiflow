@@ -23,10 +23,13 @@ export function locationSetupStatusOf(
   //    non lo è ancora, e la Configurazione diceva «Sedi non attivate» mentre il
   //    percorso diceva «1 collegata» (collaudo, 13/09/2026). Due lettori, una
   //    regola: `isShopifyManagedLocation`.
-  const synced = locations.filter(
-    (location) => location.isActive && location.licensedInVf && isShopifyManagedLocation(location),
-  );
-  if (synced.length === 0) {
+  // ⛔ Qui si contavano solo le collegate ATTIVE E NEL PIANO, e sul tenant di prova
+  //    (14/09/2026) il titolo diceva «1 sede collegata» sopra una tabella con cinque
+  //    «Collegata»: due definizioni della stessa parola nella stessa sezione. Le collegate
+  //    si contano tutte; quante sono operative si dice a parte.
+  const collegate = locations.filter((location) => isShopifyManagedLocation(location));
+  const operative = collegate.filter((location) => location.isActive && location.licensedInVf);
+  if (collegate.length === 0) {
     // ⛔ Qui c'era «Sedi non attivate — Sincronizza le location da Shopify e
     //    seleziona fino a N sedi operative»: il testo del flusso vecchio, in cui il
     //    sync creava le sedi e l'operatore ne «selezionava» alcune. Dall'11/09 la
@@ -43,7 +46,7 @@ export function locationSetupStatusOf(
     };
   }
 
-  const lastSyncedAt = synced.reduce<IsoDateString | undefined>((latest, location) => {
+  const lastSyncedAt = collegate.reduce<IsoDateString | undefined>((latest, location) => {
     const at = location.shopify?.lastSyncedAt;
     if (!at) {
       return latest;
@@ -52,15 +55,19 @@ export function locationSetupStatusOf(
   }, undefined);
 
   const countLabel =
-    synced.length === 1
+    collegate.length === 1
       ? '1 sede collegata a una location del negozio'
-      : `${synced.length} sedi collegate a una location del negozio`;
+      : `${collegate.length} sedi collegate a una location del negozio`;
+  const operativeLabel =
+    operative.length === collegate.length
+      ? ''
+      : ` · ${operative.length === 1 ? '1 attiva nel piano' : `${operative.length} attive nel piano`}`;
   const timeLabel = lastSyncedAt ? ` · ultima lettura ${formatDateTime(lastSyncedAt)}` : '';
 
   return {
-    active: true,
+    active: operative.length > 0,
     label: 'Sedi collegate',
-    detail: `${countLabel}${timeLabel}`,
+    detail: `${countLabel}${operativeLabel}${timeLabel}`,
   };
 }
 

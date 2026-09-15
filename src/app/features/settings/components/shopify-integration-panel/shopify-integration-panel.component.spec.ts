@@ -1259,6 +1259,160 @@ describe('ShopifyIntegrationPanelComponent', () => {
     });
 
     /**
+     * ⛔ Sull'API vera il percorso arriva in ~2,6 s (tenant di prova, 14/09/2026): in quel
+     *    tempo «Prima connessione» diceva «nata prima del percorso» prima di saperlo e
+     *    «Problemi ed esiti» era una scheda vuota. Il caricamento si mostra.
+     */
+    it('mentre il percorso si legge, Prima connessione e Problemi mostrano il caricamento — non il falso né il vuoto', async () => {
+      const lento = new Subject<ShopifySetupDto>();
+      const setupService = { stato: vi.fn().mockReturnValue(lento.asObservable()) };
+      await render(ShopifyIntegrationPanelComponent, {
+        inputs: { locationSetupStatus: LOCATION_SETUP, scheda: 'prima-connessione' },
+        providers: [
+          provideRouter([{ path: '**', children: [] }]),
+          COLONNE_FINTE,
+          { provide: ShopifyConnectionService, useValue: connectionService },
+          { provide: ShopifySetupService, useValue: setupService },
+          { provide: AuthService, useValue: { currentUser: () => TITOLARE } },
+        ],
+      });
+      await screen.findByRole('navigation', { name: 'Aree di Shopify' });
+      expect(screen.queryByText(/nata prima del percorso guidato/)).toBeNull();
+      expect(document.querySelector('app-table-skeleton')).not.toBeNull();
+      lento.next(PERCORSO_ASSENTE);
+      lento.complete();
+      expect(await screen.findByText(/nata prima del percorso guidato/)).toBeVisible();
+      expect(document.querySelector('app-table-skeleton')).toBeNull();
+    });
+
+    /**
+     * ⛔ Stessa attesa, scheda Sincronizzazione (14/09/2026): i quattro flussi dicevano
+     *    «attivo» e l'etichetta «attiva» con la situazione ancora vuota. Durante la
+     *    lettura nessun verdetto — né sulle righe né sulla scheda — e con la risposta
+     *    arriva la parola giusta.
+     */
+    it('mentre il percorso si legge, Sincronizzazione non dichiara «attivo»: caricamento, ed etichetta senza stato', async () => {
+      const lento = new Subject<ShopifySetupDto>();
+      const setupService = { stato: vi.fn().mockReturnValue(lento.asObservable()) };
+      connectionService.getConnection.mockReturnValue(
+        of({ ...CONNECTED, autoSyncEnabled: true, webhookTopicsKnown: false, webhookTopics: [] }),
+      );
+      await render(ShopifyIntegrationPanelComponent, {
+        inputs: { locationSetupStatus: LOCATION_SETUP, scheda: 'sincronizzazione' },
+        providers: [
+          provideRouter([{ path: '**', children: [] }]),
+          COLONNE_FINTE,
+          { provide: ShopifyConnectionService, useValue: connectionService },
+          { provide: ShopifySetupService, useValue: setupService },
+          { provide: AuthService, useValue: { currentUser: () => TITOLARE } },
+        ],
+      });
+      const schede = await screen.findByRole('navigation', { name: 'Aree di Shopify' });
+      // Etichetta senza parola di stato, e nessuna riga di flusso: solo il caricamento.
+      expect(
+        within(schede).getByRole('link', { name: 'Sincronizzazione automatica' }),
+      ).toBeVisible();
+      expect(
+        within(schede).queryByRole('link', {
+          name: /Sincronizzazione automatica (attiva|limitata)/,
+        }),
+      ).toBeNull();
+      expect(screen.queryByText('attivo')).toBeNull();
+      expect(screen.queryByText('Quantità')).toBeNull();
+      expect(document.querySelector('app-table-skeleton')).not.toBeNull();
+
+      lento.next(PERCORSO_ASSENTE);
+      lento.complete();
+
+      expect(
+        await within(schede).findByRole('link', { name: 'Sincronizzazione automatica attiva' }),
+      ).toBeVisible();
+      expect(screen.getAllByText('attivo')).toHaveLength(4);
+      expect(document.querySelector('app-table-skeleton')).toBeNull();
+    });
+
+    it('Problemi ed esiti: lettura in corso → scheletro; lettura fallita → errore con «Riprova» (non una scheda vuota); al secondo tentativo il contenuto, con «nessun problema» detto, e nessuna richiesta doppia', async () => {
+      const lento = new Subject<ShopifySetupDto>();
+      const setupService = {
+        stato: vi
+          .fn()
+          .mockReturnValueOnce(lento.asObservable())
+          .mockReturnValue(of(PERCORSO_ASSENTE)),
+      };
+      const utente = userEvent.setup();
+      await render(ShopifyIntegrationPanelComponent, {
+        inputs: { locationSetupStatus: LOCATION_SETUP, scheda: 'problemi' },
+        providers: [
+          provideRouter([{ path: '**', children: [] }]),
+          COLONNE_FINTE,
+          { provide: ShopifyConnectionService, useValue: connectionService },
+          { provide: ShopifySetupService, useValue: setupService },
+          { provide: AuthService, useValue: { currentUser: () => TITOLARE } },
+        ],
+      });
+      await screen.findByRole('navigation', { name: 'Aree di Shopify' });
+      // 1 · in lettura: lo scheletro, niente titolo «Problemi aperti», niente conteggio.
+      expect(document.querySelector('app-table-skeleton')).not.toBeNull();
+      expect(screen.queryByRole('heading', { name: /Problemi aperti/ })).toBeNull();
+
+      // 2 · la lettura fallisce: lo stato di errore, non una scheda vuota.
+      lento.error({ kind: 'server', message: 'Shopify non risponde.' });
+      expect(await screen.findByText('Problemi ed esiti non letti')).toBeVisible();
+      expect(screen.getByText('Shopify non risponde.')).toBeVisible();
+      expect(document.querySelector('app-table-skeleton')).toBeNull();
+      expect(screen.queryByRole('heading', { name: /Problemi aperti/ })).toBeNull();
+
+      // 3 · «Riprova»: una sola richiesta in più, e il contenuto — con l'assenza di problemi detta.
+      await utente.click(screen.getByRole('button', { name: 'Riprova' }));
+      expect(await screen.findByRole('heading', { name: /Problemi aperti/ })).toBeVisible();
+      expect(screen.getByText(/Nessun problema aperto/)).toBeVisible();
+      expect(screen.queryByText('Shopify non risponde.')).toBeNull();
+      expect(setupService.stato).toHaveBeenCalledTimes(2);
+    });
+
+    it('se la lettura del percorso fallisce, Sincronizzazione mostra l’errore con «Riprova», senza stato sulla scheda; al secondo tentativo compaiono i flussi', async () => {
+      const setupService = {
+        stato: vi
+          .fn()
+          .mockReturnValueOnce(
+            throwError(() => ({ kind: 'server', message: 'Shopify non risponde.' })),
+          )
+          .mockReturnValue(of(PERCORSO_ASSENTE)),
+      };
+      connectionService.getConnection.mockReturnValue(
+        of({ ...CONNECTED, autoSyncEnabled: true, webhookTopicsKnown: false, webhookTopics: [] }),
+      );
+      const utente = userEvent.setup();
+      await render(ShopifyIntegrationPanelComponent, {
+        inputs: { locationSetupStatus: LOCATION_SETUP, scheda: 'sincronizzazione' },
+        providers: [
+          provideRouter([{ path: '**', children: [] }]),
+          COLONNE_FINTE,
+          { provide: ShopifyConnectionService, useValue: connectionService },
+          { provide: ShopifySetupService, useValue: setupService },
+          { provide: AuthService, useValue: { currentUser: () => TITOLARE } },
+        ],
+      });
+      const schede = await screen.findByRole('navigation', { name: 'Aree di Shopify' });
+      expect(await screen.findByText('Stato degli aggiornamenti non letto')).toBeVisible();
+      expect(screen.getByText('Shopify non risponde.')).toBeVisible();
+      expect(
+        within(schede).getByRole('link', { name: 'Sincronizzazione automatica' }),
+      ).toBeVisible();
+      expect(screen.queryByText('attivo')).toBeNull();
+      expect(document.querySelector('app-table-skeleton')).toBeNull();
+
+      await utente.click(screen.getByRole('button', { name: 'Riprova' }));
+
+      expect(
+        await within(schede).findByRole('link', { name: 'Sincronizzazione automatica attiva' }),
+      ).toBeVisible();
+      expect(screen.getAllByText('attivo')).toHaveLength(4);
+      expect(screen.queryByText('Shopify non risponde.')).toBeNull();
+      expect(setupService.stato).toHaveBeenCalledTimes(2);
+    });
+
+    /**
      * ⭐ Le scelte sulle sedi FUORI dal percorso (12/09/2026): per una connessione
      *    nata prima — o dopo Disconnetti e riconnessione — la sezione Sedi offre
      *    collega / crea / lascia con lo stesso componente della fase 2, e il

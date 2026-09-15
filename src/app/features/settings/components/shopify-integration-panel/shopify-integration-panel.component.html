@@ -173,7 +173,10 @@
 
   <!-- ═══ 1 · PRIMA CONNESSIONE ═══ -->
   @if (canManageShopify() && connection() && schedaAttiva() === 'prima-connessione') {
-    @if (mostraPercorso() && setup(); as percorso) {
+    @if (setupInLettura() && !setup()) {
+      <!-- Il percorso si sta leggendo: niente affermazioni prima di sapere. -->
+      <app-table-skeleton [columns]="2" [rows]="3" />
+    } @else if (mostraPercorso() && setup(); as percorso) {
       <section class="shopify-integration__scheda" aria-labelledby="shopify-setup-title">
         <app-shopify-setup-panel
           [setup]="percorso"
@@ -309,51 +312,69 @@
                (il motivo, quando c'è) · azione. Lo stato è piatto e si distingue anche dal
                testo, non solo dal colore.
           -->
-          <div class="shopify-integration__righe shopify-integration__righe--flussi" role="list">
-            <div class="shopify-integration__intestazione" aria-hidden="true">
-              <span>Flusso</span>
-              <span>Direzione</span>
-              <span>Stato</span>
-              <span>Dettaglio</span>
-              <span>Azione</span>
-            </div>
-            @for (flusso of flussi(); track flusso.id) {
-              <div class="shopify-integration__riga" role="listitem">
-                <div class="shopify-integration__riga-nome">
-                  <span class="shopify-integration__riga-titolo">{{ flusso.nome }}</span>
-                  <app-hover-tooltip
-                    [icona]="true"
-                    position="bottom"
-                    [etichetta]="'Che cosa si aggiorna: ' + flusso.nome"
-                    [text]="flusso.descrizione"
-                  />
-                </div>
-                <span class="shopify-integration__riga-direzione">{{ flusso.direzione }}</span>
-                <div class="shopify-integration__riga-stato">
-                  <app-badge [flat]="true" [tone]="flusso.tono">{{ flusso.stato }}</app-badge>
-                </div>
-                <p class="shopify-integration__riga-testo">
-                  @if (flusso.dettaglio) {
-                    <span class="shopify-integration__riga-dettaglio">{{ flusso.dettaglio }}</span>
-                  } @else {
-                    <!-- Il trattino riempie la colonna sulla scrivania; sul telefono non c'è colonna. -->
-                    <span class="shopify-integration__riga-vuoto">—</span>
-                  }
-                </p>
-                <div class="shopify-integration__riga-azione">
-                  @if (flusso.rimando; as rimando) {
-                    <button
-                      type="button"
-                      class="shopify-integration__rimando"
-                      (click)="vaiAllaScheda(rimando.scheda, rimando.elemento)"
-                    >
-                      {{ rimando.etichetta }} ›
-                    </button>
-                  }
-                </div>
+          <!--
+            ⛔ Gli stati dei flussi dipendono dal percorso (`/shopify/setup`): finché non è
+               letto si mostra il caricamento, se la lettura fallisce l'errore con «Riprova».
+               Nessuna riga «attivo» prima di sapere (misurato il 14/09/2026).
+          -->
+          @if (situazioneNonLetta()) {
+            <app-table-skeleton [columns]="5" [rows]="4" />
+          } @else if (situazioneFallita()) {
+            <app-error-state
+              title="Stato degli aggiornamenti non letto"
+              [description]="setupErrore() ?? ''"
+              retryLabel="Riprova"
+              (retry)="ricaricaSetup()"
+            />
+          } @else {
+            <div class="shopify-integration__righe shopify-integration__righe--flussi" role="list">
+              <div class="shopify-integration__intestazione" aria-hidden="true">
+                <span>Flusso</span>
+                <span>Direzione</span>
+                <span>Stato</span>
+                <span>Dettaglio</span>
+                <span>Azione</span>
               </div>
-            }
-          </div>
+              @for (flusso of flussi(); track flusso.id) {
+                <div class="shopify-integration__riga" role="listitem">
+                  <div class="shopify-integration__riga-nome">
+                    <span class="shopify-integration__riga-titolo">{{ flusso.nome }}</span>
+                    <app-hover-tooltip
+                      [icona]="true"
+                      position="bottom"
+                      [etichetta]="'Che cosa si aggiorna: ' + flusso.nome"
+                      [text]="flusso.descrizione"
+                    />
+                  </div>
+                  <span class="shopify-integration__riga-direzione">{{ flusso.direzione }}</span>
+                  <div class="shopify-integration__riga-stato">
+                    <app-badge [flat]="true" [tone]="flusso.tono">{{ flusso.stato }}</app-badge>
+                  </div>
+                  <p class="shopify-integration__riga-testo">
+                    @if (flusso.dettaglio) {
+                      <span class="shopify-integration__riga-dettaglio">{{
+                        flusso.dettaglio
+                      }}</span>
+                    } @else {
+                      <!-- Il trattino riempie la colonna sulla scrivania; sul telefono non c'è colonna. -->
+                      <span class="shopify-integration__riga-vuoto">—</span>
+                    }
+                  </p>
+                  <div class="shopify-integration__riga-azione">
+                    @if (flusso.rimando; as rimando) {
+                      <button
+                        type="button"
+                        class="shopify-integration__rimando"
+                        (click)="vaiAllaScheda(rimando.scheda, rimando.elemento)"
+                      >
+                        {{ rimando.etichetta }} ›
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
 
           <!--
             Le notifiche dal negozio: i fatti, senza verdetto (il verdetto sta nella fascia in
@@ -858,6 +879,23 @@
     (una per causa), e gli ESITI delle operazioni precedenti — fotografie con la data,
     in una tabella neutra. Mescolarli faceva leggere un esito come un problema.
   -->
+  <!--
+    Tre stati distinti prima del contenuto: lettura in corso (scheletro), lettura fallita
+    (errore con «Riprova», lo stesso della connessione), percorso letto (contenuto — e
+    «nessun problema aperto» lo dice `app-shopify-problemi`, non una scheda vuota).
+  -->
+  @if (schedaAttiva() === 'problemi') {
+    @if (situazioneNonLetta()) {
+      <app-table-skeleton [columns]="4" [rows]="3" />
+    } @else if (situazioneFallita()) {
+      <app-error-state
+        title="Problemi ed esiti non letti"
+        [description]="setupErrore() ?? ''"
+        retryLabel="Riprova"
+        (retry)="ricaricaSetup()"
+      />
+    }
+  }
   @if (mostraSituazione() && schedaAttiva() === 'problemi') {
     @let situazione = situazioneAttuale();
     <section
@@ -1167,6 +1205,9 @@
         non crea sedi e non cambia le scelte già fatte. Una location sparita dal negozio viene
         segnalata: la sede resta.
       </p>
+      @if (setupInLettura() && !setup()) {
+        <app-table-skeleton [columns]="4" [rows]="2" />
+      }
       @if (mostraSceltaSedi() && setup(); as scelte) {
         <!--
           ⭐ Le scelte sulle sedi fuori dal percorso (`docs/27` §6): per ogni location

@@ -854,3 +854,32 @@ ora», «Rileggi le location» dopo una rinomina nell'admin (controllo minimo ut
 proprietario); i quattro rifiuti OAuth non riproducibili in modo semplice, «Registra le notifiche
 mancanti», il ritorno OAuth con collegamento, «Azzera» con un errore vero (solo con decisione a
 parte). Le prove eseguite sono tutte con risposte simulate (§8.4).
+
+## 10. Le cinque schede coi dati del tenant di prova — 14/09/2026, notte (ramo `fix/impostazioni-shopify-caricamento-percorso`)
+
+Controllo in sola lettura dell'anteprima di `develop` (`01852516`) collegata all'API 3000 e al
+database condiviso. Due difetti concreti, entrambi da un fatto non simulato: **`/shopify/setup`
+risponde in ~2,6 s**, perché legge le location **dal negozio** (`locationsConScelte` →
+`GET /locations.json`), e in quel tempo il pannello aveva `setup() === null`.
+
+| Difetto misurato                                                                                         | Correzione                                                                                                                                                                                                                                          | Prova                                                                                                               |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| «Prima connessione» diceva «nata prima del percorso guidato» prima di saperlo; «Problemi ed esiti» vuota | `setupInLettura`: scheletro finché la prima lettura non risponde (Prima connessione, Problemi, tabella delle sedi)                                                                                                                                  | spec «mentre il percorso si legge, Prima connessione e Problemi mostrano il caricamento»                            |
+| «Sedi collegate»: contava le sedi attive nel piano, non quelle collegate a una location                  | `location-setup-status.util`: «N sedi collegate a una location del negozio · M attive nel piano» (la seconda parte solo se diversa)                                                                                                                 | spec dell'util (+1 caso)                                                                                            |
+| **Sincronizzazione**: i quattro flussi «attivo» e la scheda «attiva» con la situazione ancora vuota      | `situazioneNonLetta` / `situazioneFallita`: scheletro a cinque colonne durante la lettura, stato di errore con «Riprova» se fallisce; **l'etichetta della scheda non porta la parola di stato** finché il percorso non è letto (`setup() === null`) | spec «mentre il percorso si legge, Sincronizzazione non dichiara «attivo»» e «se la lettura del percorso fallisce…» |
+
+⚠️ **«Riprova» della prima lettura azzera l'errore di quella lettura e nient'altro**: con un
+percorso già letto l'errore in `setupErrore` può essere di un comando, e non si tocca. La
+rilettura è chiamata anche dall'effect sulla connessione: legge `setup()` con `untracked`, o
+ogni lettura ne farebbe partire un'altra (misurato: `stato()` chiamato due volte).
+
+⭐ **«Problemi ed esiti» distingue tre stati** (15/09/2026, su richiesta del proprietario):
+lettura in corso → scheletro; lettura fallita → stato di errore con «Riprova» (lo stesso
+`app-error-state` della connessione), **mai una scheda vuota**; percorso letto → contenuto,
+dove l'assenza di problemi la dice `app-shopify-problemi` («Nessun problema aperto»). Prova:
+fallimento → «Riprova» → contenuto, con `stato()` chiamato esattamente due volte (nessuna
+richiesta doppia). Il motore è fuori da questo ramo (`docs/30`).
+
+Verifiche sul ramo: spec del pannello 64 verdi (le tre nuove rosse senza la correzione), util
+verde, `npm run lint` 60 guardie, `check:types`, e2e isolate `impostazioni-shopify` +
+`situazione-shopify` + `prima-connessione` 20 verdi.
