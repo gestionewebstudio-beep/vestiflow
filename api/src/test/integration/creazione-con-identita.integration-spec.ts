@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { PlatformAuditService } from '../../common/audit/platform-audit.service';
 import { ShopifyLinkHistoryService } from '../../shopify/shopify-link-history.service';
+import { NotificaDaRinviareException } from '../../shopify/shopify-notifica-rinviata.exception';
 import { ShopifyProductPullService } from '../../shopify/shopify-product-pull.service';
 import { ShopifyProductPushService } from '../../shopify/shopify-product-push.service';
 import { archivioImmaginiFinto } from './archivio-immagini-finto';
@@ -460,13 +461,11 @@ describe('Creazione su Shopify con identità VestiFlow (PostgreSQL isolato, nego
     const remoto = negozio.prodottoPerIdentita(id)!;
 
     // Il webhook della creazione arriva ora: il push non ha ancora scritto niente.
-    const esitoWebhook = await creaPull().importProductFromWebhook(
-      IDS.tenantA,
-      negozio.webhook(remoto.id),
-    );
-
-    // Adottato: gli id sono scritti; poi, prodotto `syncing`, l'aggiornamento è saltato.
-    expect(esitoWebhook).toBe('skipped');
+    // Adottato: gli id sono scritti; poi, prodotto `syncing`, la notifica è RINVIATA
+    // (D8(b), 15/09 notte): non «saltata» — la coda la ritenta a push finito.
+    await expect(
+      creaPull().importProductFromWebhook(IDS.tenantA, negozio.webhook(remoto.id)),
+    ).rejects.toBeInstanceOf(NotificaDaRinviareException);
     expect(await prisma.product.count({ where: { tenantId: IDS.tenantA } })).toBe(1);
     const durante = await locale(id);
     expect(durante.shopifyProductId).toBe(String(remoto.id));

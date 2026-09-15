@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { NotificaDaRinviareException } from './shopify-notifica-rinviata.exception';
 import { ShopifyTrasportoException } from './shopify-trasporto.util';
 
 /**
@@ -38,6 +39,7 @@ const CODICI_PRISMA_TRANSITORI = new Set(['P1001', 'P1002', 'P1008', 'P1017', 'P
  *
  * | transitorio                                                                 | permanente                                                    |
  * | --------------------------------------------------------------------------- | ------------------------------------------------------------- |
+ * | `NotificaDaRinviareException`: l'effetto non si applica ORA (articolo `syncing`) | —                                                          |
  * | trasporto verso Shopify di una lettura: timeout, rete, 502/503/504, scadenza | lo stesso trasporto con `esitoIncerto` (una scrittura partita) |
  * | 429 / `THROTTLED` oltre i limiti del trasporto                              | ogni altro 4xx, `userErrors`, rifiuti di dominio               |
  * | database irraggiungibile, connessione chiusa, pool esaurito, deadlock       | dati non validi, vincoli, qualunque altro errore              |
@@ -47,6 +49,9 @@ const CODICI_PRISMA_TRANSITORI = new Set(['P1001', 'P1002', 'P1008', 'P1017', 'P
  *    ripeterla alla cieca è il difetto che la coda deve evitare, non produrre.
  */
 export function naturaDellErrore(error: unknown): NaturaErroreWebhook {
+  if (error instanceof NotificaDaRinviareException) {
+    return 'transitorio';
+  }
   if (error instanceof ShopifyTrasportoException) {
     return error.esitoIncerto ? 'permanente' : 'transitorio';
   }

@@ -10,26 +10,31 @@
 
 ### Difetti da correggere (nel perimetro, senza decisione)
 
-| Difetto                                                         | Stato                                                  |
-| --------------------------------------------------------------- | ------------------------------------------------------ |
-| Creazione REST senza idempotenza (doppioni dopo risposta persa) | ✅ corretto — identità, claim, `productSet` (§7.2-ter) |
-| Webhook: nessuna deduplica, `200` dopo l'elaborazione           | ✅ corretto — coda con ricevute durevoli (§7.1.2)      |
-| Coda: ordine per uuid fra consegne nello stesso millisecondo    | ✅ corretto — `arrivo` assegnato dal database          |
-| Coda: letture remote dal lavoratore superato                    | ✅ corretto — guardia prima delle letture              |
-| Claim di creazione rimasto aperto dopo un'adozione da webhook   | ✅ corretto — l'adozione chiude il claim (§7.3.1 C1)   |
-| `tracked` assente nel completamento senza SKU                   | ✅ corretto (§7.2-ter.3)                               |
-| Prova `collegamento-escluso` che lasciava uno stato sync orfano | ✅ contenuto (la correzione vera è la FK, sotto)       |
-| —                                                               | _nessun difetto aperto senza decisione al 15/09 notte_ |
+| Difetto                                                                   | Stato                                                                                           |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Creazione REST senza idempotenza (doppioni dopo risposta persa)           | ✅ corretto — identità, claim, `productSet` (§7.2-ter)                                          |
+| Webhook: nessuna deduplica, `200` dopo l'elaborazione                     | ✅ corretto — coda con ricevute durevoli (§7.1.2)                                               |
+| Coda: ordine per uuid fra consegne nello stesso millisecondo              | ✅ corretto — `arrivo` assegnato dal database                                                   |
+| Coda: letture remote dal lavoratore superato                              | ✅ corretto — guardia prima delle letture                                                       |
+| Claim di creazione rimasto aperto dopo un'adozione da webhook             | ✅ corretto — l'adozione chiude il claim (§7.3.1 C1)                                            |
+| `tracked` assente nel completamento senza SKU                             | ✅ corretto (§7.2-ter.3)                                                                        |
+| Webhook di un articolo `syncing` «elaborato senza effetti» (perdita muta) | ✅ corretto — D8(b): rinviato con le attese approvate, poi fallita visibile col motivo (§7.3.1) |
+| Prova `collegamento-escluso` che lasciava uno stato sync orfano           | ✅ contenuto (la correzione vera è la FK, sotto)                                                |
+| —                                                                         | _nessun difetto aperto senza decisione al 15/09 notte_                                          |
 
 ### Decisioni mancanti (si chiede prima)
 
 | #             | Decisione                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Dove                 |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| **D8**        | webhook di un prodotto `syncing`: oggi **scartato in silenzio** e perso (riprodotto, S1). (a) scartato ma dichiarato; (b) **differito** con le attese di D1, poi `fallita` visibile — proposta (b): è una regola funzionale                                                                                                                                                                                                                                                                                                   | `docs/30` §7.3.1     |
-| **D9**        | ripresa automatica di un prodotto rimasto `syncing` da un push morto: (a) nessuna, lo sblocca il prossimo push (S2); (b) claim di push per gli aggiornamenti (lease + versione) — meccanismo nuovo. Proposta (a) ora, con D8(b)                                                                                                                                                                                                                                                                                               | `docs/30` §7.3.1     |
 | **FK**        | `shopify_inventory_sync_states` senza chiavi esterne. Regole proposte coerenti con `inventory_levels` (stessa terna tenant/variante/sede): **tenant RESTRICT, variante CASCADE, sede RESTRICT**. ⚠️ Sul condiviso, in sola lettura il 15/09: **324 righe, 62 senza sede** (sedi cancellate), 0 senza variante/tenant, 0 di altro tenant. La FK sulla sede **non si applica** finché quelle 62 righe esistono: cancellarle è una scelta sui dati (sono stati di coppie con una sede che non c'è più: nessun effetto operativo) | §21-ter sotto        |
 | **Scala**     | limite di varianti di `productSet` sincrono e `inventoryItem.tracked` dentro `productSet`: prova di contratto sul negozio, col via                                                                                                                                                                                                                                                                                                                                                                                            | `docs/30` §7.2-ter.3 |
 | **Migration** | le tre migration del ramo (claim, coda, arrivo/FK) sono sul solo database di prova: al condiviso con la procedura e il via, non necessariamente prima del merge in develop                                                                                                                                                                                                                                                                                                                                                    | —                    |
+
+### Limiti aperti dichiarati (decisi, non da correggere ora)
+
+| Limite                                                                                                                                                                                                      | Decisione                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Un articolo rimasto `syncing` da un push morto resta `syncing`: le sue notifiche si rinviano e poi falliscono visibili; lo sblocca solo «Sincronizza con Shopify», che **scrive sul negozio** i dati locali | **D9(a)**, 15/09: nessun automatismo di ripresa, nessun reset basato sul tempo. Se servirà una ripresa senza intervento, la forma è un claim di push (lease + versione): meccanismo nuovo, da decidere |
 
 ### Miglioramenti rimandabili (non bloccano niente)
 

@@ -56,6 +56,10 @@ import { ShopifyOAuthService } from './shopify-oauth.service';
 import { toShopifyUserMessage } from './shopify-user-error.util';
 import type { GuardiaCorsia } from './shopify-webhook-corsia.util';
 import {
+  motivoArticoloInSincronizzazione,
+  NotificaDaRinviareException,
+} from './shopify-notifica-rinviata.exception';
+import {
   mergeShopifyScopes,
   buildShopifyScopeDiagnostics,
   shopifyCatalogImportBlockMessage,
@@ -420,6 +424,11 @@ export class ShopifyProductPullService {
     try {
       return await this.importProduct(tenantId, remote, enrichment, ingresso);
     } catch (error: unknown) {
+      if (error instanceof NotificaDaRinviareException) {
+        // Non è un errore dell'articolo: lo stato resta quello che è (`syncing`), e il
+        // motivo lo porta la ricevuta.
+        throw error;
+      }
       const message = error instanceof Error ? error.message : 'Import webhook fallito';
       await this.recordProductImportError(tenantId, String(remote.id), message);
       throw error;
@@ -742,8 +751,15 @@ export class ShopifyProductPullService {
     }
 
     if (existing?.shopifySyncStatus === ShopifySyncStatus.syncing) {
+      // ⭐ Dal webhook NON si salta: la notifica si RINVIA (D8(b)). «Elaborata senza
+      //    effetto» era una perdita muta; la coda la ritenta con le attese approvate e,
+      //    esauriti i tentativi, la mostra fallita col motivo. Dall'import massivo resta
+      //    un salto: là il chiamante conta gli esiti e ripasserà.
+      if (ingresso.attore === PlatformAuditActor.webhook) {
+        throw new NotificaDaRinviareException(motivoArticoloInSincronizzazione(existing.name));
+      }
       this.logger.debug(
-        `Import webhook saltato: sync VestiFlow→Shopify in corso (${shopifyProductId})`,
+        `Import saltato: sync VestiFlow→Shopify in corso (${shopifyProductId})`,
       );
       return 'skipped';
     }

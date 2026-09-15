@@ -19,6 +19,7 @@ import {
   guardiaDellaCorsia,
   type GuardiaCorsia,
 } from './shopify-webhook-corsia.util';
+import { NotificaDaRinviareException } from './shopify-notifica-rinviata.exception';
 import { risorsaDelWebhook } from './shopify-webhook-risorsa.util';
 import {
   attesaDopoIlFallimento,
@@ -497,6 +498,12 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
         tentativi,
         ultimoErrore: messaggio,
       });
+      if (error instanceof NotificaDaRinviareException) {
+        // ⛔ Nessun reset dell'articolo (D9(a)): resta `syncing`; la ricevuta fallita, col
+        //    motivo e «Riprova», è ciò che l'operatore vede. Solo l'avviso sulla connessione.
+        await this.shopifyConnection.recordSetupWarning(tenantId, messaggio, 'webhook_rinviato_esaurito');
+        return;
+      }
       await this.registraFallimentoDefinitivo(tenantId, intera.topic, intera.payload, messaggio);
     }
   }

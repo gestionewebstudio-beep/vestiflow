@@ -1071,10 +1071,21 @@ finito il prodotto non resta `syncing`.
 | **S2 · RIPRODUZIONE** — lo stesso prodotto, un push da un altro processo                                                                                                                                 | ✅ lo lavora e lo chiude: il lucchetto `pushInFlight` è solo in memoria, il claim non c'entra (prodotto già collegato)                                                                                                                                                                                                                                                                                                     |
 | **C1 · CORRETTO** — webhook adotta la creazione mentre il push è fermo, poi il push muore                                                                                                                | ⭐ **il claim non resta più aperto**: l'adozione (`adottaIdentitaRecuperata`, fenced sulla versione) chiude `claim_id/shop_id/claimed_at` da qualunque percorso arrivi — è la conclusione della creazione; la versione resta ed è l'unica cosa che il push vivo ricontrolla, quindi il push che riprende conclude senza doppione. Prima restava «del push», e su un prodotto già collegato nessun percorso lo chiudeva più |
 
-**Separazione, come chiesto.** Il claim residuo era correggibile con le regole approvate
-(la creazione si conclude con l'adozione; il push vivo è protetto dalla versione) ed è
-corretto. Il `syncing` dopo un arresto **no**, per due ragioni distinte che chiedono due
-decisioni:
+**Decise il 15/09 (notte) e fatte: D8(b), D9(a).** Il webhook di un articolo `syncing`
+non esce più «elaborato senza effetti»: il pull, dal solo percorso webhook, lancia
+`NotificaDaRinviareException` (`shopify-notifica-rinviata.exception.ts`) e la coda la
+tratta come transitoria — stessa ricevuta, attese approvate, poi `fallita` visibile col
+motivo e «Riprova»; al fallimento definitivo l'articolo **non si tocca** (resta `syncing`,
+nessun reset per anzianità: D9(a)) e il motivo dice all'operatore come sbloccarlo — «Sincronizza
+con Shopify» dal dettaglio articolo — **e che quel push scrive sul negozio** i dati locali.
+Prove (`syncing-e-claim-dopo-arresto`): S1 rinviata con motivo e articolo intatto; S1a push
+vivo che termina → applicata dopo, una volta; S1b push morto → fallita dopo sei tentativi,
+nell'elenco, articolo ancora `syncing`, avviso sulla connessione; S1c correlate in ordine di
+arrivo, altre risorse continuano; S1d «Riprova» dopo lo sblocco (un push nuovo) → nessun
+doppione, vale l'ultimo stato pieno. ⚠️ **Lo stato `syncing` bloccato resta un limite
+aperto**: lo sblocca solo un push, che non è un'operazione neutra.
+
+La tabella qui sotto resta come storia della decisione:
 
 | ⏸ Decisione                                                                                                                                           | Le opzioni                                                                                                                                                                                                                                                                                                                                                                                                 | Proposta                                                                                                                                                                              |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
