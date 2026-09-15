@@ -218,9 +218,7 @@ const INTRODOTTO_IN: Partial<Record<TenantBackupEntityFile, number>> = Object.fr
  *    ognuno aveva la propria condizione scritta a mano. Erano due rotture
  *    indipendenti per lo stesso archivio vecchio: misurato l'08/09/2026.
  */
-export function tenantBackupFileAttesi(
-  formatVersion: number,
-): readonly TenantBackupEntityFile[] {
+export function tenantBackupFileAttesi(formatVersion: number): readonly TenantBackupEntityFile[] {
   if (formatVersion <= 3) {
     return TENANT_BACKUP_V3_ENTITY_FILES;
   }
@@ -231,11 +229,20 @@ export function tenantBackupFileAttesi(
 export const TENANT_BACKUP_V4_ENTITY_FILES: readonly TenantBackupEntityFile[] =
   tenantBackupFileAttesi(4);
 
-/** FK circolari e autorelazioni sono completate nella stessa transazione. */
+/**
+ * FK circolari e autorelazioni sono completate nella stessa transazione.
+ *
+ * ⭐ `products.shopifyCreateClaimShopId` (docs/30 §7.2-bis) punta a `shopify_shops`, che
+ *    il ripristino reinserisce DOPO i prodotti: senza differimento un backup preso durante
+ *    una creazione in corso non si ripristinava (riprodotto il 15/09/2026,
+ *    `ripristino-storico-shopify` 2a-bis). Il claim torna com'era: la lease lo rende
+ *    recuperabile, e il push rilegge comunque l'identità prima di creare.
+ */
 export const TENANT_BACKUP_DEFERRED_FIELDS: Partial<
   Record<TenantBackupEntityFile, readonly string[]>
 > = {
   catalogCategories: ['parentId'],
+  products: ['shopifyCreateClaimShopId'],
   salesOrders: ['documentId'],
   documents: ['sourceDocumentId'],
   documentLines: ['returnedFromLineId'],

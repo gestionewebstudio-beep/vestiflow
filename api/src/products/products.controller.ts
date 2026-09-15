@@ -52,7 +52,7 @@ import { DocumentPriceModePreferenceService } from '../documents/document-price-
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
 import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
-import { ProductsService, type ProductWithVariants } from './products.service';
+import { ProductsService, type ProdottoInRisposta } from './products.service';
 
 import type { Serialized } from '../common/serialized.type';
 import { SkuGeneratorService } from './sku-generator.service';
@@ -121,7 +121,7 @@ export class ProductsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Query() query: ListProductsQueryDto,
-  ): Promise<Serialized<Paginated<ProductWithVariants>>> {
+  ): Promise<Serialized<Paginated<ProdottoInRisposta>>> {
     return normalizeDecimals(await this.products.list(tenantId, query, user));
   }
 
@@ -202,11 +202,7 @@ export class ProductsController {
     @CurrentTenant() tenantId: string,
     @Query() query: BarcodeAvailabilityQueryDto,
   ): Promise<{ barcode: string; available: boolean }> {
-    return this.products.checkBarcodeAvailability(
-      tenantId,
-      query.barcode,
-      query.excludeProductId,
-    );
+    return this.products.checkBarcodeAvailability(tenantId, query.barcode, query.excludeProductId);
   }
 
   @Get('variants/by-code')
@@ -303,7 +299,7 @@ export class ProductsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Serialized<ProductWithVariants>> {
+  ): Promise<Serialized<ProdottoInRisposta>> {
     return normalizeDecimals(await this.products.getById(tenantId, id, user));
   }
 
@@ -313,7 +309,7 @@ export class ProductsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateProductDto,
-  ): Promise<Serialized<ProductWithVariants>> {
+  ): Promise<Serialized<ProdottoInRisposta>> {
     const product = normalizeDecimals(await this.products.create(tenantId, dto, user));
     // ⚠️ Qui la modalità Listini veniva ricordata come preferenza personale.
     // Rimosso il 16/08/2026: l'anagrafica segue la convenzione aziendale.
@@ -327,7 +323,7 @@ export class ProductsController {
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
-  ): Promise<Serialized<ProductWithVariants>> {
+  ): Promise<Serialized<ProdottoInRisposta>> {
     return normalizeDecimals(await this.products.update(tenantId, id, dto, user));
   }
 
@@ -338,7 +334,7 @@ export class ProductsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Serialized<ProductWithVariants>> {
+  ): Promise<Serialized<ProdottoInRisposta>> {
     return normalizeDecimals(await this.products.duplicateProduct(tenantId, id, user));
   }
 

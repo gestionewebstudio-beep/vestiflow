@@ -1,4 +1,4 @@
-import { ProductStatus, ShopifyConnectionStatus, ShopifySyncStatus } from '@prisma/client';
+import { Prisma, ProductStatus, ShopifyConnectionStatus, ShopifySyncStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
@@ -54,6 +54,11 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
       ...overrides,
     };
 
+    // ⭐ Il CLAIM della creazione (docs/30 §7.2-bis) vive in tre letture/scritture di
+    //    Prisma: l'UPDATE atomico che lo prende, la rilettura che lo conferma, e il
+    //    controllo di versione prima di ogni chiamata remota. Il doppio li tiene
+    //    coerenti fra loro, così una prova che crea non è superata da sé stessa.
+    let claimId: string | null = null;
     const prisma = {
       shopifyConnection: {
         findUnique: vi.fn().mockResolvedValue({
@@ -64,19 +69,67 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
       shopifyCredential: { findUnique: vi.fn().mockResolvedValue({ scopes: ['write_products'] }) },
       product: {
         findFirst: vi.fn().mockResolvedValue(product),
-        findUnique: vi.fn().mockResolvedValue({ shopifySyncStatus: ShopifySyncStatus.synced }),
+        findUnique: vi.fn().mockResolvedValue({
+          shopifySyncStatus: ShopifySyncStatus.synced,
+          shopifyCreateClaimVersion: 1,
+        }),
+        findUniqueOrThrow: vi.fn(async () => ({
+          shopifyCreateClaimId: claimId,
+          shopifyCreateClaimVersion: 1,
+        })),
         update: vi.fn().mockResolvedValue(product),
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        updateMany: vi.fn(async (args: { data?: { shopifyCreateClaimId?: string } }) => {
+          if (typeof args.data?.shopifyCreateClaimId === 'string') {
+            claimId = args.data.shopifyCreateClaimId;
+          }
+          return { count: 1 };
+        }),
       },
-      productVariant: { update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+      productVariant: {
+        update: vi.fn(),
+        // L'adozione rilegge le varianti che ESISTONO adesso: qui, quelle del prodotto.
+        findMany: vi.fn(async () => product.variants.map((v) => ({ id: v.id }))),
+      },
       productImage: { update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
-      $transaction: vi.fn(async (ops: readonly Promise<unknown>[]) => Promise.all(ops)),
+      // Il lock consultivo dell'adozione (`pg_advisory_xact_lock`): qui una lettura innocua.
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      $transaction: vi.fn(
+        async (ops: readonly Promise<unknown>[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof ops === 'function' ? ops(prisma) : Promise.all(ops),
+      ),
     };
 
     const shopifyGraphql = {
       updateProductCatalog: vi
         .fn()
         .mockResolvedValue({ id: 'gid://shopify/Product/111', status: 'ACTIVE' }),
+      // ── la creazione con identità: definizioni presenti, nessun prodotto con
+      //    quell'identità, `productCreate` che risponde con la variante iniziale.
+      leggiDefinizioneMetafield: vi.fn(async (_d: string, _t: string, ownerType: string) => ({
+        id: `gid://shopify/MetafieldDefinition/${ownerType === 'PRODUCT' ? 1 : 2}`,
+        typeName: 'id',
+        ownerType,
+      })),
+      creaDefinizioneMetafield: vi.fn(),
+      productByIdentity: vi.fn().mockResolvedValue(null),
+      createProductSet: vi.fn().mockResolvedValue({
+        id: 'gid://shopify/Product/111',
+        status: 'ACTIVE',
+        variants: [{ id: 'gid://shopify/ProductVariant/1111', sku: 'SKU-1' }],
+      }),
+      bulkCreateVariants: vi.fn().mockResolvedValue([]),
+      listProductVariantsWithIdentity: vi.fn().mockResolvedValue([
+        {
+          id: 'gid://shopify/ProductVariant/1111',
+          sku: 'SKU-1',
+          barcode: null,
+          inventoryItemId: 'gid://shopify/InventoryItem/2111',
+          selectedOptions: [],
+          title: 'Default Title',
+          price: '29.90',
+          identita: 'var-1',
+        },
+      ]),
       setProductStatus: vi.fn(),
       getProductTitle: vi.fn().mockResolvedValue('Titolo scritto su Shopify'),
       listProductVariants: vi.fn().mockResolvedValue([]),
@@ -87,7 +140,6 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
     };
 
     const shopifyAdmin = {
-      createProduct: vi.fn().mockResolvedValue({ id: 111, variants: [], images: [] }),
       listProductMetafields: vi.fn().mockResolvedValue([]),
       upsertProductMetafield: vi.fn(),
       updateInventoryItemCost: vi.fn(),
@@ -122,29 +174,128 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
     return { service, shopifyAdmin, shopifyGraphql, prisma };
   }
 
-  function pushedPrice(payload: unknown): unknown {
-    const product = (payload as { product?: Record<string, unknown> }).product ?? payload;
-    const variants = (product as { variants?: Record<string, unknown>[] }).variants ?? [];
-    return variants[0]?.['price'];
+  /**
+   * Il prezzo in uscita sta nel payload di `productSet` (sola creazione): prodotto, la
+   * variante con la sua identità e i suoi valori, in una mutation. Nessuna variante iniziale,
+   * nessuna scrittura successiva.
+   */
+  function pushedPrice(shopifyGraphql: { createProductSet: { mock: { calls: unknown[][] } } }) {
+    const input = shopifyGraphql.createProductSet.mock.calls[0]?.[2] as
+      { variants: readonly { price?: string }[] } | undefined;
+    return input?.variants[0]?.price;
   }
 
   it('pubblica due decimali quando il netto porta la coda decimale', async () => {
     // 123,97 ivati al 22% valgono 10161,4754 centesimi netti.
-    const { service, shopifyAdmin } = createService(10161.4754);
+    const { service, shopifyGraphql } = createService(10161.4754);
 
-    await service.pushProduct('tenant-1', 'prod-1');
+    const esito = await service.pushProduct('tenant-1', 'prod-1');
 
-    const payload = shopifyAdmin.createProduct.mock.calls[0]?.[2];
-    expect(pushedPrice(payload)).toBe('101.61');
+    // ⚠️ Fino al 15/09 pomeriggio il mock non aveva `$queryRaw`: l'adozione cadeva DOPO
+    //    l'invio del prezzo e la prova restava verde su un push fallito. Ora si asserisce.
+    expect(esito.pushed).toBe(true);
+    expect(shopifyGraphql.createProductSet).toHaveBeenCalledWith(
+      'shop.myshopify.com',
+      'shpat_test',
+      expect.objectContaining({
+        metafields: [{ namespace: 'vestiflow', key: 'product_id', type: 'id', value: 'prod-1' }],
+      }),
+    );
+    expect(pushedPrice(shopifyGraphql)).toBe('101.61');
   });
 
-  it('un prezzo intero resta quello che era', async () => {
-    const { service, shopifyAdmin } = createService(2990);
+  it('⛔ un errore di persistenza durante la pubblicazione arriva all operatore tradotto: codice sì, chiamata e percorso del file no', async () => {
+    const { service, prisma } = createService(2990);
+    prisma.productVariant.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError(
+        'Invalid `tx.productVariant.update()` invocation in C:/vf-motore/api/src/shopify/shopify-identita-adozione.util.ts:96:29 — Record to update not found.',
+        { code: 'P2025', clientVersion: 'x' },
+      ),
+    );
 
-    await service.pushProduct('tenant-1', 'prod-1');
+    const esito = await service.pushProduct('tenant-1', 'prod-1');
 
-    const payload = shopifyAdmin.createProduct.mock.calls[0]?.[2];
-    expect(pushedPrice(payload)).toBe('29.90');
+    expect(esito.pushed).toBe(false);
+    expect(esito.outcome).toBe('fallito');
+    const scritti = prisma.product.update.mock.calls
+      .map((c) => (c[0] as { data?: { shopifyLastError?: string } }).data?.shopifyLastError)
+      .filter((m): m is string => typeof m === 'string');
+    const motivo = scritti.at(-1)!;
+    expect(motivo).toContain('Salvataggio locale non riuscito durante la pubblicazione (P2025)');
+    expect(motivo).not.toMatch(/productVariant\.update|vf-motore|\.ts|invocation/);
+    expect(esito.detail).toBe(motivo);
+  });
+
+  it('un prezzo intero resta quello che era; la variante nasce con la propria identità nella stessa mutation, senza scritture dopo', async () => {
+    const { service, shopifyGraphql } = createService(2990);
+
+    const esito = await service.pushProduct('tenant-1', 'prod-1');
+
+    expect(esito.pushed).toBe(true);
+    expect(pushedPrice(shopifyGraphql)).toBe('29.90');
+    const input = shopifyGraphql.createProductSet.mock.calls[0]?.[2] as {
+      productOptions: unknown;
+      variants: readonly Record<string, unknown>[];
+    };
+    // Senza opzioni: variante unica «Title» / «Default Title», con la SUA identità.
+    expect(input.productOptions).toEqual([{ name: 'Title', values: [{ name: 'Default Title' }] }]);
+    expect(input.variants).toHaveLength(1);
+    expect(input.variants[0]).toMatchObject({
+      sku: 'SKU-1',
+      metafields: [{ namespace: 'vestiflow', key: 'variant_id', type: 'id', value: 'var-1' }],
+    });
+    // ⛔ Nessuna id/identifier nel payload; nessuna bulkCreate, nessuna bulkUpdate dopo.
+    expect('id' in input).toBe(false);
+    expect('identifier' in input).toBe(false);
+    expect(shopifyGraphql.bulkCreateVariants).not.toHaveBeenCalled();
+    expect(shopifyGraphql.bulkUpdateVariants).not.toHaveBeenCalled();
+  });
+
+  it('⛔ una risposta PERSA da productSet non provoca una seconda creazione: si rilegge per identità e si adottano gli id', async () => {
+    const { service, shopifyGraphql, prisma } = createService(
+      2990,
+      {},
+      {
+        createProductSet: vi.fn().mockRejectedValue(new Error('timeout dopo 15000 ms')),
+        productByIdentity: vi
+          .fn()
+          .mockResolvedValueOnce(null) // prima di creare: assente
+          .mockResolvedValueOnce({ id: 'gid://shopify/Product/111', status: 'ACTIVE' }), // dopo: c'è
+      },
+    );
+
+    const esito = await service.pushProduct('tenant-1', 'prod-1');
+
+    expect(shopifyGraphql.createProductSet).toHaveBeenCalledTimes(1);
+    expect(shopifyGraphql.productByIdentity).toHaveBeenCalledTimes(2);
+    expect(shopifyGraphql.listProductVariantsWithIdentity).toHaveBeenCalledTimes(1);
+    // Recupero dei soli id: esito parziale, out_of_sync, motivo che lo dice.
+    expect(esito.pushed).toBe(false);
+    expect(esito.outcome).toBe('parziale');
+    expect(esito.detail).toContain('Identità Shopify recuperata');
+    expect(prisma.product.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ shopifyProductId: '111' }) }),
+    );
+  });
+
+  it('⛔ rilettura FALLITA dopo la risposta persa: non è «assente» — errore, nessuna seconda creazione', async () => {
+    const { service, shopifyGraphql } = createService(
+      2990,
+      {},
+      {
+        createProductSet: vi.fn().mockRejectedValue(new Error('timeout dopo 15000 ms')),
+        productByIdentity: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockRejectedValueOnce(new Error('rete caduta')),
+      },
+    );
+
+    const esito = await service.pushProduct('tenant-1', 'prod-1');
+
+    expect(esito.pushed).toBe(false);
+    expect(esito.outcome).toBe('fallito');
+    expect(shopifyGraphql.createProductSet).toHaveBeenCalledTimes(1);
   });
 
   /**
@@ -153,6 +304,9 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
    * visibile senza toccare il dato locale, e che le varianti senza id vengano
    * abbinate solo se univoche — mai saltate, mai create.
    */
+  // ⛔ Qui c'erano le prove sulla variante iniziale di `productCreate` (intatta →
+  //    REMOVE_STANDALONE_VARIANT): con `productSet` non esiste (15/09/2026).
+
   describe('ShopifyProductPushService — prodotto collegato via GraphQL', () => {
     const collegato = {
       shopifyProductId: '111',
@@ -176,7 +330,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
     };
 
     it('⭐ la modifica va su GraphQL — productUpdate e productVariantsBulkUpdate — e NON sul REST', async () => {
-      const { service, shopifyAdmin, shopifyGraphql } = createService(2990, collegato);
+      const { service, shopifyGraphql } = createService(2990, collegato);
 
       await service.pushProduct('tenant-1', 'prod-1');
 
@@ -202,8 +356,8 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
           }),
         ],
       );
-      // ⛔ Nessun fallback e nessuna scrittura REST di catalogo.
-      expect(shopifyAdmin.createProduct).not.toHaveBeenCalled();
+      // ⛔ Nessuna creazione: il prodotto era già collegato.
+      expect(shopifyGraphql.createProductSet).not.toHaveBeenCalled();
     });
 
     it('⭐ lo stato Shopify segue il ProductStatus locale: è il riallineamento alla riaccensione', async () => {

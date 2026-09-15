@@ -42,6 +42,13 @@ function includesAny(haystack: string, needles: readonly string[]): boolean {
 }
 
 /** Converte codice/messaggio tecnico in testo per l'interfaccia utente. */
+/** I prefissi dei messaggi del motore che sono già scritti per l'operatore. */
+const ESITI_SCRITTI_PER_CHI_LEGGE = [
+  'completamento su shopify',
+  'identità shopify recuperata',
+  'creazione su shopify',
+] as const;
+
 export function toShopifyUserMessage(code: string | undefined, rawMessage: string): string {
   if (code && CODE_MESSAGES[code]) {
     return CODE_MESSAGES[code];
@@ -54,6 +61,14 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
 
   // Già scritto per chi legge: passa intatto, causa tecnica in coda compresa.
   if (raw.startsWith(SYNC_DISABLE_FAILED_MESSAGE)) {
+    return raw.length > 500 ? `${raw.slice(0, 497)}…` : raw;
+  }
+
+  // ⭐ Gli esiti del recupero e del completamento (docs/30 §7.2-ter) nominano la variante
+  //    e la combinazione che impediscono di proseguire: devono arrivare all'operatore così
+  //    come sono. ⛔ Senza questo ramo, la parola «SKU» nel testo li farebbe cadere nel
+  //    generico «Conflitto su SKU o codici prodotto», che non dice QUALE variante.
+  if (includesAny(raw, ESITI_SCRITTI_PER_CHI_LEGGE)) {
     return raw.length > 500 ? `${raw.slice(0, 497)}…` : raw;
   }
 

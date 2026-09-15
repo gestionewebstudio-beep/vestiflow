@@ -2,14 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  CatalogOrigin,
   PlatformAuditActor,
   PlatformAuditOperation,
   ProductStatus,
-  ShopifyCatalogLinkKind,
   ShopifyConnectionStatus,
   ShopifySyncStatus,
-  type Prisma,
+  Prisma,
   type Product,
   type ProductVariant,
 } from '@prisma/client';
@@ -18,7 +16,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import {
-  gidArticoloInventario,
   gidProdotto,
   gidVariante,
   ShopifyLinkHistoryService,
@@ -32,11 +29,7 @@ import {
 } from './shopify-variant-match.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { minorToShopifyDecimal, legacyIdFromGid, toShopifyGid } from './shopify-money.util';
-import {
-  buildVariantsPayload,
-  variantChannelFields,
-  variantBulkInput,
-} from './shopify-variant-payload.util';
+import { variantChannelFields, variantBulkInput } from './shopify-variant-payload.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
@@ -57,7 +50,18 @@ import {
   VESTIFLOW_METAFIELD_NAMESPACE,
   VESTIFLOW_SEASON_METAFIELD_KEY,
 } from './shopify-product-metadata.types';
-import { formatShopifyTags } from './shopify-product-metadata.util';
+import {
+  abbinaVariantiPerIdentita,
+  buildProductSetCreateInput,
+  conflittiDiCombinazione,
+  descriviIdentitaSenzaLocale,
+  buildVariantCreateInputs,
+  IDENTITA_PRODOTTO,
+  IDENTITA_VARIANTE,
+  ShopifyClaimSuperatoException,
+  TIPO_METAFIELD_IDENTITA,
+} from './shopify-identita-catalogo.util';
+import { adottaIdentitaRecuperata } from './shopify-identita-adozione.util';
 
 type ProductWithVariants = Product & { variants: ProductVariant[] };
 
@@ -89,12 +93,7 @@ export type ShopifyProductPushSkipReason =
  * ```
  */
 export type ShopifyPushOutcome =
-  | 'avviato'
-  | 'completato'
-  | 'parziale'
-  | 'rifiutato'
-  | 'fallito'
-  | 'saltato';
+  'avviato' | 'completato' | 'parziale' | 'rifiutato' | 'fallito' | 'saltato';
 
 export interface ShopifyProductPushResult {
   /**
@@ -152,6 +151,29 @@ function descriviCostiFalliti(falliti: readonly CostoNonRiuscito[]): string | nu
  * ⭐ Le varianti si nominano con lo SKU — che è ciò con cui l'operatore le
  *    riconosce — e il GID resta come ripiego per quelle che non ce l'hanno.
  */
+/**
+ * Un errore del database durante la pubblicazione, tradotto per chi legge: il codice
+ * Prisma resta (è ciò che serve a chi indaga), il resto — chiamata, percorso del file,
+ * stack — no. `null` = non è un errore di persistenza, il messaggio passa com'è.
+ */
+function motivoDiPersistenzaPerLOperatore(error: unknown): string | null {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return (
+      `Salvataggio locale non riuscito durante la pubblicazione (${error.code}): ` +
+      'i dati locali sono cambiati mentre l’invio era in corso. Ripubblica il prodotto.'
+    );
+  }
+  if (
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientValidationError ||
+    error instanceof Prisma.PrismaClientRustPanicError ||
+    error instanceof Prisma.PrismaClientInitializationError
+  ) {
+    return 'Salvataggio locale non riuscito durante la pubblicazione. Ripubblica il prodotto; se si ripete, contatta il supporto.';
+  }
+  return null;
+}
+
 function descriviEscluse(escluse: readonly VarianteEsclusa[]): string | null {
   if (escluse.length === 0) {
     return null;
@@ -247,7 +269,12 @@ export class ShopifyProductPushService {
           detail: lavoro.motivo,
         };
       case 'fallito':
-        return { pushed: false, outcome: 'fallito', reason: 'shopify_error', detail: lavoro.motivo };
+        return {
+          pushed: false,
+          outcome: 'fallito',
+          reason: 'shopify_error',
+          detail: lavoro.motivo,
+        };
     }
   }
 
@@ -557,6 +584,7 @@ export class ShopifyProductPushService {
       //    non è una funzione nuova su quel percorso, è quella di sempre.
       let shopifyProductLegacyId: string;
       let escluse: readonly VarianteEsclusa[] = [];
+      let avvisoIdentita: string | null = null;
       if (product.shopifyProductId) {
         const aggiornamento = await this.updateLinkedProductViaGraphql(
           tenantId,
@@ -567,14 +595,33 @@ export class ShopifyProductPushService {
         );
         shopifyProductLegacyId = aggiornamento.legacyId;
         escluse = aggiornamento.escluse;
+        avvisoIdentita = aggiornamento.avvisoIdentita;
       } else {
-        const payload = this.buildShopifyProductPayload(product);
-        const shopifyProduct = await this.shopifyAdmin.createProduct(
-          shopDomain,
-          accessToken,
-          payload,
-        );
-        await this.persistShopifyIds(product, shopifyProduct);
+        // ⭐ CREAZIONE con l'identità VestiFlow (docs/30 §7.2-bis, §7.2-ter.3): claim con
+        //    numero di tentativo, rilettura per identità prima di creare, `productSet` in
+        //    sola creazione con prodotto, varianti e identità in una mutation. Niente REST,
+        //    niente `productCreate`, mai `productSet` con identifier.
+        const creazione = await this.creaConIdentita(tenantId, product, shopDomain, accessToken);
+        if (creazione.tipo === 'in_corso') {
+          // Un altro tentativo VIVO sta creando: non si chiama Shopify e non si tocca
+          // lo stato, che chiuderà lui. Il chiamante lo sa come «già in corso».
+          return { esito: 'gia_in_corso' };
+        }
+        if (creazione.tipo === 'recuperato') {
+          // ⛔ Recuperare gli id NON è ripubblicare: il push finisce qui, nessun campo
+          //    locale viene spinto sopra ciò che il negozio ha nel frattempo. Il
+          //    completamento — se manca qualcosa — è dichiarato, non eseguito.
+          await this.prisma.product.updateMany({
+            where: { id: productId, shopifyCreateClaimVersion: creazione.versione },
+            data: {
+              shopifySyncStatus: ShopifySyncStatus.out_of_sync,
+              shopifyLastError: creazione.motivo.slice(0, 500),
+              shopifyLastSyncAt: new Date(),
+            },
+          });
+          await this.chiudiClaim(productId, creazione.versione);
+          return { esito: 'parziale', motivo: creazione.motivo, collegamentoEscluso: false };
+        }
         // Creato ORA con il nome interno: da adesso quel titolo è il «Nome
         // Shopify», e i due si possono separare senza che nessuno li riallinei.
         await this.initOnlineTitle(product.id, productChannelFields(product).title);
@@ -583,9 +630,9 @@ export class ShopifyProductPushService {
           product.id,
           shopDomain,
           accessToken,
-          shopifyProduct.id,
+          Number(creazione.legacyId),
         );
-        shopifyProductLegacyId = String(shopifyProduct.id);
+        shopifyProductLegacyId = creazione.legacyId;
       }
       await this.pushSeasonMetafield(
         shopDomain,
@@ -632,6 +679,7 @@ export class ShopifyProductPushService {
       const avvisoEscluse = descriviEscluse(escluse);
       const avvisoCosti = descriviCostiFalliti(costiFalliti);
       const syncWarning = [
+        avvisoIdentita,
         avvisoEscluse,
         avvisoCosti,
         taxonomyWarning,
@@ -675,10 +723,23 @@ export class ShopifyProductPushService {
       }
       return { esito: 'completato' };
     } catch (error: unknown) {
+      if (error instanceof ShopifyClaimSuperatoException) {
+        // ⛔ Superato da un tentativo più recente: NIENTE scritture locali — lo stato
+        //    lo chiude lui — e nessuna chiamata remota. Per chi ha chiesto il push è
+        //    «avviato»: qualcun altro lo sta portando avanti.
+        this.logger.warn(
+          `Push prodotto Shopify superato (${tenantId}/${productId}): ${error.message}`,
+        );
+        return { esito: 'gia_in_corso' };
+      }
       const message = error instanceof Error ? error.message : 'Errore push prodotto Shopify';
       this.logger.warn(`Push prodotto Shopify fallito (${tenantId}/${productId}): ${message}`);
-      await this.markPushFailed(productId, message);
-      return { esito: 'fallito', motivo: message };
+      // ⛔ Un errore di persistenza porta il nome della chiamata e il percorso del file
+      //    sorgente: resta nel log qui sopra. All'operatore arriva che cosa è successo e
+      //    che cosa fare, non lo stack.
+      const motivo = motivoDiPersistenzaPerLOperatore(error) ?? message;
+      await this.markPushFailed(productId, motivo);
+      return { esito: 'fallito', motivo };
     } finally {
       this.pushInFlight.delete(lockKey);
     }
@@ -762,13 +823,132 @@ export class ShopifyProductPushService {
    * varianti orfane, campi prodotto e stato, varianti, immagini.
    * Restituisce l'id numerico salvato, che il resto del push usa com'era.
    */
+  /**
+   * COMPLETAMENTO per identità (regola del proprietario, 15/09/2026): prima di scrivere
+   * qualunque cosa sul negozio si verificano tutte le corrispondenze.
+   *
+   *   1. rilettura delle varianti remote col metafield `vestiflow.variant_id`;
+   *   2. le locali senza id che hanno una remota con la LORO identità → si adottano gli id
+   *      (le già riconosciute non si toccano: hanno l'id);
+   *   3. le remote SENZA identità (la iniziale, una fatta a mano) restano intatte, sempre;
+   *   4. le locali ancora senza remota: se la loro combinazione di opzioni è OCCUPATA da una
+   *      remota senza identità → ⛔ conflitto: ci si ferma PRIMA di scrivere, con un errore
+   *      che nomina variante e combinazione — niente collegamento automatico, cancellazione
+   *      o sovrascrittura; altrimenti si CREANO con la loro identità (`bulkCreate`, MAI
+   *      `REMOVE_STANDALONE_VARIANT` qui);
+   *   5. qualunque esito non-successo della `bulkCreate` → rilettura per identità: le create
+   *      si adottano, un doppione lo impedisce l'unicità del metafield (contratto G4);
+   *      quelle che ancora mancano fermano il push con un errore, senza secondo tentativo cieco.
+   */
+  private async completaVariantiPerIdentita(
+    product: ProductWithVariants,
+    productGid: string,
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<{
+    readonly abbinate: ReadonlyMap<string, string>;
+    readonly escluse: readonly VarianteEsclusa[];
+    readonly avvisoIdentita: string | null;
+  }> {
+    const identita = { namespace: IDENTITA_VARIANTE.namespace, key: IDENTITA_VARIANTE.key };
+    const options = this.normalizeOptions(product.options);
+    const senzaId = product.variants.filter((variant) => !variant.shopifyVariantId);
+    let remote = await this.shopifyGraphql.listProductVariantsWithIdentity(
+      shopDomain,
+      accessToken,
+      productGid,
+      identita,
+    );
+    if (senzaId.length === 0) {
+      // Tutte collegate: resta solo da dire se sul negozio c'è una nostra identità che
+      // localmente non esiste più (la locale è stata eliminata dopo la creazione remota).
+      return {
+        abbinate: new Map(),
+        escluse: [],
+        avvisoIdentita: descriviIdentitaSenzaLocale(
+          abbinaVariantiPerIdentita(product.variants, remote).remoteConIdentitaSenzaLocale,
+        ),
+      };
+    }
+    let esito = abbinaVariantiPerIdentita(senzaId, remote);
+
+    const mancanti = senzaId.filter((v) => esito.localiSenzaRemota.includes(v.id));
+    if (mancanti.length > 0) {
+      const conflitti = conflittiDiCombinazione(mancanti, esito.remoteSenzaIdentita, options);
+      if (conflitti.length > 0) {
+        const elenco = conflitti
+          .map(
+            (c) =>
+              `${c.sku ?? c.varianteId} («${c.combinazione || 'variante unica'}», occupata da ${c.remota.id}${c.remota.sku ? `, SKU ${c.remota.sku}` : ''})`,
+          )
+          .join('; ');
+        throw new Error(
+          `Completamento su Shopify fermato: la combinazione di ${conflitti.length === 1 ? 'una variante locale è' : `${conflitti.length} varianti locali sono`} già occupata sul negozio da una variante senza identità VestiFlow — ${elenco}. Nessun collegamento automatico, nessuna cancellazione né sovrascrittura: decidere sul negozio.`,
+        );
+      }
+      const compareAt =
+        product.compareAtPriceMinor == null ? null : Number(product.compareAtPriceMinor);
+      try {
+        await this.shopifyGraphql.bulkCreateVariants(
+          shopDomain,
+          accessToken,
+          productGid,
+          buildVariantCreateInputs(mancanti, options, compareAt),
+        );
+      } catch (error: unknown) {
+        // ⛔ Esito incerto o rifiuto (anche «identità già presente», se un altro processo
+        //    ha completato nel frattempo): si RILEGGE, mai si ricrea.
+        this.logger.warn(
+          `Completamento varianti Shopify (${product.id}): ${error instanceof Error ? error.message : String(error)} — rilettura per identità`,
+        );
+      }
+      remote = await this.shopifyGraphql.listProductVariantsWithIdentity(
+        shopDomain,
+        accessToken,
+        productGid,
+        identita,
+      );
+      esito = abbinaVariantiPerIdentita(senzaId, remote);
+    }
+
+    const legacyId = legacyIdFromGid(productGid);
+    const adozione = await this.prisma.$transaction((tx) =>
+      adottaIdentitaRecuperata(tx, this.storico, this.logger, {
+        product,
+        versione: product.shopifyCreateClaimVersion,
+        legacyId,
+        remote,
+      }),
+    );
+    // ⚠️ Le locali «ancora senza remota» sono quelle che ESISTONO ancora: l'adozione le ha
+    //    rilette sotto il lock. Una locale eliminata nel frattempo non manca a nessuno.
+    if (adozione.localiSenzaRemota.length > 0) {
+      const sku = senzaId
+        .filter((v) => adozione.localiSenzaRemota.includes(v.id))
+        .map((v) => v.sku ?? v.id)
+        .join(', ');
+      throw new Error(
+        `Completamento su Shopify non riuscito: ${adozione.localiSenzaRemota.length === 1 ? 'la variante' : 'le varianti'} ${sku} non ${adozione.localiSenzaRemota.length === 1 ? 'risulta' : 'risultano'} sul negozio dopo la creazione. Nessun secondo tentativo cieco: si ripubblica.`,
+      );
+    }
+    return {
+      abbinate: new Map(adozione.abbinate.map((a) => [a.varianteId, legacyIdFromGid(a.remota.id)])),
+      escluse: [],
+      avvisoIdentita: descriviIdentitaSenzaLocale(adozione.remoteConIdentitaSenzaLocale),
+    };
+  }
+
   private async updateLinkedProductViaGraphql(
     tenantId: string,
     product: ProductWithVariants,
     shopDomain: string,
     accessToken: string,
     correlationId: string,
-  ): Promise<{ readonly legacyId: string; readonly escluse: readonly VarianteEsclusa[] }> {
+  ): Promise<{
+    readonly legacyId: string;
+    readonly escluse: readonly VarianteEsclusa[];
+    readonly avvisoIdentita: string | null;
+  }> {
     const legacyId = product.shopifyProductId as string;
     const productGid = toShopifyGid('Product', legacyId);
     const shopId = await this.storico.negozioDelTenant(this.prisma, tenantId);
@@ -846,7 +1026,7 @@ export class ShopifyProductPushService {
       shopDomain,
       accessToken,
     );
-    return { legacyId, escluse };
+    return { legacyId, escluse, avvisoIdentita: orfane.avvisoIdentita };
   }
 
   /**
@@ -865,9 +1045,21 @@ export class ShopifyProductPushService {
   ): Promise<{
     readonly abbinate: ReadonlyMap<string, string>;
     readonly escluse: readonly VarianteEsclusa[];
+    /** Remote con identità senza locale (prodotti con identità): il push non è «synced». */
+    readonly avvisoIdentita: string | null;
   }> {
+    // ⭐ Prodotto creato da VestiFlow con l'identità (docs/30 §7.2-ter.1): le varianti
+    //    senza id si riconoscono SOLO per `vestiflow.variant_id`, mai per SKU, barcode,
+    //    titolo o opzioni; le mancanti si CREANO con la loro identità; le remote con
+    //    un'identità che non è di nessuna locale si conservano e si dichiarano — per
+    //    questo la rilettura si fa a OGNI push di questi prodotti, non solo con locali
+    //    senza id. I prodotti importati o pubblicati prima via REST restano
+    //    all'abbinamento legacy qui sotto.
+    if (product.shopifyCreateClaimVersion > 0) {
+      return this.completaVariantiPerIdentita(product, productGid, shopDomain, accessToken);
+    }
     if (!product.variants.some((variant) => !variant.shopifyVariantId)) {
-      return { abbinate: new Map(), escluse: [] };
+      return { abbinate: new Map(), escluse: [], avvisoIdentita: null };
     }
     const remote = await this.shopifyGraphql.listProductVariants(
       shopDomain,
@@ -943,7 +1135,7 @@ export class ShopifyProductPushService {
         });
       }),
     );
-    return { abbinate, escluse };
+    return { abbinate, escluse, avvisoIdentita: null };
   }
 
   /**
@@ -1113,29 +1305,8 @@ export class ShopifyProductPushService {
     });
   }
 
-  private buildShopifyProductPayload(product: ProductWithVariants): Record<string, unknown> {
-    const options = this.normalizeOptions(product.options);
-    const { shopifyOptions, variantRows } = buildVariantsPayload(
-      options,
-      product.variants,
-      // Sei decimali dal 17/08: `Number` conserva la coda. `null` resta
-      // `null` — nessun barrato NON e' un barrato a zero.
-      product.compareAtPriceMinor == null ? null : Number(product.compareAtPriceMinor),
-    );
-
-    // Stessi campi del GraphQL, rinominati nella grafia del vecchio percorso.
-    const fields = productChannelFields(product);
-    return {
-      title: fields.title,
-      body_html: fields.descriptionHtml,
-      vendor: fields.vendor,
-      product_type: fields.productType,
-      tags: fields.tags ? formatShopifyTags([...fields.tags]) : undefined,
-      status: fields.status.toLowerCase(),
-      options: shopifyOptions,
-      variants: variantRows,
-    };
-  }
+  // ⛔ Qui viveva `buildShopifyProductPayload`, il payload REST di `POST /products.json`:
+  //    la creazione passa da `productSet` con l'identità VestiFlow (`creaConIdentita`).
 
   private async pushTaxonomyCategory(
     tenantId: string,
@@ -1440,119 +1611,355 @@ export class ShopifyProductPushService {
    *    dalla tranche che ha introdotto l'altra, e resta sul REST finché la
    *    Tranche 2 non porta `productSet` — a quel punto le due si unificano.
    */
-  private async persistShopifyIds(
+  // ══════════════════════════════════════════════════════════════════════════
+  //  Creazione con identità VestiFlow (docs/30 §7.2-bis)
+  //
+  //  ⛔ Prima: `POST /products.json` senza identità. Con una risposta persa
+  //     (timeout, rete, riavvio) VestiFlow non conosceva l'id del prodotto creato
+  //     e alla ripubblicazione ne creava un SECONDO — riprodotto il 15/09/2026.
+  //
+  //  ⭐ Ora: (1) claim sul prodotto — chi crea, verso quale negozio, con quale
+  //     numero di tentativo; (2) rilettura per identità (`productByIdentifier`)
+  //     PRIMA di creare: trovato → si adottano gli id e basta; (3) `productSet` in
+  //     SOLA creazione, con prodotto, opzioni, varianti e le identità di prodotto e
+  //     di ogni variante in una mutation (Shopify rifiuta un secondo prodotto con lo
+  //     stesso valore senza toccare il primo, e non lascia niente di un input con una
+  //     variante rifiutata: contratto G9–G11 del 15/09/2026); (4) qualunque esito
+  //     non-successo → di nuovo rilettura per identità, mai una seconda creazione
+  //     alla cieca, nessun fallback a `productCreate`. Ogni chiamata remota e ogni
+  //     scrittura locale del tentativo sono condizionate alla propria
+  //     `claim_version`: un proprietario superato non scrive e non chiama più.
+  //
+  //  ⛔ Qui c'era `productCreate` + `productVariantsBulkCreate` con
+  //     `REMOVE_STANDALONE_VARIANT`: la variante iniziale nasceva senza identità e
+  //     una modifica fatta sul negozio fra le due chiamate veniva cancellata con lei
+  //     (riprodotto). Superato il 15/09/2026, pomeriggio: nessuna variante iniziale,
+  //     nessuna cancellazione in nessun percorso.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /** La scadenza del claim: oltre, un altro tentativo può RIVENDICARE — non dichiarare morto il precedente. */
+  private static readonly LEASE_CLAIM_MS = 5 * 60_000;
+
+  private async creaConIdentita(
+    tenantId: string,
     product: ProductWithVariants,
-    shopifyProduct: {
-      id: number;
-      variants: readonly { id: number; sku: string | null; inventory_item_id: number }[];
-    },
-  ): Promise<void> {
-    const variantsBySku = new Map(
-      shopifyProduct.variants
-        .filter((variant) => variant.sku)
-        .map((variant) => [variant.sku!.toLowerCase(), variant]),
-    );
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<
+    | { readonly tipo: 'in_corso' }
+    | { readonly tipo: 'creato'; readonly legacyId: string }
+    | {
+        readonly tipo: 'recuperato';
+        readonly legacyId: string;
+        readonly versione: number;
+        readonly completo: boolean;
+        readonly motivo: string;
+      }
+  > {
+    const shopId = await this.storico.negozioDelTenant(this.prisma, tenantId);
+    const claim = await this.rivendicaCreazione(product.id, shopId);
+    if (!claim) {
+      this.logger.log(
+        `Creazione Shopify già in corso per ${product.name} (${tenantId}): non ripeto`,
+      );
+      return { tipo: 'in_corso' };
+    }
+    const versione = claim.versione;
+    try {
+      return await this.tentativoDiCreazione(product, shopDomain, accessToken, versione);
+    } catch (error: unknown) {
+      // ⚠️ Un tentativo FINITO chiude il proprio claim, anche se è finito male: da
+      //    qui non partirà più nessuna chiamata, e il prossimo tentativo rilegge
+      //    comunque l'identità prima di creare. Il claim che resta aperto è SOLO
+      //    quello di un processo morto: è per lui che esiste la scadenza.
+      //    Un proprietario superato non chiude niente: il claim non è più suo.
+      if (!(error instanceof ShopifyClaimSuperatoException)) {
+        await this.chiudiClaim(product.id, versione);
+      }
+      throw error;
+    }
+  }
 
-    // ⚠️ L'abbinamento è quello di sempre — per SKU, e le varianti senza SKU
-    //    restano scollegate — ma il risultato serve ora a DUE scritture: le
-    //    colonne-cache e lo storico. Si calcola una volta.
-    const abbinate = product.variants.flatMap((variant) => {
-      // Varianti senza SKU locale (facoltativo alla creazione) non sono
-      // abbinabili per codice al risultato Shopify: restano senza
-      // shopifyVariantId collegato finche' non ricevono uno SKU.
-      if (!variant.sku) {
-        return [];
+  /** Il tentativo vero, sotto un claim già preso: ogni passo verifica di esserne ancora il proprietario. */
+  private async tentativoDiCreazione(
+    product: ProductWithVariants,
+    shopDomain: string,
+    accessToken: string,
+    versione: number,
+  ): Promise<
+    | { readonly tipo: 'creato'; readonly legacyId: string }
+    | {
+        readonly tipo: 'recuperato';
+        readonly legacyId: string;
+        readonly versione: number;
+        readonly completo: boolean;
+        readonly motivo: string;
       }
-      const shopifyVariant = variantsBySku.get(variant.sku.toLowerCase());
-      if (!shopifyVariant) {
-        return [];
-      }
-      return [{ varianteId: variant.id, remota: shopifyVariant }];
+  > {
+    const identita = { namespace: IDENTITA_PRODOTTO.namespace, key: IDENTITA_PRODOTTO.key };
+
+    // ── 0 · le definizioni devono essere quelle previste, non «già esistono» ──
+    await this.assicuraProprietario(product.id, versione);
+    await this.assicuraDefinizioniIdentita(shopDomain, accessToken);
+
+    // ── 1 · rilettura per identità PRIMA di creare (risposta persa, riavvio, altro processo) ──
+    await this.assicuraProprietario(product.id, versione);
+    const esistente = await this.shopifyGraphql.productByIdentity(shopDomain, accessToken, {
+      ...identita,
+      value: product.id,
     });
+    if (esistente) {
+      return this.recuperaIdentita(product, esistente.id, shopDomain, accessToken, versione);
+    }
 
-    // ⛔ **Transazione INTERATTIVA, non più un array di operazioni.** Lo storico
-    //    va scritto nella stessa transazione delle colonne-cache, e per farlo
-    //    servono letture in mezzo (l'identità, il periodo attivo) che la forma
-    //    a batch non consente.
-    //
-    // ⚠️ Le colonne-cache si scrivono ESATTAMENTE come prima: stessa allowlist,
-    //    stessi valori, stesso ordine. Cambia solo il contenitore.
-    await this.prisma.$transaction(async (tx) => {
-      await tx.product.update({
-        where: { id: product.id },
-        data: {
-          shopifyProductId: String(shopifyProduct.id),
-          catalogOrigin: CatalogOrigin.vestiflow,
-          shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
-        },
-      });
-      for (const abbinata of abbinate) {
-        await tx.productVariant.update({
-          where: { id: abbinata.varianteId },
-          data: {
-            shopifyVariantId: String(abbinata.remota.id),
-            shopifyInventoryItemId: String(abbinata.remota.inventory_item_id),
-          },
-        });
-      }
+    // ── 2 · creazione: prodotto, opzioni, varianti e identità in UNA mutation ──
+    //    `productSet` in sola creazione (contratto G9–G11): nessuna variante iniziale da
+    //    rimuovere, nessuna seconda scrittura. Tutte le varianti locali, nell'ordine locale,
+    //    senza limiti né troncamenti: un rifiuto del negozio è un rifiuto (esito sotto).
+    const options = this.normalizeOptions(product.options);
+    const compareAt =
+      product.compareAtPriceMinor == null ? null : Number(product.compareAtPriceMinor);
+    let creato: Awaited<ReturnType<ShopifyGraphqlClient['createProductSet']>>;
+    try {
+      await this.assicuraProprietario(product.id, versione);
+      creato = await this.shopifyGraphql.createProductSet(
+        shopDomain,
+        accessToken,
+        buildProductSetCreateInput(product, options, product.variants, compareAt),
+      );
+    } catch (error: unknown) {
+      // ⛔ Esito incerto o rifiuto (anche per identità già presente): si RILEGGE, mai si
+      //    ricrea, e nessun fallback a `productCreate`.
+      return this.dopoEsitoNonRiuscito(product, shopDomain, accessToken, versione, error);
+    }
+    const productGid = creato.id;
+    const legacyId = legacyIdFromGid(productGid);
 
-      // ── B3 · lo storico, sullo stesso prodotto appena pubblicato ────────
-      await this.registraStorico(tx, product, shopifyProduct.id, abbinate);
+    // ── 3 · gli id, per identità, e la chiusura del claim ──
+    const recupero = await this.recuperaIdentita(
+      product,
+      productGid,
+      shopDomain,
+      accessToken,
+      versione,
+    );
+    if (recupero.tipo === 'recuperato' && !recupero.completo) {
+      return recupero;
+    }
+    await this.chiudiClaim(product.id, versione);
+    return { tipo: 'creato', legacyId };
+  }
+
+  /**
+   * Rivendicazione atomica: `count = 1` solo se non c'è un claim vivo. Un claim scaduto si
+   * può riprendere — la scadenza permette di recuperare il lavoro, non dice che il
+   * tentativo precedente sia finito: per questo il nuovo proprietario rilegge sempre
+   * l'identità prima di creare, e il vecchio è fermato dalla versione.
+   */
+  private async rivendicaCreazione(
+    productId: string,
+    shopId: string | null,
+  ): Promise<{ readonly claimId: string; readonly versione: number } | null> {
+    const claimId = randomUUID();
+    const scaduti = new Date(Date.now() - ShopifyProductPushService.LEASE_CLAIM_MS);
+    const presa = await this.prisma.product.updateMany({
+      where: {
+        id: productId,
+        shopifyProductId: null,
+        OR: [{ shopifyCreateClaimId: null }, { shopifyCreateClaimedAt: { lt: scaduti } }],
+      },
+      data: {
+        shopifyCreateClaimId: claimId,
+        shopifyCreateClaimShopId: shopId,
+        shopifyCreateClaimedAt: new Date(),
+        shopifyCreateClaimVersion: { increment: 1 },
+      },
+    });
+    if (presa.count !== 1) {
+      return null;
+    }
+    const riga = await this.prisma.product.findUniqueOrThrow({
+      where: { id: productId },
+      select: { shopifyCreateClaimVersion: true, shopifyCreateClaimId: true },
+    });
+    if (riga.shopifyCreateClaimId !== claimId) {
+      // Superati fra l'UPDATE e la lettura: non è il nostro claim.
+      return null;
+    }
+    return { claimId, versione: riga.shopifyCreateClaimVersion };
+  }
+
+  /** Prima di OGNI chiamata remota: se la versione non è più la mia, mi fermo. Le sole scritture locali non basterebbero. */
+  private async assicuraProprietario(productId: string, versione: number): Promise<void> {
+    const riga = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { shopifyCreateClaimVersion: true },
+    });
+    if (!riga || riga.shopifyCreateClaimVersion !== versione) {
+      throw new ShopifyClaimSuperatoException(
+        `Creazione Shopify: questo tentativo è stato superato da uno più recente (versione ${versione} → ${riga?.shopifyCreateClaimVersion ?? '?'}); nessuna altra chiamata al negozio.`,
+      );
+    }
+  }
+
+  /** Chiude il claim SOLO se è ancora il mio: un proprietario superato non libera quello di un altro. */
+  private async chiudiClaim(productId: string, versione: number): Promise<void> {
+    await this.prisma.product.updateMany({
+      where: { id: productId, shopifyCreateClaimVersion: versione },
+      data: {
+        shopifyCreateClaimId: null,
+        shopifyCreateClaimShopId: null,
+        shopifyCreateClaimedAt: null,
+      },
     });
   }
 
   /**
-   * B3 · identità e periodo per un prodotto pubblicato da VestiFlow.
-   *
-   * ⭐ **Lo stesso servizio dell'import**, non una seconda implementazione: la
-   *    differenza fra pubblicare e importare è da che parte arriva il GID, non
-   *    che cosa si scrive nello storico.
-   *
-   * ⛔ **Non fa fallire la pubblicazione**: il prodotto su Shopify a quel punto
-   *    esiste già, e un errore qui lascerebbe l'operatore convinto che la
-   *    pubblicazione non sia avvenuta. Si registra e si prosegue.
+   * Le due definizioni di metafield, lette PRIMA di fidarsi: assenti → si creano; presenti
+   * ma non di tipo `id` per quell'owner → errore esplicito, nessuna creazione (contratto G1).
    */
-  private async registraStorico(
-    tx: Prisma.TransactionClient,
-    product: ProductWithVariants,
-    shopifyProductId: number,
-    abbinate: readonly {
-      readonly varianteId: string;
-      readonly remota: { readonly id: number; readonly inventory_item_id: number };
-    }[],
+  private async assicuraDefinizioniIdentita(
+    shopDomain: string,
+    accessToken: string,
   ): Promise<void> {
-    const shopId = await this.storico.negozioDelTenant(tx, product.tenantId);
-    if (!shopId) {
-      // Connessione non ancora migrata: nessuno storico, push invariato.
-      return;
-    }
-
-    const esito = await this.storico.registraProdotto(tx, {
-      tenantId: product.tenantId,
-      shopId,
-      productId: product.id,
-      shopifyProductGid: gidProdotto(shopifyProductId),
-    });
-    if (esito.tipo !== 'registrato') {
-      this.logger.warn(
-        `Storico Shopify non scritto per il prodotto pubblicato ${shopifyProductId}: ` +
-          `${esito.tipo}. La pubblicazione resta valida.`,
+    for (const attesa of [IDENTITA_PRODOTTO, IDENTITA_VARIANTE]) {
+      let letta = await this.shopifyGraphql.leggiDefinizioneMetafield(
+        shopDomain,
+        accessToken,
+        attesa.ownerType,
+        attesa.namespace,
+        attesa.key,
       );
-      return;
-    }
-
-    for (const abbinata of abbinate) {
-      await this.storico.registraVariante(tx, {
-        tenantId: product.tenantId,
-        shopId,
-        productIdentityId: esito.identityId,
-        productLinkId: esito.linkId,
-        productId: product.id,
-        variantId: abbinata.varianteId,
-        shopifyVariantGid: gidVariante(abbinata.remota.id),
-        shopifyInventoryItemGid: gidArticoloInventario(abbinata.remota.inventory_item_id),
-      });
+      if (!letta) {
+        letta = await this.shopifyGraphql.creaDefinizioneMetafield(shopDomain, accessToken, {
+          name: attesa.name,
+          namespace: attesa.namespace,
+          key: attesa.key,
+          type: TIPO_METAFIELD_IDENTITA,
+          ownerType: attesa.ownerType,
+          description: 'Identità tecnica VestiFlow: non modificare.',
+        });
+      }
+      if (letta.typeName !== TIPO_METAFIELD_IDENTITA || letta.ownerType !== attesa.ownerType) {
+        throw new Error(
+          `Sul negozio esiste già una definizione ${attesa.namespace}.${attesa.key} ma non è quella prevista (tipo «${letta.typeName}», owner «${letta.ownerType}»): la creazione non parte.`,
+        );
+      }
     }
   }
-}
 
+  /**
+   * Dopo un esito NON riuscito di una chiamata di creazione (esito incerto, rifiuto,
+   * proprietario superato): si rilegge l'identità. Trovato → recupero; non trovato → errore
+   * al prodotto, il claim resta finché una rilettura riesce, nessuna seconda creazione.
+   */
+  private async dopoEsitoNonRiuscito(
+    product: ProductWithVariants,
+    shopDomain: string,
+    accessToken: string,
+    versione: number,
+    errore: unknown,
+  ): Promise<
+    | {
+        readonly tipo: 'recuperato';
+        readonly legacyId: string;
+        readonly versione: number;
+        readonly completo: boolean;
+        readonly motivo: string;
+      }
+    | never
+  > {
+    if (errore instanceof ShopifyClaimSuperatoException) {
+      throw errore;
+    }
+    const messaggio = errore instanceof Error ? errore.message : String(errore);
+    await this.assicuraProprietario(product.id, versione);
+    const esistente = await this.shopifyGraphql.productByIdentity(shopDomain, accessToken, {
+      namespace: IDENTITA_PRODOTTO.namespace,
+      key: IDENTITA_PRODOTTO.key,
+      value: product.id,
+    });
+    if (!esistente) {
+      // Non c'è: la creazione non è avvenuta. Non si riprova alla cieca: l'errore lo
+      // dice; il tentativo è finito e il claim si chiude (al prossimo push si rilegge di nuovo).
+      throw new Error(`Creazione su Shopify non riuscita: ${messaggio}`);
+    }
+    const recupero = await this.recuperaIdentita(
+      product,
+      esistente.id,
+      shopDomain,
+      accessToken,
+      versione,
+    );
+    return { ...recupero, motivo: `${recupero.motivo} (dopo: ${messaggio.slice(0, 160)})` };
+  }
+
+  /**
+   * RECUPERO degli id per identità: SOLO letture verso Shopify e scritture locali con la
+   * versione. Nessun campo locale viene spinto; una variante remota senza identità nostra
+   * (la iniziale, o una fatta a mano) si CONSERVA; le locali senza remota restano da
+   * completare, e lo si dichiara.
+   */
+  private async recuperaIdentita(
+    product: ProductWithVariants,
+    productGid: string,
+    shopDomain: string,
+    accessToken: string,
+    versione: number,
+  ): Promise<{
+    readonly tipo: 'recuperato';
+    readonly legacyId: string;
+    readonly versione: number;
+    readonly completo: boolean;
+    readonly motivo: string;
+  }> {
+    await this.assicuraProprietario(product.id, versione);
+    const remote = await this.shopifyGraphql.listProductVariantsWithIdentity(
+      shopDomain,
+      accessToken,
+      productGid,
+      { namespace: IDENTITA_VARIANTE.namespace, key: IDENTITA_VARIANTE.key },
+    );
+    const legacyId = legacyIdFromGid(productGid);
+    const esito = await this.prisma.$transaction((tx) =>
+      adottaIdentitaRecuperata(tx, this.storico, this.logger, {
+        product,
+        versione,
+        legacyId,
+        remote,
+      }),
+    );
+
+    const parti: string[] = [
+      `Identità Shopify recuperata (prodotto ${legacyId}): nessun dato inviato in questo giro.`,
+    ];
+    if (esito.localiSenzaRemota.length > 0) {
+      parti.push(
+        `${esito.localiSenzaRemota.length} ${esito.localiSenzaRemota.length === 1 ? 'variante locale non è ancora' : 'varianti locali non sono ancora'} sul negozio: completamento in sospeso.`,
+      );
+    }
+    if (esito.remoteSenzaIdentita.length > 0) {
+      parti.push(
+        `${esito.remoteSenzaIdentita.length} ${esito.remoteSenzaIdentita.length === 1 ? 'variante remota senza identità VestiFlow è stata conservata' : 'varianti remote senza identità VestiFlow sono state conservate'} (non si elimina né si sovrascrive).`,
+      );
+    }
+    const senzaLocale = descriviIdentitaSenzaLocale(esito.remoteConIdentitaSenzaLocale);
+    if (senzaLocale) {
+      parti.push(senzaLocale);
+    }
+    return {
+      tipo: 'recuperato',
+      legacyId,
+      versione,
+      completo: esito.localiSenzaRemota.length === 0,
+      motivo: parti.join(' '),
+    };
+  }
+
+  // ⛔ Qui viveva `persistShopifyIds`, l'abbinamento PER SKU del risultato REST: gli id si
+  //    scrivono ora per identità (`adottaIdentitaRecuperata`), e le varianti senza SKU non
+  //    restano più scollegate.
+
+  // ⭐ L'adozione degli id e lo storico della pubblicazione (già `registraStorico`) stanno in
+  //    `shopify-identita-adozione.util`: li usano il recupero del push E il webhook anticipato.
+}

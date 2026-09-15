@@ -986,6 +986,15 @@ model Product {
   shopifySyncStatus               ShopifySyncStatus       @default(not_connected) @map("shopify_sync_status")
   shopifyLastSyncAt               DateTime?               @map("shopify_last_sync_at")
   shopifyLastError                String?                 @map("shopify_last_error")
+  // ── Il CLAIM della creazione su Shopify (docs/30 §7.2-bis) ──────────────
+  //    Registrato PRIMA di chiamare Shopify: chi crea, verso quale negozio, con
+  //    quale numero di tentativo. Ogni scrittura e ogni chiamata remota del
+  //    tentativo sono condizionate alla propria `claim_version`: un proprietario
+  //    superato non scrive e non chiama piu'. Assente = nessuna creazione in corso.
+  shopifyCreateClaimId            String?                 @map("shopify_create_claim_id") @db.Uuid
+  shopifyCreateClaimVersion       Int                     @default(0) @map("shopify_create_claim_version")
+  shopifyCreateClaimShopId        String?                 @map("shopify_create_claim_shop_id") @db.Uuid
+  shopifyCreateClaimedAt          DateTime?               @map("shopify_create_claimed_at")
   /// Categoria TikTok Shop (id Partner API) — obbligatoria per push catalogo.
   tiktokCategoryId                String?                 @map("tiktok_category_id")
   tiktokProductId                 String?                 @map("tiktok_product_id")
@@ -1047,6 +1056,7 @@ model Product {
 
   /// L'identita' remota punta al prodotto; il PERIODO punta all'identita'.
   shopifyProductIdentities ShopifyProductIdentity[]
+  shopifyCreateClaimShop   ShopifyShop?             @relation("ProductCreateClaimShop", fields: [shopifyCreateClaimShopId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, articleCode])
   /// Ausiliaria per le FK composite di `shopify_product_links`: e' cio' che
@@ -4212,6 +4222,8 @@ model ShopifyShop {
   variantIdentities ShopifyVariantIdentity[]
   locationPairs     ShopifyLocationPair[]
   connections       ShopifyConnection[]
+  /// I prodotti con una creazione in corso VERSO questo negozio (claim aperto).
+  creazioniInCorso  Product[]                @relation("ProductCreateClaimShop")
 
   /// ⭐ Univoco GLOBALMENTE, non per tenant: lo stesso negozio Shopify non puo'
   /// appartenere a due tenant VestiFlow insieme (docs/24 §8.5.1). Con `NULL`

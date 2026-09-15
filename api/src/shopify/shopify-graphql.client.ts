@@ -136,6 +136,8 @@ export interface ShopifyVariantBulkInput {
   readonly barcode?: string;
   readonly inventoryPolicy?: ShopifyInventoryPolicy;
   readonly inventoryItem?: { readonly sku?: string };
+  /** L'identità VestiFlow, quando si adotta la variante iniziale di un prodotto a variante unica. */
+  readonly metafields?: readonly ShopifyMetafieldInput[];
 }
 
 /**
@@ -149,19 +151,69 @@ export interface ShopifyVariantCreateInput {
   readonly barcode?: string;
   readonly inventoryPolicy?: ShopifyInventoryPolicy;
   readonly inventoryItem?: { readonly sku?: string; readonly tracked?: boolean };
+  /** L'identità VestiFlow della variante (`vestiflow.variant_id`, tipo `id`): unica per negozio. */
+  readonly metafields?: readonly ShopifyMetafieldInput[];
 }
 
-/** Prodotto da CREARE con `productSet`. ⛔ Nessun `id`: vedi `createProduct`. */
-export interface ShopifyProductSetInput {
+/** Un metafield nel payload di creazione: `type` è quello della definizione (`id` per le identità). */
+export interface ShopifyMetafieldInput {
+  readonly namespace: string;
+  readonly key: string;
+  readonly type: string;
+  readonly value: string;
+}
+
+/**
+ * Una variante nel payload di `productSet` in SOLA creazione (`ProductVariantSetInput`):
+ * `sku` sta al primo livello (non in `inventoryItem`), l'identità nei `metafields`.
+ */
+export interface ShopifyProductSetVariantInput {
+  readonly optionValues: readonly { readonly optionName: string; readonly name: string }[];
+  readonly price?: string;
+  readonly compareAtPrice?: string;
+  readonly barcode?: string;
+  readonly sku?: string;
+  readonly inventoryPolicy?: ShopifyInventoryPolicy;
+  readonly inventoryItem?: { readonly tracked?: boolean };
+  readonly metafields: readonly ShopifyMetafieldInput[];
+}
+
+/**
+ * Prodotto da CREARE con `productSet` (docs/30 §7.2-ter.3, contratto G9–G11 del 15/09/2026):
+ * prodotto, opzioni, varianti e le rispettive identità in UNA mutation sincrona — nessuna
+ * variante iniziale «standalone», nessuna seconda scrittura. ⛔ **Senza `id` e senza
+ * `identifier`, per costruzione**: questo tipo non li ha, e il client li rifiuta se arrivano
+ * lo stesso — `productSet` con un identifier è un upsert a semantica sostitutiva
+ * (cancella ciò che non è nel payload), che qui non deve esistere.
+ */
+export interface ShopifyProductSetCreateInput {
   readonly title: string;
   readonly descriptionHtml?: string;
   readonly vendor?: string;
   readonly productType?: string;
   readonly tags?: readonly string[];
   readonly status: ShopifyProductStatus;
-  readonly productOptions?: readonly ShopifyProductOptionInput[];
-  readonly variants?: readonly ShopifyVariantSetInput[];
+  readonly productOptions: readonly ShopifyProductOptionInput[];
+  readonly metafields: readonly ShopifyMetafieldInput[];
+  readonly variants: readonly ShopifyProductSetVariantInput[];
 }
+
+/** Una variante remota letta CON la sua identità VestiFlow (o senza: variante non nostra). */
+export interface ShopifyRemoteVariantConIdentita extends ShopifyRemoteVariant {
+  readonly title: string;
+  readonly price: string;
+  readonly identita: string | null;
+}
+
+/** La definizione di metafield che serve alle identità: si legge prima di usarla (G1). */
+export interface ShopifyMetafieldDefinitionLetta {
+  readonly id: string;
+  readonly typeName: string;
+  readonly ownerType: string;
+}
+
+// ⛔ Qui c'era `ShopifyProductSetInput` (creazione via productSet senza identità, mai usata
+//    dai servizi): sostituita da `ShopifyProductSetCreateInput`, che porta le identità.
 
 export interface ShopifyProductOptionInput {
   readonly name: string;
@@ -170,14 +222,6 @@ export interface ShopifyProductOptionInput {
 }
 
 /** Variante dentro `productSet`: stessa forma della creazione bulk. */
-export interface ShopifyVariantSetInput {
-  readonly optionValues: readonly { readonly optionName: string; readonly name: string }[];
-  readonly price?: string;
-  readonly compareAtPrice?: string;
-  readonly barcode?: string;
-  readonly inventoryPolicy?: ShopifyInventoryPolicy;
-  readonly sku?: string;
-}
 
 /** Una publication del negozio (canale di vendita). */
 export interface ShopifyPublication {
@@ -1059,43 +1103,6 @@ export class ShopifyGraphqlClient {
   //  posto solo. ⛔ Nessun client parallelo, nessun `fetch` scritto qui.
   // ══════════════════════════════════════════════════════════════════════════
 
-  /**
-   * CREA un prodotto con `productSet`.
-   *
-   * ⛔ **Solo creazione, e la firma lo impone**: `ShopifyProductSetInput` non ha
-   *    `id`, quindi questo metodo non può aggiornare nemmeno per sbaglio.
-   *    `productSet` ha semantica SOSTITUTIVA sulle liste — opzioni, varianti,
-   *    media: usato su un prodotto esistente con una lista parziale, Shopify
-   *    **elimina** ciò che si è omesso (docs/24 §8.6). L'aggiornamento passa da
-   *    `productUpdate` e dalle mutation per intenzione.
-   */
-  async createProduct(
-    shopDomain: string,
-    accessToken: string,
-    input: ShopifyProductSetInput,
-  ): Promise<{ id: string; status: ShopifyProductStatus }> {
-    const mutation = `
-      mutation ProductCreateWithSet($input: ProductSetInput!) {
-        productSet(input: $input, synchronous: true) {
-          product { id status }
-          userErrors { field message }
-        }
-      }
-    `;
-    const data = await this.graphql<{
-      productSet: {
-        product: { id: string; status: ShopifyProductStatus } | null;
-        userErrors: readonly { field: string[] | null; message: string }[];
-      } | null;
-    }>(shopDomain, accessToken, mutation, { input });
-    this.throwOnUserErrors('productSet', data.productSet?.userErrors);
-    const product = data.productSet?.product;
-    if (!product) {
-      throw new InternalServerErrorException('Shopify productSet: nessun prodotto restituito');
-    }
-    return product;
-  }
-
   /** Crea varianti su un prodotto esistente. Non tocca quelle già presenti. */
   async bulkCreateVariants(
     shopDomain: string,
@@ -1103,6 +1110,11 @@ export class ShopifyGraphqlClient {
     productGid: string,
     variants: readonly ShopifyVariantCreateInput[],
   ): Promise<readonly ShopifyRemoteVariant[]> {
+    // ⛔ Nessuna `strategy`: `REMOVE_STANDALONE_VARIANT` rimuoveva la variante iniziale ANCHE
+    //    se modificata sul negozio (contratto G7) ed è uscito dal push il 15/09/2026 — la
+    //    prima creazione passa da `productSet`, che una iniziale non la crea. Qui si
+    //    COMPLETA soltanto: le varianti presenti non si toccano. Verificato G6: tutto-o-niente
+    //    nel caso provato (una riga rifiutata → nessuna creata).
     const mutation = `
       mutation ProductVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
         productVariantsBulkCreate(productId: $productId, variants: $variants) {
@@ -1853,6 +1865,220 @@ export class ShopifyGraphqlClient {
       const message = userErrors.map((entry) => entry.message).join('; ');
       throw new InternalServerErrorException(`Shopify ${mutation}: ${message}`);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  Identità VestiFlow in creazione (docs/30 §7.2-bis) — contratto G1–G7 del
+  //  15/09/2026 su test-vestiflow.myshopify.com.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /** La definizione di metafield per (owner, namespace, key), se esiste: si LEGGE prima di fidarsi (G1). */
+  async leggiDefinizioneMetafield(
+    shopDomain: string,
+    accessToken: string,
+    ownerType: 'PRODUCT' | 'PRODUCTVARIANT',
+    namespace: string,
+    key: string,
+  ): Promise<ShopifyMetafieldDefinitionLetta | null> {
+    const query = `
+      query MetafieldDefinitionPerChiave($owner: MetafieldOwnerType!, $ns: String!, $key: String!) {
+        metafieldDefinitions(first: 5, ownerType: $owner, namespace: $ns, key: $key) {
+          nodes { id type { name } ownerType }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      metafieldDefinitions: {
+        nodes: readonly { id: string; type: { name: string }; ownerType: string }[];
+      };
+    }>(shopDomain, accessToken, query, { owner: ownerType, ns: namespace, key });
+    const nodo = data.metafieldDefinitions.nodes[0];
+    return nodo ? { id: nodo.id, typeName: nodo.type.name, ownerType: nodo.ownerType } : null;
+  }
+
+  /** Crea la definizione (tipo `id` per le identità). Gli `userErrors` sono un errore, non «già esiste». */
+  async creaDefinizioneMetafield(
+    shopDomain: string,
+    accessToken: string,
+    definizione: {
+      readonly name: string;
+      readonly namespace: string;
+      readonly key: string;
+      readonly type: string;
+      readonly ownerType: 'PRODUCT' | 'PRODUCTVARIANT';
+      readonly description?: string;
+    },
+  ): Promise<ShopifyMetafieldDefinitionLetta> {
+    const mutation = `
+      mutation DefinizioneIdentita($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          createdDefinition { id type { name } ownerType }
+          userErrors { field message code }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      metafieldDefinitionCreate: {
+        createdDefinition: { id: string; type: { name: string }; ownerType: string } | null;
+        userErrors: readonly { field: string[] | null; message: string; code?: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { definition: definizione });
+    this.throwOnUserErrors('metafieldDefinitionCreate', data.metafieldDefinitionCreate?.userErrors);
+    const creata = data.metafieldDefinitionCreate?.createdDefinition;
+    if (!creata) {
+      throw new InternalServerErrorException(
+        'Shopify metafieldDefinitionCreate: nessuna definizione restituita',
+      );
+    }
+    return { id: creata.id, typeName: creata.type.name, ownerType: creata.ownerType };
+  }
+
+  /**
+   * CREA il prodotto con `productSet` in SOLA creazione: prodotto, opzioni, varianti e le
+   * identità di prodotto e di ogni variante in una mutation sincrona (contratto G9–G11,
+   * 15/09/2026). Restituisce id, stato e le varianti come le riporta la risposta; chi crea
+   * NON si fida della risposta per gli id: li rilegge per identità.
+   *
+   * ⛔ Con un'identità di prodotto o di variante già presente sul negozio Shopify RIFIUTA
+   *    (`INVALID_METAFIELD`, «Value is already assigned to another metafield…») e non crea
+   *    niente, né modifica il prodotto già creato (G9); con una variante invalida non crea
+   *    niente (G10, osservato). Nessun fallback a `productCreate`.
+   * ⛔ Nessun `id` né `identifier`: questo metodo NON aggiorna mai. Un input che li porti
+   *    viene rifiutato prima di chiamare il negozio.
+   */
+  async createProductSet(
+    shopDomain: string,
+    accessToken: string,
+    input: ShopifyProductSetCreateInput,
+  ): Promise<{
+    readonly id: string;
+    readonly status: ShopifyProductStatus;
+    readonly variants: readonly { readonly id: string; readonly sku: string | null }[];
+  }> {
+    if ('id' in input || 'identifier' in input) {
+      throw new InternalServerErrorException(
+        'Shopify productSet: questo percorso è di SOLA creazione — nessun id né identifier ammesso.',
+      );
+    }
+    const mutation = `
+      mutation ProductSetSolaCreazione($input: ProductSetInput!) {
+        productSet(input: $input, synchronous: true) {
+          product {
+            id
+            status
+            variants(first: 250) { nodes { id sku } }
+          }
+          userErrors { field message code }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productSet: {
+        product: {
+          id: string;
+          status: ShopifyProductStatus;
+          variants: { nodes: readonly { id: string; sku: string | null }[] };
+        } | null;
+        userErrors: readonly { field: string[] | null; message: string; code?: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { input });
+    this.throwOnUserErrors('productSet', data.productSet?.userErrors);
+    const product = data.productSet?.product;
+    if (!product) {
+      throw new InternalServerErrorException('Shopify productSet: nessun prodotto restituito');
+    }
+    return { id: product.id, status: product.status, variants: product.variants.nodes };
+  }
+
+  /** Il prodotto remoto con QUESTA identità VestiFlow, o `null` (G5). Un errore è un errore, non «assente». */
+  async productByIdentity(
+    shopDomain: string,
+    accessToken: string,
+    identita: { readonly namespace: string; readonly key: string; readonly value: string },
+  ): Promise<{ readonly id: string; readonly status: ShopifyProductStatus } | null> {
+    const query = `
+      query ProdottoPerIdentita($identifier: ProductIdentifierInput!) {
+        productByIdentifier(identifier: $identifier) { id status }
+      }
+    `;
+    const data = await this.graphql<{
+      productByIdentifier: { id: string; status: ShopifyProductStatus } | null;
+    }>(shopDomain, accessToken, query, { identifier: { customId: identita } });
+    return data.productByIdentifier;
+  }
+
+  /** Le varianti del prodotto remoto CON la loro identità VestiFlow (`null` = non nostra). */
+  async listProductVariantsWithIdentity(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    identita: { readonly namespace: string; readonly key: string },
+  ): Promise<readonly ShopifyRemoteVariantConIdentita[]> {
+    const query = `
+      query VariantiConIdentita($id: ID!, $ns: String!, $key: String!) {
+        product(id: $id) {
+          variants(first: 250) {
+            nodes {
+              id title sku barcode price
+              inventoryItem { id }
+              selectedOptions { name value }
+              metafield(namespace: $ns, key: $key) { value }
+            }
+          }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      product: {
+        variants: {
+          nodes: readonly {
+            id: string;
+            title: string;
+            sku: string | null;
+            barcode: string | null;
+            price: string;
+            inventoryItem: { id: string } | null;
+            selectedOptions: readonly { name: string; value: string }[];
+            metafield: { value: string } | null;
+          }[];
+        };
+      } | null;
+    }>(shopDomain, accessToken, query, {
+      id: productGid,
+      ns: identita.namespace,
+      key: identita.key,
+    });
+    return (data.product?.variants.nodes ?? []).map((node) => ({
+      id: node.id,
+      title: node.title,
+      sku: node.sku,
+      barcode: node.barcode,
+      price: node.price,
+      inventoryItemId: node.inventoryItem?.id ?? null,
+      selectedOptions: node.selectedOptions,
+      identita: node.metafield?.value ?? null,
+    }));
+  }
+
+  /** L'identità VestiFlow di un prodotto remoto (per gid), o `null`: il webhook anticipato la RILEGGE, non si fida del payload. */
+  async productIdentity(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    identita: { readonly namespace: string; readonly key: string },
+  ): Promise<string | null> {
+    const query = `
+      query IdentitaDelProdotto($id: ID!, $ns: String!, $key: String!) {
+        product(id: $id) { metafield(namespace: $ns, key: $key) { value } }
+      }
+    `;
+    const data = await this.graphql<{ product: { metafield: { value: string } | null } | null }>(
+      shopDomain,
+      accessToken,
+      query,
+      { id: productGid, ns: identita.namespace, key: identita.key },
+    );
+    return data.product?.metafield?.value ?? null;
   }
 
   private async graphql<T>(

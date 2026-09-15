@@ -520,14 +520,14 @@ describe('Collaudo del ciclo di utilizzo — tre aziende, due negozi simulati (s
         .sort(),
     ).toEqual([...locale.tags].sort());
     for (const variante of locale.variants) {
-      if (!variante.sku) {
-        // ⚠️ Comportamento di OGGI, dichiarato nel codice e non dalla matrice: una
-        //    variante senza SKU non è abbinabile al risultato della creazione e resta
-        //    scollegata finché non riceve uno SKU.
-        expect(variante.shopifyVariantId).toBeNull();
-        continue;
-      }
-      expect(variante.shopifyVariantId, `variante ${variante.sku} non collegata`).not.toBeNull();
+      // ⭐ Dal 15/09/2026 le varianti si abbinano per IDENTITÀ (`vestiflow.variant_id`),
+      //    non per SKU: anche una variante senza SKU è collegata. ⛔ Qui c'era «resta
+      //    scollegata finché non riceve uno SKU», comportamento di allora dichiarato
+      //    dal codice, non dalla matrice.
+      expect(
+        variante.shopifyVariantId,
+        `variante ${variante.sku ?? variante.id} non collegata`,
+      ).not.toBeNull();
       const remota = remoto.variants.find((v) => v.id === Number(variante.shopifyVariantId));
       expect(remota, `variante remota di ${variante.sku} assente`).toBeDefined();
       expect(remota!.sku).toBe(variante.sku);

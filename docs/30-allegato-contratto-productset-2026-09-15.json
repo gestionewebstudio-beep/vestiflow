@@ -1,0 +1,623 @@
+{
+  "esecuzione": "vf-productset-2026-09-15T12-29-05-524Z",
+  "negozio": "test-vestiflow.myshopify.com",
+  "apiVersion": "2026-07",
+  "esiti": [
+    {
+      "garanzia": "G9 · sola creazione",
+      "esito": "verificata",
+      "dettaglio": "prima: gid://shopify/Product/10412267471143; seconda: rifiutata (INVALID_METAFIELD input.metafields.0.value: Value is already assigned to another metafield. Choose a different value to ensure it remains unique.); primo invariato; concorrenti: vincitore gid://shopify/Product/10412267602215 (c1 rifiutata: INVALID_METAFIELD input.metafields.0.value: Value is already assigned to another metafield. Choose a different value to ensure it remains unique. · c2 gid://shopify/Product/10412267602215); residui 0"
+    },
+    {
+      "garanzia": "G10 · errore su variante",
+      "esito": "verificata",
+      "dettaglio": "a (combinazione doppia): risposta «INVALID_VARIANT input.variants.1: The variant 'M' already exists.», nessun prodotto creato; b (identità di variante già usata): risposta «INVALID_METAFIELD input.variants.1.metafields.0.value: Value is already assigned to another metafield. Choose a different value to ensure it remains unique.», nessun prodotto creato; G9 intatto"
+    },
+    {
+      "garanzia": "G11 · identità e ordine",
+      "esito": "verificata",
+      "dettaglio": "unica: gid://shopify/Product/10412267962663 (1 variante, identità e valori ok); molte: gid://shopify/Product/10412268028199 (3 varianti, ordine L/M/S, identità e SKU ok); id riletti da productByIdentifier senza usare le risposte"
+    },
+    {
+      "garanzia": "G12 · archiviazione",
+      "esito": "verificata",
+      "dettaglio": "archiviati 4/4; con il tag di esecuzione sul negozio: 3"
+    }
+  ],
+  "creati": [
+    "gid://shopify/Product/10412267471143",
+    "gid://shopify/Product/10412267602215",
+    "gid://shopify/Product/10412267962663",
+    "gid://shopify/Product/10412268028199"
+  ],
+  "residuiConTag": [
+    "gid://shopify/Product/10412267471143",
+    "gid://shopify/Product/10412267602215",
+    "gid://shopify/Product/10412267962663"
+  ],
+  "fermatoDopo": null,
+  "fotografie": {
+    "definizione-PRODUCT": {
+      "id": "gid://shopify/MetafieldDefinition/257539768615",
+      "type": {
+        "name": "id"
+      }
+    },
+    "definizione-PRODUCTVARIANT": {
+      "id": "gid://shopify/MetafieldDefinition/257539801383",
+      "type": {
+        "name": "id"
+      }
+    },
+    "G9-prima": [
+      {
+        "id": "gid://shopify/Product/10411216109863",
+        "title": "VF contratto G7 modificata vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215978791",
+        "title": "VF contratto G7 intatta vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215913255",
+        "title": "VF contratto G6 vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215749415",
+        "title": "VF contratto G5 vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215520039",
+        "title": "VF contratto G3-a vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215323431",
+        "title": "VF contratto G2 vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10397093691687",
+        "title": "test tre",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10397032120615",
+        "title": "Test taglie",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10367031410983",
+        "title": "VestiFlow - prova contratto 2A (non vendere)",
+        "tags": ["vestiflow-contract-test"]
+      },
+      {
+        "id": "gid://shopify/Product/10363848261927",
+        "title": "TEST SEMPLICE 02-09 v.2",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10363816345895",
+        "title": "TEST SEMPLICE 02-09",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10349997818151",
+        "title": "Test con nico",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337310048551",
+        "title": "djfkdosjsh",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337310015783",
+        "title": "Test 6",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337309262119",
+        "title": "djfkdosjsh",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337308705063",
+        "title": "2521jdhs",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10331462435111",
+        "title": "prodotto per test import listini 07/08 (Copia)",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10331407024423",
+        "title": "prodotto per test import listini 07/08",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10329981157671",
+        "title": "Prodotto test sincro",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328088543527",
+        "title": "Test iva",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328079696167",
+        "title": "Test 2 dopo agg listino",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328079597863",
+        "title": "Test dopo impl listini",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328051613991",
+        "title": "Trancio pizza peperoni",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10327688806695",
+        "title": "test da shopi listino 0",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10324000276775",
+        "title": "test 02/08",
+        "tags": []
+      }
+    ],
+    "G9-a-risposta": {
+      "id": "gid://shopify/Product/10412267471143",
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084512915751",
+          "title": "M",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-M",
+          "price": "9.99",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-M"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084512948519",
+          "title": "L",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-L",
+          "price": "9.99",
+          "position": 2,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-L"
+        }
+      ],
+      "errori": [],
+      "eccezione": null
+    },
+    "G9-a-riletto": {
+      "id": "gid://shopify/Product/10412267471143",
+      "title": "G9-a vf-productset-2026-09-15T12-29-05-524Z",
+      "status": "DRAFT",
+      "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9",
+      "hasOnlyDefaultVariant": false,
+      "opzioni": [
+        {
+          "name": "Taglia",
+          "values": ["M", "L"]
+        }
+      ],
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084512915751",
+          "title": "M",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-M",
+          "price": "9.99",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-M"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084512948519",
+          "title": "L",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-L",
+          "price": "9.99",
+          "position": 2,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-L"
+        }
+      ]
+    },
+    "G9-b-risposta": {
+      "id": null,
+      "varianti": [],
+      "errori": [
+        {
+          "field": ["input", "metafields", "0", "value"],
+          "message": "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+          "code": "INVALID_METAFIELD"
+        }
+      ],
+      "eccezione": null
+    },
+    "G9-b-riletto-primo": {
+      "id": "gid://shopify/Product/10412267471143",
+      "title": "G9-a vf-productset-2026-09-15T12-29-05-524Z",
+      "status": "DRAFT",
+      "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9",
+      "hasOnlyDefaultVariant": false,
+      "opzioni": [
+        {
+          "name": "Taglia",
+          "values": ["M", "L"]
+        }
+      ],
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084512915751",
+          "title": "M",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-M",
+          "price": "9.99",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-M"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084512948519",
+          "title": "L",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-L",
+          "price": "9.99",
+          "position": 2,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-L"
+        }
+      ]
+    },
+    "G9-c-risposte": {
+      "c1": {
+        "id": null,
+        "varianti": [],
+        "errori": [
+          {
+            "field": ["input", "metafields", "0", "value"],
+            "message": "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+            "code": "INVALID_METAFIELD"
+          }
+        ],
+        "eccezione": null
+      },
+      "c2": {
+        "id": "gid://shopify/Product/10412267602215",
+        "varianti": [
+          {
+            "id": "gid://shopify/ProductVariant/52084513014055",
+            "title": "M",
+            "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9c2-M",
+            "price": "9.99",
+            "position": 1,
+            "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9c2-M"
+          }
+        ],
+        "errori": [],
+        "eccezione": null
+      }
+    },
+    "G9-c-vincitore": {
+      "id": "gid://shopify/Product/10412267602215",
+      "title": "G9-c2 vf-productset-2026-09-15T12-29-05-524Z",
+      "status": "DRAFT",
+      "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9c",
+      "hasOnlyDefaultVariant": false,
+      "opzioni": [
+        {
+          "name": "Taglia",
+          "values": ["M"]
+        }
+      ],
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084513014055",
+          "title": "M",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9c2-M",
+          "price": "9.99",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9c2-M"
+        }
+      ]
+    },
+    "G9-residui": [],
+    "G10-prima": [
+      {
+        "id": "gid://shopify/Product/10412267602215",
+        "title": "G9-c2 vf-productset-2026-09-15T12-29-05-524Z",
+        "tags": ["vestiflow-contract-test", "vf-productset-2026-09-15T12-29-05-524Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10412267471143",
+        "title": "G9-a vf-productset-2026-09-15T12-29-05-524Z",
+        "tags": ["vestiflow-contract-test", "vf-productset-2026-09-15T12-29-05-524Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411216109863",
+        "title": "VF contratto G7 modificata vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215978791",
+        "title": "VF contratto G7 intatta vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215913255",
+        "title": "VF contratto G6 vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215749415",
+        "title": "VF contratto G5 vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215520039",
+        "title": "VF contratto G3-a vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10411215323431",
+        "title": "VF contratto G2 vf-esecuzione-2026-09-15T08-43-26-270Z",
+        "tags": ["vestiflow-contract-test", "vf-esecuzione-2026-09-15T08-43-26-270Z"]
+      },
+      {
+        "id": "gid://shopify/Product/10397093691687",
+        "title": "test tre",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10397032120615",
+        "title": "Test taglie",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10367031410983",
+        "title": "VestiFlow - prova contratto 2A (non vendere)",
+        "tags": ["vestiflow-contract-test"]
+      },
+      {
+        "id": "gid://shopify/Product/10363848261927",
+        "title": "TEST SEMPLICE 02-09 v.2",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10363816345895",
+        "title": "TEST SEMPLICE 02-09",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10349997818151",
+        "title": "Test con nico",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337310048551",
+        "title": "djfkdosjsh",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337310015783",
+        "title": "Test 6",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337309262119",
+        "title": "djfkdosjsh",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10337308705063",
+        "title": "2521jdhs",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10331462435111",
+        "title": "prodotto per test import listini 07/08 (Copia)",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10331407024423",
+        "title": "prodotto per test import listini 07/08",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10329981157671",
+        "title": "Prodotto test sincro",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328088543527",
+        "title": "Test iva",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328079696167",
+        "title": "Test 2 dopo agg listino",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328079597863",
+        "title": "Test dopo impl listini",
+        "tags": []
+      },
+      {
+        "id": "gid://shopify/Product/10328051613991",
+        "title": "Trancio pizza peperoni",
+        "tags": []
+      }
+    ],
+    "G10-a-risposta": {
+      "id": null,
+      "varianti": [],
+      "errori": [
+        {
+          "field": ["input", "variants", "1"],
+          "message": "The variant 'M' already exists.",
+          "code": "INVALID_VARIANT"
+        }
+      ],
+      "eccezione": null
+    },
+    "G10-a-riletto": null,
+    "G10-b-risposta": {
+      "id": null,
+      "varianti": [],
+      "errori": [
+        {
+          "field": ["input", "variants", "1", "metafields", "0", "value"],
+          "message": "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+          "code": "INVALID_METAFIELD"
+        }
+      ],
+      "eccezione": null
+    },
+    "G10-b-riletto": null,
+    "G10-b-g9-dopo": {
+      "id": "gid://shopify/Product/10412267471143",
+      "title": "G9-a vf-productset-2026-09-15T12-29-05-524Z",
+      "status": "DRAFT",
+      "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9",
+      "hasOnlyDefaultVariant": false,
+      "opzioni": [
+        {
+          "name": "Taglia",
+          "values": ["M", "L"]
+        }
+      ],
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084512915751",
+          "title": "M",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-M",
+          "price": "9.99",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-M"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084512948519",
+          "title": "L",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-9-L",
+          "price": "9.99",
+          "position": 2,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-9-L"
+        }
+      ]
+    },
+    "G10-residui": [],
+    "G11-unica-risposta": {
+      "id": "gid://shopify/Product/10412267962663",
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084513374503",
+          "title": "Default Title",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11u",
+          "price": "12.00",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11u-v"
+        }
+      ],
+      "errori": [],
+      "eccezione": null
+    },
+    "G11-unica-riletto": {
+      "id": "gid://shopify/Product/10412267962663",
+      "title": "G11-unica vf-productset-2026-09-15T12-29-05-524Z",
+      "status": "DRAFT",
+      "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11u",
+      "hasOnlyDefaultVariant": true,
+      "opzioni": [
+        {
+          "name": "Title",
+          "values": ["Default Title"]
+        }
+      ],
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084513374503",
+          "title": "Default Title",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11u",
+          "price": "12.00",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11u-v"
+        }
+      ]
+    },
+    "G11-molte-risposta": {
+      "id": "gid://shopify/Product/10412268028199",
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084513440039",
+          "title": "L",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11m-L",
+          "price": "10.50",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11m-L"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084513472807",
+          "title": "M",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11m-M",
+          "price": "11.50",
+          "position": 2,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11m-M"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084513505575",
+          "title": "S",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11m-S",
+          "price": "12.50",
+          "position": 3,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11m-S"
+        }
+      ],
+      "errori": [],
+      "eccezione": null
+    },
+    "G11-molte-riletto": {
+      "id": "gid://shopify/Product/10412268028199",
+      "title": "G11-molte vf-productset-2026-09-15T12-29-05-524Z",
+      "status": "DRAFT",
+      "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11m",
+      "hasOnlyDefaultVariant": false,
+      "opzioni": [
+        {
+          "name": "Taglia",
+          "values": ["L", "M", "S"]
+        }
+      ],
+      "varianti": [
+        {
+          "id": "gid://shopify/ProductVariant/52084513440039",
+          "title": "L",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11m-L",
+          "price": "10.50",
+          "position": 1,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11m-L"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084513472807",
+          "title": "M",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11m-M",
+          "price": "11.50",
+          "position": 2,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11m-M"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/52084513505575",
+          "title": "S",
+          "sku": "VF-vf-productset-2026-09-15T12-29-05-524Z-11m-S",
+          "price": "12.50",
+          "position": 3,
+          "identita": "contratto-vf-productset-2026-09-15T12-29-05-524Z-11m-S"
+        }
+      ]
+    }
+  }
+}

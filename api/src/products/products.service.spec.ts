@@ -374,6 +374,80 @@ describe('ProductsService', () => {
     expect(visible).toMatchObject({ purchasePriceMinor: 990 });
   });
 
+  /**
+   * I quattro campi del claim di creazione Shopify (docs/30 §7.2-bis) sono del motore, non
+   * del client: escono da NESSUNA risposta prodotto — elenco, dettaglio, e creazione/modifica
+   * che rileggono il dettaglio. Il resto del modello resta com'è.
+   */
+  describe('i campi del claim di creazione Shopify non escono dalle risposte', () => {
+    const CLAIM = {
+      shopifyCreateClaimId: '11111111-1111-4111-8111-111111111111',
+      shopifyCreateClaimVersion: 3,
+      shopifyCreateClaimShopId: '22222222-2222-4222-8222-222222222222',
+      shopifyCreateClaimedAt: new Date('2026-09-15T10:00:00Z'),
+    };
+    const CAMPI = Object.keys(CLAIM);
+    const riga = (id: string) => ({
+      id,
+      name: 'Maglietta',
+      purchasePriceMinor: 990,
+      shopifyProductId: '990001',
+      shopifySyncStatus: 'synced',
+      variants: [{ id: 'var-1', purchasePriceMinor: 990 }],
+      images: [],
+      ...CLAIM,
+    });
+
+    it('dettaglio: i quattro campi mancano, gli altri restano', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findFirst.mockResolvedValue(riga('prod-1'));
+
+      const dettaglio = await service.getById(tenantId, 'prod-1', userWithCosts);
+
+      for (const campo of CAMPI) expect(dettaglio).not.toHaveProperty(campo);
+      expect(dettaglio).toMatchObject({
+        id: 'prod-1',
+        shopifyProductId: '990001',
+        shopifySyncStatus: 'synced',
+        purchasePriceMinor: 990,
+      });
+    });
+
+    it('elenco: idem su ogni riga, anche a costi mascherati', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findMany.mockResolvedValue([riga('prod-1'), riga('prod-2')]);
+      prisma.product.count.mockResolvedValue(2);
+
+      const elenco = await service.list(tenantId, { page: 1, pageSize: 10 }, userWithoutCosts);
+
+      expect(elenco.items).toHaveLength(2);
+      for (const item of elenco.items) {
+        for (const campo of CAMPI) expect(item).not.toHaveProperty(campo);
+        expect(item).toMatchObject({ shopifyProductId: '990001', purchasePriceMinor: null });
+      }
+    });
+
+    it('creazione: la risposta è il dettaglio riletto, quindi senza i quattro campi', async () => {
+      const { service, prisma } = createService();
+      prisma.product.create.mockResolvedValue({ id: 'prod-new' });
+      prisma.product.findFirst.mockResolvedValue(riga('prod-new'));
+
+      const creato = await service.create(
+        tenantId,
+        {
+          name: 'Nuovo',
+          sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+          options: [],
+          variants: [],
+        } as never,
+        userWithCosts,
+      );
+
+      for (const campo of CAMPI) expect(creato).not.toHaveProperty(campo);
+      expect(creato).toMatchObject({ id: 'prod-new', name: 'Maglietta' });
+    });
+  });
+
   it('list senza utente (chiamate interne) non espone il costo: default prudente', async () => {
     const { service, prisma } = createService();
     prisma.product.findMany.mockResolvedValue([

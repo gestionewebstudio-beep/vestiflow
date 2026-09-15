@@ -10,7 +10,11 @@ import {
   parseShopifyTags,
 } from './shopify-product-metadata.util';
 import { shopifyDecimalToMinor } from './shopify-money.util';
-import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import {
+  ShopifyGraphqlClient,
+  type ShopifyRemoteVariantConIdentita,
+} from './shopify-graphql.client';
+import { IDENTITA_PRODOTTO, IDENTITA_VARIANTE } from './shopify-identita-catalogo.util';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
 
@@ -55,6 +59,40 @@ export class ShopifyProductEnrichmentService {
     private readonly categoryMetafieldsService: ShopifyCategoryMetafieldsService,
     private readonly taxonomyLocalization: ShopifyTaxonomyLocalizationService,
   ) {}
+
+  /**
+   * L'identità VestiFlow (`vestiflow.product_id`) del prodotto remoto, RILETTA da Shopify:
+   * il payload del webhook non la porta. ⛔ **Un errore di lettura NON è «assente»**: qui
+   * non c'è `catch`, e chi chiama decide — a differenza dell'arricchimento, dove un
+   * metafield mancante degrada e basta.
+   */
+  identitaVestiflowDelProdotto(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+  ): Promise<string | null> {
+    return this.shopifyGraphql.productIdentity(shopDomain, accessToken, productGid, {
+      namespace: IDENTITA_PRODOTTO.namespace,
+      key: IDENTITA_PRODOTTO.key,
+    });
+  }
+
+  /** Le varianti remote con la loro identità VestiFlow, per l'adozione degli id. */
+  variantiConIdentita(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+  ): Promise<readonly ShopifyRemoteVariantConIdentita[]> {
+    return this.shopifyGraphql.listProductVariantsWithIdentity(
+      shopDomain,
+      accessToken,
+      productGid,
+      {
+        namespace: IDENTITA_VARIANTE.namespace,
+        key: IDENTITA_VARIANTE.key,
+      },
+    );
+  }
 
   async enrichProduct(
     shopDomain: string,
