@@ -883,9 +883,38 @@ export class ShopifyIntegrationPanelComponent {
       case 'sedi':
         this.vaiAllaScheda('connessione', 'settings-shopify-scelte-sedi');
         return;
+      case 'riprova_evento':
+        this.riprovaEvento(azione.riferimento);
+        return;
       default:
         return;
     }
+  }
+
+  /**
+   * «Riprova» di un evento webhook (docs/30 §7.1.2 D4): un comando esplicito sulla
+   * STESSA ricevuta. L'API verifica tenant, negozio, connessione e sincronizzazione; qui
+   * si rilegge la situazione, che dice se l'evento è ripartito o perché no.
+   */
+  protected riprovaEvento(ricevutaId: string | null): void {
+    if (!ricevutaId || this.setupBusy()) {
+      return;
+    }
+    this.setupBusy.set(true);
+    this.setupErrore.set(null);
+    this.shopifyConnectionService
+      .riprovaEventoWebhook(ricevutaId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.setupBusy.set(false);
+          this.ricaricaSetup();
+        },
+        error: (err: unknown) => {
+          this.setupBusy.set(false);
+          this.setupErrore.set(extractErrorMessage(err));
+        },
+      });
   }
 
   /**

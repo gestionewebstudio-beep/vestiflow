@@ -456,7 +456,12 @@ export class TenantBackupImportService {
       return copy;
     });
     await backupDelegate(tx, key).createMany({
-      data: key === 'products' ? withBackfilledArticleCodes(data) : data,
+      data:
+        key === 'products'
+          ? withBackfilledArticleCodes(data)
+          : key === 'shopifyWebhookReceipts'
+            ? sospendiRicevuteDaApplicare(data)
+            : data,
     });
   }
 
@@ -469,6 +474,28 @@ export class TenantBackupImportService {
     if (lower.endsWith('.xml')) return 'application/xml';
     return 'application/octet-stream';
   }
+}
+
+/**
+ * ⭐ Le ricevute webhook ancora da applicare tornano SOSPESE (docs/30 §7.1.2, D7 e
+ *    decisione 3 del 15/09/2026): in coda, in lavorazione al momento del backup, o
+ *    fallite. Nessuna ripartenza automatica — il tenant ripristinato potrebbe non
+ *    essere più collegato a quel negozio — e si riprende con «Riprova», che verifica
+ *    tenant, negozio, connessione e sincronizzazione attuali. Le concluse
+ *    (elaborate, scartate) tornano com'erano: sono storia.
+ */
+function sospendiRicevuteDaApplicare(rows: BackupRow[]): BackupRow[] {
+  const daSospendere = new Set<string>(['in_coda', 'in_lavorazione', 'fallita']);
+  return rows.map((row) =>
+    typeof row['esito'] === 'string' && daSospendere.has(row['esito'])
+      ? {
+          ...row,
+          esito: 'sospesa_dopo_ripristino',
+          lavorataDaVersione: null,
+          processedAt: row['processedAt'] ?? null,
+        }
+      : row,
+  );
 }
 
 /**

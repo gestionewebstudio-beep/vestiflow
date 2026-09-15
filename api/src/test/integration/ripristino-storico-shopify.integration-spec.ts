@@ -10,6 +10,7 @@ import { PlatformAdminService } from '../../common/platform-admin/platform-admin
 import { TenantBackupExportService } from '../../tenant/tenant-backup/tenant-backup-export.service';
 import { TenantBackupImportService } from '../../tenant/tenant-backup/tenant-backup-import.service';
 import {
+  TENANT_BACKUP_FORMAT_VERSION,
   TENANT_BACKUP_STORICO_SHOPIFY,
   TENANT_BACKUP_V3_ENTITY_FILES,
   TENANT_BACKUP_V4_ENTITY_FILES,
@@ -296,9 +297,11 @@ describe('Ripristino da backup con lo storico dei collegamenti Shopify', () => {
 
   // ── 1 · Compatibilita' dei formati ───────────────────────────────────────
 
-  it('1a · l export e` v5 e porta i sette file dello storico, con i conteggi', async () => {
+  it('1a · l export e` almeno v5 (oggi v6, con le ricevute webhook) e porta i sette file dello storico, con i conteggi', async () => {
     const manifest = await readZipManifest(await esporta());
-    expect(manifest.formatVersion).toBe(5);
+    // ⭐ v6 dal 15/09/2026 (ricevute webhook, docs/30 §7.1.2 D7): lo storico c'è dalla v5 in poi.
+    expect(manifest.formatVersion).toBe(TENANT_BACKUP_FORMAT_VERSION);
+    expect(manifest.formatVersion).toBeGreaterThanOrEqual(5);
     for (const key of TENANT_BACKUP_STORICO_SHOPIFY) {
       expect(manifest.entityCounts[key]).toBeDefined();
     }

@@ -15,7 +15,7 @@ correzione; **da decidere** = serve una decisione del proprietario prima di scri
 
 | #   | Voce                                                                                  | Stato                                                                                                                                                                                                                                               | Dove                           |
 | --- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| 1   | consegne webhook senza deduplica, risposta dopo l'elaborazione                        | **aperta** — riprodotta (`it.fails` ×2); progettazione finale in §7.1.2 con le decisioni D1–D7 prese; tre punti ⏸ da confermare, poi codice                                                                                                         |
+| 1   | consegne webhook senza deduplica, risposta dopo l'elaborazione                        | **risolta** sul ramo motore (15/09 sera): ricevute durevoli, `200` dopo il commit, corsia per tenant con versione, ordine per risorsa, ritentativi per natura, «Riprova» — §7.1.2                                                                   |
 | 2   | `fetchVariantCosts` su `products/update`                                              | **risolta**                                                                                                                                                                                                                                         | §7-bis.1                       |
 | 3   | nessun timeout, nessun ritentativo delle letture                                      | **risolta**                                                                                                                                                                                                                                         | §7-ter                         |
 | 4   | GraphQL `THROTTLED` non ritentato                                                     | **risolta**                                                                                                                                                                                                                                         | §7-ter                         |
@@ -276,7 +276,7 @@ solo** — sarebbe una regola nuova di recupero. Da decidere: (a) resta così, e
 eventi sospesi», che rimette in coda le ricevute `scartata_sync_spenta` più recenti
 dell'ultimo evento applicato, nell'ordine di `triggered_at`.
 
-#### 7.1.2 Progettazione finale della coda webhook (15/09/2026, sera) — ✅ decisioni prese, ⏸ tre punti da confermare prima del codice
+#### 7.1.2 La coda webhook — ✅ FATTA sul ramo motore (15/09/2026, sera; decisioni D1–D7 e le sei conferme del proprietario)
 
 Parte dalle due `it.fails` di `shopify-webhooks.controller.spec.ts` (stesso
 `X-Shopify-Webhook-Id` due volte → UNA elaborazione; `200` anche se l'elaborazione non è
@@ -358,25 +358,25 @@ sotto è marcato ⏸ è la mia proposta per chiudere un punto che la decisione l
    attesa di ritentativo **non ferma** le altre risorse del negozio (nessun blocco
    indefinito) e **non viene scavalcata** da una più giovane della stessa risorsa (nessuna
    applicazione fuori ordine); l'attesa della stessa risorsa è limitata da D1 (al massimo
-   ~111 min). ⏸ **Da confermare, ed è una regola, non un dettaglio**: tutti i topic accolti
-   portano lo **stato pieno** (prodotti, ordini, clienti, quantità; `fulfillment_orders/*`
-   rilegge l'ordine — misurato in `shopify-sync.service`), quindi quando una ricevuta va in
-   `fallita` e ne esiste una **più giovane della stessa risorsa**, la giovane si applica e
-   la vecchia diventa `superata` (visibile, senza «Riprova»: riapplicarla riporterebbe la
-   risorsa indietro). Non è un'applicazione fuori ordine — la vecchia non si applica mai —
-   ma è la scelta fra «la risorsa resta ferma finché una persona non decide» e «vale
-   l'ultimo stato che il canale ha mandato». Propongo la seconda; senza conferma resta la
-   prima (la risorsa resta bloccata, dichiarata nell'elenco).
+   ~111 min — ⚠️ è la somma delle attese configurate, non un tempo massimo garantito:
+   contano anche elaborazioni, arretrato e indisponibilità). ⛔ **Deciso (proprietario,
+   15/09 sera): NESSUN superamento automatico di una fallita.** Lo stato pieno non dimostra
+   l'equivalenza degli effetti intermedi: una `fallita` resta visibile e blocca soltanto
+   la propria risorsa; le successive correlate risultano «in attesa del precedente»;
+   «Riprova» riparte dalla ricevuta fallita con le stesse protezioni. Niente `superata`,
+   niente comando per saltarla. ⭐ **Risorsa non risolvibile** (`risorsa = NULL`): non
+   riceve una chiave inventata — è correlata a tutto ciò che la precede e la segue nello
+   stesso negozio (aspetta, e fa aspettare).
 
 **Associazione verificata, e riconnessioni.** La ricevuta porta `tenant_id` (FK) **e**
 `shop_id` (FK a `shopify_shops`, l'identità permanente del negozio, la stessa del claim di
-creazione), entrambi risolti all'accoglienza; la corsia è per `shop_id`. All'elaborazione
-il lavoratore rilegge l'associazione corrente (`shopify_shops.tenant_id`, la connessione del
-tenant e il suo dominio) e, se una delle tre non coincide più con quella della ricevuta,
-l'esito è `scartata_associazione_cambiata`, senza effetti e senza «Riprova»: una
-riconnessione a un altro tenant, o un negozio ricollegato dopo una disconnessione, non fa
-applicare eventi vecchi alla nuova associazione. Lo stesso controllo copre il ripristino da
-backup (D7).
+creazione; nulla se la connessione non l'aveva ancora acquisita) più il dominio
+normalizzato, risolti all'accoglienza; la corsia è per tenant (una connessione per tenant).
+All'elaborazione — e di nuovo a «Riprova» — il lavoratore rilegge la connessione corrente
+del tenant (dominio, negozio) e, se non coincide più con quella della ricevuta, l'esito è
+`scartata_associazione_cambiata`, senza effetti e senza «Riprova»: una riconnessione a un
+altro negozio non fa applicare eventi vecchi alla nuova associazione, e la ricevuta non si
+sposta su un altro tenant o negozio. Lo stesso controllo copre il ripristino da backup (D7).
 
 **Alternative valutate.** (a) Coalescenza anticipata — se in coda ci sono due ricevute della
 stessa risorsa, saltare subito la vecchia: risparmierebbe lavoro nei burst, ma
@@ -387,12 +387,47 @@ ordine che fallisce fermerebbe il catalogo intero per ~2 ore — **no**. (c) Lav
 fuori processo (coda esterna): non serve con un'istanza, e la corsia con versione regge
 anche con più istanze — **no**, come deciso in §7.
 
-**Prove di accettazione** (integrazione, isolato, in aggiunta ad A1–A5 di §7.1): A6 · due
-processi simulati sullo stesso negozio → una sola corsia attiva, ordine conservato; A7 ·
-lavoratore lento superato → la sua transazione abortisce, nessuna scrittura locale; A8 ·
-riavvio con tre ricevute `in_coda` → tre elaborazioni, una ciascuna; A9 · elaborazione
-fallita → `fallita` col motivo leggibile, prodotto/connessione come deciso in D4; A10 ·
-webhook senza id → esito di D5. Le due `it.fails` diventano prove ordinarie.
+**Implementazione (stesso ramo, ambiente isolato).**
+
+| Dove                                                                     | Cosa                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| migration `20260915190000_coda_webhook_shopify` (solo DB di prova)       | `shopify_webhook_receipts` (FK tenant CASCADE, FK negozio SET NULL, unica `(shop_domain, webhook_id)`, esiti enum) e `shopify_webhook_lanes` (una per tenant, `claim_version`); RLS e `REVOKE`                                                                                                                                                                                 |
+| `shopify-webhooks.controller.ts`                                         | firma → intestazioni (`X-Shopify-Webhook-Id` obbligatorio, altrimenti `400`) → JSON → `accogli` (attesa) → `200` → `sveglia`; negozio sconosciuto = rifiuto di sempre                                                                                                                                                                                                          |
+| `shopify-webhook-coda.service.ts`                                        | accoglienza (`INSERT`, `P2002` = doppione, `200`), corsia (rivendicazione con lease e versione, rinnovo, rilascio), `prossimaPronta` (ordine per risorsa, `NULL` correlata a tutto, `fallita` che blocca i correlati), `elabora` (associazione → sync spenta → topic → `handleWebhook` con guardia → chiusura fenced), ritentativi per natura, `elencoNonApplicate`, `riprova` |
+| `shopify-webhook-corsia.util.ts`                                         | `GuardiaCorsia`: `assicura(tx)` rilegge la corsia `FOR UPDATE` e lancia `CorsiaWebhookSuperataException` se la versione non è più quella                                                                                                                                                                                                                                       |
+| `shopify-sync.service.ts`, `shopify-product-pull.service.ts`             | la guardia entra nelle transazioni di effetto (ordini, clienti, prodotti/adozione), prima della riconciliazione delle quantità e prima dell'unica scrittura remota (la ripubblicazione); senza guardia (import massivi) niente cambia                                                                                                                                          |
+| `shopify-webhook-risorsa.util.ts`, `shopify-webhook-ritentativo.util.ts` | la chiave di risorsa (tutti i topic dello stesso ordine → `ordine:{id legacy}`); attese 1·5·15·30·60 min, `TENTATIVI_MASSIMI = 6`, `naturaDellErrore` per causa (trasporto di lettura, 429/THROTTLED, database) e non per nome                                                                                                                                                 |
+| `shopify-config.service.ts`, `.env.example`                              | `SHOPIFY_WEBHOOK_SCAN_INTERVAL_MS` (30 s; 0 = nessuna scansione) e `SHOPIFY_WEBHOOK_LANE_LEASE_MS` (5 min)                                                                                                                                                                                                                                                                     |
+| `shopify-setup-situazione.util.ts`, `shopify.controller.ts`              | gli eventi non applicati entrano nella SITUAZIONE (tipo «Notifica», cause `evento_*`, azione `riprova_evento`); `POST /shopify/webhook-ricevute/:id/riprova` del titolare                                                                                                                                                                                                      |
+| frontend (`shopify-problemi`, pannello Shopify)                          | nessun componente nuovo: etichette del tipo e delle cause, «Riprova» come azione di pagina che chiama l'API e rilegge la situazione                                                                                                                                                                                                                                            |
+| backup (`tenant-backup.constants`, import)                               | formato **6**: `shopifyWebhookReceipts` nel backup (dopo negozi e connessione); al ripristino `in_coda`/`in_lavorazione`/`fallita` → `sospesa_dopo_ripristino`; le corsie no                                                                                                                                                                                                   |
+
+⚠️ **Dove la guardia NON arriva, dichiarato**: le letture remote di un lavoratore superato
+(arricchimento prodotto, rilettura dell'ordine per `fulfillment_orders`) possono partire —
+costano una lettura, non un effetto; le scritture locali sono tutte in transazioni con la
+guardia e comunque ripetibili. Il fallimento definitivo registra prodotto `error` e avviso
+sulla connessione come prima della coda; il fallimento transitorio no.
+
+**Prove eseguite** (`coda-webhook.integration-spec.ts`, 19, database vero; unitarie del
+controller 10, delle due util 6, della situazione 1; frontend 8):
+
+| Obbligatoria                        | Prova                                                                                                                                                                                                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| conferma solo dopo commit           | A1: il controller vero risponde con la ricevuta già nel database mentre l'elaboratore è tenuto fermo; la sveglia la porta a `elaborata`; corsia rilasciata                                                                                                               |
+| salvataggio fallito senza 200       | A2: `create` che fallisce → la richiesta esce con l'errore, 0 ricevute, nessuna sveglia, nessuna elaborazione, data dell'ultimo evento non scritta                                                                                                                       |
+| consegne duplicate                  | A3: stesso id due volte in concorrenza → una ricevuta, una elaborazione; una terza consegna dopo → ancora niente                                                                                                                                                         |
+| arresto prima degli effetti         | A4: ricevuta `in_lavorazione` di un processo morto (lease scaduta) → ripresa, effetti una volta, versione della corsia avanzata; con lease viva la corsia non si rivendica e niente si elabora due volte                                                                 |
+| arresto dopo gli effetti            | A5: pull VERO ripetuto → un prodotto, le stesse varianti; riconciliazione VERA ripetuta → uno stato sync, stessi valori, giacenza intatta                                                                                                                                |
+| vecchio lavoratore superato         | A6: lavoratore lento fermo, lease scaduta, un nuovo lavoratore finisce; il lento riparte e la guardia nella transazione del cliente lo ferma — `updatedAt` del party immutato, ricevuta del nuovo (**falsificata**: senza la guardia nella transazione la prova è rossa) |
+| ordine fra topic correlati          | A7: `orders/create` 5001 fallisce in modo transitorio → il suo `fulfillment_orders` aspetta, 5002 e il prodotto 42 passano; nessun ritentativo anticipato; alla scadenza prima 5001 poi il correlato; risorsa `NULL` correlata a tutto                                   |
+| risorsa fallita non blocca le altre | A8: 4xx → `fallita` subito; `orders/updated` dello stesso ordine aspetta anche a scansioni ripetute; 5002 passa; «Riprova» riparte dalla stessa ricevuta (tentativi conservati) e poi sblocca il correlato; errori della connessione non azzerati                        |
+| ritentativi per natura              | A7: 4xx e esito incerto → `fallita` al primo tentativo; transitorio → 6 tentativi conclusi poi `fallita`                                                                                                                                                                 |
+| ripristino sospeso                  | A9: export/ripristino veri → `in_coda`, `in_lavorazione`, `fallita` → `sospesa_dopo_ripristino` col payload; `elaborata` com'era; né scansione né corsia le toccano; «Riprova» le riprende una per una                                                                   |
+| isolamento tenant/negozio           | A10: ricevuta accolta, poi il tenant si ricollega a un altro negozio → `scartata_associazione_cambiata`, nessun effetto, non riprovabile, non spostata; il tenant B lavora; corsia di A tenuta da un altro processo non ferma B                                          |
+| sync spenta                         | A8: `scartata_sync_spenta`, nessun «Riprova»; riattivata la sincronizzazione niente riparte (D2)                                                                                                                                                                         |
+
+Le due `it.fails` del controller non esistono più: deduplica e `200` prima
+dell'elaborazione sono prove ordinarie (A3, A1).
 
 **Nel piano restano, e non si perdono**: §7.3 (`syncing` dopo processo morto — ora con lo
 schema del claim, non con la sola scadenza); il **residuo del claim** dopo un'adozione da
@@ -1195,16 +1230,20 @@ logica di motore in quel ramo.
 Nessuna scrittura sul condiviso; su Shopify solo le prove di contratto autorizzate
 (§7.2-bis.1 G1–G7 e §7.2-ter.3 G9–G12, prodotti DRAFT archiviati, mai eliminati); nessun
 webhook inviato all'API 3000; nessuna misura dei tempi di risposta del webhook (richiede il
-negozio). Il blocco §7.2-ter è sul ramo unico `feat/shopify-affidabilita-creazione` (da
-`bd22d421`, worktree `C:/vf-motore`), **non committato**: commit, push, PR e CI attendono il
-via. Restano aperti: la ripresa dei `syncing` (§7.3), la coda webhook (§7.1), il residuo del
-claim dopo un'adozione da webhook, il limite di scala di `productSet` (§7.2-ter.3, non
-provato), la deriva della tabella degli stati sync (sotto).
+negozio). I blocchi §7.2-ter (creazione) e §7.1.2 (coda webhook) sono sul ramo unico
+`feat/shopify-affidabilita-creazione` (da `bd22d421`, worktree `C:/vf-motore`) in commit
+**locali**: push, PR e CI attendono il via; le due migration (claim, coda) sono applicate al
+solo database di prova — al condiviso con la procedura e il via del proprietario. Restano
+aperti: la ripresa dei `syncing` (§7.3), il residuo del claim dopo un'adozione da webhook,
+il limite di scala di `productSet` e `tracked` dentro `productSet` sul negozio
+(§7.2-ter.3), la deriva della tabella degli stati sync (sotto), la pulizia delle ricevute
+concluse oltre 30 giorni (D7: comando esplicito, non ancora scritto).
 
-**Suite complete sull'albero finale (15/09, pomeriggio, dopo `productSet`)**: `nest build`,
-`tsc` sui test e `eslint` puliti; unitarie API 243 file, 2873 verdi più 2 expected fail (le
-due `it.fails` del webhook); integrazione **63 file, 1018/1018**
-(undicesima esecuzione).
+**Suite complete sull'albero finale (15/09, sera, dopo la coda webhook)**: `nest build`,
+`tsc` (app e test) e `eslint` puliti; unitarie API 245 file, **2880/2880** (nessun
+expected fail: le due `it.fails` del webhook sono prove ordinarie); integrazione
+**64 file, 1037/1037** (tredicesima esecuzione); frontend: tipi puliti, lint del
+dominio Shopify e del pannello puliti, 20 file / 185 prove verdi.
 
 ⚠️ **Il sintomo del ripristino ha una causa MISURATA, e non è ambientale.** Nelle esecuzioni 8
 e 10 le sei prove di export→ripristino di `invariante-disponibile` cadevano con «Riferimento

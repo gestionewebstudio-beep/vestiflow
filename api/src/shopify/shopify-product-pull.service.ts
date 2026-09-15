@@ -54,6 +54,7 @@ import { shopifyBodyHtmlToPlainText } from './shopify-html.util';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { toShopifyUserMessage } from './shopify-user-error.util';
+import type { GuardiaCorsia } from './shopify-webhook-corsia.util';
 import {
   mergeShopifyScopes,
   buildShopifyScopeDiagnostics,
@@ -97,6 +98,8 @@ type AttoreImport = typeof PlatformAuditActor.pull | typeof PlatformAuditActor.w
 interface Ingresso {
   readonly attore: AttoreImport;
   readonly correlationId: string;
+  /** La guardia di proprietà del lavoratore della coda webhook (docs/30 §7.1.2); assente negli import. */
+  readonly guardia?: GuardiaCorsia;
 }
 
 /** Un verdetto dello storico che NON è «si crea»: porta il motivo, per nome. */
@@ -367,6 +370,7 @@ export class ShopifyProductPullService {
   async importProductFromWebhook(
     tenantId: string,
     payload: Record<string, unknown>,
+    guardia?: GuardiaCorsia,
   ): Promise<'imported' | 'updated' | 'skipped'> {
     const remote = this.normalizeWebhookProduct(payload);
     if (!remote) {
@@ -403,9 +407,13 @@ export class ShopifyProductPullService {
     }
 
     // ⭐ UNA correlazione per la CONSEGNA: nasce qui, all'ingresso, e scende
-    //    fino alle righe di registro. ⛔ Non è l'id di consegna di Shopify — il
-    //    controller non legge `X-Shopify-Webhook-Id` — e non lo si inventa.
-    const ingresso: Ingresso = { attore: PlatformAuditActor.webhook, correlationId: randomUUID() };
+    //    fino alle righe di registro. ⛔ Non è l'id di consegna di Shopify (la
+    //    ricevuta della coda lo conserva a parte) e non lo si inventa.
+    const ingresso: Ingresso = {
+      attore: PlatformAuditActor.webhook,
+      correlationId: randomUUID(),
+      ...(guardia ? { guardia } : {}),
+    };
     try {
       return await this.importProduct(tenantId, remote, enrichment, ingresso);
     } catch (error: unknown) {
@@ -551,6 +559,7 @@ export class ShopifyProductPullService {
     );
     try {
       const esito = await this.prisma.$transaction(async (tx) => {
+        await ingresso.guardia?.assicura(tx);
         const product = await tx.product.findFirst({
           where: { id: candidato.id, tenantId },
           select: { id: true, tenantId: true, variants: { select: { id: true } } },
@@ -592,6 +601,7 @@ export class ShopifyProductPullService {
       return 'skipped';
     }
     const esito = await this.prisma.$transaction(async (tx) => {
+      await ingresso.guardia?.assicura(tx);
       await this.serializzaImport(tx, tenantId, shopifyProductId);
       return this.importProductSerializzato(
         tx,

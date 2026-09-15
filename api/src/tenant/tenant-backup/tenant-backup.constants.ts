@@ -24,8 +24,15 @@
  * 5  08/09/2026 — lo STORICO dei collegamenti Shopify (sette tabelle, docs/24
  *    §8.5.2). Gli archivi v3 e v4 non lo contengono, e non devono contenerlo:
  *    le chiavi nuove valgono `[]`.
+ * 6  15/09/2026 — le RICEVUTE dei webhook Shopify (`shopifyWebhookReceipts`,
+ *    docs/30 §7.1.2 D7): gli eventi accolti e non ancora applicati devono essere
+ *    recuperabili anche dopo un ripristino. Al ripristino le ricevute ancora da
+ *    applicare (in coda, in lavorazione, fallite) tornano SOSPESE: nessuna
+ *    ripartenza automatica, si riprende con «Riprova» dopo aver verificato il
+ *    collegamento. La corsia (`shopify_webhook_lanes`) NON entra: e' una
+ *    rivendicazione di processo, non un dato.
  */
-export const TENANT_BACKUP_FORMAT_VERSION = 5;
+export const TENANT_BACKUP_FORMAT_VERSION = 6;
 export const TENANT_BACKUP_MIN_FORMAT_VERSION = 3;
 
 export const TENANT_BACKUP_MANIFEST_FILE = 'manifest.json';
@@ -109,6 +116,9 @@ export const TENANT_BACKUP_MODELS = {
   shopifyLocationPairs: 'ShopifyLocationPair',
   shopifyLocationLinks: 'ShopifyLocationLink',
   shopifyConnections: 'ShopifyConnection',
+  // ⚠️ Dopo `shopifyShops` (FK facoltativa verso il negozio) e `shopifyConnections`:
+  //    le ricevute portano tenant e negozio VERIFICATI all'accoglienza (v6).
+  shopifyWebhookReceipts: 'ShopifyWebhookReceipt',
   shopifyCredentials: 'ShopifyCredential',
   shopifyInventorySyncStates: 'ShopifyInventorySyncState',
   tiktokConnections: 'TikTokConnection',
@@ -206,9 +216,10 @@ export function isStoricoShopify(key: TenantBackupEntityFile): boolean {
  *
  * ⚠️ Chi non compare qui c'era gia' a v3.
  */
-const INTRODOTTO_IN: Partial<Record<TenantBackupEntityFile, number>> = Object.fromEntries(
-  TENANT_BACKUP_STORICO_SHOPIFY.map((key) => [key, 5]),
-);
+const INTRODOTTO_IN: Partial<Record<TenantBackupEntityFile, number>> = {
+  ...Object.fromEntries(TENANT_BACKUP_STORICO_SHOPIFY.map((key) => [key, 5])),
+  shopifyWebhookReceipts: 6,
+};
 
 /**
  * I file che un archivio di quella versione DEVE contenere.

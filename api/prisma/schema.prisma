@@ -446,6 +446,8 @@ model Tenant {
   shopifyCredential                        ShopifyCredential?
   shopifyOAuthStates                       ShopifyOAuthState[]
   shopifyInventorySyncStates               ShopifyInventorySyncState[]
+  shopifyWebhookReceipts                   ShopifyWebhookReceipt[]
+  shopifyWebhookLane                       ShopifyWebhookLane?
   shopifyShops                             ShopifyShop[]
   shopifyProductIdentities                 ShopifyProductIdentity[]
   shopifyProductLinks                      ShopifyProductLink[]
@@ -4224,6 +4226,8 @@ model ShopifyShop {
   connections       ShopifyConnection[]
   /// I prodotti con una creazione in corso VERSO questo negozio (claim aperto).
   creazioniInCorso  Product[]                @relation("ProductCreateClaimShop")
+  /// Le notifiche webhook accolte da questo negozio (docs/30 §7.1.2).
+  webhookReceipts   ShopifyWebhookReceipt[]
 
   /// ⭐ Univoco GLOBALMENTE, non per tenant: lo stesso negozio Shopify non puo'
   /// appartenere a due tenant VestiFlow insieme (docs/24 §8.5.1). Con `NULL`
@@ -4627,4 +4631,80 @@ model ShopifyLocationChoice {
   @@unique([tenantId, shopifyLocationId])
   @@index([tenantId, locationId])
   @@map("shopify_location_choices")
+}
+
+/// ⭐ L'esito di una notifica webhook accolta (docs/30 §7.1.2). `in_coda` e
+/// `in_lavorazione` sono gli unici stati «aperti»; una `fallita` resta visibile,
+/// si riprende solo con «Riprova» e blocca soltanto la propria risorsa.
+enum ShopifyWebhookReceiptEsito {
+  in_coda
+  in_lavorazione
+  elaborata
+  fallita
+  scartata_sync_spenta
+  scartata_topic
+  scartata_associazione_cambiata
+  sospesa_dopo_ripristino
+}
+
+/// ⭐ UNA RIGA PER CONSEGNA WEBHOOK ACCOLTA (docs/30 §7.1.2, 15/09/2026).
+///
+/// La ricevuta e' cio' che rende durevole la consegna: Shopify riceve `200` solo
+/// DOPO il commit di questa riga, e l'elaborazione avviene fuori dalla richiesta.
+/// `(shop_domain, webhook_id)` unica = la stessa consegna arrivata due volte e'
+/// una ricevuta sola. Tenant e negozio sono quelli VERIFICATI all'accoglienza:
+/// all'elaborazione si ricontrollano, e un'associazione cambiata non applica.
+model ShopifyWebhookReceipt {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  tenantId           String                     @map("tenant_id") @db.Uuid
+  /// Il negozio per identita' permanente (`shopify_shops`); nullo se la
+  /// connessione non l'aveva ancora acquisita.
+  shopId             String?                    @map("shop_id") @db.Uuid
+  shopDomain         String                     @map("shop_domain")
+  /// `X-Shopify-Webhook-Id`: l'unica chiave di deduplica che Shopify offre.
+  webhookId          String                     @map("webhook_id")
+  topic              String
+  /// La RISORSA a cui l'evento appartiene (`ordine:{id}`, `prodotto:{id}`,
+  /// `cliente:{id}`, `inventario:{item}@{location}`): l'ordine si conserva
+  /// per risorsa. `NULL` = non risolvibile dal payload: NON scavalca e NON
+  /// viene scavalcata da nessun evento dello stesso negozio.
+  risorsa            String?
+  triggeredAt        DateTime?                  @map("triggered_at")
+  apiVersion         String?                    @map("api_version")
+  payload            Json
+  receivedAt         DateTime                   @default(now()) @map("received_at")
+  processedAt        DateTime?                  @map("processed_at")
+  esito              ShopifyWebhookReceiptEsito @default(in_coda)
+  /// Tentativi CONCLUSI (riusciti o falliti), compreso il primo.
+  tentativi          Int                        @default(0)
+  ultimoErrore       String?                    @map("ultimo_errore")
+  /// Quando si puo' (ri)tentare: `now()` all'accoglienza, poi l'attesa crescente.
+  nextAttemptAt      DateTime                   @default(now()) @map("next_attempt_at")
+  /// La versione della corsia con cui e' stata presa in lavorazione: chi la
+  /// ritrova `in_lavorazione` con una versione superata la riprende.
+  lavorataDaVersione Int?                       @map("lavorata_da_versione")
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shop   ShopifyShop? @relation(fields: [shopId], references: [id], onDelete: SetNull)
+
+  @@unique([shopDomain, webhookId])
+  @@index([tenantId, esito, nextAttemptAt])
+  @@index([tenantId, risorsa, receivedAt])
+  @@map("shopify_webhook_receipts")
+}
+
+/// ⭐ LA CORSIA DEL NEGOZIO: una riga per tenant (una connessione per tenant),
+/// rivendicata con un numero di versione — lo stesso schema del claim di
+/// creazione. La scadenza della rivendicazione permette a un altro lavoratore
+/// di prenderla; NON dimostra che il precedente sia morto: ogni sua scrittura
+/// e ogni chiamata remota ricontrollano la versione.
+model ShopifyWebhookLane {
+  tenantId     String    @id @map("tenant_id") @db.Uuid
+  claimedBy    String?   @map("claimed_by")
+  claimedAt    DateTime? @map("claimed_at")
+  claimVersion Int       @default(0) @map("claim_version")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("shopify_webhook_lanes")
 }

@@ -1,42 +1,112 @@
-import { BadRequestException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ShopifyWebhookCodaService } from './shopify-webhook-coda.service';
 import type { ShopifyWebhookService } from './shopify-webhook.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 
+/**
+ * Il controller da solo, con la coda finta: l'ORDINE dei controlli e il contratto
+ * verso la coda. Che il `200` arrivi solo dopo il commit e che due consegne uguali
+ * producano una elaborazione si misura su database vero in
+ * `coda-webhook.integration-spec.ts` (le due `it.fails` di prima sono lì, ordinarie).
+ */
 describe('ShopifyWebhooksController', () => {
-  const shopifyWebhooks = {
-    verifyHmac: vi.fn(),
-    process: vi.fn(),
-  };
-
+  const shopifyWebhooks = { verifyHmac: vi.fn() };
+  const coda = { accogli: vi.fn(), sveglia: vi.fn() };
   const controller = new ShopifyWebhooksController(
     shopifyWebhooks as unknown as ShopifyWebhookService,
+    coda as unknown as ShopifyWebhookCodaService,
   );
+  const ID = 'b54557e4-bdd9-4b37-8a5f-bf7d70bcd043';
 
-  it('rifiuta webhook senza raw body', async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    coda.accogli.mockResolvedValue({ ricevutaId: 'r-1', tenantId: 't-1', doppione: false });
+  });
+
+  it('rifiuta webhook senza raw body, prima di qualunque altra cosa', async () => {
     await expect(
       controller.handle(
         { rawBody: undefined } as never,
         'hmac',
         'products/update',
         'shop.myshopify.com',
+        ID,
+        undefined,
+        undefined,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(shopifyWebhooks.verifyHmac).not.toHaveBeenCalled();
+  });
+
+  it('la FIRMA si verifica prima di leggere intestazioni e corpo: con firma invalida niente ricevuta', async () => {
+    shopifyWebhooks.verifyHmac.mockImplementationOnce(() => {
+      throw new Error('firma');
+    });
+    await expect(
+      controller.handle(
+        { rawBody: Buffer.from('{ non json') } as never,
+        'hmac',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ),
+    ).rejects.toThrow('firma');
+    expect(coda.accogli).not.toHaveBeenCalled();
   });
 
   it('rifiuta header topic o shop mancanti', async () => {
-    const rawBody = Buffer.from('{}');
-
     await expect(
-      controller.handle({ rawBody } as never, 'hmac', undefined, 'shop.myshopify.com'),
+      controller.handle(
+        { rawBody: Buffer.from('{}') } as never,
+        'hmac',
+        undefined,
+        'shop.myshopify.com',
+        ID,
+        undefined,
+        undefined,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(coda.accogli).not.toHaveBeenCalled();
   });
 
-  it('processa webhook valido', async () => {
-    const payload = { id: 123 };
-    const rawBody = Buffer.from(JSON.stringify(payload));
-    shopifyWebhooks.process.mockResolvedValue(undefined);
+  it('⛔ senza X-Shopify-Webhook-Id → 400: senza identificativo non c è deduplica (D5)', async () => {
+    for (const id of [undefined, '', '   ']) {
+      await expect(
+        controller.handle(
+          { rawBody: Buffer.from('{"id":1}') } as never,
+          'hmac',
+          'orders/create',
+          'shop.myshopify.com',
+          id,
+          undefined,
+          undefined,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
+    expect(coda.accogli).not.toHaveBeenCalled();
+  });
+
+  it('rifiuta payload JSON non valido', async () => {
+    await expect(
+      controller.handle(
+        { rawBody: Buffer.from('{ invalid json') } as never,
+        'hmac',
+        'products/update',
+        'shop.myshopify.com',
+        ID,
+        undefined,
+        undefined,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(coda.accogli).not.toHaveBeenCalled();
+  });
+
+  it('consegna valida: firma verificata, ricevuta accolta con id, topic, data e versione API, poi la sveglia', async () => {
+    const rawBody = Buffer.from(JSON.stringify({ id: 123 }));
 
     await expect(
       controller.handle(
@@ -44,81 +114,81 @@ describe('ShopifyWebhooksController', () => {
         'valid-hmac',
         'products/update',
         'shop.myshopify.com',
+        ID,
+        '2026-09-15T18:00:00Z',
+        '2026-07',
       ),
     ).resolves.toEqual({ ok: true });
 
     expect(shopifyWebhooks.verifyHmac).toHaveBeenCalledWith(rawBody, 'valid-hmac');
-    expect(shopifyWebhooks.process).toHaveBeenCalledWith(
-      'shop.myshopify.com',
-      'products/update',
-      payload,
-    );
+    expect(coda.accogli).toHaveBeenCalledWith({
+      shopDomain: 'shop.myshopify.com',
+      webhookId: ID,
+      topic: 'products/update',
+      payload: { id: 123 },
+      triggeredAt: new Date('2026-09-15T18:00:00Z'),
+      apiVersion: '2026-07',
+    });
+    expect(coda.sveglia).toHaveBeenCalledWith('t-1');
   });
 
-  /**
-   * ⛔ RIPRODUZIONE (`it.fails`, docs/30 #1): la stessa consegna arriva due volte con lo
-   *    stesso `X-Shopify-Webhook-Id` (shopify.dev: «your app might receive the same webhook
-   *    more than once … use the X-Shopify-Webhook-Id header to detect and skip duplicates»).
-   *    Il controller non legge quell'intestazione e la seconda consegna viene elaborata
-   *    di nuovo. Desiderato: elaborata una volta, `200` a entrambe.
-   */
-  it.fails(
-    'RIPRODUZIONE: due consegne con lo stesso X-Shopify-Webhook-Id → UNA elaborazione',
-    async () => {
-      const rawBody = Buffer.from(JSON.stringify({ id: 777 }));
-      shopifyWebhooks.process.mockClear();
-      shopifyWebhooks.process.mockResolvedValue(undefined);
-      const richiesta = {
-        rawBody,
-        headers: { 'x-shopify-webhook-id': 'b54557e4-bdd9-4b37-8a5f-bf7d70bcd043' },
-      };
-
-      await controller.handle(richiesta as never, 'hmac', 'orders/create', 'shop.myshopify.com');
-      await controller.handle(richiesta as never, 'hmac', 'orders/create', 'shop.myshopify.com');
-
-      expect(shopifyWebhooks.process).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  /**
-   * ⛔ RIPRODUZIONE (`it.fails`, docs/30 #1): la risposta parte solo DOPO l'elaborazione.
-   *    Shopify concede 5 s all'intera richiesta e ritenta (8 volte in 4 h), poi cancella
-   *    la sottoscrizione. Desiderato: `200` appena la consegna è al sicuro, elaborazione
-   *    dopo. Qui l'elaborazione è tenuta ferma: la risposta non deve dipendere da lei.
-   */
-  it.fails('RIPRODUZIONE: il 200 arriva anche se l’elaborazione non è ancora finita', async () => {
-    const rawBody = Buffer.from(JSON.stringify({ id: 778 }));
-    let sblocca: () => void = () => undefined;
-    shopifyWebhooks.process.mockClear();
-    shopifyWebhooks.process.mockImplementation(
-      () => new Promise<void>((resolve) => (sblocca = resolve)),
-    );
-
-    const risposta = controller.handle(
-      { rawBody } as never,
+  it('una data di innesco non leggibile non ferma la consegna: arriva come assente', async () => {
+    await controller.handle(
+      { rawBody: Buffer.from('{"id":1}') } as never,
       'hmac',
       'orders/create',
       'shop.myshopify.com',
+      ID,
+      'non-una-data',
+      undefined,
     );
-    const esito = await Promise.race([
-      risposta.then(() => 'risposto'),
-      new Promise<string>((resolve) => setTimeout(() => resolve('ancora in attesa'), 50)),
-    ]);
-    sblocca();
-
-    expect(esito).toBe('risposto');
+    expect(coda.accogli).toHaveBeenCalledWith(expect.objectContaining({ triggeredAt: null }));
   });
 
-  it('rifiuta payload JSON non valido', async () => {
-    const rawBody = Buffer.from('{ invalid json');
-
+  it('un doppione riceve 200 senza una seconda sveglia: la ricevuta era già durevole', async () => {
+    coda.accogli.mockResolvedValueOnce({ ricevutaId: 'r-1', tenantId: 't-1', doppione: true });
     await expect(
       controller.handle(
-        { rawBody } as never,
-        'valid-hmac',
-        'products/update',
+        { rawBody: Buffer.from('{"id":1}') } as never,
+        'hmac',
+        'orders/create',
         'shop.myshopify.com',
+        ID,
+        undefined,
+        undefined,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).resolves.toEqual({ ok: true });
+    expect(coda.sveglia).not.toHaveBeenCalled();
+  });
+
+  it('⛔ se la ricevuta non si salva NIENTE 200: l eccezione risale e Shopify ritenta lui', async () => {
+    coda.accogli.mockRejectedValueOnce(new Error('database irraggiungibile'));
+    await expect(
+      controller.handle(
+        { rawBody: Buffer.from('{"id":1}') } as never,
+        'hmac',
+        'orders/create',
+        'shop.myshopify.com',
+        ID,
+        undefined,
+        undefined,
+      ),
+    ).rejects.toThrow('database irraggiungibile');
+    expect(coda.sveglia).not.toHaveBeenCalled();
+  });
+
+  it('negozio sconosciuto: il rifiuto di sempre (D6), nessuna ricevuta e nessun 200', async () => {
+    coda.accogli.mockRejectedValueOnce(new NotFoundException('Tenant non trovato'));
+    await expect(
+      controller.handle(
+        { rawBody: Buffer.from('{"id":1}') } as never,
+        'hmac',
+        'orders/create',
+        'ignoto.myshopify.com',
+        ID,
+        undefined,
+        undefined,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

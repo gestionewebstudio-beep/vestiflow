@@ -230,6 +230,19 @@ export class ShopifyConnectionService {
       .pipe(timeout(SYNC_CUSTOMERS_ORDERS_TIMEOUT_MS));
   }
 
+  /**
+   * «Riprova» un evento webhook non applicato (docs/30 §7.1.2 D4): la STESSA ricevuta
+   * torna in coda con le stesse protezioni; non azzera gli errori della connessione.
+   */
+  riprovaEventoWebhook(ricevutaId: string): Observable<{ readonly inCoda: true }> {
+    return this.http
+      .post<{ readonly inCoda: true }>(
+        `${this.config.apiBaseUrl}/shopify/webhook-ricevute/${encodeURIComponent(ricevutaId)}/riprova`,
+        {},
+      )
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   clearErrors(): Observable<ShopifyClearErrorsDto> {
     return this.http
       .post<ShopifyClearErrorsDto>(`${this.config.apiBaseUrl}/shopify/connection/clear-errors`, {})

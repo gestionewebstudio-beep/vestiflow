@@ -44,6 +44,7 @@ import { irrisoltiDelPercorso } from './shopify-setup-irrisolti.util';
 import { situazioneAttuale } from './shopify-setup-situazione.util';
 import { variantLabel } from '../common/variant-label.util';
 import { ShopifySetupTransferService } from './shopify-setup-transfer.service';
+import { ShopifyWebhookCodaService } from './shopify-webhook-coda.service';
 
 /** Quante righe di quantità entrano nell'anteprima: il resto è un conteggio. */
 const RIGHE_ANTEPRIMA = 200;
@@ -79,6 +80,7 @@ export class ShopifySetupService {
     private readonly locationLink: ShopifyLocationLinkService,
     private readonly transfer: ShopifySetupTransferService,
     private readonly ordersPull: ShopifyOrdersPullService,
+    private readonly codaWebhook: ShopifyWebhookCodaService,
   ) {}
 
   // ── Nascita del percorso ───────────────────────────────────────────────────
@@ -267,9 +269,29 @@ export class ShopifySetupService {
         motivo: e.motivo,
         dettaglio: e.dettaglio ?? null,
       }));
+    const eventiNonApplicati = (await this.codaWebhook.elencoNonApplicate(tenantId)).flatMap(
+      (ricevuta) =>
+        ricevuta.esito === 'fallita' ||
+        ricevuta.esito === 'sospesa_dopo_ripristino' ||
+        ricevuta.esito === 'scartata_sync_spenta' ||
+        ricevuta.esito === 'scartata_associazione_cambiata'
+          ? [
+              {
+                ricevutaId: ricevuta.id,
+                topic: ricevuta.topic,
+                risorsa: ricevuta.risorsa,
+                esito: ricevuta.esito,
+                tentativi: ricevuta.tentativi,
+                motivo: ricevuta.ultimoErrore,
+                receivedAt: ricevuta.receivedAt,
+              },
+            ]
+          : [],
+    );
     return {
       calcolataAt: new Date().toISOString(),
       problemi: situazioneAttuale({
+        eventiNonApplicati,
         ordiniSenzaSede,
         coppieSenzaBase,
         articoliEsclusi,
