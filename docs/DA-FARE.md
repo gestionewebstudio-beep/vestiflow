@@ -24,11 +24,11 @@
 
 ### Decisioni mancanti (si chiede prima)
 
-| #             | Decisione                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Dove                 |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| **FK**        | `shopify_inventory_sync_states` senza chiavi esterne. Regole proposte coerenti con `inventory_levels` (stessa terna tenant/variante/sede): **tenant RESTRICT, variante CASCADE, sede RESTRICT**. ⚠️ Sul condiviso, in sola lettura il 15/09: **324 righe, 62 senza sede** (sedi cancellate), 0 senza variante/tenant, 0 di altro tenant. La FK sulla sede **non si applica** finché quelle 62 righe esistono: cancellarle è una scelta sui dati (sono stati di coppie con una sede che non c'è più: nessun effetto operativo) | §21-ter sotto        |
-| **Scala**     | limite di varianti di `productSet` sincrono e `inventoryItem.tracked` dentro `productSet`: prova di contratto sul negozio, col via                                                                                                                                                                                                                                                                                                                                                                                            | `docs/30` §7.2-ter.3 |
-| **Migration** | le tre migration del ramo (claim, coda, arrivo/FK) sono sul solo database di prova: al condiviso con la procedura e il via, non necessariamente prima del merge in develop                                                                                                                                                                                                                                                                                                                                                    | —                    |
+| #             | Decisione                                                                                                                                                                                                                                                                                                                              | Dove                 |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| **FK**        | `shopify_inventory_sync_states`: le tre FK (tenant RESTRICT, variante CASCADE, sede RESTRICT) sono scritte e provate sul database isolato; i 62 orfani del proprietario sul condiviso sono stati tolti col suo via (backup cifrato, transazione, conteggi). **Resta il via per applicare la migration al condiviso**, con la procedura | §21-ter sotto        |
+| **Scala**     | limite di varianti di `productSet` sincrono e `inventoryItem.tracked` dentro `productSet`: prova di contratto sul negozio, col via                                                                                                                                                                                                     | `docs/30` §7.2-ter.3 |
+| **Migration** | le tre migration del ramo (claim, coda, arrivo/FK) sono sul solo database di prova: al condiviso con la procedura e il via, non necessariamente prima del merge in develop                                                                                                                                                             | —                    |
 
 ### Limiti aperti dichiarati (decisi, non da correggere ora)
 
@@ -11177,11 +11177,37 @@ variante di un altro tenant    0
 sede di un altro tenant        0
 ```
 
-⚠️ **La FK sulla sede non si applica finché le 62 righe esistono**: la migration fallirebbe.
-Toglierle è una scelta sui dati — sono stati di coppie la cui sede non c'è più, quindi senza
-effetto operativo — e la scelta è del proprietario, insieme al via per l'applicazione. Sul
-database di prova la tabella è vuota e le tre FK si applicano senza pulizia. La migration si
-scrive a mano (`regole-qualita`), dopo la decisione.
+⚠️ **La FK sulla sede non si applica finché esistono righe senza sede**: la migration
+fallisce, ed è voluto — le righe si tolgono con una decisione, non da una migration.
+
+#### ✅ Le tre FK sono SCRITTE e PROVATE sul database isolato — 15/09/2026 (sera)
+
+Migration `20260915220000_stati_sync_chiavi_esterne` (tenant RESTRICT, variante CASCADE,
+sede RESTRICT), applicata al **solo database di prova**. Prove
+(`stati-sync-chiavi-esterne.integration-spec.ts`): F1 lo svuotamento della fixture raggiunge
+la tabella; F2 variante eliminata → stato via con lei, come le giacenze; F3 sede con uno
+stato → rifiutata (`P2003`) e la guardia applicativa lo dice prima, per nome; F4 tenant con
+stati → la cancellazione amministrativa passa (purga per elenco); F5 backup/ripristino con
+uno stato → torna com'era; F6 uno stato verso variante o sede inesistente non si scrive più.
+⚠️ Una prova (`coda-ripubblicazione`) creava stati con varianti inventate «perché non c'erano
+FK»: ora le varianti esistono davvero. Suite completa 66 file, 1053/1053. I contenimenti
+nelle prove (cancellazione degli stati per nome) restano finché la migration non è ovunque.
+
+#### ✅ Gli orfani del condiviso: contati per tenant, e i 62 del proprietario TOLTI — 15/09/2026 (sera), col suo via
+
+Letti in sola lettura: **tutti e 62 del tenant «Test Amato Luigi»** (`test-vestiflow`), 4 sedi
+cancellate diverse, 43 varianti, ultimo aggiornamento 14/08, nessun invio pendente; **0 del
+collega**, 0 di altri tenant. Perché toglierli era corretto: uno stato sync è la memoria della
+coppia articolo × sede verso il negozio — senza la sede non c'è più nessuna coppia da
+sincronizzare, la riga non governa nessun invio e non entra in nessun conteggio utile.
+
+Procedura eseguita: backup cifrato del solo database (`npm run backup:db`, bersaglio
+passato nell'ambiente del comando, dump `VFBAK1` da 492 KB in `backups/vestiflow-pulizia-stati-sync/`,
+cartella ignorata da git) → transazione unica: verifica tenant/negozio, elenco degli id
+(salvato accanto al backup in `righe-cancellate.json`), `DELETE` per id **e** per tenant **e**
+per assenza della sede, verifica dei conteggi, commit solo se tornano. Esito: **62
+cancellate, 262 restano (23 del proprietario), 0 senza sede, 0 del collega**. ⛔ Nessuna
+migration applicata al condiviso: il via riguardava la sola pulizia.
 
 ⚠️ **Nello stesso giro 6 è caduta `S1/500`** con
 `Timed out fetching a new connection from the connection pool (timeout 10, limit 13)`: è il
