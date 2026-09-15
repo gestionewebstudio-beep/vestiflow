@@ -35,9 +35,13 @@ export class ShopifyRateLimiterService {
 
   constructor(private readonly shopifyConfig: ShopifyConfigService) {}
 
-  async beforeRestRequest(shopDomain: string): Promise<void> {
+  /**
+   * Con un `segnale`, l'attesa si interrompe alla sua scadenza (rifiuto): la richiesta non
+   * parte e `lastRestRequestAt` non si aggiorna — la pausa del negozio resta per le altre.
+   */
+  async beforeRestRequest(shopDomain: string, segnale?: AbortSignal): Promise<void> {
     const state = this.getOrCreateState(shopDomain);
-    await this.waitUntilUnpaused(state);
+    await this.waitUntilUnpaused(state, segnale);
 
     const delayMs = computeRestRequestDelayMs(
       state.restBucket,
@@ -46,14 +50,14 @@ export class ShopifyRateLimiterService {
       this.shopifyConfig.apiBucketHighWatermark,
       this.shopifyConfig.apiColdStartIntervalMs,
     );
-    await this.enforceMinInterval(state.lastRestRequestAt, delayMs);
+    await this.enforceMinInterval(state.lastRestRequestAt, delayMs, segnale);
 
     state.lastRestRequestAt = Date.now();
   }
 
-  async beforeGraphqlRequest(shopDomain: string): Promise<void> {
+  async beforeGraphqlRequest(shopDomain: string, segnale?: AbortSignal): Promise<void> {
     const state = this.getOrCreateState(shopDomain);
-    await this.waitUntilUnpaused(state);
+    await this.waitUntilUnpaused(state, segnale);
 
     const costDelayMs = computeGraphQlRequestDelayMs(
       state.graphqlThrottle,
@@ -62,6 +66,7 @@ export class ShopifyRateLimiterService {
     await this.enforceMinInterval(
       state.lastGraphqlRequestAt,
       Math.max(costDelayMs, this.shopifyConfig.graphqlMinIntervalMs),
+      segnale,
     );
 
     state.lastGraphqlRequestAt = Date.now();
@@ -114,21 +119,25 @@ export class ShopifyRateLimiterService {
     state.lastGraphqlRequestAt = Date.now();
   }
 
-  private async waitUntilUnpaused(state: ShopRateState): Promise<void> {
+  private async waitUntilUnpaused(state: ShopRateState, segnale?: AbortSignal): Promise<void> {
     const now = Date.now();
     if (state.pauseUntil > now) {
-      await sleepMs(state.pauseUntil - now);
+      await sleepMs(state.pauseUntil - now, segnale);
     }
   }
 
-  private async enforceMinInterval(lastRequestAt: number, delayMs: number): Promise<void> {
+  private async enforceMinInterval(
+    lastRequestAt: number,
+    delayMs: number,
+    segnale?: AbortSignal,
+  ): Promise<void> {
     if (lastRequestAt <= 0 || delayMs <= 0) {
       return;
     }
 
     const elapsed = Date.now() - lastRequestAt;
     if (elapsed < delayMs) {
-      await sleepMs(delayMs - elapsed);
+      await sleepMs(delayMs - elapsed, segnale);
     }
   }
 

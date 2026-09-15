@@ -154,5 +154,15 @@ describe('shopify-rate-limiter.util', () => {
       await expect(sleepMs(0)).resolves.toBeUndefined();
       await expect(sleepMs(-1)).resolves.toBeUndefined();
     });
+
+    it('con un segnale già scaduto rifiuta subito; con un segnale che scade durante l’attesa rifiuta e cancella il timer', async () => {
+      const scaduto = AbortSignal.abort(new Error('scaduto prima'));
+      await expect(sleepMs(1_000, scaduto)).rejects.toThrow('scaduto prima');
+
+      const controllo = new AbortController();
+      const attesa = sleepMs(1_000, controllo.signal);
+      controllo.abort(new Error('scaduto durante'));
+      await expect(attesa).rejects.toThrow('scaduto durante');
+    });
   });
 });

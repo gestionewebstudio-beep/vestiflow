@@ -183,11 +183,30 @@ export function computeShopifyRetryDelayMs(
   return Math.min(baseMs, 30_000);
 }
 
-export function sleepMs(ms: number): Promise<void> {
+/**
+ * Attende `ms`; con un `segnale` l'attesa si interrompe e la promessa è rifiutata con
+ * `segnale.reason` — il timer viene cancellato, niente resta a girare.
+ *
+ * ⭐ È ciò che rende la scadenza complessiva vera anche DENTRO le pause del limitatore
+ *    (`docs/30` 7-ter.0): chi non può più aspettare esce subito, e lo stato del negozio
+ *    (`pauseUntil`) non viene toccato — le altre richieste la pausa la rispettano ancora.
+ */
+export function sleepMs(ms: number, segnale?: AbortSignal): Promise<void> {
   if (ms <= 0) {
     return Promise.resolve();
   }
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+  if (segnale?.aborted) {
+    return Promise.reject(segnale.reason as Error);
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      segnale?.removeEventListener('abort', interrompi);
+      resolve();
+    }, ms);
+    function interrompi(): void {
+      clearTimeout(timer);
+      reject(segnale?.reason as Error);
+    }
+    segnale?.addEventListener('abort', interrompi, { once: true });
   });
 }

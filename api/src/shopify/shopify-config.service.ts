@@ -189,6 +189,41 @@ export class ShopifyConfigService {
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : 5;
   }
 
+  /**
+   * Timeout di OGNI chiamata verso Shopify (REST e GraphQL), letture e scritture.
+   *
+   * ⛔ Prima non c'era (`docs/30` #3): una risposta mai arrivata teneva fermo il webhook o
+   *    il push finché non decideva la rete. 15 s: una chiamata Admin API risponde di norma
+   *    in meno di 2 s, e un webhook ha 5 s in tutto — oltre i 15 s la risposta non serve più.
+   */
+  get apiTimeoutMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_TIMEOUT_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 15_000;
+  }
+
+  /**
+   * Ritentativi degli errori TRANSITORI (timeout, rete, 502/503/504) sulle SOLE letture.
+   * Le scritture non si ritentano: un timeout su una scrittura è un esito incerto.
+   */
+  get apiReadRetries(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_READ_RETRIES');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 2;
+  }
+
+  /**
+   * Scadenza complessiva di una chiamata, attese comprese: oltre non si ritenta più, per
+   * nessun motivo (429, throttling GraphQL, transitorio). Con i valori di serie:
+   * 3 × 15 s di timeout + 1 + 2 s di attesa = 48 s per una lettura; i 429 con `Retry-After`
+   * lunghi si fermano qui invece di sommare attese fino a 5 × 30 s.
+   */
+  get apiDeadlineMs(): number {
+    const raw = this.config.get<string>('SHOPIFY_API_DEADLINE_MS');
+    const parsed = raw != null ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000;
+  }
+
   /** Soglia bucket (used/max) oltre cui inserire una pausa breve. */
   get apiBucketHighWatermark(): number {
     const raw = this.config.get<string>('SHOPIFY_API_BUCKET_HIGH_WATERMARK');

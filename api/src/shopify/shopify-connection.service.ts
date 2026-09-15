@@ -70,27 +70,25 @@ export class ShopifyConnectionService {
     private readonly shopifyConfig: ShopifyConfigService,
   ) {}
 
+  /**
+   * La connessione com'è: una LETTURA, senza scritture.
+   *
+   * ⛔ Qui c'era `healStaleErrorStatus` su ogni lettura di uno stato `error`: con la
+   *    credenziale presente lo riportava a `connected` senza guardare la causa. Con
+   *    quattro lettori per apertura di pagina e un sondaggio ogni 15 s, un errore
+   *    registrato da `recordError` viveva al massimo 15 s, il rifiuto del push su
+   *    `status ≠ connected` era praticamente inerte e una GET faceva `updateMany`
+   *    (misurato sul codice il 15/09/2026, `docs/30` §1 e §5; riprodotto in
+   *    `connessione-lettura-senza-scritture.integration-spec.ts`).
+   *
+   * ⭐ La guarigione resta dove è ESPLICITA: `touchSync`, «Azzera le segnalazioni di
+   *    errore», il ritorno dall'OAuth e l'import riuscito. Nessun'altra regola cambia.
+   */
   async getForTenant(tenantId: string): Promise<ShopifyConnectionDto> {
-    let connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
+    const connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
     if (!connection) {
       return this.buildNotConnectedDto(tenantId);
     }
-
-    if (connection.status === ShopifyConnectionStatus.not_connected) {
-      return this.toDto(connection);
-    }
-
-    if (connection.status === ShopifyConnectionStatus.error) {
-      await this.healStaleErrorStatus(tenantId);
-      connection = await this.prisma.shopifyConnection.findUnique({ where: { tenantId } });
-      if (!connection) {
-        throw new NotFoundException('Connessione Shopify non trovata');
-      }
-      if (connection.status === ShopifyConnectionStatus.not_connected) {
-        return this.toDto(connection);
-      }
-    }
-
     return this.toDto(connection);
   }
 
@@ -434,9 +432,7 @@ export class ShopifyConnectionService {
         : (connection.lastWebhookEventAt?.toISOString() ?? null),
       autoSyncEnabled: disconnected ? false : connection.autoSyncEnabled,
       lastError:
-        !disconnected &&
-        !hideScopeDuplicate &&
-        connection.lastErrorMessage
+        !disconnected && !hideScopeDuplicate && connection.lastErrorMessage
           ? {
               message: toShopifyUserMessage(
                 connection.lastErrorCode ?? undefined,

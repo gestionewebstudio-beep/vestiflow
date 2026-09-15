@@ -123,6 +123,29 @@ describe('ShopifyConnectionService', () => {
     expect(dto.autoSyncEnabled).toBe(true);
   });
 
+  /**
+   * ⛔ Qui `getForTenant` guariva `error → connected` a ogni lettura (misurato il
+   *    15/09/2026, `docs/30` §1): una GET che scriveva, e uno stato d'errore che viveva al
+   *    massimo un giro di sondaggio. Leggere non scrive; la guarigione resta ai percorsi
+   *    espliciti (`touchSync`, «Azzera», OAuth, import riuscito).
+   */
+  it('getForTenant su una connessione in errore NON scrive e restituisce l’errore com’è', async () => {
+    const { service, prisma } = createService({
+      ...connectedRow,
+      status: ShopifyConnectionStatus.error,
+      lastErrorMessage: 'Ordine 1: payload senza righe',
+      lastErrorCode: 'order_payload_senza_righe',
+      lastErrorAt: new Date('2026-09-15T10:00:00Z'),
+    });
+
+    const dto = await service.getForTenant('tenant-1');
+
+    expect(dto.status).toBe('error');
+    expect(dto.lastError?.code).toBe('order_payload_senza_righe');
+    expect(prisma.shopifyConnection.updateMany).not.toHaveBeenCalled();
+    expect(prisma.shopifyConnection.findUnique).toHaveBeenCalledTimes(1);
+  });
+
   it('recordError imposta stato error sulla connessione', async () => {
     const { service, prisma } = createService(connectedRow);
 

@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 
-import { registraChiamataGraphql } from './shopify-chiamata-uscente.util';
+import { descriviChiamataGraphql, registraChiamataGraphql } from './shopify-chiamata-uscente.util';
 import { ShopifyConfigService } from './shopify-config.service';
 import {
   standardMetafieldDefinitionTemplateGid,
@@ -20,9 +20,19 @@ import type {
 import type { ShopifyUserError } from './shopify-inventory-user-error.util';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
 import {
+  computeShopifyRetryDelayMs,
   parseGraphQlCostExtensions,
   parseShopifyRetryAfterHeader,
 } from './shopify-rate-limiter.util';
+import {
+  attesaDopoThrottlingSeconds,
+  BudgetTrasporto,
+  causaDelCorpoFallito,
+  causaDellaFetchFallita,
+  eccezioneDiTrasporto,
+  isRifiutoPerThrottling,
+  isStatoTransitorio,
+} from './shopify-trasporto.util';
 import { toShopifyGid } from './shopify-money.util';
 import type { ShopifyProductStatus } from './shopify-product-payload.util';
 
@@ -1854,31 +1864,96 @@ export class ShopifyGraphqlClient {
     const apiVersion = this.shopifyConfig.apiVersion;
     const url = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
     const maxRetries = this.shopifyConfig.apiMaxRetries;
+    const readRetries = this.shopifyConfig.apiReadRetries;
+    // La scadenza comprende le attese del limitatore e l'intera risposta: dopo ogni attesa
+    // si rilegge il residuo, e la chiamata dura al più il residuo.
+    const budget = new BudgetTrasporto(
+      this.shopifyConfig.apiDeadlineMs,
+      this.shopifyConfig.apiTimeoutMs,
+    );
     // ⭐ Una mutation è una SCRITTURA e si vede sempre nel log; una query è una lettura.
+    const { tipo, nome } = descriviChiamataGraphql(query);
+    const scrittura = tipo === 'mutation';
     registraChiamataGraphql(this.logger, query);
 
-    for (let attempt = 0; ; attempt += 1) {
-      await this.rateLimiter.beforeGraphqlRequest(shopDomain);
+    // ⭐ Tre contatori, tre limiti (`docs/30` #3, #4 — 15/09/2026): i 429 e i rifiuti per
+    //    throttling entro `apiMaxRetries`; gli errori transitori (timeout, rete,
+    //    502/503/504) entro `apiReadRetries` e SOLO per le query — una mutation
+    //    interrotta è un esito incerto. La scadenza complessiva vale per tutti.
+    let tentativi429 = 0;
+    let tentativiThrottling = 0;
+    let tentativiTransitori = 0;
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': accessToken,
-        },
-        body: JSON.stringify({ query, variables }),
-      });
+    const ritentaTransitorio = async (
+      causa: 'timeout' | 'rete' | 'server',
+      dettaglio: string,
+    ): Promise<void> => {
+      if (scrittura || tentativiTransitori >= readRetries) {
+        throw eccezioneDiTrasporto(causa, scrittura, dettaglio);
+      }
+      const attesa = computeShopifyRetryDelayMs(tentativiTransitori, null);
+      if (budget.oltre(attesa)) {
+        throw eccezioneDiTrasporto('scadenza', scrittura, dettaglio);
+      }
+      this.logger.warn(`Shopify ${causa} su GraphQL ${nome}: ritento fra ${attesa} ms`);
+      await this.rateLimiter.waitForRetry(shopDomain, tentativiTransitori, null);
+      tentativiTransitori += 1;
+    };
+
+    for (;;) {
+      // ⛔ L'attesa del limitatore sta DENTRO la scadenza: alla scadenza il chiamante riceve
+      //    l'errore, la chiamata non parte (né ora né dopo), e la pausa del negozio resta
+      //    per le altre richieste. Poi si rilegge comunque il residuo.
+      const esitoAttesa = await budget.attesaEntroIlResiduo((s) =>
+        this.rateLimiter.beforeGraphqlRequest(shopDomain, s),
+      );
+      const segnale = esitoAttesa === 'attesa' ? budget.segnale() : null;
+      if (!segnale) {
+        throw eccezioneDiTrasporto(
+          'scadenza',
+          scrittura,
+          `GraphQL ${nome}, scaduta prima dell'invio`,
+        );
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken,
+          },
+          body: JSON.stringify({ query, variables }),
+          signal: segnale,
+        });
+      } catch (error: unknown) {
+        const causa = causaDellaFetchFallita(error);
+        await ritentaTransitorio(
+          causa,
+          `GraphQL ${nome}, ${causa === 'timeout' ? 'nessuna risposta entro il tempo' : String(error instanceof Error ? error.message : error)}`,
+        );
+        continue;
+      }
 
       if (response.status === 429) {
-        if (attempt >= maxRetries) {
+        const retryAfter = parseShopifyRetryAfterHeader(response.headers.get('retry-after'));
+        await response.text().catch(() => undefined);
+        const attesa = computeShopifyRetryDelayMs(tentativi429, retryAfter);
+        if (tentativi429 >= maxRetries || budget.oltre(attesa)) {
           throw new HttpException(
             'Shopify ha limitato temporaneamente le richieste API. Riprova tra qualche minuto.',
             HttpStatus.TOO_MANY_REQUESTS,
           );
         }
-        const retryAfter = parseShopifyRetryAfterHeader(response.headers.get('retry-after'));
+        await this.rateLimiter.waitForRetry(shopDomain, tentativi429, retryAfter);
+        tentativi429 += 1;
+        continue;
+      }
+
+      if (isStatoTransitorio(response.status)) {
         await response.text().catch(() => undefined);
-        await this.rateLimiter.waitForRetry(shopDomain, attempt, retryAfter);
+        await ritentaTransitorio('server', `GraphQL ${nome}, HTTP ${response.status}`);
         continue;
       }
 
@@ -1889,8 +1964,46 @@ export class ShopifyGraphqlClient {
         );
       }
 
-      const json = (await response.json()) as GraphQlResponse<T>;
-      this.rateLimiter.onGraphQlCost(shopDomain, parseGraphQlCostExtensions(json.extensions));
+      // ⚠️ Intestazioni ricevute, corpo ancora da leggere: timeout, rete o corpo non valido
+      //    si classificano come per la richiesta. Per una mutation un `200` con corpo
+      //    interrotto è un'operazione quasi certamente eseguita: esito incerto.
+      let json: GraphQlResponse<T>;
+      try {
+        json = (await response.json()) as GraphQlResponse<T>;
+      } catch (error: unknown) {
+        const causa = causaDelCorpoFallito(error);
+        const dettaglio = `GraphQL ${nome}, corpo della risposta: ${String(error instanceof Error ? error.message : error)}`;
+        if (causa === 'risposta') {
+          throw eccezioneDiTrasporto('risposta', scrittura, dettaglio);
+        }
+        await ritentaTransitorio(causa, dettaglio);
+        continue;
+      }
+      const costo = parseGraphQlCostExtensions(json.extensions);
+      this.rateLimiter.onGraphQlCost(shopDomain, costo);
+
+      // ⭐ Il throttling GraphQL NON è un 429: è `200` con `errors[].extensions.code = THROTTLED`
+      //    e SENZA `data` — Shopify non ha eseguito l'operazione (shopify.dev, letto il
+      //    15/09/2026). Si aspetta il ripristino dei punti (`throttleStatus`) e si riprova,
+      //    entro `apiMaxRetries` e la scadenza. ⛔ Con `data` presente è una risposta
+      //    PARZIALE: qualcosa è stato eseguito, non si ritenta (cade nel ramo degli errori).
+      if (isRifiutoPerThrottling(json)) {
+        const attesaSecondi = attesaDopoThrottlingSeconds(costo);
+        const attesa = computeShopifyRetryDelayMs(tentativiThrottling, attesaSecondi);
+        if (tentativiThrottling >= maxRetries || budget.oltre(attesa)) {
+          throw new HttpException(
+            'Shopify ha limitato temporaneamente le richieste API. Riprova tra qualche minuto.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+        this.logger.warn(
+          `Shopify throttling su GraphQL ${nome}: ritento fra ${attesa} ms (tentativo ${tentativiThrottling + 1}/${maxRetries})`,
+        );
+        await this.rateLimiter.waitForRetry(shopDomain, tentativiThrottling, attesaSecondi);
+        tentativiThrottling += 1;
+        continue;
+      }
+
       if (json.errors?.length) {
         const messaggio = `Shopify GraphQL: ${json.errors.map((entry) => entry.message).join('; ')}`;
         if (json.errors.some((entry) => entry.extensions?.code === 'ACCESS_DENIED')) {

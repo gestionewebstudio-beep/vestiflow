@@ -52,6 +52,9 @@ function creaService(existing: Record<string, unknown> | null) {
       findFirst,
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
+    // Le varianti locali si leggono PRIMA dell'arricchimento (fuori dal lock) per
+    // decidere di quali varianti chiedere il costo: qui nessuna → tutte nuove.
+    productVariant: { findMany: vi.fn().mockResolvedValue([]) },
     // L'immagine principale si sincronizza FUORI dalla transazione, sul
     // client esterno: senza questa lettura il giro non trova le locali.
     productImage: { findMany: vi.fn().mockResolvedValue([]) },
@@ -731,10 +734,7 @@ describe('⛔ webhook identico: nessuna scrittura', () => {
   }
 
   /** Lo stesso articolo, con addosso i valori del primo giro. */
-  function articoloAllineato(
-    prodotto: Record<string, unknown>,
-    variante: Record<string, unknown>,
-  ) {
+  function articoloAllineato(prodotto: Record<string, unknown>, variante: Record<string, unknown>) {
     return {
       ...BASE,
       ...prodotto,
@@ -757,20 +757,22 @@ describe('⛔ webhook identico: nessuna scrittura', () => {
   // ⚠️ Le prove qui sotto sono l'altra metà, e sono quelle che contano di più:
   //    un confronto troppo indulgente **perderebbe una modifica in silenzio**,
   //    che è molto peggio di una scrittura di troppo. Una per famiglia di tipo.
-  const CAMBIAMENTI: readonly { readonly nome: string; readonly payload: Record<string, unknown> }[] =
-    [
-      { nome: 'testo (titolo)', payload: { title: 'Maglia rinominata su Shopify' } },
-      { nome: 'testo (tipo prodotto)', payload: { product_type: 'Camiceria' } },
-      { nome: 'testo (descrizione)', payload: { body_html: '<p>Altra descrizione</p>' } },
-      { nome: 'enumerato (stato)', payload: { status: 'archived' } },
-      { nome: 'elenco (tag)', payload: { tags: 'estate, donna, saldi' } },
-      {
-        nome: 'numero (prezzo Shopify)',
-        payload: {
-          variants: [{ id: 501, price: '39.90', inventory_item_id: 900, sku: 'SKU-1' }],
-        },
+  const CAMBIAMENTI: readonly {
+    readonly nome: string;
+    readonly payload: Record<string, unknown>;
+  }[] = [
+    { nome: 'testo (titolo)', payload: { title: 'Maglia rinominata su Shopify' } },
+    { nome: 'testo (tipo prodotto)', payload: { product_type: 'Camiceria' } },
+    { nome: 'testo (descrizione)', payload: { body_html: '<p>Altra descrizione</p>' } },
+    { nome: 'enumerato (stato)', payload: { status: 'archived' } },
+    { nome: 'elenco (tag)', payload: { tags: 'estate, donna, saldi' } },
+    {
+      nome: 'numero (prezzo Shopify)',
+      payload: {
+        variants: [{ id: 501, price: '39.90', inventory_item_id: 900, sku: 'SKU-1' }],
       },
-    ];
+    },
+  ];
 
   for (const cambiamento of CAMBIAMENTI) {
     it('⭐ ma un cambiamento di ' + cambiamento.nome + ' si scrive', async () => {
