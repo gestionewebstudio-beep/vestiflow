@@ -161,11 +161,16 @@ function problemaEvento(evento: EventoNonApplicatoAttuale): ShopifySetupProblema
   };
   switch (evento.esito) {
     case 'fallita':
+      // ⭐ Il MOTIVO sta nell'effetto, non solo nel dettaglio: a schermo (15/09) il dettaglio
+      //    finiva in una colonna stretta, troncata — e il motivo di un articolo `syncing` è
+      //    ciò che dice all'operatore come sbloccare, e che cosa comporta.
       return {
         ...base,
         causa: 'evento_fallito',
-        conseguenza: `Notifica di Shopify non applicata dopo ${evento.tentativi} tentativi: ciò che è cambiato là per questa risorsa non è arrivato, e gli eventi successivi della stessa risorsa aspettano.`,
-        azione: azione('riprova_evento', 'Riprova', evento.ricevutaId),
+        conseguenza:
+          `Notifica di Shopify non applicata dopo ${evento.tentativi} tentativi: ciò che è cambiato là per questa risorsa non è arrivato, e gli eventi successivi della stessa risorsa aspettano.` +
+          (evento.motivo ? ` ${evento.motivo}` : ''),
+        azione: azione('riprova_evento', 'Rimetti in coda questa notifica, con le stesse protezioni', evento.ricevutaId),
       };
     case 'sospesa_dopo_ripristino':
       return {

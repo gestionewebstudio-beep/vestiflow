@@ -408,7 +408,7 @@
                 [disabled]="
                   puliziaNotificheLoading() || checkWebhooksLoading() || disconnectLoading()
                 "
-                (click)="puliziaNotifiche()"
+                (click)="chiediPuliziaNotifiche()"
               >
                 Togli le notifiche concluse da oltre 30 giorni
               </app-button>
@@ -1338,5 +1338,16 @@
     [(open)]="shopWizardOpen"
     [mode]="shopWizardMode()"
     (completed)="onShopWizardCompleted()"
+  />
+  <!-- La pulizia delle notifiche concluse cancella righe: prima le conseguenze, poi il comando. -->
+  <app-confirm-dialog
+    [open]="puliziaNotificheConferma()"
+    title="Togliere le notifiche concluse da oltre 30 giorni?"
+    message="Si tolgono solo le notifiche già applicate o scartate, chiuse da più di 30 giorni. Quelle in attesa, fallite o sospese restano e si possono ancora riprovare. Le notifiche tolte non si recuperano."
+    confirmLabel="Sì, togli le concluse"
+    cancelLabel="Annulla"
+    [busy]="puliziaNotificheLoading()"
+    (confirmed)="puliziaNotifiche()"
+    (dismissed)="puliziaNotificheConferma.set(false)"
   />
 </div>

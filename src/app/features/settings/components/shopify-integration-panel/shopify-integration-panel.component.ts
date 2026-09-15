@@ -28,6 +28,7 @@ import {
 import { formatDateTime } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
@@ -249,6 +250,7 @@ const ATTESA_ATTIVAZIONE_MAX_LETTURE = 40;
     NavTabsComponent,
     BadgeComponent,
     ButtonComponent,
+    ConfirmDialogComponent,
     DataTableComponent,
     DetailFactsComponent,
     DataTableCellDirective,
@@ -1121,6 +1123,8 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly syncWebhooksLoading = signal(false);
   protected readonly checkWebhooksLoading = signal(false);
   protected readonly puliziaNotificheLoading = signal(false);
+  /** Il dialogo di conferma della pulizia: un comando che cancella righe si conferma prima. */
+  protected readonly puliziaNotificheConferma = signal(false);
   protected readonly registerMissingLoading = signal(false);
   protected readonly syncProductsLoading = signal(false);
   protected readonly syncCustomersLoading = signal(false);
@@ -2174,10 +2178,18 @@ export class ShopifyIntegrationPanelComponent {
    * La pulizia delle notifiche CONCLUSE da più di 30 giorni (docs/30 §7.1.2 D7): un comando
    * esplicito, non un job; pendenti, fallite e sospese restano — e il riscontro lo dice.
    */
+  protected chiediPuliziaNotifiche(): void {
+    if (this.puliziaNotificheLoading()) {
+      return;
+    }
+    this.puliziaNotificheConferma.set(true);
+  }
+
   protected puliziaNotifiche(): void {
     if (this.puliziaNotificheLoading()) {
       return;
     }
+    this.puliziaNotificheConferma.set(false);
     this.puliziaNotificheLoading.set(true);
     this.clearActionFeedback();
     this.connectError.set(null);

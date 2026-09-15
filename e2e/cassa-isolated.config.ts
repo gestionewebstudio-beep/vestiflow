@@ -14,7 +14,7 @@ if (
 export default defineConfig({
   testDir: '.',
   testMatch:
-    /(cassa-render-window|cassa-performance|cassa-mobile-rotazione|cassa-mobile|cassa|filtri-colonna|allinea-pannello|import-immagini-anomalia|import-giacenze|componenti-comuni-invariati|codici-iva|utenti-maschera|sedi|dashboard-anteprime|ricerca-giacenza|report-tabelle|admin-tabelle|scheda-fornitori|vendita-online-movimenti|cassa-dettagli-elenchi|cassa-maschere|elenchi-secondari|ordini-cliente-telefono|impostazioni-shopify|anagrafica-prezzi-caricamento|prima-connessione|situazione-shopify|ordini-shopify-rettifiche|nav-tabs-cassa-magazzino)\.spec\.ts$/,
+    /(cassa-render-window|cassa-performance|cassa-mobile-rotazione|cassa-mobile|cassa|filtri-colonna|allinea-pannello|import-immagini-anomalia|import-giacenze|componenti-comuni-invariati|codici-iva|utenti-maschera|sedi|dashboard-anteprime|ricerca-giacenza|report-tabelle|admin-tabelle|scheda-fornitori|vendita-online-movimenti|cassa-dettagli-elenchi|cassa-maschere|elenchi-secondari|ordini-cliente-telefono|impostazioni-shopify|anagrafica-prezzi-caricamento|prima-connessione|situazione-shopify|notifiche-webhook|ordini-shopify-rettifiche|nav-tabs-cassa-magazzino)\.spec\.ts$/,
   workers: 1,
   retries: 0,
   timeout: 120_000,
