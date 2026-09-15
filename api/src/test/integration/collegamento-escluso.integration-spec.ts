@@ -62,12 +62,47 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
     registro = new PlatformAuditService(prisma as never, prisma as never);
   });
 
+  /**
+   * ⛔ **Gli stati sync di QUESTA prova si tolgono per nome, prima dello svuota.**
+   *    `shopify_inventory_sync_states` non ha chiavi esterne nel database (solo la
+   *    primaria: la migration `20260713140000` non le scrive, lo schema ne dichiara
+   *    tre), quindi il `TRUNCATE … tenants CASCADE` della fixture non la raggiunge.
+   *    Misurato il 15/09/2026: questo file lasciava UNA riga (tenant A, sede A1,
+   *    ultimo inviato 99, variante ormai inesistente) — quella dell'ultima prova
+   *    della sezione delle quantità — e `invariante-disponibile`, eseguita subito
+   *    dopo, cadeva su sei ripristini con «Riferimento assente o di un altro
+   *    negozio: shopifyInventorySyncStates.variantId».
+   *
+   * ⚠️ Cancellazione limitata ai tenant della fixture: è la pulizia dei dati di
+   *    questa prova, non della tabella. Contenimento dichiarato, non la correzione:
+   *    le chiavi esterne restano la voce aperta di `docs/DA-FARE` §21-ter, con la
+   *    scelta delle regole di cancellazione ancora da fare.
+   */
   afterAll(async () => {
-    if (prisma) {
-      await svuota(prisma).catch(() => undefined);
-      await prisma.$disconnect().catch(() => undefined);
+    if (!prisma) {
+      return;
+    }
+    const guasti: string[] = [];
+    const tenta = async (passo: string, azione: () => Promise<unknown>) => {
+      try {
+        await azione();
+      } catch (errore) {
+        guasti.push(`${passo}: ${errore instanceof Error ? errore.message : String(errore)}`);
+      }
+    };
+    await tenta('stati sync della prova', () => cancellaStatiSyncDellaProva());
+    await tenta('svuota', () => svuota(prisma));
+    await tenta('disconnessione', () => prisma.$disconnect());
+    if (guasti.length > 0) {
+      throw new Error(`Pulizia di collegamento-escluso fallita — ${guasti.join(' | ')}`);
     }
   });
+
+  function cancellaStatiSyncDellaProva(): Promise<unknown> {
+    return prisma.shopifyInventorySyncState.deleteMany({
+      where: { tenantId: { in: [IDS.tenantA, IDS.tenantB] } },
+    });
+  }
 
   beforeEach(async () => {
     await svuota(prisma);
@@ -785,8 +820,10 @@ describe('Collegamento escluso e percorsi operativi (26.7)', () => {
       //
       // ⚠️ Questa cancellazione è quindi un CONTENIMENTO dichiarato, non una
       //    pulizia silenziosa: la deriva fra schema e database è registrata in
-      //    `docs/DA-FARE` e non è stata corretta qui.
-      await prisma.shopifyInventorySyncState.deleteMany({});
+      //    `docs/DA-FARE` e non è stata corretta qui. Limitata ai tenant della
+      //    fixture, e ripetuta nell'`afterAll` del file: senza, l'ultima prova
+      //    della sezione lasciava la propria riga a chi veniva dopo.
+      await cancellaStatiSyncDellaProva();
       await prisma.shopifyConnection.update({
         where: { tenantId: IDS.tenantA },
         data: { scopes: ['read_products', 'write_products', 'write_inventory'] },

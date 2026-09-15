@@ -1097,8 +1097,12 @@ in `docs/DA-FARE` §21-ter il 09/09, qui rimisurata. `collegamento-escluso` la r
 nel `beforeEach` della sezione, non nell'`afterAll`: l'ultima riga esce dal file, e cade chi
 lo segue nell'ordine della cache di vitest se esporta il tenant A senza prima ripulire. Le
 due ipotesi della mattina (ritentativi pendenti, isolamento dell'export) sono **ritirate**.
-Non corretto qui — la correzione è una migration con le tre FK (decisione: `ON DELETE`, orfani
-già presenti sul condiviso) e, come contenimento, tre righe nell'`afterAll` di
-`collegamento-escluso` come negli altri sette file — entrambe fuori dal perimetro di questo
-blocco, proposte. Dettaglio, righe catturate e tabella dei rimedi in
+⭐ **Contenimento fatto (15/09, sera, commit separato)**: l'`afterAll` di
+`collegamento-escluso` cancella gli stati sync **dei soli tenant della fixture** prima dello
+`svuota`, come negli altri sette file, e la pulizia non ingoia i propri errori. Sequenza
+verificata a comando: prima della correzione il file da solo lasciava 1 riga e
+`invariante-disponibile` subito dopo cadeva su 6 ripristini; dopo, 0 righe e 19/19; suite
+completa 63 file, 1018/1018 (12ª corsa). ⛔ Le tre FK restano la correzione vera, **non
+introdotte**: migration a parte, con scelta esplicita delle regole di cancellazione e conteggio
+degli orfani sul condiviso (`DA-FARE` §21-ter). Dettaglio in
 `docs/30-allegato-corsa-ripristino-2026-09-15.md`.
