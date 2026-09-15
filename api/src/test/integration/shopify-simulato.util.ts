@@ -52,6 +52,8 @@ export interface VarianteRemota {
   price: string;
   compare_at_price: string | null;
   inventory_item_id: number;
+  /** Il costo dell'inventory item, come lo darebbe `GET /inventory_items/{id}.json` (`cost`). */
+  cost: string | null;
   option1: string | null;
   option2: string | null;
   option3: string | null;
@@ -75,6 +77,8 @@ export interface SpecVarianteRemota {
   readonly sku: string | null;
   readonly barcode: string | null;
   readonly price: string;
+  /** Costo dell'inventory item (opzionale: senza, Shopify risponde `cost: null`). */
+  readonly cost?: string | null;
   /** Un valore per opzione, nell'ordine delle opzioni del prodotto. */
   readonly valori: readonly string[];
 }
@@ -663,9 +667,7 @@ export class NegozioSimulato {
         }
       }
       // Il valore della riga rimborsata è prezzo × quantità, come su Shopify.
-      const prezzo = Number(
-        (rigaOrdine as { price?: string }).price ?? '10.00',
-      );
+      const prezzo = Number((rigaOrdine as { price?: string }).price ?? '10.00');
       return {
         id: refundId * 10 + i,
         line_item_id: riga.lineItemId,
@@ -793,6 +795,7 @@ export class NegozioSimulato {
       price: spec.price,
       compare_at_price: null,
       inventory_item_id: this.nuovoId(),
+      cost: spec.cost ?? null,
       option1: spec.valori[0] ?? null,
       option2: spec.valori[1] ?? null,
       option3: spec.valori[2] ?? null,
@@ -906,6 +909,8 @@ export class NegozioSimulato {
               price: String(riga['price'] ?? '0.00'),
               compare_at_price: (riga['compare_at_price'] as string | undefined) ?? null,
               inventory_item_id: this.nuovoId(),
+              // Il costo non viaggia nel payload REST del prodotto: nasce nullo, come sul canale.
+              cost: null,
               option1: (riga['option1'] as string | undefined) ?? null,
               option2: (riga['option2'] as string | undefined) ?? null,
               option3: (riga['option3'] as string | undefined) ?? null,
@@ -923,6 +928,15 @@ export class NegozioSimulato {
                 this.quantitaRemote.set(chiave, 0);
               }
             }
+          }
+          // ⚠️ Anche qui la risposta può perdersi DOPO l'effetto: il prodotto remoto esiste,
+          //    VestiFlow non ne conosce l'id (`docs/30` #5).
+          const perse = this.rispostePerse.get('createProduct') ?? 0;
+          if (perse > 0) {
+            this.rispostePerse.set('createProduct', perse - 1);
+            throw new Error(
+              `Shopify simulato (${this.dominio}): risposta persa su createProduct — il prodotto E' stato creato`,
+            );
           }
           return {
             id,
@@ -943,6 +957,30 @@ export class NegozioSimulato {
       listProductMetafields: vi.fn(async () => {
         this.conta('listProductMetafields');
         return [];
+      }),
+      listProductCollects: vi.fn(async () => {
+        this.conta('listProductCollects');
+        return [];
+      }),
+      resolveCollectionTitles: vi.fn(async () => {
+        this.conta('resolveCollectionTitles');
+        return [];
+      }),
+      // ⭐ Una chiamata PER VARIANTE, come sul canale vero: è quella che l'arricchimento
+      //    dei costi paga, e che una prova può contare (`docs/30` #2).
+      getInventoryItem: vi.fn(async (_d: string, _t: string, inventoryItemId: string) => {
+        this.conta('getInventoryItem');
+        for (const prodotto of this.prodotti.values()) {
+          const variante = prodotto.variants.find(
+            (v) => String(v.inventory_item_id) === String(inventoryItemId),
+          );
+          if (variante) {
+            return { id: variante.inventory_item_id, cost: variante.cost };
+          }
+        }
+        throw new Error(
+          `Shopify simulato (${this.dominio}): inventory item ${inventoryItemId} inesistente`,
+        );
       }),
       upsertProductMetafield: vi.fn(async () => {
         this.conta('upsertProductMetafield');

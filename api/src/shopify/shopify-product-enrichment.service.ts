@@ -17,6 +17,17 @@ import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localizat
 export interface EnrichProductOptions {
   /** Su import catalogo massivo i costi varianti possono essere saltati (N chiamate API). */
   readonly fetchVariantCosts?: boolean;
+  /**
+   * ⭐ Con `fetchVariantCosts`, i SOLI id remoti di variante di cui leggere il costo.
+   *
+   * Il costo è una chiamata REST per variante (`GET /inventory_items/{id}`) e in
+   * aggiornamento si scrive solo sulle varianti che VestiFlow non ha ancora
+   * (`docs/24` §9.11): chiederlo per tutte pagava 2 + C + V chiamate a ≥ 500 ms per un
+   * valore scartato, oltre i 5 s del webhook già con otto varianti (`docs/30` #2,
+   * dimostrato in `costi-varianti-in-aggiornamento.integration-spec.ts`).
+   * Assente = tutte (la prima importazione).
+   */
+  readonly variantCostsFor?: ReadonlySet<number>;
   /** Import catalogo: solo tag dal payload prodotto, senza metafield/collezioni via API. */
   readonly skipRemoteMetadata?: boolean;
 }
@@ -87,7 +98,7 @@ export class ShopifyProductEnrichmentService {
       const season = extractSeasonFromMetafields(metafields);
 
       const variantPurchasePriceMinor = options.fetchVariantCosts
-        ? await this.fetchVariantCosts(shopDomain, accessToken, remote)
+        ? await this.fetchVariantCosts(shopDomain, accessToken, remote, options.variantCostsFor)
         : new Map<number, number>();
 
       const categoryMetafields = await this.categoryMetafieldsService
@@ -142,10 +153,11 @@ export class ShopifyProductEnrichmentService {
     shopDomain: string,
     accessToken: string,
     remote: ShopifyAdminProduct,
+    soltanto?: ReadonlySet<number>,
   ): Promise<Map<number, number>> {
     const costs = new Map<number, number>();
     for (const variant of remote.variants) {
-      if (!variant.inventory_item_id) {
+      if (!variant.inventory_item_id || (soltanto && !soltanto.has(variant.id))) {
         continue;
       }
       try {

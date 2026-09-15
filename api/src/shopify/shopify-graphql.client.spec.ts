@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
-import type { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
+import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
+import { ShopifyTrasportoException } from './shopify-trasporto.util';
 
 /**
  * Primitive GraphQL del catalogo (Tranche 2A, docs/24 §8.6).
@@ -40,7 +41,13 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       onGraphQlCost: vi.fn(),
     };
     client = new ShopifyGraphqlClient(
-      { apiVersion: '2026-07', apiMaxRetries: 2 } as unknown as ShopifyConfigService,
+      {
+        apiVersion: '2026-07',
+        apiMaxRetries: 2,
+        apiReadRetries: 2,
+        apiTimeoutMs: 50,
+        apiDeadlineMs: 60_000,
+      } as unknown as ShopifyConfigService,
       rateLimiter as unknown as ShopifyRateLimiterService,
     );
   });
@@ -779,6 +786,341 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       mockFetch(tooMany(), tooMany(), tooMany());
 
       await expect(client.listPublications(SHOP, TOKEN)).rejects.toBeInstanceOf(HttpException);
+    });
+
+    /** Una risposta `200` con il solo rifiuto per throttling: Shopify NON ha eseguito niente. */
+    function throttled(requested = 50, currentlyAvailable = 10, restoreRate = 100) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          errors: [{ message: 'Throttled', extensions: { code: 'THROTTLED' } }],
+          extensions: {
+            cost: {
+              requestedQueryCost: requested,
+              actualQueryCost: null,
+              throttleStatus: { maximumAvailable: 2000, currentlyAvailable, restoreRate },
+            },
+          },
+        }),
+        headers: new Headers(),
+      } as unknown as Response;
+    }
+
+    /**
+     * ⭐ Il throttling GraphQL NON è un 429 (`docs/30` #4, corretto il 15/09/2026): arriva
+     *    come `200` con `errors[].extensions.code = "THROTTLED"` e `extensions.cost.throttleStatus`
+     *    (shopify.dev, «Throttled — similar to 429»). Senza `data` Shopify non ha eseguito
+     *    l'operazione: si aspetta il ripristino dei punti e si riprova, entro `apiMaxRetries`.
+     */
+    it('200 + THROTTLED senza data → attende il ripristino dei punti (deficit / restoreRate) e riprova; la seconda risposta torna al chiamante', async () => {
+      mockFetch(throttled(50, 10, 100), rispondi({ publications: { nodes: [] } }));
+
+      await expect(client.listPublications(SHOP, TOKEN)).resolves.toEqual([]);
+      // (50 − 10) / 100 = 0,4 s → almeno 1 s: è quanto chiede al limitatore.
+      expect(rateLimiter.waitForRetry).toHaveBeenCalledWith(SHOP, 0, 1);
+      // Il costo osservato arriva comunque al limitatore, così anche la richiesta dopo
+      // parte con l'attesa giusta.
+      expect(rateLimiter.onGraphQlCost).toHaveBeenCalledTimes(2);
+    });
+
+    it('THROTTLED con un deficit grande: l’attesa segue il deficit (300 punti a 100/s → 3 s)', async () => {
+      mockFetch(throttled(400, 100, 100), rispondi({ publications: { nodes: [] } }));
+
+      await expect(client.listPublications(SHOP, TOKEN)).resolves.toEqual([]);
+      expect(rateLimiter.waitForRetry).toHaveBeenCalledWith(SHOP, 0, 3);
+    });
+
+    it('THROTTLED oltre apiMaxRetries: 429 al chiamante, non un errore generico', async () => {
+      mockFetch(throttled(), throttled(), throttled());
+
+      await expect(client.listPublications(SHOP, TOKEN)).rejects.toBeInstanceOf(HttpException);
+      expect(rateLimiter.waitForRetry).toHaveBeenCalledTimes(2);
+    });
+
+    it('una MUTATION rifiutata per throttling (senza data) non è stata eseguita: si riprova come una query', async () => {
+      mockFetch(throttled(), rispondi({ publishablePublish: { userErrors: [] } }));
+
+      await expect(
+        client.publishablePublish(SHOP, TOKEN, 'gid://shopify/Product/1', [
+          'gid://shopify/Publication/1',
+        ]),
+      ).resolves.toBeUndefined();
+      expect(rateLimiter.waitForRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ una risposta PARZIALE (data presente + errore THROTTLED) NON è un rifiuto: qualcosa è stato eseguito, non si ritenta', async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: { publications: null },
+          errors: [{ message: 'Throttled', extensions: { code: 'THROTTLED' } }],
+        }),
+        headers: new Headers(),
+      } as unknown as Response);
+
+      await expect(client.listPublications(SHOP, TOKEN)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+      expect(rateLimiter.waitForRetry).not.toHaveBeenCalled();
+    });
+
+    it('una query che non risponde: interrotta al timeout, ritentata apiReadRetries volte, poi «timeout» — in un tempo limitato', async () => {
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+          }),
+      );
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock as unknown as typeof fetch);
+      const partenza = Date.now();
+
+      const errore = await client.listPublications(SHOP, TOKEN).catch((e: unknown) => e);
+
+      expect(errore).toBeInstanceOf(ShopifyTrasportoException);
+      expect((errore as ShopifyTrasportoException).causa).toBe('timeout');
+      expect((errore as ShopifyTrasportoException).esitoIncerto).toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(Date.now() - partenza).toBeLessThan(2_000);
+    });
+
+    it('una MUTATION che non risponde: interrotta al timeout e NON ritentata — esito incerto, potrebbe essere stata eseguita', async () => {
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+          }),
+      );
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock as unknown as typeof fetch);
+
+      const errore = await client
+        .publishablePublish(SHOP, TOKEN, 'gid://shopify/Product/1', ['gid://shopify/Publication/1'])
+        .catch((e: unknown) => e);
+
+      expect(errore).toBeInstanceOf(ShopifyTrasportoException);
+      expect((errore as ShopifyTrasportoException).esitoIncerto).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(rateLimiter.waitForRetry).not.toHaveBeenCalled();
+    });
+
+    it('un 503 su una query si ritenta; su una mutation è un esito incerto', async () => {
+      const cinque = () =>
+        ({
+          ok: false,
+          status: 503,
+          headers: new Headers(),
+          text: async () => '',
+        }) as unknown as Response;
+      mockFetch(cinque(), rispondi({ publications: { nodes: [] } }), cinque());
+
+      await expect(client.listPublications(SHOP, TOKEN)).resolves.toEqual([]);
+      const errore = await client
+        .publishablePublish(SHOP, TOKEN, 'gid://shopify/Product/1', ['gid://shopify/Publication/1'])
+        .catch((e: unknown) => e);
+      expect((errore as ShopifyTrasportoException).causa).toBe('server');
+      expect((errore as ShopifyTrasportoException).esitoIncerto).toBe(true);
+    });
+
+    it('scadenza: se l’attesa del limitatore porta oltre, ZERO chiamate inviate, «scadenza», e niente parte dopo', async () => {
+      client = new ShopifyGraphqlClient(
+        {
+          apiVersion: '2026-07',
+          apiMaxRetries: 2,
+          apiReadRetries: 2,
+          apiTimeoutMs: 50,
+          apiDeadlineMs: 40,
+        } as unknown as ShopifyConfigService,
+        rateLimiter as unknown as ShopifyRateLimiterService,
+      );
+      rateLimiter.beforeGraphqlRequest.mockImplementation(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 80)),
+      );
+      const fetchMock = mockFetch(rispondi({ publications: { nodes: [] } }));
+      const partenza = Date.now();
+
+      const errore = await client.listPublications(SHOP, TOKEN).catch((e: unknown) => e);
+
+      expect((errore as ShopifyTrasportoException).causa).toBe('scadenza');
+      // ⛔ Il chiamante lo riceve ALLA scadenza (40 ms), non alla fine dell'attesa (80 ms).
+      expect(Date.now() - partenza).toBeLessThan(70);
+      expect(fetchMock).not.toHaveBeenCalled();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('scadenza: l’ultimo tentativo è limitato al residuo, non al timeout ordinario', async () => {
+      client = new ShopifyGraphqlClient(
+        {
+          apiVersion: '2026-07',
+          apiMaxRetries: 2,
+          apiReadRetries: 0,
+          apiTimeoutMs: 200,
+          apiDeadlineMs: 60,
+        } as unknown as ShopifyConfigService,
+        rateLimiter as unknown as ShopifyRateLimiterService,
+      );
+      rateLimiter.beforeGraphqlRequest.mockImplementation(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 30)),
+      );
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+          }),
+      );
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock as unknown as typeof fetch);
+      const partenza = Date.now();
+
+      const errore = await client.listPublications(SHOP, TOKEN).catch((e: unknown) => e);
+
+      expect((errore as ShopifyTrasportoException).causa).toBe('timeout');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(Date.now() - partenza).toBeLessThan(60 + 30);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('scadenza dentro la pausa del limitatore VERO (orologio controllato): errore alla scadenza, zero fetch anche dopo, pausa rispettata dalle altre', async () => {
+      vi.useFakeTimers();
+      try {
+        const limitatore = new ShopifyRateLimiterService({
+          apiMinIntervalMs: 0,
+          apiBucketBurstRatio: 0.25,
+          apiBucketHighWatermark: 0.85,
+          apiColdStartIntervalMs: 0,
+          apiBucketPauseMs: 5_000,
+          graphqlMinIntervalMs: 0,
+          graphqlCostReservePoints: 100,
+        } as unknown as ShopifyConfigService);
+        const configura = (apiDeadlineMs: number) =>
+          new ShopifyGraphqlClient(
+            {
+              apiVersion: '2026-07',
+              apiMaxRetries: 2,
+              apiReadRetries: 2,
+              apiTimeoutMs: 50,
+              apiDeadlineMs,
+            } as unknown as ShopifyConfigService,
+            limitatore,
+          );
+        const fetchMock = mockFetch(rispondi({ publications: { nodes: [] } }));
+        // La pausa del negozio è condivisa fra REST e GraphQL: il bucket REST pieno la mette.
+        limitatore.onCallLimitHeader(SHOP, '40/40');
+
+        let esito: unknown = 'in attesa';
+        void configura(1_000)
+          .listPublications(SHOP, TOKEN)
+          .then(
+            (v) => (esito = v),
+            (e: unknown) => (esito = e),
+          );
+        await vi.advanceTimersByTimeAsync(900);
+        expect(esito).toBe('in attesa');
+        await vi.advanceTimersByTimeAsync(100);
+        expect((esito as ShopifyTrasportoException).causa).toBe('scadenza');
+        expect(fetchMock).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        limitatore.onCallLimitHeader(SHOP, '40/40');
+        let seconda: unknown = 'in attesa';
+        void configura(60_000)
+          .listPublications(SHOP, TOKEN)
+          .then((v) => (seconda = v));
+        await vi.advanceTimersByTimeAsync(4_900);
+        expect(seconda).toBe('in attesa');
+        expect(fetchMock).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(200);
+        expect(seconda).toEqual([]);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    describe('intestazioni ricevute, corpo bloccato o interrotto', () => {
+      function corpoBloccato() {
+        const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+          const signal = init?.signal;
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: () =>
+              new Promise<never>((_resolve, reject) => {
+                signal?.addEventListener('abort', () => reject(signal.reason));
+              }),
+          } as unknown as Response;
+        });
+        vi.spyOn(global, 'fetch').mockImplementation(fetchMock as unknown as typeof fetch);
+        return fetchMock;
+      }
+
+      function corpoCheFallisce(errore: Error) {
+        const fetchMock = vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          json: async () => {
+            throw errore;
+          },
+        }));
+        vi.spyOn(global, 'fetch').mockImplementation(fetchMock as unknown as typeof fetch);
+        return fetchMock;
+      }
+
+      it('query, corpo bloccato: interrotta al timeout, ritentata, poi «timeout»', async () => {
+        const fetchMock = corpoBloccato();
+        const errore = await client.listPublications(SHOP, TOKEN).catch((e: unknown) => e);
+        expect((errore as ShopifyTrasportoException).causa).toBe('timeout');
+        expect((errore as ShopifyTrasportoException).esitoIncerto).toBe(false);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+      });
+
+      it('mutation, corpo bloccato: esito incerto, NESSUN ritentativo', async () => {
+        const fetchMock = corpoBloccato();
+        const errore = await client
+          .publishablePublish(SHOP, TOKEN, 'gid://shopify/Product/1', [
+            'gid://shopify/Publication/1',
+          ])
+          .catch((e: unknown) => e);
+        expect((errore as ShopifyTrasportoException).causa).toBe('timeout');
+        expect((errore as ShopifyTrasportoException).esitoIncerto).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      it('corpo interrotto dalla rete: query ritentata poi «rete»; mutation esito incerto', async () => {
+        const fetchMock = corpoCheFallisce(new TypeError('terminated'));
+        const query = await client.listPublications(SHOP, TOKEN).catch((e: unknown) => e);
+        expect((query as ShopifyTrasportoException).causa).toBe('rete');
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        fetchMock.mockClear();
+        const mutation = await client
+          .publishablePublish(SHOP, TOKEN, 'gid://shopify/Product/1', [
+            'gid://shopify/Publication/1',
+          ])
+          .catch((e: unknown) => e);
+        expect((mutation as ShopifyTrasportoException).causa).toBe('rete');
+        expect((mutation as ShopifyTrasportoException).esitoIncerto).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      it('corpo non valido (JSON rotto): «risposta», nessun ritentativo; su una mutation esito incerto', async () => {
+        const fetchMock = corpoCheFallisce(new SyntaxError('Unexpected token'));
+        const query = await client.listPublications(SHOP, TOKEN).catch((e: unknown) => e);
+        expect((query as ShopifyTrasportoException).causa).toBe('risposta');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        fetchMock.mockClear();
+        const mutation = await client
+          .publishablePublish(SHOP, TOKEN, 'gid://shopify/Product/1', [
+            'gid://shopify/Publication/1',
+          ])
+          .catch((e: unknown) => e);
+        expect((mutation as ShopifyTrasportoException).causa).toBe('risposta');
+        expect((mutation as ShopifyTrasportoException).esitoIncerto).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('errori GraphQL di trasporto diventano un errore leggibile', async () => {

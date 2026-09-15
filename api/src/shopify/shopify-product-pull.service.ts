@@ -315,7 +315,9 @@ export class ShopifyProductPullService {
         //    tradotto (`toShopifyUserMessage`), e su un articolo mai creato non
         //    c'è un prodotto su cui scriverlo. Senza questa riga, un registro che
         //    non scrive (pool esaurito, §10.3) comparirebbe solo come «timeout».
-        this.logger.error(`Import Shopify fallito (${tenantId}, prodotto ${remote.id}): ${message}`);
+        this.logger.error(
+          `Import Shopify fallito (${tenantId}, prodotto ${remote.id}): ${message}`,
+        );
         failed.push({
           shopifyProductId: String(remote.id),
           message: toShopifyUserMessage(undefined, message).slice(0, 300),
@@ -376,11 +378,19 @@ export class ShopifyProductPullService {
       return 'skipped';
     }
 
+    // ⭐ Il costo si chiede SOLO per le varianti che VestiFlow non ha ancora: in
+    //    aggiornamento è l'unico posto in cui si scrive (`tx.productVariant.create`,
+    //    §9.11), e ogni costo è una chiamata REST a ≥ 500 ms — otto varianti bastavano
+    //    a superare i 5 s del webhook per un valore scartato (`docs/30` #2). Il
+    //    riconoscimento è lo stesso dell'aggiornamento: `shopifyVariantId` sulle
+    //    varianti locali del prodotto. Prodotto sconosciuto = prima importazione = tutte.
+    const variantiNuove = await this.variantiRemoteNonAncoraLocali(tenantId, remote);
     let enrichment: ProductShopifyEnrichment | undefined;
     try {
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
       enrichment = await this.shopifyEnrichment.enrichProduct(shopDomain, accessToken, remote, {
-        fetchVariantCosts: true,
+        fetchVariantCosts: variantiNuove.size > 0,
+        variantCostsFor: variantiNuove,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Enrichment webhook fallito';
@@ -495,10 +505,30 @@ export class ShopifyProductPullService {
 
     if (esito.anomalie.length > 0) {
       this.logger.warn(
-        `Immagini non archiviate (${tenantId}/${prodotto.id}): ` +
-          esito.anomalie.join(' · '),
+        `Immagini non archiviate (${tenantId}/${prodotto.id}): ` + esito.anomalie.join(' · '),
       );
     }
+  }
+
+  /**
+   * Gli id remoti delle varianti del payload che NON hanno ancora una variante locale
+   * (stesso criterio di `byShopifyVariantId` in aggiornamento).
+   *
+   * ⚠️ Lettura FUORI dal lock, e va bene così: decide solo per quali varianti chiedere
+   *    il costo. Se una variante nasce in locale fra questa lettura e il lock, il costo
+   *    letto si scarta (§9.11); se viene tolta, la variante rinasce senza costo, come
+   *    nell'import massivo (`fetchVariantCosts: false`). Nessun effetto in più.
+   */
+  private async variantiRemoteNonAncoraLocali(
+    tenantId: string,
+    remote: ShopifyAdminProduct,
+  ): Promise<ReadonlySet<number>> {
+    const locali = await this.prisma.productVariant.findMany({
+      where: { tenantId, product: { shopifyProductId: String(remote.id) } },
+      select: { shopifyVariantId: true },
+    });
+    const note = new Set(locali.map((v) => v.shopifyVariantId).filter((id) => id !== null));
+    return new Set(remote.variants.filter((v) => !note.has(String(v.id))).map((v) => v.id));
   }
 
   /** Il lock transazionale su `(tenant, prodotto remoto)`: chi arriva secondo aspetta. */
@@ -648,9 +678,7 @@ export class ShopifyProductPullService {
       // ⚠️ Tassonomia, stagione e metafield qui sotto ripiegavano gia' su
       //    `existing`: erano tre campi protetti e tre no, nello stesso oggetto.
       seoTitle: enrichment ? enrichment.seoTitle : (existing?.seoTitle ?? null),
-      seoDescription: enrichment
-        ? enrichment.seoDescription
-        : (existing?.seoDescription ?? null),
+      seoDescription: enrichment ? enrichment.seoDescription : (existing?.seoDescription ?? null),
       shopifyCollections: (enrichment
         ? enrichment.collections
         : (existing?.shopifyCollections ?? [])) as unknown as Prisma.InputJsonValue,
@@ -972,7 +1000,15 @@ export class ShopifyProductPullService {
     //    arriva da un webhook deve avere la sua identità come gli altri, e le
     //    varianti comparse dopo devono trovare la loro. Idempotente: una
     //    seconda passata non aggiunge niente.
-    await this.registraStorico(tx, tenantId, existing.id, remote, ingresso, titoloShopify, rifiutate);
+    await this.registraStorico(
+      tx,
+      tenantId,
+      existing.id,
+      remote,
+      ingresso,
+      titoloShopify,
+      rifiutate,
+    );
 
     return 'updated';
   }

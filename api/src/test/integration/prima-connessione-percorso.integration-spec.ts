@@ -3676,4 +3676,75 @@ describe('Prima connessione — il percorso sui servizi reali', () => {
     await sync.handleWebhook(IDS.tenantA, 'orders/create', payloadCreato);
     expect(await fotografiaEffetti(gid, variante.id)).toEqual(completo);
   });
+
+  /**
+   * MISURA (15/09/2026, `docs/30` 7-bis): due `orders/create` per lo STESSO ordine NUOVO,
+   * insieme. Letto nel codice: entrambe trovano «assente», entrambe creano, la seconda cade
+   * sull'unicità `[tenantId, shopifyOrderId]`. Qui si misura che cosa succede davvero —
+   * senza cambiare il comportamento prima di averlo misurato.
+   */
+  it('24 · due «orders/create» concorrenti sullo stesso ordine NUOVO: un solo ordine, un solo impegno, e l’esito delle due chiamate misurato', async () => {
+    const remoto = negozio.semina({
+      title: 'Felpa concorrente',
+      opzioni: [{ name: 'Taglia', values: ['M'] }],
+      varianti: [{ sku: 'CONC-1', barcode: null, price: '10.00', valori: ['M'] }],
+    });
+    const item = String(remoto.variants[0]!.inventory_item_id);
+    negozio.impostaQuantitaRemota(item, SEDE_REMOTA, 10);
+    await percorsoFinoATrasferito(ShopifySetupDirection.shopify_to_vestiflow);
+    await setup.attiva(IDS.tenantA);
+    const variante = await varianteConSku('CONC-1');
+
+    const ordine = negozio.creaOrdineRemoto({
+      righe: [{ sku: 'CONC-1', inventoryItemId: item, quantity: 4 }],
+      locationId: SEDE_REMOTA,
+    });
+    const gid = `gid://shopify/Order/${ordine.id}`;
+
+    const esiti = await Promise.allSettled([
+      sync.handleWebhook(IDS.tenantA, 'orders/create', ordine),
+      sync.handleWebhook(IDS.tenantA, 'orders/create', ordine),
+    ]);
+    const letti = esiti.map((e) =>
+      e.status === 'fulfilled'
+        ? 'ok'
+        : `rifiutata: ${(e.reason as { code?: string; message?: string }).code ?? ''} ${String(
+            (e.reason as { message?: string }).message ?? '',
+          )
+            .split(String.fromCharCode(10))[0]
+            ?.slice(0, 80)}`,
+    );
+
+    // Gli effetti: un ordine solo, un impegno solo da 4, un evento canonico di creazione.
+    expect(
+      await prisma.salesOrder.count({ where: { tenantId: IDS.tenantA, shopifyOrderId: gid } }),
+    ).toBe(1);
+    const effetti = await fotografiaEffetti(gid, variante.id);
+    expect(effetti.impegniAttivi).toBe(1);
+    expect(effetti.livello.committed).toBe(4);
+    // ⚠️ MISURATO il 15/09/2026: una riesce, l'altra cade con P2002 (unicità
+    //    `[tenantId, shopifyOrderId]`) non gestito → al controller è un 5xx → Shopify la
+    //    ritenta. Non è un doppione, è un ritentativo in più. Cambiarlo (es. accogliere il
+    //    P2002 come «già creato» e proseguire come aggiornamento) è una decisione a parte.
+    expect(letti.sort()).toEqual(['ok', 'rifiutata: P2002 ']);
+
+    // Il ritentativo di Shopify, ora che l'ordine esiste: aggiornamento idempotente, effetti
+    // uguali a prima (stesso `updated_at`, stessa chiave degli eventi).
+    const eventi = () =>
+      prisma.onlineOrderEvent.findMany({
+        where: { tenantId: IDS.tenantA, externalOrderId: gid },
+        select: { type: true },
+        orderBy: { type: 'asc' },
+      });
+    const prima = { effetti: await fotografiaEffetti(gid, variante.id), eventi: await eventi() };
+    await sync.handleWebhook(IDS.tenantA, 'orders/create', ordine);
+    // Effetti identici; nel registro un solo evento in più, ed è la TRACCIA dell'aggiornamento
+    // (`online_order_updated`), non un secondo impegno o una seconda creazione.
+    expect(await fotografiaEffetti(gid, variante.id)).toEqual(prima.effetti);
+    expect(await eventi()).toEqual(
+      [...prima.eventi, { type: 'online_order_updated' }].sort((x, y) =>
+        x.type.localeCompare(y.type),
+      ),
+    );
+  });
 });
