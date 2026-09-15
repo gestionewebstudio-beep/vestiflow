@@ -142,7 +142,13 @@ export function buildVariantCreateInputs(
       price: fields.price,
       ...(fields.compareAtPrice !== undefined ? { compareAtPrice: fields.compareAtPrice } : {}),
       ...(fields.barcode !== undefined ? { barcode: fields.barcode } : {}),
-      ...(fields.sku !== undefined ? { inventoryItem: { sku: fields.sku, tracked: true } } : {}),
+      // ⭐ Tracciata SEMPRE, anche senza SKU: come la prima creazione (`productSet`) e
+      //    come il percorso REST precedente (`inventory_management: 'shopify'` su ogni
+      //    variante). Qui c'era `inventoryItem` solo con lo SKU, e una variante senza
+      //    codice nasceva NON tracciata dal completamento e tracciata dalla creazione:
+      //    la giacenza VestiFlow non l'avrebbe governata (misurato in sola lettura il
+      //    15/09/2026, docs/30 §7.2-ter.3, corretto lo stesso giorno).
+      inventoryItem: { tracked: true, ...(fields.sku !== undefined ? { sku: fields.sku } : {}) },
       metafields: [metafieldIdentitaVariante(variant.id)],
     };
   });

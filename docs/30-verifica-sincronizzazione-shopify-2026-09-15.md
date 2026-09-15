@@ -350,7 +350,7 @@ webhook senza id → esito di D5. Le due `it.fails` diventano prove ordinarie.
 schema del claim, non con la sola scadenza); il **residuo del claim** dopo un'adozione da
 webhook (§7.2-ter: chi lo chiude, e quando); le **FK degli stati sync** (`DA-FARE` §21-ter,
 regole di cancellazione da scegliere); il **limite di scala** di `productSet` e
-`inventoryItem.tracked` nel completamento senza SKU (§7.2-ter.3). Nessuno dei cinque entra
+`inventoryItem.tracked` dentro `productSet` da rileggere sul negozio (§7.2-ter.3, il completamento è corretto). Nessuno dei cinque entra
 nella coda webhook: sono voci con la propria decisione.
 
 ### 7.2 Scritture con esito incerto e timeout (#3, #5 senza `productSet`) — ⛔ NON approvata nella forma proposta (15/09)
@@ -880,22 +880,19 @@ distruttivo parte — sarà una prova di contratto dedicata a dire dove sta il l
 **2 · `inventoryItem.tracked` (verifica FUNZIONALE, non di scala).** Confronto in sola
 lettura fra il percorso precedente e quello nuovo, 15/09:
 
-| Percorso                                             | Che cosa manda per il tracciamento inventario                                                                                                   | Verificato sul negozio                                                                                                                                       |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **prima** (develop `bd22d421`): creazione REST       | `inventory_management: 'shopify'` su ogni variante (`shopify-variant-payload.util`); nessuna creazione di varianti in aggiornamento             | dall'uso                                                                                                                                                     |
-| **ora**: `productSet` (prima creazione)              | `inventoryItem: { tracked: true }` su **ogni** variante, sku al primo livello                                                                   | ⛔ **no**: G9–G11 non includevano `inventoryItem` — accettazione del campo e valore risultante da leggere (`inventoryItem { tracked }`) in una prova col via |
-| **ora**: completamento (`productVariantsBulkCreate`) | `inventoryItem: { sku, tracked: true }` **solo se la variante ha uno SKU**; senza SKU la chiave non parte → tracciamento al default del negozio | ✅ gate del 03/09 (`shopify-catalogo.contract-spec`, 349–360): con `tracked: true` la variante rilegge `tracked = true`                                      |
+| Percorso                                             | Che cosa manda per il tracciamento inventario                                                                                                                                           | Verificato sul negozio                                                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **prima** (develop `bd22d421`): creazione REST       | `inventory_management: 'shopify'` su ogni variante (`shopify-variant-payload.util`); nessuna creazione di varianti in aggiornamento                                                     | dall'uso                                                                                                                                                                                     |
+| **ora**: `productSet` (prima creazione)              | `inventoryItem: { tracked: true }` su **ogni** variante, sku al primo livello                                                                                                           | ⛔ **no**: G9–G11 non includevano `inventoryItem` — accettazione del campo e valore risultante da leggere (`inventoryItem { tracked }`) in una prova col via                                 |
+| **ora**: completamento (`productVariantsBulkCreate`) | `inventoryItem: { tracked: true, sku? }` su **ogni** variante — ⭐ corretto il 15/09 (sera): prima la chiave partiva solo con lo SKU, e una variante senza codice nasceva non tracciata | ✅ gate del 03/09 (`shopify-catalogo.contract-spec`, 349–360): con `tracked: true` la variante rilegge `tracked = true`; prova unitaria sul payload senza SKU (rossa prima della correzione) |
 
-⚠️ **Differenza segnalata, non corretta**: fra i due percorsi nuovi una variante **senza SKU**
-(`ProductVariant.sku` è nullo per gli importati) nasce tracciata se creata con
-`productSet` e non tracciata se creata dal completamento; il percorso REST precedente la
-tracciava sempre. Sono la stessa semantica (`inventory_management: 'shopify'` ↔
-`inventoryItem.tracked: true`), quindi `productSet` è allineato al prima; il completamento
-no, nel solo caso senza SKU. Da decidere se `tracked` va mandato anche senza SKU nel
-completamento (una riga in `buildVariantCreateInputs`); nessuna nuova prova sul negozio senza
-il via.
-⚠️ La ricerca per tag non è mai usata dall'applicazione come prova di assenza (l'indice è in
-ritardo, misurato in G12): riconoscimento solo per identità e id noti.
+⭐ **Differenza trovata e corretta lo stesso giorno**: una variante **senza SKU**
+(`ProductVariant.sku` è nullo per gli importati) nasceva tracciata da `productSet` e non
+tracciata dal completamento, mentre il percorso REST precedente la tracciava sempre
+(`inventory_management: 'shopify'` ↔ `inventoryItem.tracked: true`). Ora i due percorsi
+mandano `tracked: true` su ogni variante, con lo SKU solo se c'è (`buildVariantCreateInputs`).
+Resta da verificare sul negozio, col via, che `productSet` accetti `inventoryItem.tracked` e
+la variante rilegga `tracked = true` (non era in G9–G11).
 
 **Residui dichiarati.**
 

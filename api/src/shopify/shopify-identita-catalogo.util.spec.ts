@@ -145,11 +145,22 @@ describe("shopify-identita-catalogo.util — l'identità nel payload e nell'abbi
     ]);
     expect(righe[0]!.optionValues).toEqual([{ optionName: 'Taglia', name: 'M' }]);
     expect(righe[0]!.price).toBe('29.90');
-    expect(righe[0]!.inventoryItem).toEqual({ sku: 'SKU-M', tracked: true });
+    expect(righe[0]!.inventoryItem).toEqual({ tracked: true, sku: 'SKU-M' });
     // ⭐ Una variante senza SKU è una riga come le altre: l'identità non dipende dal codice.
     expect(righe[1]!.metafields![0]!.value).toBe('var-L');
-    expect(righe[1]!.inventoryItem).toBeUndefined();
     expect(righe[1]!.barcode).toBe('8001234567890');
+  });
+
+  it("il completamento traccia la giacenza ANCHE senza SKU, come la prima creazione: inventoryItem.tracked sempre true, lo SKU solo se c'è", () => {
+    const righe = buildVariantCreateInputs(varianti, OPZIONI, null);
+    const creazione = buildProductSetCreateInput(prodotto, OPZIONI, varianti, null);
+
+    // ⛔ Qui la prova fissava `inventoryItem` ASSENTE senza SKU: cioè il difetto. Una
+    //    variante senza codice deve nascere tracciata da entrambi i percorsi.
+    expect(righe[1]!.inventoryItem).toEqual({ tracked: true });
+    expect('sku' in righe[1]!.inventoryItem!).toBe(false);
+    expect(righe.map((r) => r.inventoryItem?.tracked)).toEqual([true, true]);
+    expect(creazione.variants.map((v) => v.inventoryItem?.tracked)).toEqual([true, true]);
   });
 
   it("l'abbinamento è PER IDENTITÀ: lo SKU uguale non basta, l'identità uguale basta anche senza SKU", () => {
