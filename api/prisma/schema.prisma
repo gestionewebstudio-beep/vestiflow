@@ -4688,7 +4688,8 @@ model ShopifyWebhookReceipt {
   /// ritrova `in_lavorazione` con una versione superata la riprende.
   lavorataDaVersione Int?                       @map("lavorata_da_versione")
 
-  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// RESTRICT come le tabelle di dati: le ricevute stanno nel backup e passano dalla purga.
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
   shop   ShopifyShop? @relation(fields: [shopId], references: [id], onDelete: SetNull)
 
   @@unique([shopDomain, webhookId])
