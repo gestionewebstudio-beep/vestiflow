@@ -431,6 +431,19 @@ export class ShopifyController {
    *    connessione e sincronizzazione attuali. Del titolare, come gli altri comandi di
    *    sincronizzazione; non azzera gli errori della connessione.
    */
+  /**
+   * ⭐ La pulizia delle ricevute webhook CONCLUSE da più di 30 giorni (docs/30 §7.1.2, D7):
+   *    comando esplicito del titolare; pendenti, fallite e sospese restano.
+   */
+  @Post('webhook-ricevute/pulizia')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  puliziaRicevute(
+    @CurrentTenant() tenantId: string,
+  ): Promise<{ readonly eliminate: number; readonly conservate: number }> {
+    return this.codaWebhook.puliziaConcluse(tenantId);
+  }
+
   @Post('webhook-ricevute/:id/riprova')
   @UseGuards(RolesGuard)
   @Roles(UserRole.owner)

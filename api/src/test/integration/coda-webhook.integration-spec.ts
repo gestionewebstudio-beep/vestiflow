@@ -46,6 +46,8 @@ import { NegozioSimulato } from './shopify-simulato.util';
  *   A9   ripristino da backup: le ricevute da applicare tornano SOSPESE, e non ripartono da sole
  *   A10  isolamento tenant/negozio: associazione cambiata → scartata, nessun effetto;
  *        l'altro tenant non ne è toccato
+ *   A11  pulizia delle concluse oltre 30 giorni (D7): pendenti, fallite e sospese restano;
+ *        deduplicazione, ordine per risorsa e backup intatti
  *   +    sincronizzazione spenta → scartata, senza «Riprova»; ritentativi solo per natura
  * ```
  *
@@ -1050,6 +1052,82 @@ describe('Coda webhook Shopify — ricevute durevoli, corsia per negozio, ordine
       expect(sync.handleWebhook).toHaveBeenCalledWith(IDS.tenantB, 'orders/create', { id: 6001 }, expect.anything());
       expect((await ricevuta(perB.ricevutaId)).esito).toBe(ShopifyWebhookReceiptEsito.elaborata);
     });
+
+    it('A11 · la pulizia toglie SOLO le concluse da oltre 30 giorni; pendenti, fallite e sospese restano; dedup, ordine e backup non ne risentono', async () => {
+      const chiamate: string[] = [];
+      const { coda } = creaCoda(async (_t, topic, payload) => {
+        const id = String((payload as Record<string, unknown>)['id']);
+        chiamate.push(`${topic}:${id}`);
+        if (id === '5001') {
+          throw new NotFoundException('non trovato');
+        }
+      });
+      const vecchia = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+      const recente = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+      // Una fallita VECCHIA che blocca la sua risorsa, e un correlato in coda.
+      const fallita = await coda.accogli(consegna('orders/create', { id: 5001 }, 'id-fallita'));
+      const correlata = await coda.accogli(consegna('orders/updated', { id: 5001 }, 'id-correlata'));
+      // Due elaborate: una vecchia, una recente. Una scartata vecchia. Una sospesa vecchia.
+      const elaborataVecchia = await coda.accogli(consegna('products/update', { id: 42 }, 'id-vecchia'));
+      const elaborataRecente = await coda.accogli(consegna('products/update', { id: 43 }, 'id-recente'));
+      await coda.lavoraCorsia(IDS.tenantA);
+      await prisma.shopifyConnection.update({ where: { tenantId: IDS.tenantA }, data: { autoSyncEnabled: false } });
+      const scartata = await coda.accogli(consegna('customers/update', { id: 7 }, 'id-scartata'));
+      await coda.lavoraCorsia(IDS.tenantA);
+      await prisma.shopifyConnection.update({ where: { tenantId: IDS.tenantA }, data: { autoSyncEnabled: true } });
+      const sospesa = await coda.accogli(consegna('orders/create', { id: 5009 }, 'id-sospesa'));
+      await prisma.shopifyWebhookReceipt.update({
+        where: { id: sospesa.ricevutaId },
+        data: { esito: ShopifyWebhookReceiptEsito.sospesa_dopo_ripristino, processedAt: vecchia },
+      });
+      for (const [id, data] of [
+        [fallita.ricevutaId, vecchia],
+        [elaborataVecchia.ricevutaId, vecchia],
+        [elaborataRecente.ricevutaId, recente],
+        [scartata.ricevutaId, vecchia],
+      ] as const) {
+        await prisma.shopifyWebhookReceipt.update({ where: { id }, data: { processedAt: data, receivedAt: data } });
+      }
+      await prisma.shopifyWebhookReceipt.update({ where: { id: correlata.ricevutaId }, data: { receivedAt: vecchia } });
+      expect(await prisma.shopifyWebhookReceipt.count({ where: { tenantId: IDS.tenantA } })).toBe(6);
+
+      // La pulizia: un valore sotto i 30 giorni non abbassa la soglia.
+      const esito = await coda.puliziaConcluse(IDS.tenantA, 1);
+      expect(esito).toEqual({ eliminate: 2, conservate: 4 });
+      const restanti = await prisma.shopifyWebhookReceipt.findMany({ where: { tenantId: IDS.tenantA }, orderBy: { receivedAt: 'asc' } });
+      expect(restanti.map((r) => r.webhookId).sort()).toEqual(['id-correlata', 'id-fallita', 'id-recente', 'id-sospesa']);
+
+      // Ordine per risorsa intatto: la fallita blocca ancora il suo correlato — anche con lo
+      // STESSO received_at, perché l'ordine è quello di ARRIVO assegnato dal database
+      // (⛔ con l'uuid come spareggio qui l'esito era casuale: riprodotto il 15/09).
+      const [f, c] = await Promise.all([ricevuta(fallita.ricevutaId), ricevuta(correlata.ricevutaId)]);
+      expect(f.receivedAt.getTime()).toBe(c.receivedAt.getTime());
+      expect(f.arrivo < c.arrivo).toBe(true);
+      chiamate.length = 0;
+      await coda.lavoraCorsia(IDS.tenantA);
+      expect(chiamate).toEqual([]);
+      expect((await ricevuta(correlata.ricevutaId)).esito).toBe(ShopifyWebhookReceiptEsito.in_coda);
+
+      // Deduplicazione: le conservate sono ancora doppioni; una consegna con l'id di una
+      // ricevuta TOLTA torna nuova — e si rielabora, in modo ripetibile (A5), non due volte.
+      expect((await coda.accogli(consegna('products/update', { id: 43 }, 'id-recente'))).doppione).toBe(true);
+      const riaccolta = await coda.accogli(consegna('products/update', { id: 42 }, 'id-vecchia'));
+      expect(riaccolta.doppione).toBe(false);
+      await coda.lavoraCorsia(IDS.tenantA);
+      expect(chiamate).toEqual(['products/update:42']);
+
+      // Il backup dopo la pulizia esporta e ripristina ciò che resta; le da applicare tornano sospese.
+      const zip = await readStreamToBuffer((await exporter.createExportStream(IDS.tenantA)).stream);
+      await importer.importFromZipBuffer(IDS.tenantA, IDS.utenteA1, zip);
+      const dopo = await prisma.shopifyWebhookReceipt.findMany({ where: { tenantId: IDS.tenantA } });
+      expect(dopo.map((r) => [r.webhookId, r.esito]).sort()).toEqual([
+        ['id-correlata', 'sospesa_dopo_ripristino'],
+        ['id-fallita', 'sospesa_dopo_ripristino'],
+        ['id-recente', 'elaborata'],
+        ['id-sospesa', 'sospesa_dopo_ripristino'],
+        ['id-vecchia', 'elaborata'],
+      ]);
+    }, 120_000);
 
     it('un topic non trattato è accolto e scartato subito, senza toccare la data dell ultimo evento', async () => {
       const { coda, sync } = creaCoda(async () => undefined);

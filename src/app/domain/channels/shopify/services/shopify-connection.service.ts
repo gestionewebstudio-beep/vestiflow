@@ -243,6 +243,22 @@ export class ShopifyConnectionService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * La pulizia delle notifiche webhook CONCLUSE da più di 30 giorni (docs/30 §7.1.2 D7):
+   * comando esplicito; pendenti, fallite e sospese restano.
+   */
+  puliziaNotificheWebhook(): Observable<{
+    readonly eliminate: number;
+    readonly conservate: number;
+  }> {
+    return this.http
+      .post<{ readonly eliminate: number; readonly conservate: number }>(
+        `${this.config.apiBaseUrl}/shopify/webhook-ricevute/pulizia`,
+        {},
+      )
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   clearErrors(): Observable<ShopifyClearErrorsDto> {
     return this.http
       .post<ShopifyClearErrorsDto>(`${this.config.apiBaseUrl}/shopify/connection/clear-errors`, {})

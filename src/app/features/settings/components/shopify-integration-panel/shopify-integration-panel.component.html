@@ -401,6 +401,17 @@
               >
                 Verifica ora
               </app-button>
+              <!-- La pulizia delle notifiche concluse (docs/30 §7.1.2 D7): esplicita, del titolare. -->
+              <app-button
+                variant="ghost"
+                [loading]="puliziaNotificheLoading()"
+                [disabled]="
+                  puliziaNotificheLoading() || checkWebhooksLoading() || disconnectLoading()
+                "
+                (click)="puliziaNotifiche()"
+              >
+                Togli le notifiche concluse da oltre 30 giorni
+              </app-button>
             </span>
           </h3>
           <app-detail-facts [facts]="fattiNotifiche()" />

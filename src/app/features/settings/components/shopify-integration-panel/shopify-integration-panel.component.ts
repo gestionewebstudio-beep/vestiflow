@@ -1120,6 +1120,7 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
   protected readonly checkWebhooksLoading = signal(false);
+  protected readonly puliziaNotificheLoading = signal(false);
   protected readonly registerMissingLoading = signal(false);
   protected readonly syncProductsLoading = signal(false);
   protected readonly syncCustomersLoading = signal(false);
@@ -2169,6 +2170,38 @@ export class ShopifyIntegrationPanelComponent {
    * cancella niente sul negozio — a garantirlo e' il servizio lato server, che non ha fra
    * le dipendenze niente capace di farlo.
    */
+  /**
+   * La pulizia delle notifiche CONCLUSE da più di 30 giorni (docs/30 §7.1.2 D7): un comando
+   * esplicito, non un job; pendenti, fallite e sospese restano — e il riscontro lo dice.
+   */
+  protected puliziaNotifiche(): void {
+    if (this.puliziaNotificheLoading()) {
+      return;
+    }
+    this.puliziaNotificheLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+    this.shopifyConnectionService
+      .puliziaNotificheWebhook()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (esito) => {
+          this.puliziaNotificheLoading.set(false);
+          this.showActionFeedback({
+            tone: 'success',
+            message:
+              esito.eliminate === 0
+                ? `Nessuna notifica conclusa da più di 30 giorni da togliere (${esito.conservate} conservate).`
+                : `${esito.eliminate} notifiche concluse da più di 30 giorni tolte; ${esito.conservate} conservate (in attesa, fallite e sospese non si toccano).`,
+          });
+        },
+        error: (err: unknown) => {
+          this.puliziaNotificheLoading.set(false);
+          this.connectError.set(extractErrorMessage(err));
+        },
+      });
+  }
+
   protected checkWebhooks(): void {
     if (this.checkWebhooksLoading()) {
       return;

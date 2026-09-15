@@ -56,6 +56,21 @@ const ESITI_CHE_BLOCCANO: readonly ShopifyWebhookReceiptEsito[] = [
   ShopifyWebhookReceiptEsito.fallita,
 ];
 
+/**
+ * ⭐ Gli esiti CONCLUSI, i soli che la pulizia può toccare (D7): la ricevuta ha finito il
+ *    proprio corso e non blocca nessuno. Pendenti (`in_coda`, `in_lavorazione`), fallite e
+ *    sospese NON si cancellano per anzianità: sono ancora recuperabili.
+ */
+const ESITI_CONCLUSI: readonly ShopifyWebhookReceiptEsito[] = [
+  ShopifyWebhookReceiptEsito.elaborata,
+  ShopifyWebhookReceiptEsito.scartata_topic,
+  ShopifyWebhookReceiptEsito.scartata_sync_spenta,
+  ShopifyWebhookReceiptEsito.scartata_associazione_cambiata,
+];
+
+/** Oltre quanti giorni dalla conclusione una ricevuta conclusa si può togliere (D7). */
+export const GIORNI_CONSERVAZIONE_RICEVUTE_CONCLUSE = 30;
+
 /** Gli esiti da cui «Riprova» può ripartire. */
 const ESITI_RIPROVABILI: readonly ShopifyWebhookReceiptEsito[] = [
   ShopifyWebhookReceiptEsito.fallita,
@@ -590,6 +605,40 @@ export class ShopifyWebhookCodaService implements OnApplicationBootstrap, OnModu
         triggeredAt: true,
       },
     });
+  }
+
+  /**
+   * ⭐ La PULIZIA delle ricevute concluse (D7): un comando esplicito del titolare, mai un
+   *    job. Toglie le sole ricevute CONCLUSE — elaborate o scartate — chiuse da più di 30
+   *    giorni; pendenti, fallite e sospese restano, qualunque età abbiano.
+   *
+   * Che cosa NON compromette, e perché:
+   * - **deduplicazione**: la chiave `(shop_domain, webhook_id)` vale finché la riga c'è,
+   *   cioè almeno 30 giorni dopo la conclusione — ben oltre la finestra in cui Shopify
+   *   riconsegna la stessa notifica. Una riconsegna DOPO la pulizia verrebbe accolta come
+   *   nuova ed elaborata di nuovo: gli effetti sono ripetibili (A5), quindi non produce
+   *   doppioni, ma è per questo che i 30 giorni sono un minimo, non un consiglio;
+   * - **ordine per risorsa**: bloccano solo le ricevute aperte e le fallite, che qui non si
+   *   toccano; una conclusa non trattiene nessuno, prima e dopo;
+   * - **backup**: le ricevute non applicate restano e continuano a entrare nell'archivio;
+   *   ciò che si toglie è storia già applicata o scartata;
+   * - **dati personali**: il `payload` (clienti, ordini) se ne va con la riga; nei log non
+   *   è mai entrato.
+   */
+  async puliziaConcluse(
+    tenantId: string,
+    oltreGiorni: number = GIORNI_CONSERVAZIONE_RICEVUTE_CONCLUSE,
+  ): Promise<{ readonly eliminate: number; readonly conservate: number }> {
+    const giorni = Math.max(GIORNI_CONSERVAZIONE_RICEVUTE_CONCLUSE, Math.trunc(oltreGiorni));
+    const soglia = new Date(Date.now() - giorni * 24 * 60 * 60 * 1000);
+    const { count: eliminate } = await this.prisma.shopifyWebhookReceipt.deleteMany({
+      where: { tenantId, esito: { in: [...ESITI_CONCLUSI] }, processedAt: { lt: soglia } },
+    });
+    const conservate = await this.prisma.shopifyWebhookReceipt.count({ where: { tenantId } });
+    this.logger.log(
+      `Pulizia ricevute webhook (${tenantId}): ${eliminate} concluse da oltre ${giorni} giorni eliminate, ${conservate} conservate`,
+    );
+    return { eliminate, conservate };
   }
 
   /**
