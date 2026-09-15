@@ -1,5 +1,45 @@
 # Cosa resta da fare — VestiFlow
 
+## 🔁 SINCRONIZZAZIONE SHOPIFY — stato al 15/09/2026 (notte), in TRE elenchi
+
+> Dal 15/09 (proprietario): i difetti concreti della sincronizzazione nel perimetro
+> autorizzato si **correggono** sul ramo unico (riproduzione, causa, intervento minimo,
+> prova) senza chiedere conferma; si chiede prima per ciò che cambia **regole funzionali,
+> cancellazione/conservazione dei dati, architettura o ambienti**. Questo elenco tiene i
+> tre gruppi separati. Il dettaglio sta in `docs/30` (§ citati).
+
+### Difetti da correggere (nel perimetro, senza decisione)
+
+| Difetto                                                         | Stato                                                  |
+| --------------------------------------------------------------- | ------------------------------------------------------ |
+| Creazione REST senza idempotenza (doppioni dopo risposta persa) | ✅ corretto — identità, claim, `productSet` (§7.2-ter) |
+| Webhook: nessuna deduplica, `200` dopo l'elaborazione           | ✅ corretto — coda con ricevute durevoli (§7.1.2)      |
+| Coda: ordine per uuid fra consegne nello stesso millisecondo    | ✅ corretto — `arrivo` assegnato dal database          |
+| Coda: letture remote dal lavoratore superato                    | ✅ corretto — guardia prima delle letture              |
+| Claim di creazione rimasto aperto dopo un'adozione da webhook   | ✅ corretto — l'adozione chiude il claim (§7.3.1 C1)   |
+| `tracked` assente nel completamento senza SKU                   | ✅ corretto (§7.2-ter.3)                               |
+| Prova `collegamento-escluso` che lasciava uno stato sync orfano | ✅ contenuto (la correzione vera è la FK, sotto)       |
+| —                                                               | _nessun difetto aperto senza decisione al 15/09 notte_ |
+
+### Decisioni mancanti (si chiede prima)
+
+| #             | Decisione                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Dove                 |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| **D8**        | webhook di un prodotto `syncing`: oggi **scartato in silenzio** e perso (riprodotto, S1). (a) scartato ma dichiarato; (b) **differito** con le attese di D1, poi `fallita` visibile — proposta (b): è una regola funzionale                                                                                                                                                                                                                                                                                                   | `docs/30` §7.3.1     |
+| **D9**        | ripresa automatica di un prodotto rimasto `syncing` da un push morto: (a) nessuna, lo sblocca il prossimo push (S2); (b) claim di push per gli aggiornamenti (lease + versione) — meccanismo nuovo. Proposta (a) ora, con D8(b)                                                                                                                                                                                                                                                                                               | `docs/30` §7.3.1     |
+| **FK**        | `shopify_inventory_sync_states` senza chiavi esterne. Regole proposte coerenti con `inventory_levels` (stessa terna tenant/variante/sede): **tenant RESTRICT, variante CASCADE, sede RESTRICT**. ⚠️ Sul condiviso, in sola lettura il 15/09: **324 righe, 62 senza sede** (sedi cancellate), 0 senza variante/tenant, 0 di altro tenant. La FK sulla sede **non si applica** finché quelle 62 righe esistono: cancellarle è una scelta sui dati (sono stati di coppie con una sede che non c'è più: nessun effetto operativo) | §21-ter sotto        |
+| **Scala**     | limite di varianti di `productSet` sincrono e `inventoryItem.tracked` dentro `productSet`: prova di contratto sul negozio, col via                                                                                                                                                                                                                                                                                                                                                                                            | `docs/30` §7.2-ter.3 |
+| **Migration** | le tre migration del ramo (claim, coda, arrivo/FK) sono sul solo database di prova: al condiviso con la procedura e il via, non necessariamente prima del merge in develop                                                                                                                                                                                                                                                                                                                                                    | —                    |
+
+### Miglioramenti rimandabili (non bloccano niente)
+
+| Miglioramento                                                                                         | Perché rimandabile                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prossimaPronta` rilegge tutte le ricevute aperte/fallite del tenant a ogni passo (O(n) per ricevuta) | corretto per costruzione; pesa solo con arretrati di migliaia di ricevute per tenant, che oggi non esistono. Una selezione in SQL con finestra per risorsa è la forma successiva |
+| «Riprova» su più ricevute insieme (oggi una per volta)                                                | comodità; nessun caso reale ancora                                                                                                                                               |
+| Il pulsante «Togli le notifiche concluse da oltre 30 giorni» non è stato guardato a schermo           | build, tipi e prove verdi non dicono come si vede (`regole-qualita`): controllo visivo da fare                                                                                   |
+| `recordSetupWarning` ha un solo slot per connessione: l'ultimo avviso sovrascrive il precedente       | gli eventi non applicati hanno ora l'elenco nella situazione; lo slot resta per gli altri avvisi                                                                                 |
+
 ## ⛔ IL RESIDUO DEL BERSAGLIO CONDIVISO — aperto il 07/09/2026
 
 > **`DATABASE_URL` resta in `api/.env` perché serve all’applicazione. Quindi tre
@@ -11096,6 +11136,47 @@ connessione si rilascia comunque, e i fallimenti si sollevano invece di restare 
 ⚠️ **Il contenimento non è la correzione**: finché la tabella non ha le sue chiavi esterne,
 qualunque prova futura che crei uno stato sync si porterà dietro lo stesso problema, e dovrà
 ricordarsene. È la ragione per cui l'allineamento del database resta aperto.
+
+⭐ **È successo di nuovo il 15/09/2026, due volte**: `collegamento-escluso` lasciava una riga
+che faceva cadere sei ripristini di `invariante-disponibile` nella suite piena (contenuto:
+pulizia nell'`afterAll`), e la nuova prova della coda webhook ha ripetuto lo stesso schema
+il giorno stesso in cui è nata. Ogni file che crea stati sync deve ricordarsene: è il
+costo della deriva, e cresce.
+
+#### ⏸ Le regole `ON DELETE` proposte — 15/09/2026, da decidere (nessun intervento sul condiviso)
+
+La tabella ha la stessa terna di `inventory_levels` (tenant, variante, sede), che nel
+database applica — letto da `pg_constraint` sul database di prova, non dedotto:
+
+```text
+inventory_levels → tenants           RESTRICT
+inventory_levels → product_variants  CASCADE
+inventory_levels → locations         RESTRICT
+```
+
+**Proposta: le stesse tre.** Una variante eliminata definitivamente porta via le proprie
+giacenze, e lo stato sync della coppia con lei (oggi resta orfano — la cancellazione della
+variante rimuove i livelli, non gli stati); una sede non si elimina finché ha giacenze, e
+non deve eliminarsi finché ha stati (`canDeleteLocation` già lo conta: la FK lo rende vero
+anche per chi non passa di lì); il tenant si purga per elenco. ⛔ Niente cascata dal tenant
+o dalla sede per supposizione: dove il modello dice RESTRICT, RESTRICT.
+
+**La misura sul condiviso, in sola lettura (`SET TRANSACTION READ ONLY`, 15/09/2026):**
+
+```text
+righe                        324
+senza tenant                   0
+senza variante                 0
+senza sede                    62     ← sedi cancellate con gli stati ancora lì (è il §1 in testa)
+variante di un altro tenant    0
+sede di un altro tenant        0
+```
+
+⚠️ **La FK sulla sede non si applica finché le 62 righe esistono**: la migration fallirebbe.
+Toglierle è una scelta sui dati — sono stati di coppie la cui sede non c'è più, quindi senza
+effetto operativo — e la scelta è del proprietario, insieme al via per l'applicazione. Sul
+database di prova la tabella è vuota e le tre FK si applicano senza pulizia. La migration si
+scrive a mano (`regole-qualita`), dopo la decisione.
 
 ⚠️ **Nello stesso giro 6 è caduta `S1/500`** con
 `Timed out fetching a new connection from the connection pool (timeout 10, limit 13)`: è il

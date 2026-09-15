@@ -443,12 +443,18 @@ controller 10, delle due util 6, della situazione 1; frontend 8):
 Le due `it.fails` del controller non esistono più: deduplica e `200` prima
 dell'elaborazione sono prove ordinarie (A3, A1).
 
-**Nel piano restano, e non si perdono**: §7.3 (`syncing` dopo processo morto — ora con lo
-schema del claim, non con la sola scadenza); il **residuo del claim** dopo un'adozione da
-webhook (§7.2-ter: chi lo chiude, e quando); le **FK degli stati sync** (`DA-FARE` §21-ter,
-regole di cancellazione da scegliere); il **limite di scala** di `productSet` e
-`inventoryItem.tracked` dentro `productSet` da rileggere sul negozio (§7.2-ter.3, il completamento è corretto). Nessuno dei cinque entra
-nella coda webhook: sono voci con la propria decisione.
+**Nel piano restano, e non si perdono**: §7.3 (`syncing` dopo processo morto — riprodotto
+in §7.3.1, decisioni D8/D9); il residuo del claim dopo un'adozione da webhook — **corretto**
+(§7.3.1 C1); le **FK degli stati sync** (`DA-FARE` §21-ter: regole proposte, orfani
+contati, decisione sulla pulizia); il **limite di scala** di `productSet` e
+`inventoryItem.tracked` dentro `productSet` da rileggere sul negozio (§7.2-ter.3, il
+completamento è corretto). Nessuno entra nella coda webhook: sono voci con la propria decisione.
+
+⚠️ **Le FK delle tabelle della coda seguono il modello** (corretto il 15/09 notte,
+migration `20260915210000`): le ricevute sono dati nel backup → `RESTRICT` dal tenant e
+purga esplicita, come `products` e `inventory_levels`; la corsia è una rivendicazione di
+processo → in cascata, come `tenant_user_audit_logs`. La cascata sulle ricevute era una
+supposizione. Prova: la cancellazione del tenant passa con ricevute e corsia presenti.
 
 ### 7.2 Scritture con esito incerto e timeout (#3, #5 senza `productSet`) — ⛔ NON approvata nella forma proposta (15/09)
 
@@ -1055,6 +1061,26 @@ reset di massa all'avvio. **Si riusa**: `pushInFlight` per l'istanza corrente.
 scartato (come oggi); C3 · push in corso nella stessa istanza + webhook → scartato, e a push
 finito il prodotto non resta `syncing`.
 
+#### 7.3.1 Riprodotto il 15/09 (notte): che cosa succede oggi, e che cosa si può correggere senza decisioni nuove
+
+`syncing-e-claim-dopo-arresto.integration-spec.ts` (database vero, negozio simulato):
+
+| Prova                                                                                                                                                                                                    | Esito misurato                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S1 · RIPRODUZIONE** — prodotto pubblicato, poi un push avviato da un processo che muore subito dopo `markProductSyncing`: il prodotto resta `syncing`; su Shopify cambia il titolo e arriva il webhook | ⛔ il pull lo **scarta** («sync VestiFlow→Shopify in corso»), la ricevuta della coda esce **`elaborata`** senza effetto, il titolo remoto non arriva mai e **nessuno lo dice**; un secondo webhook ore dopo fa lo stesso. Non c'è un tempo dopo il quale cambi                                                                                                                                                             |
+| **S2 · RIPRODUZIONE** — lo stesso prodotto, un push da un altro processo                                                                                                                                 | ✅ lo lavora e lo chiude: il lucchetto `pushInFlight` è solo in memoria, il claim non c'entra (prodotto già collegato)                                                                                                                                                                                                                                                                                                     |
+| **C1 · CORRETTO** — webhook adotta la creazione mentre il push è fermo, poi il push muore                                                                                                                | ⭐ **il claim non resta più aperto**: l'adozione (`adottaIdentitaRecuperata`, fenced sulla versione) chiude `claim_id/shop_id/claimed_at` da qualunque percorso arrivi — è la conclusione della creazione; la versione resta ed è l'unica cosa che il push vivo ricontrolla, quindi il push che riprende conclude senza doppione. Prima restava «del push», e su un prodotto già collegato nessun percorso lo chiudeva più |
+
+**Separazione, come chiesto.** Il claim residuo era correggibile con le regole approvate
+(la creazione si conclude con l'adozione; il push vivo è protetto dalla versione) ed è
+corretto. Il `syncing` dopo un arresto **no**, per due ragioni distinte che chiedono due
+decisioni:
+
+| ⏸ Decisione                                                                                                                                           | Le opzioni                                                                                                                                                                                                                                                                                                                                                                                                 | Proposta                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D8 · il webhook di un prodotto `syncing`** — oggi si scarta (era pensato come eco del push; il proprietario ha già detto che un'eco non è scontata) | (a) resta scartato, ma la ricevuta lo dice (`scartata_push_in_corso`, visibile in Problemi, senza «Riprova»); (b) si **differisce**: la ricevuta resta `in_coda` con le attese di D1 e si applica quando il prodotto non è più `syncing`; se dopo i sei tentativi lo è ancora → `fallita`, visibile, con «Riprova». Nessun orologio dichiara morto il push: dice solo che l'evento non si applica _adesso_ | **(b)**: usa il meccanismo già approvato (D1) e trasforma una perdita muta in un'attesa dichiarata. È però una regola funzionale (da «scarta» a «differisci»), e per questo si chiede |
+| **D9 · la ripresa automatica di un prodotto rimasto `syncing`**                                                                                       | (a) nessuna: lo sblocca il prossimo push (manuale o da modifica), che già lo lavora (S2); (b) un claim di push per gli aggiornamenti (lease + versione, come la creazione), così un `syncing` con claim scaduto torna `out_of_sync` al primo push o alla prima scansione — meccanismo nuovo; (c) la sola scadenza temporale — già respinta                                                                 | **(a)** ora, con D8(b) che toglie il danno principale (i webhook non si perdono più); (b) resta la forma corretta se si vorrà una ripresa senza intervento, e va deciso a parte       |
+
 ### 7.4 Lo stato della connessione non guarisce in lettura (#7) — ✅ FATTO sul ramo `fix/shopify-connessione-lettura-senza-scritture` (15/09/2026, da `develop` `01852516`, non committato)
 
 `getForTenant` è ora una lettura: `findUnique` e DTO, nessun `updateMany`.
@@ -1248,9 +1274,11 @@ negozio). I blocchi §7.2-ter (creazione) e §7.1.2 (coda webhook) sono sul ramo
 `feat/shopify-affidabilita-creazione` (da `bd22d421`, worktree `C:/vf-motore`) in commit
 **locali**: push, PR e CI attendono il via; le due migration (claim, coda) sono applicate al
 solo database di prova — al condiviso con la procedura e il via del proprietario. Restano
-aperti: la ripresa dei `syncing` (§7.3), il residuo del claim dopo un'adozione da webhook,
-il limite di scala di `productSet` e `tracked` dentro `productSet` sul negozio
-(§7.2-ter.3), la deriva della tabella degli stati sync (sotto).
+aperti: le decisioni D8/D9 sui `syncing` dopo un arresto (§7.3.1), il limite di scala di
+`productSet` e `tracked` dentro `productSet` sul negozio (§7.2-ter.3), la deriva della
+tabella degli stati sync (sotto; regole proposte in `DA-FARE` §21-ter, 62 orfani contati sul
+condiviso). Il claim residuo è corretto (§7.3.1 C1). L'elenco in tre categorie — difetti,
+decisioni, miglioramenti — è in `DA-FARE`, sezione «Sincronizzazione Shopify».
 
 **Suite complete sull'albero finale (15/09, sera, dopo la coda webhook)**: `nest build`,
 `tsc` (app e test) e `eslint` puliti; unitarie API 245 file, **2880/2880** (nessun
